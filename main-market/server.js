@@ -5,7 +5,7 @@ const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(REST_SYNC_SECONDS,Number(process.env.REST_SYNC_SECONDS||REST_SYNC_SECONDS)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
-let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,fatalApiLock=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
+let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,lastRestSyncAt=0,restSyncPromise=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,fatalApiLock=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
 const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,apiStatus:"OFFLINE",dataLocked:false,apiMessage:"ยังไม่ได้เริ่มเชื่อมต่อ API",analyzedAt:new Date().toISOString()};
 app.use(express.static(path.join(APP_DIR,"public")));
 app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
@@ -45,14 +45,21 @@ function analyze(){
  publish({...x,tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:lastTick,signalExpiresAt:activeSignal?new Date(activeUntil).toISOString():null,nextCandleAt:(epoch+60)*1000,alertId:lastAlertId,source:tickAt?"Twelve Data live price + REST candles":"Twelve Data REST"});
 }
 async function sync(){
- const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:HISTORY_CANDLES});
- const live=candles.at(-1),keepLive=!!(live?.live&&live.epoch===floorMinute(Date.now()/1000)&&tickAt&&Date.now()-tickAt<25000);candles=keepLive?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
- fatalApiLock=false;
- console.info("[market-feed] REST history loaded",{symbol:SYMBOL,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:closedCandleCount(),requiredClosed:MIN_CANDLES,liveTickPresent:!!tickAt,nextRestSyncSeconds:SYNC});
- // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
- analyze();
+ if(restSyncPromise)return restSyncPromise;
+ // A reconnect must not trigger another REST credit every few seconds.
+ if(lastRestSyncAt&&Date.now()-lastRestSyncAt<SYNC*1000)return;
+ lastRestSyncAt=Date.now();
+ restSyncPromise=(async()=>{
+  const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:HISTORY_CANDLES});
+  const live=candles.at(-1),keepLive=!!(live?.live&&live.epoch===floorMinute(Date.now()/1000)&&tickAt&&Date.now()-tickAt<25000);candles=keepLive?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
+  fatalApiLock=false;
+  console.info("[market-feed] REST history loaded",{symbol:SYMBOL,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:closedCandleCount(),requiredClosed:MIN_CANDLES,liveTickPresent:!!tickAt,nextRestSyncSeconds:SYNC});
+  // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
+  analyze();
+ })();
+ try{return await restSyncPromise}finally{restSyncPromise=null}
 }
-function startRest(){clearInterval(restTimer);restTimer=setInterval(()=>sync().catch(e=>lockData("Twelve Data REST: "+e.message,{fatal:isFatalApiError(e.message)})),SYNC*1000)}
+function startRest(){if(restTimer)return;restTimer=setInterval(()=>sync().catch(e=>lockData("Twelve Data REST: "+e.message,{fatal:isFatalApiError(e.message)})),SYNC*1000)}
 function startStream(){
  if(upstream||!monitoring)return;
  if(!process.env.TWELVE_DATA_API_KEY){lockData("ยังไม่ได้ตั้ง Twelve Data API Key ฝั่งเซิร์ฟเวอร์",{fatal:true});return}
@@ -68,7 +75,7 @@ function startStream(){
  ws.on("close",()=>{console.warn("[market-feed] WebSocket CLOSED");if(upstream!==ws&&upstream!==null)return;if(upstream===ws)upstream=null;streamReady=false;clearInterval(heartbeat);tickAt=0;if(!monitoring)return;if(!dataLocked)lockData("Streaming หลุดหรืออินเทอร์เน็ตขาด — ระบบหยุดออกสัญญาณและกำลังลองเชื่อมใหม่");retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
- monitoring=false;streamReady=false;dataLocked=false;lastDataError=null;lastAlertId=null;signalCandle=null;clearInterval(restTimer);clearInterval(heartbeat);clearInterval(watchdog);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
+ monitoring=false;streamReady=false;dataLocked=false;lastDataError=null;lastAlertId=null;signalCandle=null;clearInterval(restTimer);restTimer=null;lastRestSyncAt=0;clearInterval(heartbeat);clearInterval(watchdog);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
  publish({signal:"STANDBY",regime:"UNKNOWN",reason:"หยุดเฝ้าระวังแล้ว",evidence:[],metrics:null,monitoring:false,connected:false});
 }
 wss.on("connection",ws=>{
