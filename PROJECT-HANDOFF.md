@@ -257,3 +257,11 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Strategy tradeoff: warmup is reduced from 60 to 30 minutes of 1-minute bars. The shorter indicator set is more responsive and may be noisier than EMA50/MACD9/ATR50. It remains an analysis aid, not a proven predictive model; manual-only/no-auto-orders and fail-closed freshness checks remain.
 - Validation status at time of handoff update: GitHub source commits succeeded. Render auto-deploy build, automated test result, final LIVE deployment, and real Telegram/Xiaomi audio timing still require verification. The assistant cannot certify physical-device speaker output remotely.
 - Next: verify the latest source deploy includes all six source commits, check Render build logs for 5 passing tests and syntax checks, verify final deploy status LIVE, then ask user to close/reopen the Mini App and test one real 10-second candle boundary while API LIVE. Confirm the 10-second watch chime in STANDBY and the 3-second entry alert only when CALL/PUT is present.
+
+
+### Validation update — 2026-11-02
+
+- Render build for branch main-market at commit 2247e8cf469005c5c4626f6a964a198e0bbe0603 completed successfully.
+- Render build logs confirm the updated 30-candle boundary test passed (29 candles => STANDBY; 30 candles => metrics available), all 5 tests passed / 0 failed, and the postinstall Node syntax-check chain completed successfully.
+- Render deploy dep-dbjsoe3il8vc73amjn70 reached status LIVE; Render deploy event records deployStatus=succeeded. The new app process started and logged MAIN MARKET Radar listening on port 10000.
+- This verifies build, automated tests, and Render deployment only. It does not prove audible output on the user's Xiaomi/Telegram WebView. The user must reopen the Mini App and confirm the next 10-second boundary sound while API LIVE; this is the remaining acceptance test.
