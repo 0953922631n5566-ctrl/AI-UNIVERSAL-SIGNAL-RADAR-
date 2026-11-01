@@ -7,7 +7,9 @@ function macd(v){let line=ema(v,12)-ema(v,26),s=[];for(let i=26;i<=v.length;i++)
 function trs(c){return c.slice(1).map((x,i)=>Math.max(x.high-x.low,Math.abs(x.high-c[i].close),Math.abs(x.low-c[i].close)))}
 function avgRange(c,n){return mean(trs(c).slice(-n))}
 export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds=null}={}){
- if(!Array.isArray(c)||c.length<MIN_CANDLES)return standby(`ประวัติแท่งเทียนไม่ครบ ${MIN_CANDLES} แท่ง`);
+ const minuteStart=Math.floor(now/60000)*60;
+ const closedCount=Array.isArray(c)?c.filter(x=>!x.live&&Number.isFinite(x.epoch)&&x.epoch<minuteStart).length:0;
+ if(!Array.isArray(c)||closedCount<MIN_CANDLES)return standby(`ประวัติแท่งเทียนที่ปิดแล้วไม่ครบ ${MIN_CANDLES} แท่ง (${closedCount}/${MIN_CANDLES})`,{closedCandleCount:closedCount,requiredCandles:MIN_CANDLES});
  const last=c.at(-1),age=Number.isFinite(last.epoch)?Math.max(0,now/1000-last.epoch):Infinity;
  if(age>maxAgeSeconds)return standby("ข้อมูลแท่งเทียนล่าช้า",{ageSeconds:Math.round(age)});
  if(tickAgeSeconds===null)return standby("ยังไม่มีราคา Streaming สำหรับยืนยันจังหวะสด");
@@ -31,6 +33,6 @@ export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds
  else if(regime==="HIGH_VOLATILITY")reason="ความผันผวนสูงผิดปกติ: งดไล่ราคา";
  else if(regime==="REVERSAL")reason="พบสัญญาณอาจกลับตัว แต่ต้องรอการยืนยันเพิ่ม";
  else if(nearR||nearS)reason="ราคาอยู่ใกล้แนวรับ/แนวต้าน: ความเสี่ยงไล่ราคาสูง";
- return{signal,regime,reason,evidence,metrics:{ema9:e9,ema21:e21,ema26:e26,rsi14:r,macdLine:m.line,macdSignal:m.signal,macdHistogram:m.histogram,atr14:a14,volatilityRatio:vol,support:sup,resistance:res},lastPrice:last.close,lastCandleTime:last.time,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age),candleCount:c.length,analyzedAt:new Date(now).toISOString()};
+ return{signal,regime,reason,evidence,metrics:{ema9:e9,ema21:e21,ema26:e26,rsi14:r,macdLine:m.line,macdSignal:m.signal,macdHistogram:m.histogram,atr14:a14,volatilityRatio:vol,support:sup,resistance:res},lastPrice:last.close,lastCandleTime:last.time,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age),candleCount:c.length,closedCandleCount:closedCount,requiredCandles:MIN_CANDLES,analyzedAt:new Date(now).toISOString()};
 }
 function standby(reason,extra={}){return{signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra}}
