@@ -13,7 +13,7 @@ function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monit
 const floorMinute=t=>Math.floor(t/60)*60;
 function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
- if(!cur||cur.epoch<start){cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-180)}
+ if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-180)}
  else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
  tickAt=Date.now();lastTick=price;analyze();
 }
