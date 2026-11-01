@@ -5,7 +5,7 @@ const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(110,Number(process.env.REST_SYNC_SECONDS||120)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
-let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
+let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,fatalApiLock=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
 const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,apiStatus:"OFFLINE",dataLocked:false,apiMessage:"ยังไม่ได้เริ่มเชื่อมต่อ API",analyzedAt:new Date().toISOString()};
 app.use(express.static(path.join(APP_DIR,"public")));
 app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
@@ -17,7 +17,7 @@ function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
  if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-180)}
  else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
- tickAt=Date.now();lastTick=price;streamReady=true;dataLocked=false;lastDataError=null;analyze();
+ tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
 function analyze(){
  if(candles.length<60)return;
