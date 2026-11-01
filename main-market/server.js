@@ -1,6 +1,6 @@
 import "dotenv/config";
 import express from "express";import http from "node:http";import path from "node:path";import{fileURLToPath}from"node:url";import WebSocket,{WebSocketServer}from"ws";
-import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";
+import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";import{MIN_CANDLES}from"./src/config.js";
 const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
@@ -27,7 +27,7 @@ function applyTick(price,epoch){
  tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
 function analyze(){
- if(candles.length<60){publish({signal:"STANDBY",regime:"UNKNOWN",reason:"รับราคา API สดแล้ว — กำลังตรวจสอบประวัติแท่งเทียน "+candles.length+"/60",evidence:[],metrics:null,tickAgeSeconds:Math.round((Date.now()-tickAt)/1000),lastTickPrice:lastTick,source:"Twelve Data live price + REST candles"});return;}
+ if(candles.length<MIN_CANDLES){const latest=candles.at(-1);publish({signal:"STANDBY",regime:"UNKNOWN",reason:"รับราคา API สดแล้ว — กำลังตรวจสอบประวัติแท่งเทียน "+candles.length+"/"+MIN_CANDLES,evidence:[],metrics:null,tickAgeSeconds:Math.round((Date.now()-tickAt)/1000),lastTickPrice:lastTick,nextCandleAt:latest?(latest.epoch+60)*1000:null,source:"Twelve Data live price + REST candles"});return;}
  const age=tickAt?(Date.now()-tickAt)/1000:null;let x=analyzeMarket(candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:age}),cid=candles.at(-1).epoch;
  if(!x.metrics){activeSignal=null;activeUntil=0;}
  if(x.metrics&&(x.signal==="CALL"||x.signal==="PUT")){
