@@ -181,3 +181,18 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Render deploy `dep-dbjnefnb9u1s73btrqbg` reached deployStatus=succeeded. Build completed successfully and Render logs show all 5 existing tests passed (0 failed). Existing test suite does not yet contain browser countdown/audio unit tests.
 - Previous audio-context unlock fix remains in place. User-side Telegram/Xiaomi audio and vibration confirmation is still pending; do not claim device playback is verified until user tests it.
 - No market analysis rules, 60-candle warmup, Twelve Data settings, signal hold, Android/OCR branch, or manual-only trading policy changed.
+
+
+## 2026-11-02 — Fix missed 10s / 3s preparation sounds
+
+- User reported that the final 10-second pre-close monitoring sound was not playing.
+- Re-read this handoff and inspected the active main-market/public/app.js, main-market/public/index.html, and main-market/server.js before changing code.
+- Root cause confirmed in the frontend countdown logic: when the same candle countdown was already running, every incoming market-state update returned early. If the signal changed from STANDBY to CALL/PUT after the 10-second or 3-second boundary had passed, the alert was never replayed. The old code only checked threshold crossings on timer ticks, and the signal gate suppressed the warning while STANDBY.
+- Fixed in commit 478d2bb992451067d7decf60531ada0df27d62fe (fix: catch up missed pre-close sound alerts):
+  - Detect transition from STANDBY/non-directional to CALL/PUT while the same candle countdown is active.
+  - If the remaining time is already within 10 seconds, play the preparation sound immediately.
+  - If the remaining time is already within 3 seconds, play both the preparation and entry-preparation sounds, plus vibration, subject to per-candle/per-signal deduplication.
+  - STANDBY remains silent; existing countdown, candle timing, signal sound, vibration controls and server-side strategy are otherwise unchanged.
+  - Recreate AudioContext if the browser/Telegram WebView has closed it.
+- GitHub update completed on branch main-market. Render auto-deploy is enabled; wait for the deploy triggered by this source commit and verify build/test/deploy status before reporting completion.
+- Still required: verify audible playback on the user's physical Android/Telegram device. Render/build success cannot prove the phone's speaker, Telegram WebView audio policy, media volume or DND behavior.
