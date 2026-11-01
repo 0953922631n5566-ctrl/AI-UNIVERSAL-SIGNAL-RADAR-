@@ -130,3 +130,14 @@ For every meaningful project change:
 - NOT YET VERIFIED: Android CI rebuild after this patch, installation, or successful capture on Xiaomi 11T. The previous APK must not be reused as a fix.
 - Next: inspect the new GitHub Actions run; resolve any compile failure; distribute a new APK only after the CI artifact is present. Ask for the exact on-screen error or Android bug report only if the patched build still closes.
 - Capture-to-backend upload and real vision analysis remain unimplemented; this patch only addresses startup robustness and diagnosis. Manual trading only; no automatic broker orders.
+
+
+### Crash-fix APK CI result — 2026-11-01
+
+- Follow-up CI run `41307402212` on commit `b26c73001bd9964b6fdc900160d399b819baa2bb` completed successfully. All steps passed: Gradle build, APK existence verification, SHA-256 generation, and artifact upload.
+- An earlier run `41307398431` failed because it started from the intermediate MainActivity-only commit before the matching CaptureService constants landed. The subsequent run on the complete branch head passed; no source rollback was needed.
+- Artifact ID: `13083772367`; name `ai-universal-signal-radar-debug-apk`; GitHub artifact ZIP digest `ca66bd2d10d5028d842463253b47b7b91d0ed4163fa26af64ee0a6ce5f2e9d93`; expires 2026-11-15.
+- Downloaded and inspected the ZIP. It contains `app-debug.apk` (822,161 bytes) and `SHA256SUMS.txt`. APK SHA-256 verified locally: `c5a2a9a04bdff133097bc6ad5a664eb93b2d652cd32fcb859031534ba2acaeac`.
+- The APK is built and artifact-verified, but it has NOT been installed or tested on the user's Xiaomi 11T. The explicit foreground-service type patch is intended to address the Android 14 startup path; the exact original crash cause remains unconfirmed without a device stack trace.
+- Next validation: install this new crash-fix APK (not the prior build), approve screen capture, verify the UI reports capture started and STOP ends it. If it still fails, collect the exact error shown in the app; then request Android bug report/logcat if needed.
+- No backend upload, vision analysis, or CALL/PUT signal generation is included in this build. Backend remains STANDBY-only; manual trading only.
