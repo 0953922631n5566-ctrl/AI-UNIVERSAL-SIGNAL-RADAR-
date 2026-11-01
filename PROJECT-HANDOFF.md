@@ -95,3 +95,12 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Application process startup was observed in Render logs: “MAIN MARKET Radar listening on 10000”.
 - Render reports the service is not suspended and uses the Free plan in Singapore.
 - Public HTTP health response and real browser rendering remain unverified from this assistant environment; the URL is ready for the user to open.
+
+
+## Mini App blank / Not Found investigation — 2026-11-01
+- User opened the new Telegram Mini App and reported a dark screen with “Not Found” under bot title “Noghjklbot”.
+- Render service details show active/not suspended, branch main-market, URL https://ai-signal-radar-main-market.onrender.com. Latest deployment before fix (commit 989ca34e515bcc514231b7f2de6a22cd7ad3a3d7) is status live; Render app logs show “MAIN MARKET Radar listening on 10000”.
+- Inspected main-market/server.js and public/index.html: Express static serving was relative to process working directory. Although Render start command changes into main-market, harden path resolution to avoid working-directory-dependent 404s.
+- Fix commit 8d2baf5878d66420b0e7bb66a8ffdef42434c087: resolve public directory relative to server.js via import.meta.url and explicitly serve index.html at GET /.
+- Auto-deploy is enabled; verify new deploy reaches live and inspect request logs / user retest. Public HTTP endpoint remains inaccessible from assistant web runtime; do not claim the fix is confirmed on device until retested.
+- Need distinguish whether the Telegram BotFather Menu Button currently points to this exact URL or an older bot URL. User screenshot/title alone does not prove which URL returned Not Found.
