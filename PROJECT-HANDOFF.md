@@ -151,3 +151,45 @@ For every meaningful project change:
 - Successfully fetched repository metadata and root contents, including this `PROJECT-HANDOFF.md`, `README.md`, `android/`, `backend/`, and `.github/`. GitHub connector access is now verified against the correct repository; no additional reconnect or installation step is currently required.
 - No application source code or APK was changed during this access investigation. Existing crash-fix APK status and SHA-256 above remain unchanged.
 - Use `AI-UNIVERSAL-SIGNAL-RADAR-` as the canonical repository in future work; do not use the obsolete `my-ai-signal-bot` path unless independently rediscovered.
+
+
+---
+
+## 2026-11-01 — Formal PM operating standard (user-confirmed)
+
+The user supplied the following mandatory project-working expectations. Apply them as the project operating standard in every session that can access this repository and reads this handoff. This repository document is durable project guidance; it is not a system-level prompt and cannot technically force unrelated AI systems or sessions to obey it. Each new session must still have GitHub access and must read this file.
+
+### Delivery expectations
+
+1. **Own execution end-to-end:** Do the implementation work directly with available tools; do not stop at instructions when code changes or checks can be performed.
+2. **Adapt quickly:** If an approach fails or misses the target, diagnose and change strategy rather than repeating an ineffective method.
+3. **Resolve blockers:** Investigate blockers and implement a safe alternative or document the precise external dependency and next actionable route. Do not silently abandon unfinished work.
+4. **Verify the full chain:** Inspect source and tests; run builds; verify deployment, health endpoints, and actual user-facing behavior wherever the required access/environment exists.
+5. **Protect existing functionality:** Inspect before editing, preserve known-good behavior, prefer small reversible changes, and avoid destructive rewrites without explicit approval and a recovery plan.
+6. **Maintain handoff documentation:** After every meaningful change, update this file with changed files, rationale, commit SHA, checks, build/deploy results, known risks, and next actions.
+7. **Report evidence honestly:** Separate implemented, tested, built, artifact-verified, deployed, live-verified, device-tested, and production-validated states. Never claim 100% reliability or production readiness without evidence.
+8. **Minimize repeated work:** Complete all feasible work in the current execution cycle, but do not claim completion when external permissions, credentials, infrastructure, device access, human consent, or validation data are missing.
+
+### Production-readiness gate (non-negotiable)
+
+“Production-ready” is the target, not a label to apply prematurely. A release may be called production-ready only after the relevant security, privacy, reliability, build/reproducibility, deployment, monitoring, end-to-end, target-device, and domain-validation checks have actually passed. If a gate cannot be performed in the current environment, state exactly what is blocked and what evidence is still required. Never invent test results, credentials, device access, or deployment success.
+
+### Project-specific constraints remain in force
+
+- Standalone Android app; manual trading only; never place broker orders.
+- No fabricated chart prices, candles, indicators, confidence values, or CALL/PUT signals. Remain STANDBY when perception or evidence is uncertain or unvalidated.
+- Keep secrets server-side; do not commit secrets or embed private tokens in a public APK/repository.
+- Do not create paid resources or incur costs without explicit user approval.
+- Preserve the known-good source baseline and record exact APK SHA-256 for distributed artifacts.
+- Target-device validation is Xiaomi 11T / Android 14 unless the user changes this requirement.
+
+### Required per-task report
+
+At task completion, report:
+- **Completed:** exact implementation or repository changes and commit SHA.
+- **Checks:** commands/tests executed and pass/fail outcomes.
+- **Build/artifact:** whether a build actually completed; artifact location/identifier and checksum when available.
+- **Deployment/live check:** whether deployed and which health/UI checks were actually observed.
+- **Remaining verification/blockers:** precise external steps or evidence still required.
+- **Next action:** the single highest-priority continuation.
+
