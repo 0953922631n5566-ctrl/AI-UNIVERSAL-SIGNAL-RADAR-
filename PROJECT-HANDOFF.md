@@ -106,3 +106,13 @@ For every meaningful project change:
 - Third attempt `41306290711` passed checkout, JDK 17, Gradle setup, and Android SDK platform installation. At the latest check, Gradle `:app:assembleDebug` was still running; no artifact or SHA-256 was available yet.
 - Latest workflow source commit: `5d49dfd490392550d3bd930cbf9194d890b35267`.
 - Status distinction: CI pipeline implemented; Android build not yet confirmed; no APK artifact yet; no device test; no signal validation.
+
+
+### Build failure diagnosis and fix — 2026-11-01
+
+- Inspected failed workflow run `41306290711` job logs.
+- Root cause: Kotlin compile error in `MainActivity.kt`: unresolved `androidx.activity.ComponentActivity`; Android app module did not declare the AndroidX Activity dependency. This caused cascading unresolved Activity members.
+- Fixed by changing `MainActivity` to extend platform `android.app.Activity` and removing the unresolved AndroidX import. This avoids introducing an unnecessary dependency for the current simple Activity UI.
+- Fix commit: `c300b2b396dacbd1805272972f29789442d92adb`.
+- New automatic build run: `41306686510`; latest check showed it in progress. APK/artifact/checksum remain unconfirmed until this run completes.
+- No device test or signal validation has been performed.
