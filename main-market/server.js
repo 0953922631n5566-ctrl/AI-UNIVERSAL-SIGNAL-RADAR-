@@ -1,12 +1,14 @@
 import "dotenv/config";
-import express from "express";import http from "node:http";import WebSocket,{WebSocketServer}from"ws";
+import express from "express";import http from "node:http";import path from "node:path";import{fileURLToPath}from"node:url";import WebSocket,{WebSocketServer}from"ws";
 import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";
+const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(110,Number(process.env.REST_SYNC_SECONDS||120)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
 let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
 const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,analyzedAt:new Date().toISOString()};
-app.use(express.static("public"));
+app.use(express.static(path.join(APP_DIR,"public")));
+app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
 app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbol:SYMBOL,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
 app.get("/api/state",(_,r)=>r.json(state));
 function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monitoring,connected:streamReady});const m=JSON.stringify({type:"market_state",data:state});for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(m)}
