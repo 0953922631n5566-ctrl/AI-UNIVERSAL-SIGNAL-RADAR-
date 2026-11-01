@@ -20,11 +20,12 @@ function applyTick(price,epoch){
 function analyze(){
  if(candles.length<60)return;
  const age=tickAt?(Date.now()-tickAt)/1000:null;let x=analyzeMarket(candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:age}),cid=candles.at(-1).epoch;
- if(x.signal==="CALL"||x.signal==="PUT"){
+ if(!x.metrics){activeSignal=null;activeUntil=0;}
+ if(x.metrics&&(x.signal==="CALL"||x.signal==="PUT")){
   if(activeSignal&&Date.now()<activeUntil&&activeSignal!==x.signal){x.signal=activeSignal;x.reason="คงทิศทางเดิมระหว่างช่วงป้องกันการสลับสัญญาณ"}
   else if((!activeSignal||Date.now()>=activeUntil)&&signalCandle!==cid){activeSignal=x.signal;activeUntil=Date.now()+40000;signalCandle=cid;lastAlertId=cid+":"+x.signal}
   else if(signalCandle===cid&&activeSignal!==x.signal){x.signal="STANDBY";x.reason="ป้องกันการสลับทิศทางภายในแท่งเทียนเดียวกัน"}
- }else if(activeSignal&&Date.now()<activeUntil){
+ }else if(x.metrics&&activeSignal&&Date.now()<activeUntil){
   const invalid=activeSignal==="CALL"?(x.regime==="TRENDING_DOWN"||candles.at(-1).close<x.metrics?.ema21):(x.regime==="TRENDING_UP"||candles.at(-1).close>x.metrics?.ema21);
   if(invalid){activeSignal=null;activeUntil=0;x.signal="STANDBY";x.reason="ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"}
   else{x.signal=activeSignal;x.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที"}
