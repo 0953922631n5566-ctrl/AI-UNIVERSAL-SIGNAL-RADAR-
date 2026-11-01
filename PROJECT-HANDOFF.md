@@ -144,3 +144,12 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - The existing analyzer still requires 60 candles and uses a transparent heuristic engine; it is not a trained AI model and has no validated predictive edge. Do not reduce warmup or alter strategy thresholds without a separate evidence-based task. Existing alerts, 40-second signal hold, and per-candle dedupe remain in place.
 - Not yet verified: real Twelve Data WebSocket subscription with the user's account, live price arrival, mobile network loss behavior in Telegram, 10s/3s timing on device, and actual browser/Telegram rendering.
 - Next: user opens the deployed Mini App, taps Start, and checks whether API becomes LIVE only after a real EUR/USD tick; if it remains CONNECTING/LOCKED, capture the visible message and matching Render logs. Then continue audit of alert timing and market-regime logic without weakening fail-closed behavior.
+
+
+### Follow-up correction — HTTP status classification and latest redeploy
+
+- Corrected a regex escaping issue in the new API error classifier so HTTP status codes 401, 403 and 429 are matched as numeric status codes, not as literal backslash text.
+- Source commit: `c2e68b544b5c99ef186712a642633ef13f9c9e36`.
+- Render deploy: `dep-dbjmk092tl4s73el5jj0`; build completed successfully. Render logs confirm the Node process started and printed `MAIN MARKET Radar listening on 10000`. At the latest poll the deploy API still reported `update_in_progress`, although the new instance had started and the service metadata reported not suspended. Recheck final deploy status.
+- The handoff documentation update is recorded in this commit. It triggers an additional automatic deployment because auto-deploy is enabled; verify that final documentation-only deploy reaches live.
+- External public HTTP checks remain unavailable from the assistant network due DNS resolution failure. Do not claim browser or end-user Telegram rendering has been verified.
