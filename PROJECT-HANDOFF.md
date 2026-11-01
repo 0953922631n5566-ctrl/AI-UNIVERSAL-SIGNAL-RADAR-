@@ -104,3 +104,18 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Fix commit 8d2baf5878d66420b0e7bb66a8ffdef42434c087: resolve public directory relative to server.js via import.meta.url and explicitly serve index.html at GET /.
 - Auto-deploy is enabled; verify new deploy reaches live and inspect request logs / user retest. Public HTTP endpoint remains inaccessible from assistant web runtime; do not claim the fix is confirmed on device until retested.
 - Need distinguish whether the Telegram BotFather Menu Button currently points to this exact URL or an older bot URL. User screenshot/title alone does not prove which URL returned Not Found.
+
+
+## API feed heartbeat and fail-closed lock — 2026-11-01
+- User confirmed the Main Market Mini App opens and displays live EUR/USD Streaming + REST candle data. User requested a visible blinking green API indicator only while fresh API prices are actually arriving, and a red warning/locked STANDBY state on network/API/quota failure.
+- Implemented on main-market branch:
+  - 30eeb7ac3cb78ccb06aa2c9f35c4f6c96e43244d — server exposes API health state and fail-closed lock state.
+  - 8f90eb88e5167384c21f3c41556a7690bb34a3e2 — frontend renders API LIVE / LOCKED / CONNECTING / OFFLINE and sends a Telegram alert (or browser alert) on lock transition.
+  - df33a7b550e62948de7dbe14c5ce696aca513096 — blinking green live indicator and red locked/offline styling.
+  - 2d3aa34d812f75c81d8fcdd9672c35519c165a86 — retain lock for quota/auth/rate-limit errors until API REST request succeeds again.
+  - 0a5e2e76353da8fb2498697fcfb64ce8a5c7ecaf — block directional analysis while data is locked.
+  - eec84305bcc6d8d308aab48e68d7380b009e8742 — display green API health after actual ticks even during 60-candle warmup.
+  - 9b9c3008785102f925ff9d8b99253b94d6b39a50 — prevent repeated alerts during reconnect attempts.
+- Semantics: ONLINE only becomes true after a valid EUR/USD live price tick; WebSocket open alone is CONNECTING. A 25-second live-tick timeout locks signal output to STANDBY. REST/API errors clear directional output and publish a lock reason. REST success can clear a quota/auth lock; a new live tick is still required for ONLINE status. STANDBY remains a market decision and is not itself an API error.
+- User-visible API pill is independent of CALL/PUT signal: pulsing green API LIVE; red API LOCKED/OFFLINE; amber CONNECTING. Lock transition triggers Telegram WebApp showAlert when available, otherwise browser alert.
+- Build/deploy for this feature batch must be rechecked after latest commit 9b9c3008785102f925ff9d8b99253b94d6b39a50. User device test is pending; do not claim the updated UI has been seen on device yet.
