@@ -290,3 +290,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 
 - Quota-safety follow-up commit `453768ca3598a0fe8fc361b6e17ff2d199db3d04`: REST sync is now shared/in-flight guarded and rate-limited to one request per configured 300-second interval across WebSocket reconnects. Reconnect loops cannot cause a fresh REST credit every few seconds. Stop clears the interval and permits a fresh history request on the next user Start.
 - The complete final code state now includes the stale-live-candle merge fix (`df326f101f78dff0c904c10c0add0d37d9533485`), revised full-length stale-data test (`67258dace60bdad14f854a0373d2aa01b81036f1`), and REST reconnect quota throttle (`453768ca3598a0fe8fc361b6e17ff2d199db3d04`). Their final Render deployment and build checks remain pending at this handoff revision.
+
+
+### Final validation update — 2026-11-02
+
+- Final branch head deployed: `9636afbe434eef0fae8fab323719223e7505d30e`.
+- Render deploy `dep-dbjsuk3il8vc73amn9t0` reached status `live`; Render event records `deployStatus=succeeded`.
+- Render build log for the final commit shows the 200-candle warmup boundary test passed, stale 200-candle test passed, all 5 tests passed / 0 failed, npm audit reported 0 vulnerabilities, and Build successful. The configured postinstall command includes Node syntax checks for server.js, public/app.js, src/twelve-data.js and src/analyzer.js; the build completed successfully.
+- Render runtime logs confirm the final instance started with `MAIN MARKET Radar listening on 10000` and Render reported `Your service is live`.
+- The prior source deploy `dep-dbjsuc12tl4s73eq4840` also reached LIVE before the final quota-throttle/handoff revision. Final deploy supersedes it.
+- Still pending real data acceptance: user must press Start in the Mini App; inspect Render log `[market-feed] REST history loaded` and confirm `receivedClosed >= 200`, then confirm a fresh WebSocket tick enables metrics without a 30/60/200-minute accumulation wait. This has not been observed in a post-deploy user session yet.
+- External HTTP GET /health and Telegram/Xiaomi device display/audio were not independently verified in this run. Do not claim these checks passed.
+- Handoff-only update; use `[skip render]` so documentation does not trigger a redundant service deployment.
