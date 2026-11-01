@@ -1,10 +1,10 @@
 import "dotenv/config";
 import express from "express";import http from "node:http";import path from "node:path";import{fileURLToPath}from"node:url";import WebSocket,{WebSocketServer}from"ws";
-import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";import{MIN_CANDLES}from"./src/config.js";
+import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";import{MIN_CANDLES,HISTORY_CANDLES,MAX_CANDLES,REST_SYNC_SECONDS}from"./src/config.js";
 const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
-const SYNC=Math.max(110,Number(process.env.REST_SYNC_SECONDS||120)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
+const SYNC=Math.max(REST_SYNC_SECONDS,Number(process.env.REST_SYNC_SECONDS||REST_SYNC_SECONDS)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
 let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,fatalApiLock=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
 const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,apiStatus:"OFFLINE",dataLocked:false,apiMessage:"ยังไม่ได้เริ่มเชื่อมต่อ API",analyzedAt:new Date().toISOString()};
 app.use(express.static(path.join(APP_DIR,"public")));
@@ -20,14 +20,16 @@ function lockData(message,{fatal=false}={}){
  publish({signal:"STANDBY",regime:"UNKNOWN",reason:lastDataError,evidence:[],metrics:null,dataError:true,dataLocked:true});
 }
 const floorMinute=t=>Math.floor(t/60)*60;
+const closedCandleCount=()=>{const currentMinute=floorMinute(Date.now()/1000);return candles.filter(c=>!c.live&&c.epoch<currentMinute).length};
 function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
- if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-180)}
+ if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
  else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
  tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
 function analyze(){
- if(candles.length<MIN_CANDLES){const latest=candles.at(-1);publish({signal:"STANDBY",regime:"UNKNOWN",reason:"รับราคา API สดแล้ว — กำลังตรวจสอบประวัติแท่งเทียน "+candles.length+"/"+MIN_CANDLES,evidence:[],metrics:null,tickAgeSeconds:Math.round((Date.now()-tickAt)/1000),lastTickPrice:lastTick,nextCandleAt:latest?(latest.epoch+60)*1000:null,source:"Twelve Data live price + REST candles"});return;}
+ const closedCount=closedCandleCount();
+ if(closedCount<MIN_CANDLES){const latest=candles.at(-1);publish({signal:"STANDBY",regime:"UNKNOWN",reason:"กำลังเตรียมประวัติแท่งเทียนที่ปิดแล้ว "+closedCount+"/"+MIN_CANDLES,evidence:[],metrics:null,candleCount:closedCount,closedCandleCount:closedCount,requiredCandles:MIN_CANDLES,tickAgeSeconds:tickAt?Math.round((Date.now()-tickAt)/1000):null,lastTickPrice:lastTick,nextCandleAt:latest?(latest.epoch+60)*1000:null,source:"Twelve Data historical REST + live price"});return;}
  const age=tickAt?(Date.now()-tickAt)/1000:null;let x=analyzeMarket(candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:age}),cid=candles.at(-1).epoch;
  if(!x.metrics){activeSignal=null;activeUntil=0;}
  if(x.metrics&&(x.signal==="CALL"||x.signal==="PUT")){
@@ -43,10 +45,10 @@ function analyze(){
  publish({...x,tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:lastTick,signalExpiresAt:activeSignal?new Date(activeUntil).toISOString():null,nextCandleAt:(epoch+60)*1000,alertId:lastAlertId,source:tickAt?"Twelve Data live price + REST candles":"Twelve Data REST"});
 }
 async function sync(){
- const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:120});
- const live=candles.at(-1);candles=live?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-180):d.candles.slice(-180);
+ const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:HISTORY_CANDLES});
+ const live=candles.at(-1);candles=live?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
  fatalApiLock=false;
- console.info("[market-feed] REST history loaded",{symbol:SYMBOL,received:d.candles.length,available:candles.length,liveTickPresent:!!tickAt});
+ console.info("[market-feed] REST history loaded",{symbol:SYMBOL,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:closedCandleCount(),requiredClosed:MIN_CANDLES,liveTickPresent:!!tickAt,nextRestSyncSeconds:SYNC});
  // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
  analyze();
 }
