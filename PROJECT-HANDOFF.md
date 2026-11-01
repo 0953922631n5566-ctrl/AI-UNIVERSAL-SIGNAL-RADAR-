@@ -121,3 +121,5 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Build/deploy for this feature batch must be rechecked after latest commit 9b9c3008785102f925ff9d8b99253b94d6b39a50. User device test is pending; do not claim the updated UI has been seen on device yet.
 
 - Additional client-side outage protection: commit 2ec123f9d46c9063f7cea7a34d339df33cb38158. If the phone loses its WebSocket connection to Render, the Mini App immediately forces local STANDBY, paints the API pill red, clears the countdown, shows an outage alert, and attempts reconnection. This closes the separate case where the mobile internet drops while the server-side API connection has not yet reported its own failure.
+
+- Build issue caught and corrected before considering the mobile-offline lock complete: commit 2ec123f9d46c9063f7cea7a34d339df33cb38158 initially failed Render's node --check because the reconnect handler contained a literal escaped newline. Corrected in f2c49d46b4c28dbec470026a478c3e7477a62150. Re-run Render build and verify latest deploy; do not use the failed deploy.
