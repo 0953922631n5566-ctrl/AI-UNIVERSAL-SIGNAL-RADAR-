@@ -23,7 +23,7 @@ const floorMinute=t=>Math.floor(t/60)*60;
 const closedCandleCount=()=>{const currentMinute=floorMinute(Date.now()/1000);return candles.filter(c=>!c.live&&c.epoch<currentMinute).length};
 function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
- if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}else if(cur){cur.live=false;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
+ if(!cur||cur.epoch<start){if(cur){cur.live=false;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
  else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
  tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
