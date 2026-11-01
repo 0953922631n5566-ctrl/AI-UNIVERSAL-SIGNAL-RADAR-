@@ -203,3 +203,17 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Added separate **ทดสอบเสียง** and **ทดสอบสั่น** buttons below the notification toggles. Each invokes its test immediately from the user's tap; test actions deliberately bypass the notification toggle so the user can test the phone independently. Normal market alerts still respect their respective toggles.
 - No change to analyzer, market strategy, API, countdown timing, signal hold, candle warmup, or Android/OCR branch.
 - Validation/deployment pending: run syntax checks and project tests, then verify Render auto-deploy. Physical speaker/vibration still requires the user to tap the buttons on the Xiaomi/Telegram device.
+
+## 2026-11-02 — Monitoring Start appears frozen: feed diagnostics and fail-visible correction
+
+- User confirmed the sound and vibration test buttons work, but reported that pressing Start monitoring leaves the Mini App apparently frozen.
+- Re-verified repository access, main-market branch head d074ba2965faadf4fa3f247ec09d92d38912e9c4, read this handoff, and inspected the live source files main-market/server.js, main-market/public/app.js, main-market/public/index.html, and main-market/src/twelve-data.js.
+- Confirmed the latest deployed UI source contains a Start handler that opens/reuses /live and sends {action:start} once the socket is open. The server then starts a Twelve Data REST history sync and a Twelve Data WebSocket subscription. Existing UI has no backend runtime diagnostics, so a failed/missing API key or streaming failure was difficult to distinguish from a frozen screen.
+- Implemented a targeted backend observability/fail-visible correction in source commit b521a215b5797e5d34559817eb44564430ab3ebf (fix: surface monitoring feed connection failures):
+  - Missing TWELVE_DATA_API_KEY now enters the explicit fail-closed LOCKED state instead of remaining indefinitely in CONNECTING.
+  - Log monitoring start, WebSocket open/subscription, first received price, subscription errors, WebSocket errors/close, REST sync failures, and every lock reason in Render app logs.
+  - Catch synchronous WebSocket-constructor errors and schedule the existing reconnect path rather than leaving monitoring in an unhandled exception.
+  - Existing STANDBY/fail-closed rules remain; no fabricated price, no automatic trading, no change to the analyzer, 60-candle warmup, alert timing, signal hold, or Android/OCR branch.
+- At time of this handoff update, Render auto-deploy/build/test outcome for source commit b521a215b5797e5d34559817eb44564430ab3ebf is pending. Check the Render deployment and build logs before reporting it as live.
+- Root cause is not yet proven: the currently available Render logs predate this report and contain no recent user request/stream activity, and the assistant environment cannot independently fetch the Render public URL. The new diagnostics are intended to reveal whether the key is missing, REST history fetch fails, WebSocket subscription is rejected, or no price events arrive.
+- Next actions: verify source deployment reaches LIVE; inspect fresh app logs after the user taps Start; if a specific Twelve Data/API failure appears, fix that cause. Do not ask the user to change API settings unless logs prove an external credential/plan issue. User-side Mini App retest is required only after the deployment is live.
