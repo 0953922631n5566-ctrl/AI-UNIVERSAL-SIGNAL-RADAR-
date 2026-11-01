@@ -196,3 +196,10 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
   - Recreate AudioContext if the browser/Telegram WebView has closed it.
 - GitHub update completed on branch main-market. Render auto-deploy is enabled; wait for the deploy triggered by this source commit and verify build/test/deploy status before reporting completion.
 - Still required: verify audible playback on the user's physical Android/Telegram device. Render/build success cannot prove the phone's speaker, Telegram WebView audio policy, media volume or DND behavior.
+
+
+## 2026-11-02 — Add immediate sound and vibration test controls
+- User provided the current Mini App screen; it showed only notification enable/disable checkboxes, not dedicated test buttons. Confirmed the checkboxes do not produce a test sound or vibration when tapped: they only enable/disable future alerts.
+- Added separate **ทดสอบเสียง** and **ทดสอบสั่น** buttons below the notification toggles. Each invokes its test immediately from the user's tap; test actions deliberately bypass the notification toggle so the user can test the phone independently. Normal market alerts still respect their respective toggles.
+- No change to analyzer, market strategy, API, countdown timing, signal hold, candle warmup, or Android/OCR branch.
+- Validation/deployment pending: run syntax checks and project tests, then verify Render auto-deploy. Physical speaker/vibration still requires the user to tap the buttons on the Xiaomi/Telegram device.
