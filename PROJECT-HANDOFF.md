@@ -166,3 +166,10 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Most likely remaining diagnostic split: (1) BotFather Menu Button URL may point to a different/old URL or include a stale path, or (2) the correct URL may return an application/route issue not visible in the current empty request logs. Do not claim either cause as confirmed. Next step is verify the exact URL configured for the Mini App against `https://ai-signal-radar-main-market.onrender.com/` and inspect a fresh Render request log at the same time the user opens it.
 - No source/runtime files changed in this investigation. Existing app behavior and Twelve Data secrets were left untouched. No new Render deploy was triggered by this diagnostic note.
 - PM rule reaffirmed: treat the user's PM checklist as durable project handoff guidance; do not represent a chat message as an enforceable system prompt across all future sessions. Continue reading this file before each change and append verified results after each material implementation.
+
+
+## 2026-11-02 — Main Market sound playback fix
+- User reported that alert sound was not audible. Inspected the deployed branch source: the previous frontend created a brand-new Web Audio context only when a server event arrived, outside a user gesture, and never resumed a suspended context. Mobile Telegram WebViews can block/suspend that audio, so the sound code existed but playback was not reliably unlocked.
+- Updated `main-market/public/app.js`: create and resume one persistent AudioContext from the Start button gesture (and when enabling sound); play audible two-note signal tones and distinct preparation tones through that context; keep sound toggle behavior; use Telegram HapticFeedback when available plus Android navigator.vibrate for vibration.
+- No analyzer, market strategy, Twelve Data, alert timing, signal hold, or Android/OCR branch changes.
+- Pending after commit: run JavaScript syntax check and project tests, verify Render auto-deploy reaches live, then user must tap Start in Telegram and confirm audible sound on the device. Actual device audio/vibration cannot be certified remotely.
