@@ -21,10 +21,11 @@ export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds
  if(high)regime="HIGH_VOLATILITY";else if(side)regime="RANGING";else if(up)regime="TRENDING_UP";else if(down)regime="TRENDING_DOWN";
  else if((e9>e21&&c.at(-2).close>e21&&last.close<e21&&r<48&&m.histogram<0)||(e9<e21&&c.at(-2).close<e21&&last.close>e21&&r>52&&m.histogram>0))regime="REVERSAL";
  const nearR=res-last.close<=a14*.35,nearS=last.close-sup<=a14*.35;
- const evidence=[`EMA 9/21/50: ${e9.toFixed(5)} / ${e21.toFixed(5)} / ${e50.toFixed(5)}`,`RSI 14: ${r.toFixed(1)} · MACD histogram: ${m.histogram.toFixed(7)}`,`ATR14/ATR50: ${vol.toFixed(2)} · 20-bar range: ${range.toFixed(4)}%`,`Support: ${sup.toFixed(5)} · Resistance: ${res.toFixed(5)}`];
+ const momentum5=last.close-c.at(-6).close,bodyToAtr=Math.abs(last.close-last.open)/a14;
+ const evidence=[`Price action: ${last.close>=last.open?"bullish":"bearish"} body ${bodyToAtr.toFixed(2)} ATR · 5-bar momentum: ${momentum5.toFixed(5)}`,`EMA 9/21/50: ${e9.toFixed(5)} / ${e21.toFixed(5)} / ${e50.toFixed(5)}`,`RSI 14: ${r.toFixed(1)} · MACD histogram: ${m.histogram.toFixed(7)}`,`ATR14/ATR50: ${vol.toFixed(2)} · 20-bar range: ${range.toFixed(4)}%`,`Support: ${sup.toFixed(5)} · Resistance: ${res.toFixed(5)}`];
  let signal="STANDBY",reason="หลักฐานยังไม่สอดคล้องกันหรือยังไม่ยืนยัน";
- if(regime==="TRENDING_UP"&&r>=50&&r<=68&&last.close>e9&&!nearR){signal="CALL";reason="แนวโน้มขึ้นและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวต้าน"}
- else if(regime==="TRENDING_DOWN"&&r>=32&&r<=50&&last.close<e9&&!nearS){signal="PUT";reason="แนวโน้มลงและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวรับ"}
+ if(regime==="TRENDING_UP"&&r>=50&&r<=68&&last.close>e9&&momentum5>0&&!nearR){signal="CALL";reason="แนวโน้มขึ้นและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวต้าน"}
+ else if(regime==="TRENDING_DOWN"&&r>=32&&r<=50&&last.close<e9&&momentum5<0&&!nearS){signal="PUT";reason="แนวโน้มลงและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวรับ"}
  else if(regime==="RANGING")reason="ตลาดออกข้าง: รอการทะลุกรอบที่ยืนยันได้";
  else if(regime==="HIGH_VOLATILITY")reason="ความผันผวนสูงผิดปกติ: งดไล่ราคา";
  else if(regime==="REVERSAL")reason="พบสัญญาณอาจกลับตัว แต่ต้องรอการยืนยันเพิ่ม";
