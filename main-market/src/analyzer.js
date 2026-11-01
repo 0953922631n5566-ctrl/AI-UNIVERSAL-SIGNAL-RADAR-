@@ -9,7 +9,8 @@ export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds
  if(!Array.isArray(c)||c.length<60)return standby("ประวัติแท่งเทียนไม่ครบ 60 แท่ง");
  const last=c.at(-1),age=Number.isFinite(last.epoch)?Math.max(0,now/1000-last.epoch):Infinity;
  if(age>maxAgeSeconds)return standby("ข้อมูลแท่งเทียนล่าช้า",{ageSeconds:Math.round(age)});
- if(tickAgeSeconds!==null&&tickAgeSeconds>25)return standby("ราคา Streaming หยุดอัปเดต",{tickAgeSeconds});
+ if(tickAgeSeconds===null)return standby("ยังไม่มีราคา Streaming สำหรับยืนยันจังหวะสด");
+ if(tickAgeSeconds>25)return standby("ราคา Streaming หยุดอัปเดต",{tickAgeSeconds});
  const v=c.map(x=>x.close),e9=ema(v,9),e21=ema(v,21),e50=ema(v,50),r=rsi(v),m=macd(v),a14=avgRange(c,14),a50=avgRange(c,50);
  if([e9,e21,e50,r,m.line,m.signal,m.histogram,a14,a50].some(x=>!Number.isFinite(x)))return standby("หลักฐานคำนวณไม่ครบ");
  const recent=c.slice(-20),res=Math.max(...recent.slice(0,-1).map(x=>x.high)),sup=Math.min(...recent.slice(0,-1).map(x=>x.low));
