@@ -219,3 +219,23 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Documentation commit for this update is being recorded separately; because Render auto-deploy is enabled, its documentation-only deployment must also be checked to reach LIVE.
 - Root cause is not yet proven: the currently available Render logs predate this report and contain no recent user request/stream activity, and the assistant environment cannot independently fetch the Render public URL. The new diagnostics are intended to reveal whether the key is missing, REST history fetch fails, WebSocket subscription is rejected, or no price events arrive.
 - Next actions: verify source deployment reaches LIVE; inspect fresh app logs after the user taps Start; if a specific Twelve Data/API failure appears, fix that cause. Do not ask the user to change API settings unless logs prove an external credential/plan issue. User-side Mini App retest is required only after the deployment is live.
+
+
+## 2026-11-02 — REST history completion / analysis refresh fix
+
+- User's Mini App screen showed API LIVE and a valid EUR/USD live price, but analysis remained at STANDBY with only 1/60 candles.
+- Render app logs for the user's exact Start event confirm:
+  - `23:17:28.536Z` — `[market-feed] START requested` for EUR/USD 1min.
+  - `23:17:29.287Z` — Twelve Data WebSocket OPEN and subscription sent.
+  - `23:17:32.040Z` — first live price received.
+  - No REST history completion/failure log existed, so the number of historical candles returned could not be verified from that session.
+- Inspected `main-market/server.js`, `main-market/src/twelve-data.js`, and this handoff on branch `main-market`.
+- Confirmed a race in `sync()`: after REST history merged into the live candle buffer, it called `analyze()` only when no WebSocket tick had arrived yet. If the first live tick arrived before REST completed, the 60-candle history could be loaded without immediately refreshing the UI/analysis.
+- Fixed in source commit `6dd794f43fceae3f6cd9bad566b41eda51f11bca` (`fix: reanalyze after REST candle history loads`):
+  - Always re-run analysis after a successful REST history merge, whether or not a live tick has already arrived.
+  - Add a structured `[market-feed] REST history loaded` log with the REST candle count, merged buffer count, and whether a live tick exists.
+  - Keep the 60-candle warmup, Twelve Data EUR/USD 1min settings, stale-data guard, alert timing, 40-second signal hold, and manual-only/no-auto-orders policy unchanged.
+- Source commit pushed to `main-market`. Render auto-deploy is enabled; build/test/deploy status must be checked after this commit.
+- Existing Render logs prove WebSocket open and first live price, but do not yet prove how many REST candles were returned. The new log will distinguish REST history success from an API/response error on the next start or refresh.
+- Device retest is pending after the updated deployment reaches LIVE. Do not claim the 60 candles were successfully loaded or that the on-device screen is fixed until the next Render log and Mini App state confirm it.
+- Android/OCR branch `main` was not modified.
