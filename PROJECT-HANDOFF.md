@@ -62,3 +62,29 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - GitHub commit status endpoint returned no checks at this checkpoint; CI test result is not yet verified.
 - No Telegram bot token is configured. BotFather can point the Menu Button at the deployed URL, but server-side initData verification and hardened per-user controls remain pending.
 - Not Production-Ready: live WebSocket entitlement, REST auth, 10s/3s alert timing, Telegram Android behavior, and chronological market validation remain to be tested.
+
+## Final implementation checkpoint — 2026-11-01
+
+### Latest source commits
+- 40e71d4647c9e3ce4ca1c6f285f46bab63f6f095 — require fresh streaming ticks for directional analysis.
+- c7846b018790336d891dc34c174d6462a3f958b7 — clear held signals when freshness/evidence is missing.
+- ff2d3263eac8a8f7780359f6284b9e64b0c436e5 — run unit tests during install.
+- 08079e4bad3e0aa30daf76ea2b9118c25a562bf7 — reset candle context across missing minute gaps.
+- 27a20e05cc73925ecbff590d4c92076abc917bc9 and 37d2c2afebcaa504e935aae53d22b620ef41d329 — reset alert deduplication and suppress STANDBY sounds.
+- 95b47aa74c4351298ff38bd8ff1e27fa71c3bf4a — add JS syntax checks to install/build.
+- 3a20e24224fb162f37e60c4a831776b3b8c7ed10 — add price-action body and 5-bar momentum evidence.
+- 354791c7a8a6687e30c39677d4377a435b7359ef — report actual WebSocket readiness and detect stale ticks.
+- 18307988a8b2726f76dc97cc59f8cd34b221b162 — reconnect on absent usable stream ticks.
+- acee90d32c7c2394c9c278a8d3daf2e41ff1b851 — prevent stop/reconnect socket races.
+
+### Verified deployment evidence
+- Render service: srv-dbjls149v7es73ag0k4g; Free plan; Singapore; branch main-market.
+- Public URL: https://ai-signal-radar-main-market.onrender.com
+- Latest source deployment: dep-dbjltg2qphnc73e4ohdg, commit acee90d32c7c2394c9c278a8d3daf2e41ff1b851.
+- Render build log confirms Node 20.20.2, npm install, test command, 5 tests passed / 0 failed, JavaScript node --check chain completed without syntax errors, Build successful, and app process started with “MAIN MARKET Radar listening on 10000”.
+- Render deployment API still reported update_in_progress at the last poll despite successful build and application startup logs; re-check deploy status and service events.
+- External HTTP health/UI check could not be performed from this assistant environment (web/container network could not resolve/access the Render URL). Do not claim /health or browser UI independently verified.
+- The service was created with TWELVE_DATA_API_KEY as a Render environment secret. The secret value is not recorded here or in GitHub. Since the user pasted the key into chat, advise rotating it and updating the Render secret directly in Dashboard after rotation.
+- The Mini App does not send Telegram chat messages. BotFather can set the menu URL, but BOT_TOKEN/initData verification has not been configured.
+- The Twelve Data live WebSocket subscription has not yet been exercised by a real Mini App client. User must open the URL and press Start; then inspect Render logs and state for a successful EUR/USD price stream. If account plan denies WebSocket, app deliberately remains STANDBY; 120-second REST sync is not fast enough to promise 10s/3s live alerts.
+- Not Production-Ready: no end-to-end Telegram Android test, no confirmed WebSocket subscription, no external health/UI check, no security initData validation, no paper-trading/backtest/out-of-sample market validation.
