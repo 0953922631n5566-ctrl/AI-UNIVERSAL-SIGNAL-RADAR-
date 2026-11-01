@@ -23,7 +23,7 @@ const floorMinute=t=>Math.floor(t/60)*60;
 const closedCandleCount=()=>{const currentMinute=floorMinute(Date.now()/1000);return candles.filter(c=>!c.live&&c.epoch<currentMinute).length};
 function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
- if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
+ if(!cur||cur.epoch<start){if(cur&&start-cur.epoch>60){candles=[];activeSignal=null;activeUntil=0;signalCandle=null;}else if(cur){cur.live=false;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
  else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
  tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
@@ -46,7 +46,7 @@ function analyze(){
 }
 async function sync(){
  const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:HISTORY_CANDLES});
- const live=candles.at(-1);candles=live?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
+ const live=candles.at(-1),keepLive=!!(live?.live&&live.epoch===floorMinute(Date.now()/1000)&&tickAt&&Date.now()-tickAt<25000);candles=keepLive?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
  fatalApiLock=false;
  console.info("[market-feed] REST history loaded",{symbol:SYMBOL,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:closedCandleCount(),requiredClosed:MIN_CANDLES,liveTickPresent:!!tickAt,nextRestSyncSeconds:SYNC});
  // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
