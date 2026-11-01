@@ -265,3 +265,24 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Render build logs confirm the updated 30-candle boundary test passed (29 candles => STANDBY; 30 candles => metrics available), all 5 tests passed / 0 failed, and the postinstall Node syntax-check chain completed successfully.
 - Render deploy dep-dbjsoe3il8vc73amjn70 reached status LIVE; Render deploy event records deployStatus=succeeded. The new app process started and logged MAIN MARKET Radar listening on port 10000.
 - This verifies build, automated tests, and Render deployment only. It does not prove audible output on the user's Xiaomi/Telegram WebView. The user must reopen the Mini App and confirm the next 10-second boundary sound while API LIVE; this is the remaining acceptance test.
+
+
+## 2026-11-02 — Historical preload increased to 200 closed candles
+
+- User explicitly authorized implementation of historical preload so Main Market does not wait for new candles to accumulate after opening.
+- Scope remains isolated to branch `main-market`; Android/OCR branch `main` is untouched.
+- Implemented source changes:
+  - `80e91f078f7c80d1029a49ca86a1824e5c6f8037` — shared settings: minimum 200 closed 1-minute candles, request 220 historical bars, retain up to 260 bars, REST refresh default 300 seconds.
+  - `5eb4bf8ff04067485209fefc576a95bce0556a7f` — Twelve Data REST parser requests 220 bars, removes the still-forming current minute candle, and refuses to return history unless at least 200 fully closed bars are present.
+  - `e8d0312db67891c3f38720fd1361b8af15eca1ba` — analyzer warmup counts only fully closed candles; a current live candle cannot be counted as one of the 200 historical bars.
+  - `a02e56d4ca73263f8b429449758ca312d7a6cc43` — server loads 220 historical bars on Start and on 5-minute resync, merges only a fresh current-minute live candle, reports loaded/required counts, and retains historical context.
+  - `df326f101f78dff0c904c10c0add0d37d9533485` — marks a live candle closed when the next minute begins and avoids merging a stale live candle over newer REST history.
+  - `e1a287c41d9effc8bae33ea032dff515d0a8527a` — adds tests for 199 closed + 1 live = not ready, and 200 closed + live = metrics ready.
+  - `67258dace60bdad14f854a0373d2aa01b81036f1` — updates stale-data test to use a full 200-candle history.
+- API quota optimization: EUR/USD remains one symbol; one REST time-series request retrieves the 220 bars. Periodic REST refresh is now every 300 seconds by default (about 288 scheduled refreshes per 24 hours while monitoring continuously, plus the initial fetch), instead of every 120 seconds. WebSocket remains the live-price channel. This reduces REST request frequency; it does not change the user's Twelve Data plan or guarantee their actual quota allowance.
+- Important runtime behavior: a successful 220-bar response should yield at least 200 fully closed bars immediately, so the user does not wait 200 minutes. Directional analysis still requires a fresh live WebSocket tick; if REST returns fewer than 200 closed bars or the live feed is unavailable/stale, the system deliberately remains STANDBY.
+- Render validation:
+  - First intermediate deployment for config-only commit `80e91f...` failed because the existing test still expected 30; this was a temporary out-of-sync commit during sequential file updates, not a runtime failure. The test was then updated for 200.
+  - Build for commit `e1a287c41d9effc8bae33ea032dff515d0a8527a` completed successfully and logs showed 5 tests passed / 0 failed. At the last check its deploy was still `update_in_progress`; latest commit `67258dace60bdad14f854a0373d2aa01b81036f1` was queued. Recheck the latest queued deploy and require status LIVE before calling this change deployed.
+- Not yet verified: actual Twelve Data response returns 200+ fully closed EUR/USD bars after the change; the runtime log `REST history loaded` must confirm `receivedClosed >= 200`. Also not yet verified: real Telegram/Xiaomi session reaches metrics immediately after the first live tick. No prediction accuracy or trading performance is claimed.
+- User-facing target: opening Mini App and tapping Start should fetch history immediately, calculate with 200 completed candles as soon as the first fresh WebSocket price arrives, then continue live updates. No automated broker orders; manual-only policy and existing alerts/signal hold remain unchanged.
