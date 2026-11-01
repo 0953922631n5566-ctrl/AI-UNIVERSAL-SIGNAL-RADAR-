@@ -4,12 +4,12 @@ import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/a
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(110,Number(process.env.REST_SYNC_SECONDS||120)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
-let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,tickAt=0,lastTick=null,monitoring=false,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
+let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
 const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,analyzedAt:new Date().toISOString()};
 app.use(express.static("public"));
 app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbol:SYMBOL,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
 app.get("/api/state",(_,r)=>r.json(state));
-function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monitoring,connected:!!upstream});const m=JSON.stringify({type:"market_state",data:state});for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(m)}
+function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monitoring,connected:streamReady});const m=JSON.stringify({type:"market_state",data:state});for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(m)}
 const floorMinute=t=>Math.floor(t/60)*60;
 function applyTick(price,epoch){
  const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
@@ -41,20 +41,20 @@ async function sync(){
 function startRest(){clearInterval(restTimer);restTimer=setInterval(()=>sync().catch(e=>publish({signal:"STANDBY",regime:"UNKNOWN",reason:"Twelve Data REST: "+e.message,evidence:[],metrics:null,dataError:true})),SYNC*1000)}
 function startStream(){
  if(upstream||!monitoring)return;if(!process.env.TWELVE_DATA_API_KEY){publish({signal:"STANDBY",reason:"ยังไม่ได้ตั้ง Twelve Data API Key ฝั่งเซิร์ฟเวอร์"});return}
- startRest();sync().catch(e=>publish({signal:"STANDBY",reason:e.message,evidence:[],metrics:null}));
+ startRest();clearInterval(watchdog);watchdog=setInterval(()=>{if(monitoring&&streamReady&&(!tickAt||Date.now()-tickAt>25000)){activeSignal=null;activeUntil=0;publish({signal:"STANDBY",regime:"UNKNOWN",reason:"ไม่มีราคา Streaming ใหม่ภายใน 25 วินาที",evidence:[],metrics:null})}},5000);sync().catch(e=>publish({signal:"STANDBY",reason:e.message,evidence:[],metrics:null}));
  upstream=new WebSocket("wss://ws.twelvedata.com/v1/quotes/price?apikey="+encodeURIComponent(process.env.TWELVE_DATA_API_KEY));
- upstream.on("open",()=>{upstream.send(JSON.stringify({action:"subscribe",params:{symbols:SYMBOL}}));heartbeat=setInterval(()=>{if(upstream?.readyState===WebSocket.OPEN)upstream.send(JSON.stringify({action:"heartbeat"}))},10000);publish({signal:"STANDBY",reason:"เชื่อมต่อ Streaming แล้ว กำลังรับราคา",connected:true})});
+ upstream.on("open",()=>{streamReady=true;upstream.send(JSON.stringify({action:"subscribe",params:{symbols:SYMBOL}}));heartbeat=setInterval(()=>{if(upstream?.readyState===WebSocket.OPEN)upstream.send(JSON.stringify({action:"heartbeat"}))},10000);publish({signal:"STANDBY",reason:"เชื่อมต่อ Streaming แล้ว กำลังรับราคา",connected:true})});
  upstream.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.event==="price"&&m.symbol===SYMBOL){const p=Number(m.price),t=Number(m.timestamp);if(Number.isFinite(p)&&Number.isFinite(t))applyTick(p,t)}else if(m.status==="error"||m.event==="subscribe-status"&&m.status==="error")publish({signal:"STANDBY",reason:m.message||"บัญชี Twelve Data ไม่อนุญาต Streaming",connected:false})});
- upstream.on("error",e=>publish({signal:"STANDBY",reason:"Streaming error: "+e.message,connected:false}));
- upstream.on("close",()=>{upstream=null;clearInterval(heartbeat);tickAt=0;publish({signal:"STANDBY",reason:"Streaming หลุด: ใช้ REST สำรองและลองเชื่อมใหม่",connected:false});if(monitoring)retryTimer=setTimeout(startStream,8000)});
+ upstream.on("error",e=>{streamReady=false;publish({signal:"STANDBY",reason:"Streaming error: "+e.message,connected:false})});
+ upstream.on("close",()=>{upstream=null;streamReady=false;clearInterval(heartbeat);tickAt=0;publish({signal:"STANDBY",reason:"Streaming หลุด: ใช้ REST สำรองและลองเชื่อมใหม่",connected:false});if(monitoring)retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
- monitoring=false;lastAlertId=null;signalCandle=null;clearInterval(restTimer);clearInterval(heartbeat);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
+ monitoring=false;streamReady=false;lastAlertId=null;signalCandle=null;clearInterval(restTimer);clearInterval(heartbeat);clearInterval(watchdog);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
  publish({signal:"STANDBY",regime:"UNKNOWN",reason:"หยุดเฝ้าระวังแล้ว",evidence:[],metrics:null,monitoring:false,connected:false});
 }
 wss.on("connection",ws=>{
  ws.send(JSON.stringify({type:"market_state",data:state}));
- ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.action==="start"){monitoring=true;lastAlertId=null;signalCandle=null;activeSignal=null;activeUntil=0;publish({signal:"STANDBY",reason:"กำลังเชื่อมต่อ Twelve Data"});startStream()}if(m.action==="stop")stop()});
+ ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.action==="start"){monitoring=true;streamReady=false;lastAlertId=null;signalCandle=null;activeSignal=null;activeUntil=0;publish({signal:"STANDBY",reason:"กำลังเชื่อมต่อ Twelve Data"});startStream()}if(m.action==="stop")stop()});
  ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
 });
 server.listen(PORT,()=>console.log("MAIN MARKET Radar listening on "+PORT));
