@@ -173,3 +173,11 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Updated `main-market/public/app.js`: create and resume one persistent AudioContext from the Start button gesture (and when enabling sound); play audible two-note signal tones and distinct preparation tones through that context; keep sound toggle behavior; use Telegram HapticFeedback when available plus Android navigator.vibrate for vibration.
 - No analyzer, market strategy, Twelve Data, alert timing, signal hold, or Android/OCR branch changes.
 - Pending after commit: run JavaScript syntax check and project tests, verify Render auto-deploy reaches live, then user must tap Start in Telegram and confirm audible sound on the device. Actual device audio/vibration cannot be certified remotely.
+
+
+## 2026-11-02 — Countdown alert timing correction
+- User reported that the 10-second pre-close preparation sound was not audible. Re-inspection found the frontend called `clearInterval(timer)` and restarted the countdown on every WebSocket market-state update. Since updates arrive frequently, the countdown could repeatedly reset and skip the exact `left === 10` / `left === 3` checks.
+- Fixed in source commit `12bb76dd01cc348b440aecfddf6c626e01e825b8`: keep one timer per candle-close timestamp, update the current signal without restarting the timer, poll at 100ms, and fire alerts when remaining time crosses 10s and 3s rather than requiring exact integer equality. Per-candle/per-signal threshold dedupe remains; STANDBY does not play entry warnings; 3s warning vibrates.
+- Render deploy `dep-dbjnefnb9u1s73btrqbg` reached deployStatus=succeeded. Build completed successfully and Render logs show all 5 existing tests passed (0 failed). Existing test suite does not yet contain browser countdown/audio unit tests.
+- Previous audio-context unlock fix remains in place. User-side Telegram/Xiaomi audio and vibration confirmation is still pending; do not claim device playback is verified until user tests it.
+- No market analysis rules, 60-candle warmup, Twelve Data settings, signal hold, Android/OCR branch, or manual-only trading policy changed.
