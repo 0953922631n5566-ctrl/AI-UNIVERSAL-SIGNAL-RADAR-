@@ -116,3 +116,17 @@ For every meaningful project change:
 - Fix commit: `c300b2b396dacbd1805272972f29789442d92adb`.
 - New automatic build run: `41306686510`; latest check showed it in progress. APK/artifact/checksum remain unconfirmed until this run completes.
 - No device test or signal validation has been performed.
+
+
+### Xiaomi 11T crash after screen-capture consent — investigation and patch (2026-11-01)
+
+- User reported the installed debug APK closes immediately after approving Android screen capture on Xiaomi 11T / Android 14.
+- Reviewed current MainActivity.kt and CaptureService.kt. The failure boundary is the transition from the consent result into the MediaProjection foreground service. No device logcat/stack trace has been supplied, so the exact runtime exception is not yet confirmed.
+- Patched CaptureService.kt to call the API 29+ three-argument startForeground(..., FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION) explicitly; retain the two-argument call on older Android versions.
+- Added guarded startup/error handling, explicit null/size checks, bounded cleanup, and in-app error status broadcast. This should prevent common service-start exceptions from silently terminating the process and expose the actual exception message on the app screen.
+- Patched MainActivity.kt to manage START/STOP enabled state, catch consent/service launch exceptions, and receive READY/FAILED/STOPPED status updates. Removed the no-op view lookup.
+- Commits: MainActivity 5ab90715a213ffde30a4d249833d39a1c55b77c1; CaptureService and current branch HEAD b26c73001bd9964b6fdc900160d399b819baa2bb.
+- Source verification: latest main contains both the receiver/status changes and explicit MediaProjection foreground service type.
+- NOT YET VERIFIED: Android CI rebuild after this patch, installation, or successful capture on Xiaomi 11T. The previous APK must not be reused as a fix.
+- Next: inspect the new GitHub Actions run; resolve any compile failure; distribute a new APK only after the CI artifact is present. Ask for the exact on-screen error or Android bug report only if the patched build still closes.
+- Capture-to-backend upload and real vision analysis remain unimplemented; this patch only addresses startup robustness and diagnosis. Manual trading only; no automatic broker orders.
