@@ -82,3 +82,17 @@ For every meaningful project change:
 3. Provision a secure server-side secret and deploy an HTTPS backend only after cost/target authorization; never embed a private token in this public repository or APK.
 4. Establish reproducible Android build environment/CI, build debug APK, record SHA-256, then test on Xiaomi 11T Android 14.
 5. Create multi-broker labeled screenshot sequences and chronological/out-of-sample evaluation before enabling directional signals.
+
+
+---
+
+## 2026-11-01 — Android APK CI build pipeline added
+
+- Added `.github/workflows/android-apk.yml` in commit `1a41060b788eb3994591ebfe372f3d3d08fcb22a`.
+- Workflow supports manual dispatch and pushes affecting Android source/workflow.
+- Uses Ubuntu, Temurin JDK 17, Gradle 8.9, Android SDK platform/build-tools 35, and runs `:app:assembleDebug`.
+- On successful build it verifies the APK exists, writes SHA-256, and uploads the debug APK plus checksum as a 14-day GitHub Actions artifact.
+- First run ID: `41306165458`; observed status at handoff update: queued/in progress. Build result and artifact are not yet confirmed.
+- This pipeline only builds the existing scaffold. It does not complete the capture-to-backend upload pipeline or enable real chart analysis. The current app still has a placeholder backend URL and no upload loop; backend returns STANDBY.
+- No secrets are added to the public repository or APK. No paid resources created.
+- Next: inspect run jobs/logs; fix build failures if any; confirm artifact and checksum; then continue Android lifecycle/capture implementation and target-device testing.
