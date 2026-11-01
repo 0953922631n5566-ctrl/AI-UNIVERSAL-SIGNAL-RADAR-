@@ -12,7 +12,7 @@ app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
 app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbol:SYMBOL,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
 app.get("/api/state",(_,r)=>r.json(state));
 function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monitoring,connected:streamReady,apiStatus:dataLocked?"LOCKED":streamReady?"ONLINE":monitoring?"CONNECTING":"OFFLINE",dataLocked,apiMessage:lastDataError|| (streamReady?"รับราคา Streaming สดแล้ว":monitoring?"กำลังรอราคา Streaming":"หยุดเฝ้าระวัง")});const m=JSON.stringify({type:"market_state",data:state});for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(m)}
-function isFatalApiError(message){return /\\b(401|403|429)\\b|quota|credit|rate.?limit|unauthori[sz]ed|invalid api.?key|apikey/i.test(String(message||""))}
+function isFatalApiError(message){return /\b(401|403|429)\b|quota|credit|rate.?limit|unauthori[sz]ed|invalid api.?key|apikey/i.test(String(message||""))}
 function lockData(message,{fatal=false}={}){
  dataLocked=true;streamReady=false;activeSignal=null;activeUntil=0;lastDataError=String(message||"ข้อมูล API ไม่พร้อม");
  if(fatal)fatalApiLock=true;
