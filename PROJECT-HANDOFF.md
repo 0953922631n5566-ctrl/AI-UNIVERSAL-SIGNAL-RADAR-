@@ -88,3 +88,10 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - The Mini App does not send Telegram chat messages. BotFather can set the menu URL, but BOT_TOKEN/initData verification has not been configured.
 - The Twelve Data live WebSocket subscription has not yet been exercised by a real Mini App client. User must open the URL and press Start; then inspect Render logs and state for a successful EUR/USD price stream. If account plan denies WebSocket, app deliberately remains STANDBY; 120-second REST sync is not fast enough to promise 10s/3s live alerts.
 - Not Production-Ready: no end-to-end Telegram Android test, no confirmed WebSocket subscription, no external health/UI check, no security initData validation, no paper-trading/backtest/out-of-sample market validation.
+
+### Deployment status correction — 2026-11-01
+- Rechecked Render service events after the prior checkpoint.
+- Latest handoff commit 801e05fef89076dc2f3724cfac49dac93b9b45cd completed successfully: build succeeded, deploy ended with deployStatus=succeeded.
+- Application process startup was observed in Render logs: “MAIN MARKET Radar listening on 10000”.
+- Render reports the service is not suspended and uses the Free plan in Singapore.
+- Public HTTP health response and real browser rendering remain unverified from this assistant environment; the URL is ready for the user to open.
