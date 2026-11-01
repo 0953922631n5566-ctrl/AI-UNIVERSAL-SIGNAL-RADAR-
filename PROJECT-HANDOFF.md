@@ -1,60 +1,35 @@
 # AI UNIVERSAL SIGNAL RADAR — Project Handoff
 
-**Architecture baseline approved:** 2026-11-01  
-**Implementation status:** Requirements documented. No source code, backend, APK, or live tests completed yet.
+**Architecture baseline:** 2026-11-01  
+**Implementation status:** Initial source scaffold committed. Not yet built, deployed, or device-tested.
 
-## Product
-Build a standalone Android APK. The APK is the only user-facing app; no Telegram Mini App. One START/STOP control. Broker-agnostic and market-agnostic: no routine broker, market, or symbol selection. The user opens a chart, starts the capture session, approves Android screen-capture permission, and the APK captures and sends frames automatically until STOP.
+## Product requirements
+Standalone Android APK; no Telegram Mini App. One START/STOP workflow. Broker-agnostic and market-agnostic by design; no routine broker, market, asset or pair selection. User opens a chart, taps START, approves Android screen capture, and the app captures during that authorized session. STOP ends capture. Manual trading advice only; never place broker orders.
 
 ## Architecture
-- **Android APK (eyes + display):** Android MediaProjection foreground capture service; capture frames during an approved session; upload images plus timestamp, sequence, session ID, dimensions/orientation and health metadata over authenticated HTTPS; retry transient failures; deduplicate; reject stale results; display status and CALL/PUT/STANDBY. Android may require a new permission for a new capture session or after OS revocation.
-- **Backend (brain):** authenticated image ingestion; validate freshness/quality/order; queue and deduplicate; maintain temporal context across frames; run chart perception/OCR, regime classification, adaptive analysis, risk/decision checks, and continuous monitoring; return structured results to APK. Keep secrets server-side, never in APK or public GitHub.
-- **No automatic broker orders.** Decision support only.
+- Android APK: MediaProjection foreground service, consent prompt, frame metadata, authenticated HTTPS upload, result display, retry/dedup/stale-response protection.
+- Backend: authenticated image ingestion, image quality/freshness/order checks, temporal frame context, chart perception/OCR, regime classification, adaptive analysis, risk/decision engine and signal invalidation.
+- Secrets remain server-side. Never commit secrets or embed a private token in a public APK.
+- Screenshot sampling is not a tick feed. Do not claim tick-level real-time.
 
-## Core intelligence: Situation-Aware, Event-Driven Adaptive Analysis
-Do NOT use a rigid timer-driven, one-formula-every-minute scanner. Treat the latest frame as an observation in a continuous, stateful sequence:
-1. Receive a new frame.
-2. Validate image quality, timestamp, and freshness.
-3. Compare with prior frames and update recent price/candle context.
-4. Classify the situation: trend, range, breakout, high volatility, weakening trend, possible reversal, or unclear.
-5. Adapt analysis methods and evidence weights to the detected situation.
-6. Check conflicting evidence, volatility, data quality, and risk.
-7. Emit CALL, PUT, or STANDBY only when explicit, testable conditions pass.
-8. Continue monitoring; invalidate/downgrade/update signals when evidence expires or conditions change.
+## Intelligence policy
+Situation-aware and event-driven, not a rigid timer-driven single-formula scanner. Compare sequential frames; identify trend/range/breakout/high volatility/weakening/reversal/unknown; adapt evidence; suppress decisions when image/data is ambiguous, stale, conflicting or risky. CALL/PUT require explicit testable and validated conditions. Otherwise STANDBY. Do not fabricate prices, candles, indicators or confidence. Use temporal confirmation/hysteresis to avoid noisy direction flips. Include rationale and invalidation conditions.
 
-Examples:
-- Trend: emphasize trend/momentum; avoid chasing an extended move.
-- Range: reduce trend-following weight; assess range boundaries and false-break risk.
-- Volatility spike: require confirmation; avoid premature entries.
-- Reversal: detect weakening momentum/rejection and wait for confirmation.
-- Poor/ambiguous/stale/conflicting data: STANDBY.
+EMA/RSI/MACD, candle structure, support/resistance, momentum and volatility may be evidence tools; none is a universal fixed formula.
 
-EMA, RSI, MACD, momentum, candle structure, support/resistance, volatility and price action are evidence tools, not a single immutable formula. Their use and weighting depend on regime and empirical validation.
+## Current code
+- `backend/app.py`: health, session start/stop, bounded frame metadata/hash tracking, auth, JPEG/PNG and timestamp/sequence validation. Returns STANDBY because no vision model is configured.
+- `android/`: initial Android 14 MediaProjection consent and foreground capture scaffold.
+- The Android capture scaffold does not yet encode/upload frames or render backend decisions. Backend URL is a placeholder. No APK has been built.
+- Android source needs compilation and lifecycle review before release.
 
-## Event-driven responsiveness
-New frames, detected price/candle changes, breakouts, volatility shifts, candle-close proximity, data-quality changes and signal invalidation can trigger reassessment. Capture cadence may adapt within device/network/backend limits. Screenshot sampling is not a direct tick feed; never claim tick-level real-time. Preserve sequence order and reject stale/out-of-order observations.
+## Next work
+1. Complete Android frame encoding, upload, response parsing, retry/backoff and STOP/result UI.
+2. Securely provision backend authentication and deploy backend over HTTPS.
+3. Add a real vision adapter with structured perception outputs; keep STANDBY until validated.
+4. Build test harness with labeled multi-broker image sequences and chronological/out-of-sample evaluation.
+5. Build APK and test on Xiaomi 11T / Android 14, record exact artifact SHA-256 and test evidence.
+6. Update this handoff after each meaningful change.
 
-## Signal policy
-- CALL: bullish evidence passes validated conditions for current situation.
-- PUT: bearish evidence passes validated conditions for current situation.
-- STANDBY: insufficient, stale, ambiguous, conflicting, or high-risk evidence.
-Never force a signal. Do not fabricate confidence percentages; calibrate them on validation data or omit/label experimental. Include rationale, evidence, observation time, validity/invalidation conditions, and data-quality status. Prevent rapid CALL/PUT flips from OCR noise using temporal confirmation and hysteresis.
-
-## Universal compatibility
-Infer instrument, timeframe, price scale, candle area and chart context from the image when visible. Do not hard-code one broker's screen coordinates. If identification is unreliable, state uncertainty and use STANDBY. Universal compatibility is a goal to validate across chart layouts, not a guarantee for every broker.
-
-## Testing / release gates
-Test Android 14 MediaProjection/foreground service on Xiaomi 11T; upload/retry/dedup/stale ordering/reconnect; varied broker layouts, themes, zoom, orientations, assets and timeframes; labeled image-sequence evaluation for OCR/candle extraction, regime classification, false positives and latency; chronological backtests and out-of-sample/paper testing; verify uncertain inputs produce STANDBY. Publish APK only with exact build/version/hash and actual test results.
-
-## Exclusions
-Do not revive or modify legacy OCR/Signal Radar repos or Render services without a separate request. User said prior assets were deleted and wants a new project from scratch. No Telegram Mini App, no manual image uploads in normal operation, no routine broker/market selection, no paid market-data API dependency, no secrets in APK/public source, no automatic trading.
-
-## Next steps
-1. Initialize this separate repository.
-2. Implement backend ingestion, health/status, session/frame handling, and conservative STANDBY-first analysis interface.
-3. Implement APK START/STOP, MediaProjection permission, foreground capture, HTTPS upload, result display and reconnect.
-4. Implement temporal situation-aware analysis and test harness.
-5. Deploy backend, configure secrets securely, build/test APK on Xiaomi 11T.
-6. Update handoff notes after each meaningful change.
-
-**Continuity:** Treat this as the approved baseline in future conversations. Continue from the implementation status above. Do not revert to Telegram Mini App, manual per-image uploads, broker selectors, fixed one-minute formula-only scanning, or automatic trading.
+## Safety and release gates
+No automatic trading. No fabricated signal/confidence. Do not release as production-ready before security, build, device, latency, image-perception, false-positive and out-of-sample tests. No paid resources without explicit cost approval. Legacy OCR and Telegram projects remain out of scope.
