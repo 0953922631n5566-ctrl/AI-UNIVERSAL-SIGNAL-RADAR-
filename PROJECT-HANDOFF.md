@@ -239,3 +239,21 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Existing Render logs prove WebSocket open and first live price, but do not yet prove how many REST candles were returned. The new log will distinguish REST history success from an API/response error on the next start or refresh.
 - Device retest is pending after the updated deployment reaches LIVE. Do not claim the 60 candles were successfully loaded or that the on-device screen is fixed until the next Render log and Mini App state confirm it.
 - Android/OCR branch `main` was not modified.
+
+
+## 2026-11-02 — Main Market pre-close alert and shorter warmup correction
+
+- User reported that the 10-second pre-close sound remained silent after repeated earlier fixes, and that a 60-candle warmup was too long.
+- Inspected the current main-market branch, this handoff, frontend countdown/audio code, analyzer, Twelve Data REST parser, server warmup branch, and Render service/deploy/log state before editing. The Android/OCR branch main was not changed.
+- Render logs from the prior live session show Twelve Data REST successfully returned 120 historical candles (received: 120, available: 120/121) shortly after Start. Therefore, 60 candles did not require waiting 60 minutes when REST history is available; the visible 1/60 state was the live tick arriving before the REST request completed. Historical data is fetched in one REST request.
+- Confirmed frontend alert logic was explicitly gated on CALL/PUT, so the 10-second attention warning did not play while the signal was STANDBY. Also, the server's warmup response omitted nextCandleAt, so the client had no countdown to drive an alert while warming up.
+- Implemented on main-market:
+  - 557750a46e9994039842ea5bc88c3751d4979b4f — 10-second watch chime is now separate from trade-direction alerts; it plays once per candle when monitoring is active and API is ONLINE, including during STANDBY. The 3-second entry-preparation sound/vibration remains restricted to confirmed CALL/PUT. Immediate CALL/PUT sound is only emitted during active monitoring with API ONLINE.
+  - f58827a5b6ce98f63ab70780b2176a33da4d2c90 — analyzer now uses the 30-bar warmup-compatible indicator set: EMA 9/21/26, RSI 14, MACD 12/26 with 5-period signal, ATR 14/20, 20-bar support/resistance and 5-bar momentum.
+  - 4b0409e60822b4126704cf80f85f448866865314 — server uses the shared 30-candle threshold and publishes the candle-close timestamp even during warmup so the pre-close timer can run.
+  - 6ecbca0b7428e5b214dfc3c8fe27939cfc00cc51 — Twelve Data history validation aligned to 30 minimum candles; still requests up to 120 historical candles for context.
+  - 31a7af47a36ae8515bf3677d919b5e19edce8331 — analyzer tests updated for 29-bar standby and successful 30-bar calculation.
+  - 6a95c108172714efd53138aa51c491888e1c5a54 — shared MIN_CANDLES=30 configuration.
+- Strategy tradeoff: warmup is reduced from 60 to 30 minutes of 1-minute bars. The shorter indicator set is more responsive and may be noisier than EMA50/MACD9/ATR50. It remains an analysis aid, not a proven predictive model; manual-only/no-auto-orders and fail-closed freshness checks remain.
+- Validation status at time of handoff update: GitHub source commits succeeded. Render auto-deploy build, automated test result, final LIVE deployment, and real Telegram/Xiaomi audio timing still require verification. The assistant cannot certify physical-device speaker output remotely.
+- Next: verify the latest source deploy includes all six source commits, check Render build logs for 5 passing tests and syntax checks, verify final deploy status LIVE, then ask user to close/reopen the Mini App and test one real 10-second candle boundary while API LIVE. Confirm the 10-second watch chime in STANDBY and the 3-second entry alert only when CALL/PUT is present.
