@@ -33,3 +33,52 @@ EMA/RSI/MACD, candle structure, support/resistance, momentum and volatility may 
 
 ## Safety and release gates
 No automatic trading. No fabricated signal/confidence. Do not release as production-ready before security, build, device, latency, image-perception, false-positive and out-of-sample tests. No paid resources without explicit cost approval. Legacy OCR and Telegram projects remain out of scope.
+
+
+---
+
+## 2026-11-01 — Project manager operating commitment (user-requested)
+
+The user explicitly requested that this operating agreement be saved in the repository so future ChatGPT conversations can understand it immediately:
+
+> ต่อไปเมื่อคุณสั่งงาน ผมจะทำแบบ ผู้จัดการโปรเจกต์ที่รับผิดชอบงานจนจบ ไม่ใช่แค่บอกวิธีทำให้คุณไปทำเอง  
+> รับโจทย์แล้วลงมือทำจริง ให้มากที่สุดเท่าที่เครื่องมือจะทำได้  
+> ถ้าทำแล้วไม่ตรงเป้าหมาย ผมจะแก้ไขและปรับวิธีเอง ไม่ยึดติดกับวิธีเดิม  
+> ถ้าติดปัญหา ผมจะหาทางแก้หรือทางเลือกอื่น ไม่ปล่อยงานค้างโดยไม่จำเป็น  
+> ตรวจสอบก่อนส่งมอบ ทั้งโค้ด การ Build การ Deploy และผลการทำงานตามที่ตรวจสอบได้  
+> รักษาสิ่งที่ทำงานได้อยู่แล้ว ไม่แก้จนระบบเดิมเสีย  
+> บันทึกเอกสารส่งต่องานทุกครั้ง เพื่อให้ห้องสนทนาถัดไปทำต่อได้ทันที  
+> รายงานตามความจริง อะไรสำเร็จแล้ว อะไรยังต้องตรวจสอบ จะแยกให้ชัดเจน  
+> จะไม่ให้ผู้ใช้เสียเวลาทำซ้ำในสิ่งที่ผู้ช่วยสามารถจัดการให้ได้ เป้าหมายคือรับงานแล้วพยายามส่งมอบเป็นผลงานที่พร้อมใช้งานจริงให้ได้มากที่สุด
+
+### Verified repository and implementation state at this checkpoint
+
+- Active repository: `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`
+- Default branch: `main`; repository visibility: public; connected GitHub permissions observed: admin/push.
+- Existing scaffold commit observed: `bceb9e63b977195798697a2b14a8ceac635402df`.
+- Existing files include `README.md`, this handoff, Android Kotlin scaffold and `backend/app.py`.
+- Backend currently validates auth, image type/size, timestamp and sequence, records frame hashes, and deliberately returns STANDBY. There is no vision model adapter, no actual chart perception, no signal decision model and no deployment configuration confirmed.
+- Android currently requests MediaProjection permission and creates a foreground capture session, but its CaptureService explicitly has no frame encoding/upload loop and no backend response rendering. The backend URL is still a placeholder. MainActivity's START/STOP UI is incomplete: STOP is initially disabled but no state update enables it after capture begins; START is not disabled; there is no robust service-state/result binding.
+- No APK build, installation, Xiaomi 11T device test, backend deployment, HTTPS endpoint test, authenticated end-to-end frame upload, or signal validation has been verified. Do not describe this scaffold as ready to install or trade.
+- Android 14 MediaProjection consent and foreground-service lifecycle must be tested on the target Xiaomi 11T. Capture must remain user-consented and user-stoppable.
+- Legacy Telegram Mini App / 8xTrade OCR project remains out of scope unless the user explicitly reopens it.
+
+### Required execution and reporting discipline
+
+For every meaningful project change:
+1. Inspect current repository state before editing; preserve working code and avoid destructive changes.
+2. Implement the most useful safe next step directly when tools permit.
+3. Run available automated checks/builds; report exact commands and outcomes. If the environment lacks Android SDK/Gradle, state that build could not be run rather than claiming success.
+4. Deploy only after the user has authorized the target and any costs; never incur paid resources without explicit cost approval.
+5. Verify deployment health and end-to-end behavior where access permits.
+6. Record commit SHA, changed files, tests/build/deploy outcomes, blockers and next actions in this handoff after each meaningful change.
+7. Clearly distinguish **implemented**, **built**, **deployed**, **device-tested**, and **validated**. Never infer one from another.
+8. Do not produce CALL/PUT until real visual perception and decision logic are validated; default to STANDBY when evidence is insufficient. Manual trading only.
+
+### Immediate next milestones
+
+1. Complete Android capture pipeline: safe frame acquisition, JPEG conversion, authenticated HTTPS upload, sequence/timestamp handling, bounded retries/backoff, response parsing, visible decision/reason, reliable START/STOP lifecycle.
+2. Add backend session expiry/resource bounds, robust session/frame state, structured perception adapter interface and test fixtures. Keep directional decisions disabled until a real model and evaluation data exist.
+3. Provision a secure server-side secret and deploy an HTTPS backend only after cost/target authorization; never embed a private token in this public repository or APK.
+4. Establish reproducible Android build environment/CI, build debug APK, record SHA-256, then test on Xiaomi 11T Android 14.
+5. Create multi-broker labeled screenshot sequences and chronological/out-of-sample evaluation before enabling directional signals.
