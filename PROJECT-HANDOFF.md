@@ -141,3 +141,13 @@ For every meaningful project change:
 - The APK is built and artifact-verified, but it has NOT been installed or tested on the user's Xiaomi 11T. The explicit foreground-service type patch is intended to address the Android 14 startup path; the exact original crash cause remains unconfirmed without a device stack trace.
 - Next validation: install this new crash-fix APK (not the prior build), approve screen capture, verify the UI reports capture started and STOP ends it. If it still fails, collect the exact error shown in the app; then request Android bug report/logcat if needed.
 - No backend upload, vision analysis, or CALL/PUT signal generation is included in this build. Backend remains STANDBY-only; manual trading only.
+
+
+### GitHub repository resolution corrected — 2026-11-01
+
+- The previously used repository name `0953922631n5566-ctrl/my-ai-signal-bot` returns “Could not resolve to a Repository” and is not present in the linked account's accessible repository list.
+- Enumerated repositories for owner `0953922631n5566-ctrl`; the active project repository is confirmed as `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`.
+- Confirmed via GitHub connector: repository ID `1441692362`, public, default branch `main`, permissions include `admin: true` and `push: true`.
+- Successfully fetched repository metadata and root contents, including this `PROJECT-HANDOFF.md`, `README.md`, `android/`, `backend/`, and `.github/`. GitHub connector access is now verified against the correct repository; no additional reconnect or installation step is currently required.
+- No application source code or APK was changed during this access investigation. Existing crash-fix APK status and SHA-256 above remain unchanged.
+- Use `AI-UNIVERSAL-SIGNAL-RADAR-` as the canonical repository in future work; do not use the obsolete `my-ai-signal-bot` path unless independently rediscovered.
