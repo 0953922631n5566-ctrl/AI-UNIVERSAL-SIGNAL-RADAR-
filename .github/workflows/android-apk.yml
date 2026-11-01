@@ -34,7 +34,11 @@ jobs:
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-        run: yes | sdkmanager --licenses >/dev/null && sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+        run: |
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Build debug APK
         working-directory: android
