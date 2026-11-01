@@ -46,7 +46,9 @@ async function sync(){
  const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:120});
  const live=candles.at(-1);candles=live?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-180):d.candles.slice(-180);
  fatalApiLock=false;
- if(!tickAt)analyze();
+ console.info("[market-feed] REST history loaded",{symbol:SYMBOL,received:d.candles.length,available:candles.length,liveTickPresent:!!tickAt});
+ // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
+ analyze();
 }
 function startRest(){clearInterval(restTimer);restTimer=setInterval(()=>sync().catch(e=>lockData("Twelve Data REST: "+e.message,{fatal:isFatalApiError(e.message)})),SYNC*1000)}
 function startStream(){
