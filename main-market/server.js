@@ -49,12 +49,12 @@ function startStream(){
  upstream.on("close",()=>{upstream=null;clearInterval(heartbeat);tickAt=0;publish({signal:"STANDBY",reason:"Streaming หลุด: ใช้ REST สำรองและลองเชื่อมใหม่",connected:false});if(monitoring)retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
- monitoring=false;clearInterval(restTimer);clearInterval(heartbeat);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
+ monitoring=false;lastAlertId=null;signalCandle=null;clearInterval(restTimer);clearInterval(heartbeat);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
  publish({signal:"STANDBY",regime:"UNKNOWN",reason:"หยุดเฝ้าระวังแล้ว",evidence:[],metrics:null,monitoring:false,connected:false});
 }
 wss.on("connection",ws=>{
  ws.send(JSON.stringify({type:"market_state",data:state}));
- ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.action==="start"){monitoring=true;publish({signal:"STANDBY",reason:"กำลังเชื่อมต่อ Twelve Data"});startStream()}if(m.action==="stop")stop()});
+ ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.action==="start"){monitoring=true;lastAlertId=null;signalCandle=null;activeSignal=null;activeUntil=0;publish({signal:"STANDBY",reason:"กำลังเชื่อมต่อ Twelve Data"});startStream()}if(m.action==="stop")stop()});
  ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
 });
 server.listen(PORT,()=>console.log("MAIN MARKET Radar listening on "+PORT));
