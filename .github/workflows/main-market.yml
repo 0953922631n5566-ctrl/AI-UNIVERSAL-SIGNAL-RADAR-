@@ -1,0 +1,19 @@
+name: Main Market Checks
+on:
+  push:
+    branches: [main-market]
+    paths: ["main-market/**", ".github/workflows/main-market.yml"]
+  pull_request:
+    branches: [main-market]
+    paths: ["main-market/**", ".github/workflows/main-market.yml"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cd main-market && npm install
+      - run: cd main-market && npm test

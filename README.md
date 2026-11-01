@@ -1,28 +1,16 @@
-# AI UNIVERSAL SIGNAL RADAR
+# AI UNIVERSAL SIGNAL RADAR — MAIN MARKET
 
-Standalone Android screen-observation app with a stateful analysis backend.
+This branch is an isolated Twelve Data / EUR/USD Telegram Mini App. The Android/OCR project on `main` is preserved unchanged.
 
-## Current status
-This is an initial engineering scaffold, not a released APK or validated trading system. The backend deliberately returns STANDBY until a real vision/model adapter and validation dataset are configured. It never invents prices or signals.
+- EUR/USD only, Non-OTC, 1-minute candles.
+- Twelve Data REST history plus optional live price WebSocket.
+- Situation-aware regimes: trend, range, high volatility, reversal, unclear.
+- Evidence: EMA, RSI, MACD, price action, support/resistance and volatility.
+- CALL / PUT / STANDBY only. No broker order execution and no Telegram chat messages.
+- Start/stop monitoring in Mini App; stream closes when final Mini App client disconnects.
 
-## Components
-- `backend/`: FastAPI health, session, authenticated frame-ingestion and conservative decision contract.
-- `android/`: Android app scaffold for START/STOP and MediaProjection capture.
-- `PROJECT-HANDOFF.md`: approved requirements and continuity record.
+Render: branch `main-market`, build `cd main-market && npm install`, start `cd main-market && npm start`, Singapore, Free plan. Set `TWELVE_DATA_API_KEY` only as a Render environment secret.
 
-## Backend
-Python 3.11+:
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-RADAR_INGEST_TOKEN='replace-with-a-long-random-secret' uvicorn app:app --host 0.0.0.0 --port 8000
-```
-Set `RADAR_INGEST_TOKEN` only in the server environment. Do not commit it or embed it in the APK.
+Twelve Data Basic currently lists 8 API credits/minute and 800/day; one `/time_series` symbol costs 1 credit. 120-second resync is approximately 720 requests/day when continuously active. WebSocket access must be verified for the account; REST fallback is used and stale data forces STANDBY.
 
-## Android
-Open `android/` in Android Studio (recent stable version, JDK 17, Android SDK 35). Set the backend HTTPS URL in `local.properties`/BuildConfig before use. Android MediaProjection always requires the user's system permission prompt. A fresh session requires fresh consent.
-
-## Important
-No automatic broker orders. Screenshot sampling is not a tick feed. Universal broker compatibility is a test target, not a guarantee. Do not use for live trading until perception, signal logic, security, latency and out-of-sample performance are independently validated.
+The decision logic is a transparent heuristic, not a trained model or proven profitable strategy. Validate on historical and paper data before relying on signals.
