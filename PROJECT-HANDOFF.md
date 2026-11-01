@@ -125,3 +125,22 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Build issue caught and corrected before considering the mobile-offline lock complete: commit 2ec123f9d46c9063f7cea7a34d339df33cb38158 initially failed Render's node --check because the reconnect handler contained a literal escaped newline. Corrected in f2c49d46b4c28dbec470026a478c3e7477a62150. Re-run Render build and verify latest deploy; do not use the failed deploy.
 
 - Correction to the first syntax repair: the file contained a literal backslash followed by the letter n, not two backslashes. The initial replacement did not match; exact character-code inspection found and removed it. Final syntax repair commit: 67fd6c95ee11b3f9ee844f3bf09220deefeb679d. Verify Render node --check and latest deployment after this commit.
+
+
+## 2026-11-01 — Fail-closed API outage handling fix
+
+- User reaffirmed the MAIN MARKET Mini App scope and supplied the full product specification: Twelve Data EUR/USD Non-OTC 1M, adaptive situation-aware analysis, separate API health vs CALL/PUT/STANDBY, fail-closed behavior, manual trading only. The Android/OCR project on `main` remains out of scope and unchanged.
+- Inspected `main-market/server.js`, `src/analyzer.js`, `src/twelve-data.js`, `public/index.html`, and `public/app.js` before editing.
+- Found a runtime defect: WebSocket error/close paths called `lockData()`, but the function was not defined. REST sync failures only published a STANDBY message and did not set the API lock. The 25-second streaming watchdog also cleared signal output but did not consistently mark the API as LOCKED.
+- Fixed in commit `efa61fdff0898221644e2119a864b62f0cf09537` (`fix: fail closed on Twelve Data API and stream outages`):
+  - Added the missing `lockData()` handler, which clears held CALL/PUT state and publishes STANDBY with API LOCKED.
+  - REST failures now enter the same lock path.
+  - Authentication, authorization, quota and rate-limit errors are treated as fatal API locks; a later successful REST request clears the fatal latch, but API LIVE still requires a new actual streaming tick.
+  - A missing streaming tick for more than 25 seconds now locks signal output and closes the stale stream for reconnect.
+  - WebSocket error/rejection/close paths now share the safe lock behavior.
+- Render service `srv-dbjls149v7es73ag0k4g`, branch `main-market`, automatically deployed commit `efa61fdff0898221644e2119a864b62f0cf09537`.
+- Render deploy `dep-dbjmjf5g1s2s7384p9c0` reached status `live`. Build logs show `npm install` succeeded, 5 tests passed / 0 failed, and the server started with `MAIN MARKET Radar listening on 10000`.
+- Local assistant network could not resolve the Render hostname, so an independent external HTTP GET of `/health` and browser rendering was not possible. Render itself reported the service live; user-side Mini App retest is still required.
+- The existing analyzer still requires 60 candles and uses a transparent heuristic engine; it is not a trained AI model and has no validated predictive edge. Do not reduce warmup or alter strategy thresholds without a separate evidence-based task. Existing alerts, 40-second signal hold, and per-candle dedupe remain in place.
+- Not yet verified: real Twelve Data WebSocket subscription with the user's account, live price arrival, mobile network loss behavior in Telegram, 10s/3s timing on device, and actual browser/Telegram rendering.
+- Next: user opens the deployed Mini App, taps Start, and checks whether API becomes LIVE only after a real EUR/USD tick; if it remains CONNECTING/LOCKED, capture the visible message and matching Render logs. Then continue audit of alert timing and market-regime logic without weakening fail-closed behavior.
