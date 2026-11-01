@@ -20,7 +20,7 @@ function applyTick(price,epoch){
  tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
 }
 function analyze(){
- if(candles.length<60)return;
+ if(candles.length<60){publish({signal:"STANDBY",regime:"UNKNOWN",reason:"รับราคา API สดแล้ว — กำลังตรวจสอบประวัติแท่งเทียน "+candles.length+"/60",evidence:[],metrics:null,tickAgeSeconds:Math.round((Date.now()-tickAt)/1000),lastTickPrice:lastTick,source:"Twelve Data live price + REST candles"});return;}
  const age=tickAt?(Date.now()-tickAt)/1000:null;let x=analyzeMarket(candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:age}),cid=candles.at(-1).epoch;
  if(!x.metrics){activeSignal=null;activeUntil=0;}
  if(x.metrics&&(x.signal==="CALL"||x.signal==="PUT")){
