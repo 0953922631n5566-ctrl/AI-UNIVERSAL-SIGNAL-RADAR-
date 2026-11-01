@@ -96,3 +96,13 @@ For every meaningful project change:
 - This pipeline only builds the existing scaffold. It does not complete the capture-to-backend upload pipeline or enable real chart analysis. The current app still has a placeholder backend URL and no upload loop; backend returns STANDBY.
 - No secrets are added to the public repository or APK. No paid resources created.
 - Next: inspect run jobs/logs; fix build failures if any; confirm artifact and checksum; then continue Android lifecycle/capture implementation and target-device testing.
+
+
+### CI build follow-up — 2026-11-01
+
+- Workflow file: `.github/workflows/android-apk.yml`.
+- Initial CI attempt `41306165458` failed because `android-actions/setup-android@v3` attempted to install the retired SDK package `tools`.
+- Second attempt `41306238949` failed during SDK install; workflow was changed to locate `sdkmanager` directly under the runner's Android SDK.
+- Third attempt `41306290711` passed checkout, JDK 17, Gradle setup, and Android SDK platform installation. At the latest check, Gradle `:app:assembleDebug` was still running; no artifact or SHA-256 was available yet.
+- Latest workflow source commit: `5d49dfd490392550d3bd930cbf9194d890b35267`.
+- Status distinction: CI pipeline implemented; Android build not yet confirmed; no APK artifact yet; no device test; no signal validation.
