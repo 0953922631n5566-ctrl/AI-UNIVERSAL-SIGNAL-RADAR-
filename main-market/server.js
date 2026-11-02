@@ -34,6 +34,7 @@ function newFeed(symbol) {
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
+    preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false
   };
 }
@@ -106,6 +107,7 @@ function publicFeed(feed) {
     signalExpiresAt: feed.activeSignal
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
+    preAlertSignal: feed.preAlertSignal,
     source: "Twelve Data REST + live-price Streaming"
   };
 }
@@ -156,6 +158,8 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
   feed.activeSignal = null;
   feed.activeUntil = 0;
   feed.signalCandle = null;
+  feed.preAlertSignal = null;
+  feed.preAlertCandle = null;
   feed.alertId = null;
   feed.analysis = standby(reason);
 }
@@ -184,6 +188,15 @@ function evaluate(feed) {
     maxAgeSeconds: MAX_CANDLE_AGE_SECONDS
   });
   const candleId = result.lastCandleEpoch ?? null;
+  if (feed.preAlertCandle !== candleId) {
+    feed.preAlertCandle = candleId;
+    feed.preAlertSignal = null;
+  }
+  if (result.signal === "CALL" || result.signal === "PUT") {
+    feed.preAlertSignal = result.signal;
+  } else if (!(feed.activeSignal && Date.now() < feed.activeUntil)) {
+    feed.preAlertSignal = null;
+  }
 
   if (result.signal === "CALL" || result.signal === "PUT") {
     if (feed.activeSignal && Date.now() < feed.activeUntil) {
@@ -217,6 +230,7 @@ function evaluate(feed) {
       feed.activeSignal = null;
       feed.activeUntil = 0;
       feed.signalCandle = candleId;
+      feed.preAlertSignal = null;
       feed.alertId = null;
       feed.analysis = standby(invalid
         ? "ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"
