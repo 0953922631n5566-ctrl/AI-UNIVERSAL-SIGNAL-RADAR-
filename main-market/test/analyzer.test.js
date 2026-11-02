@@ -69,7 +69,7 @@ test("the Main Market backend exposes six selectable Forex pairs", () => {
   assert.equal(new Set(SYMBOLS).size, 6);
   assert.equal(MIN_CLOSED_CANDLES, 60);
   assert.equal(HISTORY_CANDLES, 80);
-  assert.equal(REST_SYNC_SECONDS, 300);
+  assert.equal(REST_SYNC_SECONDS, 180);
 });
 
 test("server and REST client use the same reduced warmup limits", async () => {
