@@ -553,3 +553,13 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Public `/health` endpoint could not be fetched from the assistant's web runtime; Render deployment state is verified, but HTTP response content and actual Telegram WebView/device behavior are not independently verified.
 - Next device check: open the Main Market Mini App, enable both sound and vibration, tap Start once to unlock audio, then use the in-app Test Sound and Test Vibration controls. Confirm the 10-second warning and 3-second entry alert only occur on CALL/PUT; STANDBY must remain silent. Check phone media volume and Telegram's haptics setting if the test controls report sent but no physical feedback is perceived.
 - Do not consider security closed: Telegram `initData` validation for `/api/control` and `/api/state` is still outstanding. Also, actual live Twelve Data tick reception and supported status per selected pair still require a real client session.
+
+
+## 2026-11-02 — Root static Mini App cross-origin API support
+
+- Root static site now hosts a copy of the Main Market client; it calls this service cross-origin from `https://ai-universal-signal-radar.onrender.com`.
+- Added explicit allowlist CORS middleware in `main-market/server.js` for the root static-site origin and canonical Main Market origin. It allows GET, POST, OPTIONS and Content-Type, handles preflight, and does not enable credentials or wildcard origins.
+- Commit: `779f856e376134515142d89c2dbfb0980f6139f8`.
+- This enables the root-hosted UI to call `/api/state` and `/api/control` on the Main Market service and connect to its `/live` WebSocket.
+- Security caveat remains: CORS is not authentication. The control and state endpoints still need Telegram `initData` validation and appropriate rate/session protections before the service can be considered production-secure. No bot token was added to public source or browser code.
+- Verify Render deploy and actual preflight/API responses from the static-site origin before calling the cross-origin path operational. Telegram WebView and physical sound/haptics require device confirmation.
