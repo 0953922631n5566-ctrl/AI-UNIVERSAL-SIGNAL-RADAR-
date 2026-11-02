@@ -919,3 +919,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Backend was intentionally not weakened or rewritten in this pass. Existing Twelve Data REST requires 60 closed M1 candles; directional signals still require a fresh Streaming tick. If REST fails, the UI should now show the actual returned error; if REST works but Streaming is not entitled, it should show REST_ONLY and remain STANDBY.
 - Current validation status at handoff update: GitHub files re-fetched from `main-market` and confirmed present with new content. Render auto-deploy, install-time tests / syntax checks, runtime REST fetch, and Android Telegram device test are pending. Do not tell the user the new Mini App is live or that market data is working until Render deploy is live and logs show `start requested` followed by `REST ready` (or a specific `REST error`).
 - Keep the Android/OCR branch and the `main` frontend untouched.
+
+
+### v4 validation correction
+- First v4 deploy attempts failed during `npm test`, not due to server runtime: two legacy frontend assertions still expected the retired modal/WebSocket-era UI and a literal pre-alert expression.
+- Updated the mobile UI regression test to assert the new v4 structure and HTTP polling flow; retained the pre-alert direction guard in the client.
+- Additional safety fix: audio-unlock failure is no longer allowed to block the Start command; Telegram vibration now invokes both impact and notification haptics when supported.
+- Commits: `23a096867d3842d0260552a7d6e826f06082f7dc` (client hardening), `012ea07d0da84b9f2459c35bd7382701aabc3564` (test contract update).
+- Re-run Render build and verify all tests pass before user retest.
