@@ -1,66 +1,206 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Universal Signal Radar - EUR/USD</title>
-    <style>
-        body { background-color: #0d1117; color: #c9d1d9; font-family: sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; }
-        .container { width: 100%; max-width: 400px; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; box-sizing: border-box; }
-        h2 { font-size: 18px; text-align: center; color: #58a6ff; margin-top: 0; }
-        .subtitle { text-align: center; font-size: 12px; color: #8b949e; margin-bottom: 20px; }
-        .status-box { text-align: center; padding: 25px; border-radius: 10px; font-size: 32px; font-weight: bold; margin-bottom: 20px; letter-spacing: 2px; }
-        .CALL { background-color: #238636; color: #fff; }
-        .PUT { background-color: #da3633; color: #fff; }
-        .STANDBY { background-color: #30363d; color: #8b949e; }
-        .info-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; border-bottom: 1px solid #21262d; padding-bottom: 8px; }
-        .reason-box { background: #0d1117; padding: 12px; border-radius: 6px; font-size: 13px; color: #8b949e; margin-top: 15px; border-left: 3px solid #58a6ff; }
-        .btn { width: 100%; background: #2ea043; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; margin-top: 15px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#050b0d">
+<title>AI Universal Signal Radar</title>
+<style>
+:root{color-scheme:dark;--bg:#050b0d;--panel:#091416;--line:#12383a;--green:#00f58a;--red:#ff4058;--muted:#829397;--cyan:#00d9ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100svh;background:radial-gradient(ellipse at 50% 38%,#09201c 0%,#050b0d 58%,#020608 100%);color:#f4ffff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;justify-content:center;align-items:center;padding:16px}
+.app{width:min(100%,440px);min-height:min(850px,calc(100svh - 32px));display:flex;flex-direction:column;justify-content:space-between;gap:18px}
+.top{text-align:center;padding-top:6px}
+.brand{font-size:clamp(19px,5vw,25px);font-weight:900;letter-spacing:1.5px}
+.brand span{color:var(--cyan)}
+.market{margin-top:5px;color:#a4b8bb;font-size:12px;letter-spacing:2px}
+.api{display:inline-flex;align-items:center;gap:9px;margin-top:17px;padding:8px 14px;border:1px solid #1c3b3c;border-radius:99px;background:#071112;color:#a9c0c0;font-size:12px;letter-spacing:.4px}
+.api-dot{width:9px;height:9px;border-radius:50%;background:#78888b;box-shadow:0 0 0 3px #78888b22}
+.api.connected{border-color:#087b50;color:#8dffc5}
+.api.connected .api-dot{background:var(--green);box-shadow:0 0 9px var(--green);animation:blink 1.1s infinite}
+.api.quota{border-color:#8e2937;color:#ff9aa6}
+.api.quota .api-dot,.api.error .api-dot{background:var(--red);box-shadow:0 0 9px var(--red)}
+.api.error{border-color:#8e6530;color:#ffd18a}
+.api.error .api-dot{background:#ffb547;box-shadow:0 0 9px #ffb547}
+@keyframes blink{50%{opacity:.25;box-shadow:0 0 2px var(--green)}}
+.signal{min-height:190px;border:2px solid #536164;border-radius:28px;background:linear-gradient(145deg,#101a1c,#050b0d);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;box-shadow:inset 0 0 35px #0008;transition:.25s}
+.signal .arrow{font-size:45px;line-height:1}
+.signal strong{font-size:clamp(55px,16vw,78px);line-height:1;font-weight:950;letter-spacing:2px}
+.signal small{font-size:11px;letter-spacing:2px;color:#9fb1b2}
+.signal.CALL{border-color:var(--green);color:#fff;box-shadow:0 0 24px #00f58a40,inset 0 0 38px #00f58a12}
+.signal.CALL .arrow{color:var(--green)}
+.signal.PUT{border-color:var(--red);color:#fff;box-shadow:0 0 24px #ff405840,inset 0 0 38px #ff405812}
+.signal.PUT .arrow{color:var(--red)}
+.signal.STANDBY{border-color:#334448;color:#aab7b8}
+.signal.STANDBY .arrow{color:#75888b}
+.metrics{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:12px;padding:8px 2px}
+.timer-side{display:flex;justify-content:center}
+.timer-ring{--progress:0deg;width:min(39vw,158px);height:min(39vw,158px);max-width:158px;max-height:158px;border-radius:50%;background:conic-gradient(var(--green) var(--progress),#27383a var(--progress));padding:9px;box-shadow:0 0 20px #00f58a1b}
+.timer-inner{height:100%;border-radius:50%;background:#071012;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#timer{font-size:clamp(29px,8vw,39px);font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:1px}
+.timer-label{font-size:11px;color:#91a5a6;margin-top:2px}
+.price-side{border-left:1px solid #284246;padding:8px 0 8px 15px;min-width:0}
+.pair{font-size:14px;color:#a9c2c4;font-weight:700;letter-spacing:1px}
+#price{font-size:clamp(27px,7vw,36px);font-weight:850;white-space:nowrap;letter-spacing:-1px;margin-top:12px;font-variant-numeric:tabular-nums}
+#priceHint{font-size:11px;color:#83999b;margin-top:5px;overflow-wrap:anywhere}
+.reason{min-height:28px;text-align:center;color:#82999b;font-size:11px;line-height:1.5;padding:0 12px}
+.bottom{display:flex;justify-content:center;align-items:center;padding:8px 0 12px}
+.power{width:94px;height:94px;border-radius:50%;border:2px solid #1e5c4b;background:radial-gradient(circle at 50% 35%,#173b34,#07100f 72%);display:grid;place-items:center;color:var(--green);box-shadow:0 0 0 7px #00f58a12,0 0 24px #00f58a35;cursor:pointer;touch-action:manipulation}
+.power svg{width:43px;height:43px}
+.power.off{color:#839194;border-color:#3c4b4e;box-shadow:0 0 0 7px #8b999912}
+.power:focus-visible{outline:3px solid var(--cyan);outline-offset:5px}
+@media(max-height:700px){.app{min-height:0;gap:10px}.signal{min-height:150px}.signal strong{font-size:58px}.timer-ring{width:128px;height:128px}.power{width:78px;height:78px}.bottom{padding:2px 0}}
+</style>
 </head>
 <body>
-<div class="container">
-    <h2>AI UNIVERSAL SIGNAL RADAR</h2>
-    <div class="subtitle">MAIN MARKET — EUR/USD (1M) [1-Candle Cooldown]</div>
-    <div id="statusBox" class="status-box STANDBY">STANDBY</div>
-    <div class="info-row"><span>Price:</span><strong id="priceVal">Loading...</strong></div>
-    <div class="info-row"><span>Regime:</span><strong id="regimeVal">-</strong></div>
-    <div class="info-row"><span>Timer:</span><strong id="timerVal">00:00</strong></div>
-    <div class="reason-box" id="reasonVal">Initializing system...</div>
-    <button class="btn" onclick="enableAudio()">ENABLE AUDIO / VIBRATION</button>
-</div>
+<main class="app">
+  <header class="top">
+    <div class="brand">AI UNIVERSAL <span>SIGNAL RADAR</span></div>
+    <div class="market">MAIN MARKET · EUR/USD · M1</div>
+    <div id="apiStatus" class="api"><i class="api-dot"></i><span id="apiText">กำลังเชื่อมต่อ API</span></div>
+  </header>
+
+  <section id="signalBox" class="signal STANDBY" aria-live="polite">
+    <div id="signalArrow" class="arrow">◆</div>
+    <strong id="signalText">STANDBY</strong>
+    <small>ORDER SIGNAL</small>
+  </section>
+
+  <section class="metrics">
+    <div class="timer-side">
+      <div id="timerRing" class="timer-ring">
+        <div class="timer-inner">
+          <div id="timer">00:00</div>
+          <div class="timer-label">TIME LEFT</div>
+        </div>
+      </div>
+    </div>
+    <div class="price-side">
+      <div class="pair">EUR / USD</div>
+      <div id="price">—.———</div>
+      <div id="priceHint">รอข้อมูลราคาตลาด</div>
+    </div>
+  </section>
+
+  <div id="reason" class="reason">ระบบพร้อมเริ่มสแกน</div>
+
+  <footer class="bottom">
+    <button id="powerButton" class="power" type="button" aria-label="เปิดหรือปิดการสแกน" aria-pressed="true">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 4v20" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M13 11.5a19 19 0 1 0 22 0" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
+    </button>
+  </footer>
+</main>
 <script>
-    let audioCtx = null;
-    function enableAudio() { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); alert('Enabled'); }
-    function playBeep(freq, dur) {
-        if (!audioCtx) return;
-        try {
-            let osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-            osc.frequency.value = freq; osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); setTimeout(() => osc.stop(), dur);
-        } catch(e){}
+let audioCtx = null;
+let scanEnabled = true;
+let pollHandle = null;
+let previousSignal = 'STANDBY';
+let lastTenSecondMark = '';
+let lastThreeSecondMark = '';
+
+function enableAudio() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      if (!audioCtx) audioCtx = new AudioContextClass();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
     }
-    let prevSig = 'STANDBY';
-    async function updateRadar() {
-        try {
-            let res = await fetch('/api/signal'), data = await res.json();
-            document.getElementById('priceVal').innerText = data.price || '-';
-            document.getElementById('regimeVal').innerText = data.regime || '-';
-            document.getElementById('reasonVal').innerText = data.reason || '-';
-            let box = document.getElementById('statusBox');
-            box.className = `status-box ${data.signal}`; box.innerText = data.signal;
-            if (data.signal !== 'STANDBY' && data.signal !== prevSig) { playBeep(880, 300); if(navigator.vibrate) navigator.vibrate([200, 100, 200]); }
-            prevSig = data.signal;
-        } catch(e){}
+  } catch (e) {}
+}
+function playBeep(freq, dur) {
+  if (!audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.frequency.value = freq; gain.gain.value = 0.08;
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); setTimeout(() => osc.stop(), dur);
+  } catch (e) {}
+}
+function setApiStatus(status, message) {
+  const el = document.getElementById('apiStatus');
+  const label = document.getElementById('apiText');
+  el.className = 'api';
+  if (status === 'connected') {
+    el.classList.add('connected');
+    label.textContent = 'API CONNECTED · LIVE';
+  } else if (status === 'quota_exhausted') {
+    el.classList.add('quota');
+    label.textContent = 'โควต้าหมด';
+  } else if (status === 'error') {
+    el.classList.add('error');
+    label.textContent = 'API ขัดข้อง';
+  } else {
+    label.textContent = scanEnabled ? 'กำลังเชื่อมต่อ API' : 'ปิดการสแกน';
+  }
+  el.title = message || '';
+}
+async function updateRadar() {
+  if (!scanEnabled) return;
+  try {
+    const response = await fetch('/api/signal', { cache: 'no-store' });
+    const data = await response.json();
+    setApiStatus(data.apiStatus || (response.ok ? 'connected' : 'error'), data.apiMessage || data.error || '');
+    if (data.price) document.getElementById('price').textContent = data.price;
+    document.getElementById('priceHint').textContent = data.datetime ? data.datetime : (data.apiStatus === 'quota_exhausted' ? 'รอรีเซ็ตโควต้า API' : 'ราคาตลาด EUR/USD');
+    const signal = ['CALL', 'PUT', 'STANDBY'].includes(data.signal) ? data.signal : 'STANDBY';
+    const box = document.getElementById('signalBox');
+    box.className = 'signal ' + signal;
+    document.getElementById('signalText').textContent = signal;
+    document.getElementById('signalArrow').textContent = signal === 'CALL' ? '▲' : signal === 'PUT' ? '▼' : '◆';
+    document.getElementById('reason').textContent = data.reason || 'กำลังรอสัญญาณ';
+    if (signal !== 'STANDBY' && signal !== previousSignal) {
+      playBeep(880, 300);
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
-    setInterval(() => {
-        let rem = 60 - new Date().getSeconds();
-        document.getElementById('timerVal').innerText = `00:${rem < 10 ? '0' : ''}${rem}`;
-        if(rem === 10) playBeep(440, 150);
-        if(rem <= 3 && rem > 0) { playBeep(660, 100); if(navigator.vibrate) navigator.vibrate(100); }
-    }, 1000);
-    setInterval(updateRadar, 5000);
+    previousSignal = signal;
+  } catch (e) {
+    setApiStatus('error', e.message);
+    document.getElementById('reason').textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ · กำลังลองใหม่';
+  }
+}
+function toggleScan() {
+  scanEnabled = !scanEnabled;
+  const button = document.getElementById('powerButton');
+  button.classList.toggle('off', !scanEnabled);
+  button.setAttribute('aria-pressed', String(scanEnabled));
+  if (scanEnabled) {
+    enableAudio();
+    setApiStatus('connecting');
     updateRadar();
+    pollHandle = setInterval(updateRadar, 5000);
+    document.getElementById('reason').textContent = 'กำลังเริ่มสแกนตลาด';
+  } else {
+    clearInterval(pollHandle);
+    pollHandle = null;
+    setApiStatus('off');
+    document.getElementById('reason').textContent = 'หยุดการสแกนแล้ว';
+    document.getElementById('signalBox').className = 'signal STANDBY';
+    document.getElementById('signalText').textContent = 'STANDBY';
+    document.getElementById('signalArrow').textContent = '◆';
+    previousSignal = 'STANDBY';
+  }
+}
+document.getElementById('powerButton').addEventListener('click', toggleScan);
+
+function updateTimer() {
+  const now = new Date();
+  const seconds = now.getSeconds();
+  const remaining = 60 - seconds;
+  const key = now.getHours() + ':' + now.getMinutes();
+  document.getElementById('timer').textContent = '00:' + String(remaining).padStart(2, '0');
+  document.getElementById('timerRing').style.setProperty('--progress', ((60 - remaining) / 60 * 360) + 'deg');
+  if (scanEnabled && remaining === 10 && lastTenSecondMark !== key) {
+    playBeep(440, 150); lastTenSecondMark = key;
+  }
+  if (scanEnabled && remaining <= 3 && remaining > 0 && lastThreeSecondMark !== key + ':' + remaining) {
+    playBeep(660, 100); if (navigator.vibrate) navigator.vibrate(100);
+    lastThreeSecondMark = key + ':' + remaining;
+  }
+}
+setInterval(updateTimer, 250);
+updateTimer();
+updateRadar();
+pollHandle = setInterval(updateRadar, 5000);
 </script>
 </body>
 </html>
