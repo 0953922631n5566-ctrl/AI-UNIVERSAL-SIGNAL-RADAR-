@@ -594,8 +594,7 @@ app.get("/health", (_req, res) => {
   noCache(res);
   res.json({
     ok: true, service: "main-market", version: VERSION,
-    symbols: SYMBOLS, interval: INTERVAL,
-    apiKeyConfigured: Boolean(API_KEY), telegramAuthConfigured: Boolean(BOT_TOKEN)
+    symbols: SYMBOLS, interval: INTERVAL
   });
 });
 app.post("/api/auth", rateLimitAuth, (req, res) => {
