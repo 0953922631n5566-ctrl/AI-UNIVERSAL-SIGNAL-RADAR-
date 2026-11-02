@@ -674,3 +674,22 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The subsequent handoff documentation commit is `983f0cb02ebbcdbe72df7a585073f842bc23a502`; it changes documentation only. The validated application code remains the preceding tested commit.
 - PR #9 remains draft/unmerged. No Render deployment or production branch update has occurred.
 - Remaining release blockers are unchanged: Telegram `initData` authentication, actual Twelve Data REST/Streaming verification per pair, physical Telegram/Xiaomi sound/haptics, and historical/out-of-sample market validation.
+
+
+
+## 2026-11-02 — Telegram Mini App authentication implemented on v2 candidate
+
+- Implemented server-side Telegram Web App `initData` validation in `main-market/src/telegram-auth.js` using Telegram's HMAC-SHA256 verification algorithm, timing-safe hash comparison, duplicate-field rejection, mandatory user ID, 24-hour maximum age and 60-second future-clock tolerance.
+- Added `POST /api/auth` which exchanges valid initData for a cryptographically random, four-hour, HttpOnly, Secure, SameSite=Lax session cookie. Authentication requests are rate-limited. Session records are kept server-side and expired sessions are periodically removed.
+- Protected `GET /api/state` and `POST /api/control` with the session middleware. Protected WebSocket `/live` during the HTTP upgrade; unauthenticated upgrades receive HTTP 401. No initData or session token is placed in a WebSocket URL or application log.
+- Mini App now requires Telegram's raw `WebApp.initData` before polling, connecting or issuing controls. When opened outside Telegram or when verification fails, the controls stay disabled and the UI displays an authentication/locked message.
+- Health endpoint exposes only non-sensitive service metadata. JSON body limit increased to 8 KB for Telegram initData payloads.
+- Added tests for valid signature, tampering, expired/future auth dates, missing bot token, unauthenticated HTTP state/control, unauthenticated WebSocket rejection, authenticated WebSocket, and authenticated start/heartbeat/stop.
+- Latest validated application code commit: `ad7a1f6028f96b1bdf0ee6b23ddda1143ee45b05`.
+- GitHub Actions results on that commit:
+  - Main Market Checks run `41397286506`: **success**, `npm test` reports **14 passed / 0 failed**.
+  - Main Market v2 Rewrite Checks run `41397286178`: **success**, `npm test` reports **14 passed / 0 failed**, and syntax checks passed for server, config, analyzer, Twelve Data client, Telegram auth module and browser client.
+- PR #9 remains **Draft / open / unmerged**. Render production service remains attached to branch `main-market`; no v2 code was deployed and no production branch was changed.
+- Release blocker: production must have `TELEGRAM_BOT_TOKEN` configured as a private Render environment variable before the new Mini App can authenticate. No bot token has been supplied or confirmed in the project context. Do not ask the user to paste it into chat or commit it to GitHub. Set it only in the Render Dashboard after the user has access to BotFather's token.
+- Still not verified: real Twelve Data REST and Streaming entitlement for all six pairs using the user's live API key; Telegram WebView cookie/session behavior on Xiaomi 11T; actual sound/vibration and 10s/3s timing on device; historical/backtest and out-of-sample predictive performance. The rule engine remains heuristic and must not be marketed as a proven predictive AI.
+- Promotion policy: do not merge PR #9 or point the production Render service at this branch until the bot token is configured privately and the live provider + Telegram device gates are passed. Existing `main-market` production and Android/OCR `main` remain preserved.
