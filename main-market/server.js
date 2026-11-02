@@ -144,6 +144,18 @@ function stop(){
  for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;f.dataLocked=false;if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("หยุดเฝ้าระวังแล้ว")}
  globalLockMessage=null;publish();
 }
+const allowedWebOrigins=new Set(["https://ai-universal-signal-radar.onrender.com","https://ai-signal-radar-main-market.onrender.com"]);
+app.use((req,res,next)=>{
+ const origin=req.headers.origin;
+ if(origin&&allowedWebOrigins.has(origin)){
+  res.setHeader("Access-Control-Allow-Origin",origin);
+  res.setHeader("Vary","Origin");
+  res.setHeader("Access-Control-Allow-Methods","GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers","Content-Type");
+ }
+ if(req.method==="OPTIONS")return res.sendStatus(origin&&allowedWebOrigins.has(origin)?204:403);
+ next();
+});
 app.use(express.json({limit:"2kb"}));
 app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
 app.get("/app.js",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","app.js"))});
