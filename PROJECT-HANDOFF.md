@@ -313,3 +313,24 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Source commit: `43790b6d06c745ffb9cf171ccc91c283417fe589`.
 - Preserved tone frequencies, duration, alert timing, per-candle deduplication, sound toggle, vibration behavior, signal logic, 200-closed-candle preload, and manual-only/no-auto-orders policy. No Android/OCR branch changes.
 - Render auto-deploy is expected from the source commit; build/test/deploy status must be checked before asking the user to reload. Physical loudness and CALL/PUT playback must still be verified on the user's Xiaomi 11T / Telegram WebView. The user may also need to raise Android media volume; app gain cannot override the phone's system volume or silent/DND settings.
+
+
+## 2026-11-02 — Main Market six-pair selection and per-pair support reporting
+
+- User explicitly authorized adding all six pairs and requested a visible/alerted warning for any pair the Twelve Data account does not support:
+  - AUD/USD, EUR/USD, EUR/GBP, GBP/JPY, EUR/JPY, GBP/USD.
+- Work is isolated on branch `feature/multi-pair-monitor`, based on the deployed `main-market` branch. Android/OCR branch `main` remains untouched.
+- Implemented in the feature branch:
+  - Six-pair configuration; all six are selected by default, with multi-select checkboxes and browser-local selection persistence.
+  - Independent candle history, tick freshness, analysis, signal hold, per-candle deduplication and status for each selected pair.
+  - One shared Twelve Data price WebSocket subscription for selected symbols, with per-symbol subscribe result handling.
+  - Individual REST history checks; pairs rejected for invalid symbol, permission, plan or subscription reasons are marked UNSUPPORTED and excluded from directional signals.
+  - Per-pair cards display CALL / PUT / STANDBY, last price, RSI, data age, reason and support/connection state.
+  - Unsupported pairs trigger a Telegram WebApp alert (browser alert fallback) and remain visibly marked on the dashboard.
+  - Sound/vibration signal alert and the existing 10-second / 3-second candle alerts are deduplicated independently per pair.
+  - REST refresh interval changed to 900 seconds. At six symbols and one REST credit per symbol per refresh, the planned cadence is approximately 576 REST credits/day (96 refreshes × 6 symbols), below the published Basic 800/day quota, assuming all six are selected continuously and no additional retries/restarts.
+  - Repeated Stop/Start within the 15-minute cache window reuses successful history instead of spending another six REST credits immediately.
+- Preserved: 200 fully closed historical candles, request of 220 bars, existing EMA/RSI/MACD/ATR and situation-aware heuristic, fail-closed STANDBY behavior, 40-second signal hold, sound gain 0.32, manual-only trading and no broker order placement.
+- Provider entitlement caveat: Twelve Data documentation says Basic/Grow WebSocket access is trial-limited to eligible symbols; full WebSocket access depends on plan. A successful REST history response does not prove a pair is eligible for live Streaming. The app must verify actual subscribe results and fresh price ticks per pair. A pair without fresh streaming remains non-directional / STANDBY.
+- Validation at this handoff point: source edits and a six-pair/quota configuration test have been committed to the feature branch. Automated tests, Node syntax checks, Render build/deploy, actual account symbol eligibility and Telegram/Xiaomi device behavior are NOT YET VERIFIED. Do not describe the feature as deployed or live until the PR is merged and Render reports the final deployment LIVE.
+- Next steps: inspect the complete diff, merge the feature branch into `main-market`, verify Render build runs all tests and syntax checks, confirm the deploy reaches LIVE, then have the user press Start and inspect per-symbol REST/subscribe/tick logs. Confirm unsupported pairs explicitly and ensure supported pairs independently receive fresh ticks before allowing CALL/PUT.
