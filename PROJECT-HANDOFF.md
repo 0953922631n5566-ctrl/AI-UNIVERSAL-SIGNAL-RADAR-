@@ -193,3 +193,12 @@ At task completion, report:
 - **Remaining verification/blockers:** precise external steps or evidence still required.
 - **Next action:** the single highest-priority continuation.
 
+
+
+## 2026-11-02 — Root Render Mini App entry point
+
+- User reported the Render static-site URL showed Script error / OFFLINE and the repository had no root `index.html`.
+- Confirmed default branch `main` had no root web entry point. Confirmed Render static site `AI-UNIVERSAL-SIGNAL-RADAR-` is configured with branch `main`, rootDir empty, and publishPath `.`.
+- Added root `index.html` in commit `a93331bd1f273809fc846e0d3525ab5cf868a68f`. This is a dependency-free launcher with working click/retry handlers and an automatic redirect to the canonical Main Market app at `https://ai-signal-radar-main-market.onrender.com/`. It avoids duplicating the Main Market client or falsely reporting API connectivity from a static page.
+- Canonical Main Market UI and its actual pair selector/start/stop/sound/vibration handlers remain served by the Node service from `main-market/public/`; the launcher does not overwrite Android/OCR source or the separate `main-market` branch.
+- Pending: Render static-site deploy and HTTP/device verification of the redirect in Telegram. This entry point only routes to the canonical app; it does not itself validate Twelve Data credentials, streaming entitlement, Telegram initData authentication, or physical device audio/haptics. Do not mark production-ready until those are independently verified and the API control endpoints are secured.
