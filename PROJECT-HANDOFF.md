@@ -867,3 +867,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The assistant's web/container runtime cannot directly fetch the public Render domains in this environment (DNS/network unavailable), so do not claim an external HTTP smoke test.
 - Pair-level Twelve Data entitlement remains account-dependent. REST history and Streaming are separate capabilities. Only a pair with successful REST history and a fresh Streaming tick may issue CALL/PUT under the current safe rule; REST-only pairs remain STANDBY.
 - Physical haptics remain dependent on Telegram and Android device support; the code path is present, but no handset vibration has been observed remotely.
+
+
+### Preserve the previously used Telegram URL — 2026-11-02
+- Prior conversation context indicated the Telegram bot had previously been configured to open `https://my-ai-signal-bot-v2.onrender.com`. The current project had moved its Static Site to `https://ai-universal-signal-radar.onrender.com`, creating a risk that Telegram would continue opening an old app.
+- To avoid requiring the user to change BotFather settings, created a new Render Static Site alias named `my-ai-signal-bot-v2` in the confirmed Render workspace:
+  - Service ID: `srv-dbk35e8ae00c73fmpi30`
+  - Branch: `main`, publish path `.`, Auto Deploy on commit.
+  - URL: `https://my-ai-signal-bot-v2.onrender.com`
+  - Deploy: `dep-dbk35egae00c73fmpjhg` — **live/succeeded**.
+- The alias serves the same root Main Market v3 HTML/JS/CSS as the primary Static Site. The client still calls the canonical API `https://ai-signal-radar-main-market.onrender.com`.
+- This preserves the previously used Telegram URL without needing BotFather changes, if that remains the configured URL. The primary Static Site `https://ai-universal-signal-radar.onrender.com` also remains live.
