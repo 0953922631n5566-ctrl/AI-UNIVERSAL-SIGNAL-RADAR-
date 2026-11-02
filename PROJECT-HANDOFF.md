@@ -415,3 +415,14 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - No changes to EMA/RSI/MACD/ATR/Price Action calculations, signal thresholds/hold, data freshness requirements, alert timing, Twelve Data integration, single-pair selection, or server-side no-auto-orders behavior.
 - Add regression coverage that the client renders all three large signal states and the CSS defines distinct CALL/PUT/STANDBY lamp styling.
 - Validation/build/deploy and actual Telegram/Xiaomi display remain pending. Do not ask user to refresh until the PR is merged and Render deployment is confirmed LIVE.
+
+
+### Large entry signal redesign — deployment verification (2026-11-02)
+
+- PR #3 merged into `main-market`; squash commit: `a3874e37ea6639b783d45217f2ea7f8b6d832a35`.
+- Render deployment `dep-dbjttgqvcj2c73fe1e50` reached `live`; deploy-ended event reports `succeeded` at 2026-11-02T00:52:46Z.
+- Build log confirms 9 tests passed / 0 failed, including the new large CALL/PUT/STANDBY display regression test. npm audit reported 0 vulnerabilities. Configured Node syntax-check chain ran as part of successful postinstall/build.
+- Runtime log confirms `MAIN MARKET single-pair Radar listening on 10000`; Render reported `Your service is live`. Primary URL remains `https://ai-signal-radar-main-market.onrender.com`.
+- New interface replaces small signal text with a large circular lamp and large CALL/PUT/STANDBY label. Green CALL, red PUT, neutral grey STANDBY. Thai action guidance differentiates “พิจารณาเข้า CALL/PUT” from “ยังไม่เข้าออเดอร์”. Pair card is full-width and price/RSI/data-age/countdown are enlarged for mobile.
+- Preserved: compact pair dropdown, six selectable pairs but one active pair, EUR/USD default, existing analysis and data-quality gates, 200 closed-candle warmup, alert timing/sound/vibration, and manual-only/no-auto-orders behavior. No Android/OCR changes.
+- Not yet verified: visual rendering on user's Telegram WebView/Xiaomi 11T and physical CALL/PUT sound/vibration; no live signal event was fabricated for UI testing. User should close/reopen Mini App to load the new assets. If display still appears cached, fully close Telegram Mini App and reopen the link.
