@@ -281,7 +281,8 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     assert.equal(health.interval, "1min");
     assert.equal(health.configuration.minimumClosedCandles, 60);
     assert.equal(health.configuration.historyCandles, 80);
-    assert.equal(health.configuration.streamingRequiredForSignals, true);
+    assert.equal(health.configuration.streamingRequiredForSignals, false);
+    assert.equal(health.configuration.restFallbackEnabled, true);
     assert.equal(typeof health.configuration.telegramBotToken, "boolean");
     assert.equal(typeof health.configuration.twelveDataApiKey, "boolean");
     const page = await fetch(`http://127.0.0.1:${port}/`);
