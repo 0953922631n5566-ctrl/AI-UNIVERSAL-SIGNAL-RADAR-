@@ -162,7 +162,7 @@ function handleControlAction(m={}){
 }
 app.use(express.json({limit:"2kb"}));
 app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
-app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
+app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
 app.get("/health",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json({ok:true,service:"main-market",version:"2026-11-02-http-fallback",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY})});
 app.get("/api/state",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json(snapshot())});
 app.post("/api/control",(req,res)=>{const action=req.body?.action;if(!["start","select","stop","heartbeat"].includes(action))return res.status(400).json({ok:false,error:"Unsupported action"});if(action==="select"&&!SYMBOLS.some(s=>normalizeSymbol(s)===normalizeSymbol(req.body?.symbol)))return res.status(400).json({ok:false,error:"Unsupported pair"});if(action==="start"&&Array.isArray(req.body?.symbols)&&!req.body.symbols.some(s=>SYMBOLS.some(x=>normalizeSymbol(x)===normalizeSymbol(s))))return res.status(400).json({ok:false,error:"Unsupported pair"});handleControlAction(req.body);res.setHeader("Cache-Control","no-store");res.json({ok:true,state:snapshot()})});
