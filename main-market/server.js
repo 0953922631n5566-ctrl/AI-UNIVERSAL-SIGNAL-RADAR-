@@ -144,10 +144,11 @@ function stop(){
  for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;f.dataLocked=false;if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("หยุดเฝ้าระวังแล้ว")}
  globalLockMessage=null;publish();
 }
-app.use(express.static(path.join(APP_DIR,"public")));
-app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
-app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
-app.get("/api/state",(_,r)=>r.json(snapshot()));
+app.use(express.json({limit:"2kb"}));
+app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
+app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
+app.get("/health",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json({ok:true,service:"main-market",version:"2026-11-02-http-fallback",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY})});
+app.get("/api/state",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json(snapshot())});
 function handleControlAction(m={}){
  if(m.action==="start"){
   const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);const chosen=SYMBOLS.find(s=>requested.includes(normalizeSymbol(s)))||DEFAULT_SYMBOLS[0];selectedSymbols=[chosen];monitoring=true;httpLeaseUntil=Date.now()+12000;globalLockMessage=null;startRest();
@@ -160,11 +161,6 @@ function handleControlAction(m={}){
  }
  if(m.action==="heartbeat"){if(monitoring)httpLeaseUntil=Date.now()+12000;return true}if(m.action==="stop"){stop();return true}return false;
 }
-app.use(express.json({limit:"2kb"}));
-app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
-app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
-app.get("/health",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json({ok:true,service:"main-market",version:"2026-11-02-http-fallback",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY})});
-app.get("/api/state",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json(snapshot())});
 app.post("/api/control",(req,res)=>{const action=req.body?.action;if(!["start","select","stop","heartbeat"].includes(action))return res.status(400).json({ok:false,error:"Unsupported action"});if(action==="select"&&!SYMBOLS.some(s=>normalizeSymbol(s)===normalizeSymbol(req.body?.symbol)))return res.status(400).json({ok:false,error:"Unsupported pair"});if(action==="start"&&Array.isArray(req.body?.symbols)&&!req.body.symbols.some(s=>SYMBOLS.some(x=>normalizeSymbol(x)===normalizeSymbol(s))))return res.status(400).json({ok:false,error:"Unsupported pair"});handleControlAction(req.body);res.setHeader("Cache-Control","no-store");res.json({ok:true,state:snapshot()})});
 setInterval(()=>{if(monitoring&&![...wss.clients].some(c=>c.readyState===WebSocket.OPEN)&&httpLeaseUntil&&Date.now()>httpLeaseUntil){console.warn("[market-feed] HTTP client lease expired; stopping scan");stop()}},5000);
 wss.on("connection",ws=>{ws.send(JSON.stringify({type:"market_state",data:snapshot()}));ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}handleControlAction(m)});ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))setTimeout(()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN)&&Date.now()>httpLeaseUntil)stop()},13000)})});
