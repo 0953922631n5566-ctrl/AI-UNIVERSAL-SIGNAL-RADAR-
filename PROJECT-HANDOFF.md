@@ -224,3 +224,13 @@ At task completion, report:
 - Root client commit: `1dd315f42cae5a39576e25a30b75751b7ee18842`; root CI extension: `ba70a0e4fe4648eb2f87936e493f84d767e46fb1`.
 - Main Market server/client commits: `e40c0f23b4546ca406cbe49244ca825f89b707c0`, `398f1255134f59edc167788fa8f1bd07f9fbb263`; regression test commit: `cc7a6b651eb66dada3e7e2162b1a785fa2be4607`.
 - CI and Render redeploys triggered by these latest commits are pending verification at the time of this note.
+
+
+### Mini App saved-pair startup crash fix — 2026-11-02
+
+- User screenshot showed `Uncaught TypeError: values.find is not a function`; the Mini App then displayed OFFLINE and controls did not initialize.
+- Root cause confirmed in both root `app.js` and canonical `main-market/public/app.js`: startup calls `setSelected(saved)`, where `saved` is a single string, but `setSelected` called `.find()` as if the argument were always an array. The uncaught exception occurred before initial `pollState()` and `connect()`, explaining both the inert controls and the missing connection attempt.
+- Fixed both clients by normalizing scalar, array, null/undefined inputs before `.find()`. The saved pair selection (e.g. GBP/USD) is retained; no market logic or pair list changed.
+- Root branch code commit: `5a883258b80b84e4dc5dcc3c1803eba22e233c92`.
+- Canonical `main-market` client commit: `c73c67c925240342ed950d17e7954169ef943e95`.
+- Added regression assertions to root Mini App CI and Main Market Node tests. Pending: CI results, Render auto-deploy status, live API response and Telegram/Xiaomi interaction. Do not claim the device is fixed until user reopens the Mini App after deployment and confirms controls respond.
