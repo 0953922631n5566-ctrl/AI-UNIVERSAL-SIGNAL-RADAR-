@@ -85,7 +85,7 @@ function publicFeed(feed) {
     streamStatus: feed.streamStatus,
     statusMessage: messages[status] || feed.streamMessage,
     apiStatus: status === "SUPPORTED" || status === "REST_ONLY" ? "ONLINE"
-      : status === "LOCKED" ? "LOCKED"
+      : ["LOCKED", "STALE", "DATA_ERROR", "UNSUPPORTED"].includes(status) ? "LOCKED"
       : monitoring ? "CONNECTING" : "OFFLINE",
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: feed.lastTick,
@@ -179,7 +179,11 @@ function evaluate(feed) {
   if (result.signal === "CALL" || result.signal === "PUT") {
     if (feed.activeSignal && Date.now() < feed.activeUntil) {
       if (feed.activeSignal !== result.signal) {
-        resetSignal(feed, "หลักฐานเปลี่ยนทิศทางระหว่างช่วงถือสัญญาณ — ยกเลิกเป็น STANDBY");
+        feed.activeSignal = null;
+        feed.activeUntil = 0;
+        feed.signalCandle = candleId;
+        feed.alertId = null;
+        feed.analysis = standby("หลักฐานเปลี่ยนทิศทางระหว่างช่วงถือสัญญาณ — ยกเลิกเป็น STANDBY");
         return;
       }
       result.signal = feed.activeSignal;
@@ -201,7 +205,11 @@ function evaluate(feed) {
         : result.regime === "TRENDING_UP" || close > ema21
     );
     if (invalid || !feed.tickAt || Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000) {
-      resetSignal(feed, invalid
+      feed.activeSignal = null;
+      feed.activeUntil = 0;
+      feed.signalCandle = candleId;
+      feed.alertId = null;
+      feed.analysis = standby(invalid
         ? "ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"
         : "ยกเลิกสัญญาณเดิม: ราคา Streaming ไม่สด");
       return;
