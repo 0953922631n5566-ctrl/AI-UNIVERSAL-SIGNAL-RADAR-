@@ -15,7 +15,7 @@ function statusLabel(p){
  return labels[p.supportStatus]||p.supportStatus||"กำลังตรวจสอบ";
 }
 function updatePairCards(s){
- const pairs=s.pairs||{},entries=Object.entries(pairs);
+ const pairs=s.pairs||{},chosen=new Set(selectedSymbols()),entries=Object.entries(pairs).filter(([symbol])=>chosen.has(symbol));
  $("pairCards").innerHTML=entries.map(([symbol,p])=>{
   const sig=p.signal||"STANDBY",status=p.supportStatus||"CHECKING",price=Number.isFinite(p.lastTickPrice)?p.lastTickPrice.toFixed(5):Number.isFinite(p.lastPrice)?p.lastPrice.toFixed(5):"—";
   const rsi=Number.isFinite(p.metrics?.rsi14)?p.metrics.rsi14.toFixed(1):"—",age=Number.isFinite(p.tickAgeSeconds)?p.tickAgeSeconds+"s":"—";
