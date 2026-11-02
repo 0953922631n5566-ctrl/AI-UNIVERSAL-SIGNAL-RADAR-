@@ -708,7 +708,16 @@ wss.on("connection", socket => {
   });
 });
 
-server.listen(PORT, () => console.log(`MAIN MARKET v2 listening on ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`MAIN MARKET v2 listening on ${PORT}`);
+  console.info("[radar] startup configuration", {
+    telegramBotTokenConfigured: Boolean(BOT_TOKEN),
+    twelveDataApiKeyConfigured: Boolean(API_KEY),
+    minimumClosedCandles: MIN_CLOSED_CANDLES,
+    historyCandles: HISTORY_CANDLES,
+    restRefreshSeconds: REST_SYNC_SECONDS
+  });
+});
 
 setInterval(() => {
   const now = Date.now();
