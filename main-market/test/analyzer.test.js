@@ -193,6 +193,7 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     assert.ok(response?.ok, "server did not become ready");
     const health = await response.json();
     assert.equal(health.service, "main-market");
+    assert.equal(health.interval, "1min");
     const page = await fetch(`http://127.0.0.1:${port}/`);
     assert.equal(page.status, 200);
     assert.match(page.headers.get("cache-control") || "", /no-store/);
