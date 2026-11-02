@@ -1,86 +1,160 @@
 import "dotenv/config";
 import express from "express";import http from "node:http";import path from "node:path";import{fileURLToPath}from"node:url";import WebSocket,{WebSocketServer}from"ws";
-import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";import{MIN_CANDLES,HISTORY_CANDLES,MAX_CANDLES,REST_SYNC_SECONDS}from"./src/config.js";
+import{fetchCandles}from"./src/twelve-data.js";import{analyzeMarket}from"./src/analyzer.js";import{MIN_CANDLES,HISTORY_CANDLES,MAX_CANDLES,REST_SYNC_SECONDS,SYMBOLS,DEFAULT_SYMBOLS,normalizeSymbol}from"./src/config.js";
 const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
-const PORT=Number(process.env.PORT||3000),SYMBOL=process.env.SYMBOL||"EUR/USD",INTERVAL=process.env.INTERVAL||"1min";
+const PORT=Number(process.env.PORT||3000),INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(REST_SYNC_SECONDS,Number(process.env.REST_SYNC_SECONDS||REST_SYNC_SECONDS)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
-let candles=[],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,lastRestSyncAt=0,restSyncPromise=null,tickAt=0,lastTick=null,monitoring=false,streamReady=false,dataLocked=false,fatalApiLock=false,lastDataError=null,activeSignal=null,activeUntil=0,signalCandle=null,lastAlertId=null;
-const state={signal:"STANDBY",regime:"UNKNOWN",reason:"กดเริ่มเฝ้าระวังเพื่อเชื่อมต่อ Twelve Data",evidence:[],metrics:null,symbol:SYMBOL,interval:INTERVAL,connected:false,monitoring:false,apiStatus:"OFFLINE",dataLocked:false,apiMessage:"ยังไม่ได้เริ่มเชื่อมต่อ API",analyzedAt:new Date().toISOString()};
-app.use(express.static(path.join(APP_DIR,"public")));
-app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
-app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbol:SYMBOL,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
-app.get("/api/state",(_,r)=>r.json(state));
-function publish(x){Object.assign(state,x,{symbol:SYMBOL,interval:INTERVAL,monitoring,connected:streamReady,apiStatus:dataLocked?"LOCKED":streamReady?"ONLINE":monitoring?"CONNECTING":"OFFLINE",dataLocked,apiMessage:lastDataError|| (streamReady?"รับราคา Streaming สดแล้ว":monitoring?"กำลังรอราคา Streaming":"หยุดเฝ้าระวัง")});const m=JSON.stringify({type:"market_state",data:state});for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(m)}
-function isFatalApiError(message){return /\b(401|403|429)\b|quota|credit|rate.?limit|unauthori[sz]ed|invalid api.?key|apikey/i.test(String(message||""))}
-function lockData(message,{fatal=false}={}){
- console.error("[market-feed] LOCKED:",String(message||"ข้อมูล API ไม่พร้อม"));
- dataLocked=true;streamReady=false;activeSignal=null;activeUntil=0;lastDataError=String(message||"ข้อมูล API ไม่พร้อม");
- if(fatal)fatalApiLock=true;
- publish({signal:"STANDBY",regime:"UNKNOWN",reason:lastDataError,evidence:[],metrics:null,dataError:true,dataLocked:true});
+const feeds=new Map(SYMBOLS.map(symbol=>[symbol,{symbol,candles:[],tickAt:0,lastTick:null,lastRestSyncAt:0,restSyncPromise:null,restStatus:"NOT_CHECKED",restMessage:"ยังไม่ได้ตรวจสอบข้อมูล",streamStatus:"WAITING",streamMessage:"รอเริ่มเชื่อมต่อ",analysis:null,activeSignal:null,activeUntil:0,signalCandle:null,lastAlertId:null,dataLocked:false}]));
+let selectedSymbols=[...DEFAULT_SYMBOLS],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,monitoring=false,globalLockMessage=null;
+const standby=(reason,extra={})=>({signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra});
+function feedStatus(f){
+ if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")return"UNSUPPORTED";
+ if(globalLockMessage||f.dataLocked)return"LOCKED";
+ if(f.restStatus==="ERROR")return"DATA_ERROR";
+ if(f.restStatus!=="READY")return"CHECKING";
+ const age=f.tickAt?(Date.now()-f.tickAt)/1000:Infinity;
+ if(age<=25)return"SUPPORTED";
+ if(f.streamStatus==="ERROR")return"STREAM_ERROR";
+ if(f.tickAt)return"STALE";
+ return"WAITING_PRICE";
+}
+function publicFeed(f){
+ const status=feedStatus(f),age=f.tickAt?(Date.now()-f.tickAt)/1000:null;
+ const x=f.analysis||standby(f.restMessage||"รอข้อมูล");
+ return{...x,symbol:f.symbol,selected:selectedSymbols.includes(f.symbol),supportStatus:status,restStatus:f.restStatus,streamStatus:f.streamStatus,statusMessage:status==="UNSUPPORTED"?(f.restMessage||f.streamMessage):status==="LOCKED"?(globalLockMessage||f.restMessage):status==="DATA_ERROR"?f.restMessage:status==="STREAM_ERROR"?f.streamMessage:status==="STALE"?"ราคา Streaming ไม่อัปเดตเกิน 25 วินาที":status==="WAITING_PRICE"?"ข้อมูลย้อนหลังพร้อมแล้ว — รอราคา Streaming สด":status==="CHECKING"?"กำลังตรวจสอบคู่เงินกับ Twelve Data":status==="SUPPORTED"?"รองรับข้อมูลย้อนหลังและ Streaming สด":f.streamMessage,apiStatus:status==="SUPPORTED"?"ONLINE":status==="LOCKED"?"LOCKED":monitoring?"CONNECTING":"OFFLINE",tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:f.lastTick,candleCount:f.candles.length,closedCandleCount:f.candles.filter(c=>!c.live&&c.epoch<Math.floor(Date.now()/60000)*60).length,requiredCandles:MIN_CANDLES,nextCandleAt:f.candles.length?(f.candles.at(-1).epoch+60)*1000:null,signalExpiresAt:f.activeSignal?new Date(f.activeUntil).toISOString():null,alertId:f.lastAlertId,source:"Twelve Data REST history + shared live-price WebSocket"};
+}
+function snapshot(){
+ const pairs={};for(const symbol of selectedSymbols)pairs[symbol]=publicFeed(feeds.get(symbol));
+ const values=Object.values(pairs),online=values.filter(x=>x.apiStatus==="ONLINE").length,locked=values.filter(x=>x.apiStatus==="LOCKED"||x.supportStatus==="UNSUPPORTED").length;
+ const apiStatus=!monitoring?"OFFLINE":online?"ONLINE":locked===values.length?"LOCKED":"CONNECTING";
+ const primary=values[0]||publicFeed(feeds.get(SYMBOLS[0]));
+ return{...primary,symbols:SYMBOLS,selectedSymbols:[...selectedSymbols],pairs,monitoring,connected:online>0,apiStatus,apiMessage:globalLockMessage||`${online}/${values.length} คู่กำลังรับราคา Streaming สด`,onlineCount:online,unsupportedCount:values.filter(x=>x.supportStatus==="UNSUPPORTED").length,analyzedAt:new Date().toISOString()};
+}
+function publish(){
+ const data=snapshot(),msg=JSON.stringify({type:"market_state",data});
+ for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(msg);
+}
+function isGlobalApiError(message){return/\b(401|429)\b|quota|credit limit|rate.?limit|unauthori[sz]ed|invalid api.?key|apikey is invalid/i.test(String(message||""))}
+function isUnsupportedError(message){return/unsupported|not supported|invalid symbol|symbol (?:is )?not found|not found|not available|permission|plan|subscription|access denied|does not have access/i.test(String(message||""))}
+function markLocked(message){
+ globalLockMessage=String(message||"Twelve Data API ไม่พร้อม");
+ for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(globalLockMessage)}
+ console.error("[market-feed] ALL PAIRS LOCKED:",globalLockMessage);publish();
 }
 const floorMinute=t=>Math.floor(t/60)*60;
-const closedCandleCount=()=>{const currentMinute=floorMinute(Date.now()/1000);return candles.filter(c=>!c.live&&c.epoch<currentMinute).length};
-function applyTick(price,epoch){
- const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=candles.at(-1);
- if(!cur||cur.epoch<start){if(cur){cur.live=false;}cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};candles.push(cur);candles=candles.slice(-MAX_CANDLES)}
- else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
- tickAt=Date.now();lastTick=price;if(!fatalApiLock){streamReady=true;dataLocked=false;lastDataError=null;}analyze();
-}
-function analyze(){
- const closedCount=closedCandleCount();
- if(closedCount<MIN_CANDLES){const latest=candles.at(-1);publish({signal:"STANDBY",regime:"UNKNOWN",reason:"กำลังเตรียมประวัติแท่งเทียนที่ปิดแล้ว "+closedCount+"/"+MIN_CANDLES,evidence:[],metrics:null,candleCount:closedCount,closedCandleCount:closedCount,requiredCandles:MIN_CANDLES,tickAgeSeconds:tickAt?Math.round((Date.now()-tickAt)/1000):null,lastTickPrice:lastTick,nextCandleAt:latest?(latest.epoch+60)*1000:null,source:"Twelve Data historical REST + live price"});return;}
- const age=tickAt?(Date.now()-tickAt)/1000:null;let x=analyzeMarket(candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:age}),cid=candles.at(-1).epoch;
- if(!x.metrics){activeSignal=null;activeUntil=0;}
+function analyze(f){
+ if(f.restStatus!=="READY"){f.analysis=standby(f.restMessage||"ยังไม่มีประวัติข้อมูลที่ยืนยันได้",{closedCandleCount:0,requiredCandles:MIN_CANDLES});return}
+ const tickAge=f.tickAt?(Date.now()-f.tickAt)/1000:null;
+ const x=analyzeMarket(f.candles,{maxAgeSeconds:MAXAGE,tickAgeSeconds:tickAge});
+ const cid=f.candles.at(-1)?.epoch;
+ if(!x.metrics){f.activeSignal=null;f.activeUntil=0}
  if(x.metrics&&(x.signal==="CALL"||x.signal==="PUT")){
-  if(activeSignal&&Date.now()<activeUntil&&activeSignal!==x.signal){x.signal=activeSignal;x.reason="คงทิศทางเดิมระหว่างช่วงป้องกันการสลับสัญญาณ"}
-  else if((!activeSignal||Date.now()>=activeUntil)&&signalCandle!==cid){activeSignal=x.signal;activeUntil=Date.now()+40000;signalCandle=cid;lastAlertId=cid+":"+x.signal}
-  else if(signalCandle===cid&&activeSignal!==x.signal){x.signal="STANDBY";x.reason="ป้องกันการสลับทิศทางภายในแท่งเทียนเดียวกัน"}
- }else if(x.metrics&&activeSignal&&Date.now()<activeUntil){
-  const invalid=activeSignal==="CALL"?(x.regime==="TRENDING_DOWN"||candles.at(-1).close<x.metrics?.ema21):(x.regime==="TRENDING_UP"||candles.at(-1).close>x.metrics?.ema21);
-  if(invalid){activeSignal=null;activeUntil=0;x.signal="STANDBY";x.reason="ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"}
-  else{x.signal=activeSignal;x.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที"}
- }else if(Date.now()>=activeUntil)activeSignal=null;
- const epoch=candles.at(-1).epoch;
- publish({...x,tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:lastTick,signalExpiresAt:activeSignal?new Date(activeUntil).toISOString():null,nextCandleAt:(epoch+60)*1000,alertId:lastAlertId,source:tickAt?"Twelve Data live price + REST candles":"Twelve Data REST"});
+  if(f.activeSignal&&Date.now()<f.activeUntil&&f.activeSignal!==x.signal){x.signal=f.activeSignal;x.reason="คงทิศทางเดิมระหว่างช่วงป้องกันการสลับสัญญาณ"}
+  else if((!f.activeSignal||Date.now()>=f.activeUntil)&&f.signalCandle!==cid){f.activeSignal=x.signal;f.activeUntil=Date.now()+40000;f.signalCandle=cid;f.lastAlertId=cid+":"+x.signal}
+  else if(f.signalCandle===cid&&f.activeSignal!==x.signal){x.signal="STANDBY";x.reason="ป้องกันการสลับทิศทางภายในแท่งเทียนเดียวกัน"}
+ }else if(x.metrics&&f.activeSignal&&Date.now()<f.activeUntil){
+  const invalid=f.activeSignal==="CALL"?(x.regime==="TRENDING_DOWN"||f.candles.at(-1).close<x.metrics?.ema21):(x.regime==="TRENDING_UP"||f.candles.at(-1).close>x.metrics?.ema21);
+  if(invalid){f.activeSignal=null;f.activeUntil=0;x.signal="STANDBY";x.reason="ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"}
+  else{x.signal=f.activeSignal;x.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที"}
+ }else if(Date.now()>=f.activeUntil)f.activeSignal=null;
+ f.analysis={...x,tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:f.lastTick,alertId:f.lastAlertId};
 }
-async function sync(){
- if(restSyncPromise)return restSyncPromise;
- // A reconnect must not trigger another REST credit every few seconds.
- if(lastRestSyncAt&&Date.now()-lastRestSyncAt<SYNC*1000)return;
- lastRestSyncAt=Date.now();
- restSyncPromise=(async()=>{
-  const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:SYMBOL,interval:INTERVAL,outputsize:HISTORY_CANDLES});
-  const live=candles.at(-1),keepLive=!!(live?.live&&live.epoch===floorMinute(Date.now()/1000)&&tickAt&&Date.now()-tickAt<25000);candles=keepLive?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
-  fatalApiLock=false;
-  console.info("[market-feed] REST history loaded",{symbol:SYMBOL,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:closedCandleCount(),requiredClosed:MIN_CANDLES,liveTickPresent:!!tickAt,nextRestSyncSeconds:SYNC});
-  // REST may finish after the first WebSocket tick. Always re-analyze the merged history.
-  analyze();
+function applyTick(f,price,epoch){
+ const start=floorMinute(epoch),time=new Date(start*1000).toISOString().slice(0,16).replace("T"," ");let cur=f.candles.at(-1);
+ if(!cur||cur.epoch<start){if(cur)cur.live=false;cur={time,epoch:start,open:price,high:price,low:price,close:price,live:true};f.candles.push(cur);f.candles=f.candles.slice(-MAX_CANDLES)}
+ else if(cur.epoch===start){cur.high=Math.max(cur.high,price);cur.low=Math.min(cur.low,price);cur.close=price;cur.live=true}else return;
+ f.tickAt=Date.now();f.lastTick=price;f.streamStatus="READY";f.streamMessage="ได้รับราคา Streaming สด";f.dataLocked=false;
+ if(globalLockMessage)globalLockMessage=null;
+ analyze(f);publish();
+}
+async function syncPair(f,{force=false}={}){
+ if(f.restSyncPromise)return f.restSyncPromise;
+ if(!force&&f.lastRestSyncAt&&Date.now()-f.lastRestSyncAt<SYNC*1000)return;
+ f.lastRestSyncAt=Date.now();
+ f.restSyncPromise=(async()=>{
+  try{
+   const d=await fetchCandles({apiKey:process.env.TWELVE_DATA_API_KEY,symbol:f.symbol,interval:INTERVAL,outputsize:HISTORY_CANDLES});
+   const live=f.candles.at(-1),keepLive=!!(live?.live&&live.epoch===floorMinute(Date.now()/1000)&&f.tickAt&&Date.now()-f.tickAt<25000);
+   f.candles=keepLive?[...d.candles.filter(c=>c.epoch<live.epoch),live].slice(-MAX_CANDLES):d.candles.slice(-MAX_CANDLES);
+   f.restStatus="READY";f.restMessage=`รองรับ REST: โหลดแท่งปิดแล้ว ${d.candles.length}/${MIN_CANDLES}+`;f.dataLocked=false;
+   if(globalLockMessage)globalLockMessage=null;
+   console.info("[market-feed] REST history loaded",{symbol:f.symbol,requested:HISTORY_CANDLES,receivedClosed:d.candles.length,available:f.candles.length,requiredClosed:MIN_CANDLES,liveTickPresent:!!f.tickAt});
+   analyze(f);
+  }catch(e){
+   const msg=e.message||"Twelve Data REST error";f.restMessage=msg;
+   if(isGlobalApiError(msg)){markLocked("Twelve Data API: "+msg)}
+   else if(isUnsupportedError(msg)){f.restStatus="UNSUPPORTED";f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.analysis=standby("ไม่รองรับคู่เงินนี้หรือบัญชีไม่มีสิทธิ์เข้าถึง: "+msg);console.warn("[market-feed] PAIR UNSUPPORTED",f.symbol,msg)}
+   else{f.restStatus="ERROR";f.analysis=standby("โหลดข้อมูลย้อนหลังไม่สำเร็จ: "+msg);console.error("[market-feed] REST error",f.symbol,msg)}
+  }finally{publish()}
  })();
- try{return await restSyncPromise}finally{restSyncPromise=null}
+ try{return await f.restSyncPromise}finally{f.restSyncPromise=null}
 }
-function startRest(){if(restTimer)return;restTimer=setInterval(()=>sync().catch(e=>lockData("Twelve Data REST: "+e.message,{fatal:isFatalApiError(e.message)})),SYNC*1000)}
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function syncSelected({force=false}={}){
+ for(let i=0;i<selectedSymbols.length;i++){
+  const f=feeds.get(selectedSymbols[i]);if(f.restStatus==="UNSUPPORTED")continue;
+  await syncPair(f,{force});
+  if(i<selectedSymbols.length-1)await delay(1100);
+ }
+}
+function startRest(){if(restTimer)return;restTimer=setInterval(()=>syncSelected().catch(e=>console.error("[market-feed] REST cycle failed",e.message)),SYNC*1000)}
+function stopTimers(){clearInterval(restTimer);restTimer=null;clearInterval(heartbeat);heartbeat=null;clearInterval(watchdog);watchdog=null;clearTimeout(retryTimer);retryTimer=null}
 function startStream(){
  if(upstream||!monitoring)return;
- if(!process.env.TWELVE_DATA_API_KEY){lockData("ยังไม่ได้ตั้ง Twelve Data API Key ฝั่งเซิร์ฟเวอร์",{fatal:true});return}
- console.info("[market-feed] START requested",{symbol:SYMBOL,interval:INTERVAL});
- startRest();clearInterval(watchdog);watchdog=setInterval(()=>{if(monitoring&&(!tickAt||Date.now()-tickAt>25000)&&!dataLocked){lockData("ไม่มีราคา Streaming ใหม่ภายใน 25 วินาที");if(upstream)upstream.close()}},5000);
- sync().catch(e=>{console.error("[market-feed] REST sync failed:",e.message);lockData("Twelve Data REST: "+e.message,{fatal:isFatalApiError(e.message)})});
+ if(!process.env.TWELVE_DATA_API_KEY){markLocked("ยังไม่ได้ตั้ง Twelve Data API Key ฝั่งเซิร์ฟเวอร์");return}
+ console.info("[market-feed] START requested",{symbols:selectedSymbols,interval:INTERVAL});
+ startRest();clearInterval(watchdog);watchdog=setInterval(()=>{
+  if(!monitoring)return;
+  for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")continue;
+   if(f.tickAt&&Date.now()-f.tickAt>25000){f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby("ราคา Streaming ของ "+symbol+" หยุดอัปเดตเกิน 25 วินาที");}
+  }publish();
+ },5000);
  let ws;
  try{ws=new WebSocket("wss://ws.twelvedata.com/v1/quotes/price?apikey="+encodeURIComponent(process.env.TWELVE_DATA_API_KEY));upstream=ws}
- catch(e){lockData("สร้างการเชื่อมต่อ Twelve Data Streaming ไม่สำเร็จ: "+e.message);retryTimer=setTimeout(startStream,8000);return}
- ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] Twelve Data WebSocket OPEN; subscribing",SYMBOL);streamReady=false;ws.send(JSON.stringify({action:"subscribe",params:{symbols:SYMBOL}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish({signal:"STANDBY",reason:"เชื่อมต่อช่องทางแล้ว — รอราคา API สดเพื่อปลดล็อก",connected:false})});
- ws.on("message",raw=>{if(upstream!==ws)return;let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.event==="price"&&m.symbol===SYMBOL){const p=Number(m.price),t=Number(m.timestamp);if(Number.isFinite(p)&&Number.isFinite(t)){if(!tickAt)console.info("[market-feed] First live price received",SYMBOL);applyTick(p,t)}}else if(m.status==="error"||m.event==="subscribe-status"&&m.status==="error"){const msg=m.message||m.code||"บัญชี Twelve Data ปฏิเสธ Streaming";console.error("[market-feed] Twelve Data subscription error:",msg);lockData("Twelve Data: "+msg,{fatal:isFatalApiError(msg)});if(upstream)upstream.close()}});
- ws.on("error",e=>{if(upstream!==ws)return;console.error("[market-feed] WebSocket error:",e.message);lockData("เชื่อมต่อ Streaming ไม่สำเร็จ: "+e.message,{fatal:isFatalApiError(e.message)})});
- ws.on("close",()=>{console.warn("[market-feed] WebSocket CLOSED");if(upstream!==ws&&upstream!==null)return;if(upstream===ws)upstream=null;streamReady=false;clearInterval(heartbeat);tickAt=0;if(!monitoring)return;if(!dataLocked)lockData("Streaming หลุดหรืออินเทอร์เน็ตขาด — ระบบหยุดออกสัญญาณและกำลังลองเชื่อมใหม่");retryTimer=setTimeout(startStream,8000)});
+ catch(e){markLocked("สร้างการเชื่อมต่อ Twelve Data Streaming ไม่สำเร็จ: "+e.message);retryTimer=setTimeout(startStream,8000);return}
+ ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",selectedSymbols);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:selectedSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
+ ws.on("message",raw=>{
+  if(upstream!==ws)return;let m;try{m=JSON.parse(raw.toString())}catch{return}
+  if(m.event==="price"&&m.symbol){const f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol)));const p=Number(m.price),t=Number(m.timestamp);if(f&&selectedSymbols.includes(f.symbol)&&Number.isFinite(p)&&Number.isFinite(t)){if(!f.tickAt)console.info("[market-feed] First live price received",f.symbol);applyTick(f,p,t)}return}
+  if(m.event==="subscribe-status"){
+   const message=String(m.message||m.code||"ผลการสมัครรับข้อมูล");
+   const good=Array.isArray(m.success)?m.success:[],bad=Array.isArray(m.fails)?m.fails:Array.isArray(m.failed)?m.failed:[];
+   const getSymbol=x=>typeof x==="string"?x:x?.symbol||x?.name||x?.ticker;
+   for(const item of good){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="READY";f.streamMessage="Twelve Data ตอบรับการสมัครรับราคา"}}
+   for(const item of bad){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage="Twelve Data ไม่อนุญาต Streaming: "+message;f.analysis=standby("ไม่รองรับ Streaming สำหรับ "+f.symbol+": "+message);console.warn("[market-feed] STREAM UNSUPPORTED",f.symbol,message)}}
+   const status=String(m.status||"").toLowerCase();
+   if(status==="success"&&!good.length&&!bad.length){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="READY";f.streamMessage="Twelve Data ตอบรับคำขอ Streaming"}}}
+   if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
+   publish();return;
+  }
+  if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
+ });
+ ws.on("error",e=>{if(upstream!==ws)return;console.error("[market-feed] WebSocket error:",e.message);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=e.message;f.dataLocked=true;f.analysis=standby("เชื่อมต่อ Streaming ไม่สำเร็จ: "+e.message)}}publish()});
+ ws.on("close",()=>{if(upstream!==ws)return;console.warn("[market-feed] WebSocket CLOSED");upstream=null;clearInterval(heartbeat);heartbeat=null;for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage="Streaming หลุด กำลังเชื่อมต่อใหม่";f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(f.streamMessage)}}publish();if(monitoring)retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
- monitoring=false;streamReady=false;dataLocked=false;lastDataError=null;lastAlertId=null;signalCandle=null;clearInterval(restTimer);restTimer=null;lastRestSyncAt=0;clearInterval(heartbeat);clearInterval(watchdog);clearTimeout(retryTimer);const old=upstream;upstream=null;if(old)old.close();activeSignal=null;activeUntil=0;tickAt=0;
- publish({signal:"STANDBY",regime:"UNKNOWN",reason:"หยุดเฝ้าระวังแล้ว",evidence:[],metrics:null,monitoring:false,connected:false});
+ monitoring=false;stopTimers();const old=upstream;upstream=null;if(old)old.close();
+ for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;f.dataLocked=false;if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("หยุดเฝ้าระวังแล้ว")}
+ globalLockMessage=null;publish();
 }
+app.use(express.static(path.join(APP_DIR,"public")));
+app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
+app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
+app.get("/api/state",(_,r)=>r.json(snapshot()));
 wss.on("connection",ws=>{
- ws.send(JSON.stringify({type:"market_state",data:state}));
- ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}if(m.action==="start"){monitoring=true;streamReady=false;dataLocked=false;lastDataError=null;lastAlertId=null;signalCandle=null;activeSignal=null;activeUntil=0;publish({signal:"STANDBY",reason:"กำลังเชื่อมต่อ Twelve Data"});startStream()}if(m.action==="stop")stop()});
+ ws.send(JSON.stringify({type:"market_state",data:snapshot()}));
+ ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}
+  if(m.action==="start"){
+   const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);
+   selectedSymbols=SYMBOLS.filter(s=>requested.includes(normalizeSymbol(s)));
+   if(!selectedSymbols.length)selectedSymbols=[...DEFAULT_SYMBOLS];
+   monitoring=true;globalLockMessage=null;
+   for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
+   publish();syncSelected({force:true}).catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));startStream();
+  }
+  if(m.action==="stop")stop();
+ });
  ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
 });
-server.listen(PORT,()=>console.log("MAIN MARKET Radar listening on "+PORT));
+server.listen(PORT,()=>console.log("MAIN MARKET multi-pair Radar listening on "+PORT));
