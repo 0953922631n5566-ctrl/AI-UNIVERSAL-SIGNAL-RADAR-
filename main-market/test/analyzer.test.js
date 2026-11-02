@@ -8,6 +8,34 @@ import {
 } from "../src/config.js";
 import { analyzeMarket, ema, rsi } from "../src/analyzer.js";
 import { fetchCandles } from "../src/twelve-data.js";
+import { createHmac } from "node:crypto";
+import { validateTelegramInitData } from "../src/telegram-auth.js";
+
+const TEST_BOT_TOKEN = "123456789:test_bot_token_for_unit_tests";
+function signedInitData({ authDate = Math.floor(Date.now() / 1000), userId = 424242 } = {}) {
+  const params = new URLSearchParams({
+    auth_date: String(authDate),
+    query_id: "AAE-test-query",
+    user: JSON.stringify({ id: userId, first_name: "Test" })
+  });
+  const check = [...params.entries()].sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`).join("\n");
+  const secret = createHmac("sha256", "WebAppData").update(TEST_BOT_TOKEN).digest();
+  const hash = createHmac("sha256", secret).update(check).digest("hex");
+  params.set("hash", hash);
+  return params.toString();
+}
+
+test("Telegram initData validation accepts authentic data and rejects tampering, expiry and future dates", () => {
+  const now = Date.now();
+  const valid = signedInitData({ authDate: Math.floor(now / 1000) });
+  assert.equal(validateTelegramInitData(valid, TEST_BOT_TOKEN, now).ok, true);
+  assert.equal(validateTelegramInitData(valid, TEST_BOT_TOKEN, now).userId, 424242);
+  assert.equal(validateTelegramInitData(valid.replace("Test", "Evil"), TEST_BOT_TOKEN, now).ok, false);
+  assert.equal(validateTelegramInitData(signedInitData({ authDate: Math.floor(now / 1000) - 90000 }), TEST_BOT_TOKEN, now).ok, false);
+  assert.equal(validateTelegramInitData(signedInitData({ authDate: Math.floor(now / 1000) + 120 }), TEST_BOT_TOKEN, now).ok, false);
+  assert.equal(validateTelegramInitData(valid, "", now).ok, false);
+});
 
 function makeCandles(count = 220, {
   start = Math.floor(Date.now() / 60000) * 60 - count * 60,
@@ -180,7 +208,7 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
 test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", async () => {
   const port = 32189;
   const child = spawn(process.execPath, ["server.js"], {
-    env: { ...process.env, PORT: String(port), TWELVE_DATA_API_KEY: "" },
+    env: { ...process.env, PORT: String(port), TWELVE_DATA_API_KEY: "", TELEGRAM_BOT_TOKEN: TEST_BOT_TOKEN },
     stdio: "ignore"
   });
   try {
@@ -200,19 +228,36 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     assert.equal(page.status, 200);
     assert.match(page.headers.get("cache-control") || "", /no-store/);
     assert.match(await page.text(), /UNIVERSAL RADAR/);
+    const deniedState = await fetch(`http://127.0.0.1:${port}/api/state`);
+    assert.equal(deniedState.status, 401);
+    const deniedControl = await fetch(`http://127.0.0.1:${port}/api/control`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
+    });
+    assert.equal(deniedControl.status, 401);
+    const authResponse = await fetch(`http://127.0.0.1:${port}/api/auth`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ initData: signedInitData() })
+    });
+    assert.equal(authResponse.status, 200);
+    const cookie = authResponse.headers.get("set-cookie")?.split(";")[0];
+    assert.ok(cookie);
+    const authenticatedState = await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { cookie } });
+    assert.equal(authenticatedState.status, 200);
     const start = await fetch(`http://127.0.0.1:${port}/api/control`, {
       method: "POST", headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
     });
     assert.equal(start.status, 200);
     assert.equal((await start.json()).state.monitoring, true);
     const heartbeat = await fetch(`http://127.0.0.1:${port}/api/control`, {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ action: "heartbeat" })
     });
     assert.equal(heartbeat.status, 200);
     const stop = await fetch(`http://127.0.0.1:${port}/api/control`, {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ action: "stop" })
     });
     assert.equal(stop.status, 200);
