@@ -198,6 +198,9 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   assert.match(html, /id="sound"/);
   assert.match(html, /id="vibration"/);
   assert.ok(js.includes("function savePair(value)"));
+  assert.match(js, /function authenticateTelegram\(\)/);
+  assert.ok(js.includes("getTelegram()?.initData"));
+  assert.ok(js.includes("if (!authenticated) return;"));
   assert.match(js, /function regimeLabel\(value\)/);
   assert.match(css, /\.signal-display\.call/);
   assert.match(css, /\.signal-display\.put/);
