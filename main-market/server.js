@@ -609,26 +609,43 @@ app.get("/health", (_req, res) => {
   noCache(res);
   res.json({
     ok: true, service: "main-market", version: VERSION,
-    symbols: SYMBOLS, interval: INTERVAL
+    symbols: SYMBOLS, interval: INTERVAL,
+    configuration: {
+      telegramBotToken: Boolean(BOT_TOKEN),
+      twelveDataApiKey: Boolean(API_KEY),
+      minimumClosedCandles: MIN_CLOSED_CANDLES,
+      historyCandles: HISTORY_CANDLES,
+      restRefreshSeconds: REST_SYNC_SECONDS,
+      streamingRequiredForSignals: true
+    }
   });
 });
 app.post("/api/auth", rateLimitAuth, (req, res) => {
-  if (!BOT_TOKEN) return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Telegram Bot Token" });
+  if (!BOT_TOKEN) {
+    console.error("[auth] blocked: Telegram bot token is not configured");
+    return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Telegram Bot Token" });
+  }
   const validation = validateTelegramInitData(req.body?.initData, BOT_TOKEN);
-  if (!validation.ok) return res.status(401).json({ ok: false, error: "ยืนยัน Telegram ไม่สำเร็จ กรุณาเปิด Mini App ใหม่" });
+  if (!validation.ok) {
+    console.warn("[auth] rejected Telegram initData");
+    return res.status(401).json({ ok: false, error: "ยืนยัน Telegram ไม่สำเร็จ กรุณาเปิด Mini App ใหม่" });
+  }
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
   sessions.set(token, { userId: validation.userId, expiresAt });
   res.setHeader("Set-Cookie", `radar_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
   noCache(res);
+  console.info("[auth] Telegram Mini App session created");
   res.json({ ok: true, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
 });
 app.get("/api/state", requireTelegramSession, (_req, res) => { noCache(res); res.json(snapshot()); });
 app.post("/api/control", requireTelegramSession, rateLimitControl, async (req, res) => {
   const body = req.body || {};
   try {
-    if (body.action === "start") await start(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL);
-    else if (body.action === "select") {
+    if (body.action === "start") {
+      console.info("[radar] start requested", resolveSymbol(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL) || DEFAULT_SYMBOL);
+      await start(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL);
+    } else if (body.action === "select") {
       if (!await select(body.symbol)) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้" });
     } else if (body.action === "heartbeat") {
       if (monitoring) httpLeaseUntil = Date.now() + CLIENT_LEASE_SECONDS * 1000;
