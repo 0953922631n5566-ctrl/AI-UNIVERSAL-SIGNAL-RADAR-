@@ -563,3 +563,11 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - This enables the root-hosted UI to call `/api/state` and `/api/control` on the Main Market service and connect to its `/live` WebSocket.
 - Security caveat remains: CORS is not authentication. The control and state endpoints still need Telegram `initData` validation and appropriate rate/session protections before the service can be considered production-secure. No bot token was added to public source or browser code.
 - Verify Render deploy and actual preflight/API responses from the static-site origin before calling the cross-origin path operational. Telegram WebView and physical sound/haptics require device confirmation.
+
+
+### Idle server status correction — 2026-11-02
+
+- Added `serverOnline:true` to the state snapshot; clients now display `SERVER ONLINE` while the backend is reachable and scanner is idle. During scanning the badge continues to reflect actual Twelve Data feed status.
+- Server commit: `e40c0f23b4546ca406cbe49244ca825f89b707c0`; UI commit: `398f1255134f59edc167788fa8f1bd07f9fbb263`; regression test commit: `cc7a6b651eb66dada3e7e2162b1a785fa2be4607`.
+- This is only server availability reporting; it does not imply Twelve Data is streaming or that all pairs are supported.
+- Pending: latest GitHub Actions, Render deploy, HTTP/CORS preflight, and Telegram device verification.
