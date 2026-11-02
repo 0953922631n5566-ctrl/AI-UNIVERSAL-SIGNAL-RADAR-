@@ -891,3 +891,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The Twelve Data key is present but current-deploy 80-bar REST retrieval and pair-specific Streaming have not yet been exercised because Telegram authentication is blocked.
 - Current API source includes sanitized token-variable-name audit commit `b28e2390ccf4227fa61227baf70196114875ea78`; Render deploy `dep-dbk36k7avr4c73clpp40` reached live.
 - Legacy Telegram URL alias `https://my-ai-signal-bot-v2.onrender.com` is live at Static Site `srv-dbk35e8ae00c73fmpi30`, deploy `dep-dbk35egae00c73fmpjhg`. Both it and the primary Static Site serve the same Main Market v3 frontend.
+
+
+## 2026-11-02 — Telegram Mini App API LOCKED / CORS fix
+- User reported Mini App opened but showed API LOCKED, disabled Start button, blank market metrics, and a generic browser "Script error".
+- Runtime logs confirm the Render Node service started and both TELEGRAM_BOT_TOKEN and TWELVE_DATA_API_KEY are present (presence booleans only; secret values are never logged).
+- Root cause found in main-market/server.js: CORS allowlist omitted the legacy Static Site origin `https://my-ai-signal-bot-v2.onrender.com`, although this was the Mini App URL provided to the user. Browser cross-origin POST /api/auth preflight from that origin would be rejected with 403, preventing Telegram initData authentication and leaving the Start button disabled.
+- Fix commit: 3c50d1d78e71aac668bbeb157c5b90d0b96d640c — added the legacy frontend origin to the explicit CORS allowlist. This also allows the same trusted origin for the authenticated WebSocket upgrade.
+- Render auto-deploy started: dep-dbk3o5qvcj2c73fjm6f0, build_in_progress at 2026-11-02 07:30:32 UTC. Do not tell user to retest until deploy status becomes live/succeeded.
+- Still not yet verified: successful OPTIONS preflight from device, /api/auth success, cookie persistence inside Telegram WebView, authenticated /api/state, start command, Twelve Data REST/streaming, and Android haptics.
+- Next validation after deployment: user should fully close Telegram Mini App and reopen it (fresh initData), then verify API status changes from LOCKED to CONNECTING/ONLINE and Start is enabled. If still locked, inspect browser network/request logs and improve sanitized auth/CORS diagnostics without logging initData, user IDs, cookies, or tokens.
