@@ -281,6 +281,11 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     const health = await response.json();
     assert.equal(health.service, "main-market");
     assert.equal(health.interval, "1min");
+    assert.equal(health.configuration.minimumClosedCandles, 60);
+    assert.equal(health.configuration.historyCandles, 80);
+    assert.equal(health.configuration.streamingRequiredForSignals, true);
+    assert.equal(typeof health.configuration.telegramBotToken, "boolean");
+    assert.equal(typeof health.configuration.twelveDataApiKey, "boolean");
     const page = await fetch(`http://127.0.0.1:${port}/`);
     assert.equal(page.status, 200);
     assert.match(page.headers.get("cache-control") || "", /no-store/);
