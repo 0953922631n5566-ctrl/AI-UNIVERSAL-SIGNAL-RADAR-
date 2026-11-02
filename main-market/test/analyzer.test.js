@@ -104,7 +104,7 @@ test("recent missing M1 bars fail closed, while older market-closure gaps are to
 
 test("stale history fails closed", () => {
   const history = makeCandles(220);
-  history.at(-1).epoch -= 600;
+  history.forEach(candle => { candle.epoch -= 600; });
   const result = analyzeMarket(history, { now: Date.now(), tickAgeSeconds: 0 });
   assert.equal(result.signal, "STANDBY");
   assert.match(result.reason, /เก่า/);
