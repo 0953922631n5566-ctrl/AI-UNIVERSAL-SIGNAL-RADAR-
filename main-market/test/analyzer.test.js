@@ -226,6 +226,9 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const js = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(html, /<script src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"><\/script>/);
+  assert.doesNotMatch(html, /<script async src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"/);
+  assert.ok(html.indexOf("telegram-web-app.js") < html.indexOf("/app.js"));
   assert.match(html, /id="pairModal"/);
   assert.ok(html.includes('id="feedStatus"'));
   assert.ok(js.includes("state.selectedSymbol !== selectedSymbol"));
