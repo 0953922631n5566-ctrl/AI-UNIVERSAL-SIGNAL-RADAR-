@@ -259,19 +259,33 @@ async function playTone(kind, force = false) {
 }
 function vibrate(kind = "signal", force = false) {
   if (!$("vibration").checked && !force) return { ok: false, reason: "ปิดการสั่นไว้" };
+  const methods = [];
+  const haptic = getTelegram()?.HapticFeedback;
   try {
-    const haptic = getTelegram()?.HapticFeedback;
+    if (typeof haptic?.impactOccurred === "function") {
+      haptic.impactOccurred(kind === "signal" || kind === "entry" ? "heavy" : "medium");
+      methods.push("Telegram impact haptic");
+    }
     if (typeof haptic?.notificationOccurred === "function") {
       haptic.notificationOccurred(kind === "signal" ? "success" : "warning");
-      return { ok: true, method: "Telegram HapticFeedback" };
+      methods.push("Telegram notification haptic");
     }
+  } catch (error) {
+    console.warn("[radar] Telegram haptic failed", error);
+  }
+  if (methods.length) return { ok: true, method: methods.join(" + ") };
+  try {
     if (typeof navigator.vibrate === "function") {
-      const accepted = navigator.vibrate(kind === "signal" ? [180, 90, 180] : [100, 70, 100]);
-      return accepted ? { ok: true, method: "Browser Vibration" } :
+      const pattern = kind === "signal" ? [220, 90, 220] :
+        kind === "entry" ? [160, 60, 160] : [90, 50, 90];
+      const accepted = navigator.vibrate(pattern);
+      return accepted ? { ok: true, method: "Android browser vibration" } :
         { ok: false, reason: "ระบบปฏิเสธคำสั่งสั่น" };
     }
-    return { ok: false, reason: "อุปกรณ์หรือ WebView ไม่รองรับ HapticFeedback" };
-  } catch (error) { return { ok: false, reason: error.message || "สั่งสั่นไม่สำเร็จ" }; }
+    return { ok: false, reason: "Telegram HapticFeedback และ Android Vibration ไม่พร้อมใช้งาน" };
+  } catch (error) {
+    return { ok: false, reason: error.message || "สั่งสั่นไม่สำเร็จ" };
+  }
 }
 async function control(action, extra = {}, keepalive = false) {
   if (!authenticated) throw new Error("กรุณายืนยันตัวตนผ่าน Telegram ก่อน");
