@@ -639,7 +639,7 @@ setInterval(() => {
 server.on("upgrade", (req, socket, head) => {
   const origin = req.headers.origin;
   if (origin && !allowedOrigins.has(origin) && origin !== `https://${req.headers.host}`) {
-    socket.write("HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n");
+    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
     socket.destroy();
     return;
   }
