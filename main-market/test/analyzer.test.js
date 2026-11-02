@@ -162,6 +162,8 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   const js = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
   assert.match(html, /id="pairModal"/);
+  assert.ok(html.includes('id="feedStatus"'));
+  assert.ok(js.includes("state.selectedSymbol !== selectedSymbol"));
   assert.equal((html.match(/data-pair-select/g) || []).length, 6);
   assert.match(html, /id="start"/);
   assert.match(html, /id="stop"/);
