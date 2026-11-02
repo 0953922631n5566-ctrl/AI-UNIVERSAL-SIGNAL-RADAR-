@@ -345,3 +345,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Code/build/deploy verified. NOT YET VERIFIED: actual live REST history and WebSocket subscription acceptance for each of the six symbols under the user's Twelve Data account, visible UI on Telegram/Xiaomi, per-pair unsupported alerts, and physical CALL/PUT/10s/3s audio/vibration.
 - User acceptance test: open/reopen the Main Market Mini App, select the pairs to scan (all six are checked by default), tap Start, and observe each card. Any rejected symbol/plan/stream is shown as `ไม่รองรับ` with an alert; only a pair with at least 200 closed history candles and a fresh Streaming tick may produce CALL/PUT. If any pair remains CHECKING/WAITING/ERROR, inspect fresh Render logs before altering credentials or plan.
 - Do not describe the six symbols as all supported until runtime logs show successful REST history and fresh Streaming ticks for each. The app intentionally keeps unsupported/stale pairs out of directional signal output.
+
+
+### Streaming support timeout clarification and final redeploy — 2026-11-02
+
+- Added a per-pair timeout when a WebSocket subscription is acknowledged but no first price arrives within 25 seconds.
+- Distinguish explicit provider rejection (`UNSUPPORTED`) from no first tick (`STREAM_TIMEOUT` / “ยังยืนยันไม่ได้ว่าคู่นี้รองรับหรือไม่”). This avoids falsely claiming a pair is unsupported merely because the market is closed, the provider is delayed, or no tick has arrived yet. Both states remain non-directional / STANDBY and trigger a visible user alert.
+- Final source commits for this clarification:
+  - `e7993430e5b164d1f97a75d21b13239586993947` — server reports missing first Streaming ticks separately from unsupported pairs.
+  - `1aab251c816741850612739a82d698e2830056d6` — timeout applies even after a successful subscribe acknowledgement.
+  - `37a29d00dc39c4458c816e143c36511040286dce` and `3c46a1ea8f37f5bf9fdb6c1e6cd3d266691b5c22` — client warning/label and readable alert formatting.
+- Latest Render deploy: `dep-dbjtgu0gbm7c7383a8ug`, source commit `3c46a1ea8f37f5bf9fdb6c1e6cd3d266691b5c22`, status `live`, finished 2026-11-02T00:26:37Z. Build log confirms 7 tests passed / 0 failed, the configured Node syntax-check chain passed, and the process started with `MAIN MARKET multi-pair Radar listening on 10000`.
+- Still pending: user-side Mini App refresh and real Twelve Data account acceptance per pair; no claim that all six currently have Streaming permission until fresh logs show it. The app is deployed, but runtime support and audible/haptic acceptance must be checked after the user taps Start.
