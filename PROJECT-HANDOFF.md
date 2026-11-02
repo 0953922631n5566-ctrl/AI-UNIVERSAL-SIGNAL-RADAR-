@@ -340,3 +340,12 @@ At task completion, report:
 - Six Forex symbols are present in the backend allowlist and frontend selector. Actual Twelve Data REST/Streaming access for each pair is not yet verified with live user account requests.
 - Not yet verified: successful Telegram initData authentication from the user's actual Mini App launch, authenticated REST history fetch, first live Streaming tick, six-pair provider entitlements, physical Android audio/vibration, or end-to-end signal behavior. The Render/GitHub inspection tools did not provide an external HTTP response for the public health endpoint, and no user-device session logs were present in Render request logs. Do not claim end-to-end success.
 - Next verification: inspect GitHub Actions run for the new root workflow and latest Render static-site deployment; then obtain a fresh Telegram launch and compare the exact UI error with backend logs if authentication still fails. Preserve STANDBY unless real fresh data and validated evidence support CALL/PUT. Manual only; no broker order execution.
+
+
+### Follow-up verification — 2026-11-02
+
+- Root Mini App GitHub Actions run `41435356889` on commit `79f4a2d9d10a7409eda8da3d70d98934b3bbb070` completed successfully; the inline JavaScript syntax and single-file assertions passed.
+- Earlier run `41435335369` failed in the first version of the inline-script extraction; this was corrected in the next commit and the subsequent run passed.
+- Render static-site deploy for the final handoff commit `a14c0ab4e750469a4004a22b186f4e34e4527b67` completed with status `live` (deploy `dep-dbk71hlh3lcs738tmgmg`, finished 2026-11-02T11:16:03Z).
+- The source change that fixes the idle OFFLINE badge (`51c8ad8195593aca0f1299028f055e31e8bcaf51`) also completed a successful Render deploy (deploy `dep-dbk71fvb9u1s73cehvig`).
+- This proves CI and Render publication, not successful authentication or live market data on the user's Telegram device. End-to-end verification remains open.
