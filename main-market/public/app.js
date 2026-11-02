@@ -56,7 +56,7 @@ function render(s){
  if(s.monitoring&&Array.isArray(s.selectedSymbols))setSelected(s.selectedSymbols);
  updatePairCards(s);
  for(const [symbol,p] of Object.entries(s.pairs||{})){
-  if(s.monitoring&&p.supportStatus==="STREAM_TIMEOUT"){const key=symbol+":timeout:"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ยังยืนยันการรองรับ Streaming ไม่ได้\\n"+(p.statusMessage||"ยังไม่ได้รับราคา Streaming สด"))}}
+  if(s.monitoring&&p.supportStatus==="STREAM_TIMEOUT"){const key=symbol+":timeout:"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ยังยืนยันการรองรับ Streaming ไม่ได้\n"+(p.statusMessage||"ยังไม่ได้รับราคา Streaming สด"))}}
   if(s.monitoring&&p.supportStatus==="UNSUPPORTED"){
    const key=symbol+":"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ไม่รองรับ\n"+(p.statusMessage||"บัญชี Twelve Data อาจไม่มีสิทธิ์ใช้งานคู่นี้"))}
   }
