@@ -135,7 +135,7 @@ function classifyRegime({ candles, ema9, ema21, ema50, rsi14, macdData, atr14, a
 }
 
 /** Transparent rule-based evidence engine; it is not a trained ML model. */
-export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null } = {}) {
+export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, allowRestFallback = false } = {}) {
   const validated = validateCandles(input, now);
   if (!validated.ok) return standby(validated.reason, {
     closedCandleCount: validated.closedCandleCount ?? 0,
