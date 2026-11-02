@@ -69,6 +69,14 @@ test("the selector exposes exactly six pairs and scans one default pair", () => 
   assert.equal(REST_SYNC_SECONDS, 300);
 });
 
+test("server and REST client use the same reduced warmup limits", async () => {
+  assert.ok(HISTORY_CANDLES >= MIN_CLOSED_CANDLES);
+  assert.ok(HISTORY_CANDLES <= 100);
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.js", import.meta.url), "utf8");
+  assert.ok(server.includes("requiredCandles: MIN_CLOSED_CANDLES"));
+});
+
 test("EMA and RSI return stable numeric values and reject insufficient input", () => {
   assert.equal(ema([1, 2], 3), null);
   assert.equal(ema([1, 2, 3], 3), 2);
