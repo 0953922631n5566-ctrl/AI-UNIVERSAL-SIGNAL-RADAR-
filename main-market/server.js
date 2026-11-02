@@ -30,7 +30,7 @@ function snapshot(){
  const values=Object.values(pairs),online=values.filter(x=>x.apiStatus==="ONLINE").length,locked=values.filter(x=>x.apiStatus==="LOCKED"||x.supportStatus==="UNSUPPORTED").length;
  const apiStatus=!monitoring?"OFFLINE":online?"ONLINE":locked===values.length?"LOCKED":"CONNECTING";
  const primary=values[0]||publicFeed(feeds.get(SYMBOLS[0]));
- return{...primary,symbols:SYMBOLS,selectedSymbols:[...selectedSymbols],pairs,monitoring,connected:online>0,apiStatus,apiMessage:globalLockMessage||`${online}/${values.length} คู่กำลังรับราคา Streaming สด`,onlineCount:online,unsupportedCount:values.filter(x=>x.supportStatus==="UNSUPPORTED").length,analyzedAt:new Date().toISOString()};
+ return{...primary,symbols:SYMBOLS,selectedSymbols:[...selectedSymbols],pairs,monitoring,connected:online>0,serverOnline:true,apiStatus,apiMessage:globalLockMessage||`${online}/${values.length} คู่กำลังรับราคา Streaming สด`,onlineCount:online,unsupportedCount:values.filter(x=>x.supportStatus==="UNSUPPORTED").length,analyzedAt:new Date().toISOString()};
 }
 function publish(){
  const data=snapshot(),msg=JSON.stringify({type:"market_state",data});
