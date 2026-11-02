@@ -17,7 +17,7 @@ function vibrate(force=false,kind="signal"){if(!$("vibration").checked&&!force)r
 function notify(message){const app=getTelegram();if(typeof app?.showAlert==="function")app.showAlert(message);else window.alert(message)}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function statusLabel(p){
- const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"ไม่รองรับ",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STREAM_TIMEOUT:"ไม่พบราคา Streaming",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
+ const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"REST ไม่รองรับ",REST_ONLY:"REST ใช้ได้ · ไม่มี LIVE",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STREAM_TIMEOUT:"ไม่พบราคา Streaming",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
  return labels[p.supportStatus]||p.supportStatus||"กำลังตรวจสอบ";
 }
 function regimeLabel(value){
@@ -28,7 +28,7 @@ function updatePairCards(s){
  const pairs=s.pairs||{},chosen=new Set(selectedSymbols()),entries=Object.entries(pairs).filter(([symbol])=>chosen.has(symbol));
  $("pairCards").innerHTML=entries.map(([symbol,p])=>{
   const sig=p.signal||"STANDBY",status=p.supportStatus||"CHECKING",price=Number.isFinite(p.lastTickPrice)?p.lastTickPrice.toFixed(5):Number.isFinite(p.lastPrice)?p.lastPrice.toFixed(5):"—";
-  const rsi=Number.isFinite(p.metrics?.rsi14)?p.metrics.rsi14.toFixed(1):"—",age=Number.isFinite(p.tickAgeSeconds)?p.tickAgeSeconds+"s":"—";
+  const rsi=Number.isFinite(p.metrics?.rsi14)?p.metrics.rsi14.toFixed(1):"—",close=Number.isFinite(p.lastPrice)?p.lastPrice.toFixed(5):"—",age=Number.isFinite(p.tickAgeSeconds)?p.tickAgeSeconds+"s":"—";
   return `<article class="pair-card ${status==="UNSUPPORTED"?"unsupported":status==="SUPPORTED"?"supported":""}">
    <div class="pair-head"><strong>${escapeHtml(symbol)}</strong><span class="pair-status ${status.toLowerCase()}">${escapeHtml(statusLabel(p))}</span></div>
    <div class="signal-display ${sig.toLowerCase()}" role="status" aria-live="polite" aria-label="สัญญาณ ${escapeHtml(sig)}">
@@ -36,7 +36,7 @@ function updatePairCards(s){
     <div class="signal-copy"><small>${sig==="CALL"?"สัญญาณขาขึ้น":sig==="PUT"?"สัญญาณขาลง":"รอสัญญาณที่ชัดเจน"}</small><strong>${escapeHtml(sig)}</strong><em>${sig==="CALL"?"พิจารณาเข้า CALL":sig==="PUT"?"พิจารณาเข้า PUT":"ยังไม่เข้าออเดอร์"}</em></div>
    </div>
    <div class="regime-row"><span>MARKET REGIME</span><strong class="regime-badge regime-${String(p.regime||"UNKNOWN").toLowerCase().replace(/[^a-z0-9_-]/g,"-")}">${escapeHtml(regimeLabel(p.regime))}</strong></div>
-   <div class="pair-metrics"><span>ราคา <b>${price}</b></span><span>RSI <b>${rsi}</b></span><span>DATA AGE <b>${age}</b></span></div>
+   <div class="pair-metrics"><span>ราคา <b>${price}</b></span><span>Close <b>${close}</b></span><span>RSI <b>${rsi}</b></span><span>DATA AGE <b>${age}</b></span></div>
    <div class="reason-panel"><div class="reason-heading">✦ AI REASONING</div><p class="pair-reason">${escapeHtml(p.reason||p.statusMessage||"รอข้อมูล")}</p></div>
    <p class="pair-status-message">${escapeHtml(p.statusMessage||"")}</p>
    <div class="pair-countdown" id="countdown-${symbol.replace("/","-")}">แท่งถัดไป --:--</div>
