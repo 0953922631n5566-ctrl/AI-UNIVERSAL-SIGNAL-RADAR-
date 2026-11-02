@@ -515,3 +515,13 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Render service is active/not suspended, branch `main-market`, auto-deploy enabled. The deploy event and process startup are verified. Assistant network still cannot resolve/fetch the public Render domain, so direct external browser GET and Telegram/Xiaomi rendering cannot be independently verified here. Post-deploy Render error-log query returned no entries in the queried interval.
 - No BotFather token/config access is available in this connection. If the Telegram bot's Menu Button / Mini App still points to an older URL, set it to exactly `https://ai-signal-radar-main-market.onrender.com/`. Do not assume the bot's saved URL was changed by the Render deploy.
 - User-side final acceptance remains necessary: fully close Telegram, reopen the bot Mini App and press Start. If the user still sees an old page or blank screen, capture the visible URL/title/error; this will distinguish a BotFather URL mismatch from a device WebView issue. Do not report device acceptance until confirmed.
+
+
+### Mini App interaction fix — non-blocking Telegram SDK (2026-11-02)
+
+- User reported that the Mini App page rendered but pair selection/start/stop and sound/vibration test controls did not respond; connection remained OFFLINE.
+- Code inspection found the Telegram WebApp SDK was loaded as a parser-blocking synchronous external script in the document head. If Telegram's CDN is slow/unavailable inside the WebView, the browser can pause parsing before it reaches the app script at the bottom of the page, leaving every control inert. This is a strong code-level cause consistent with the reported symptoms; device reproduction is still pending.
+- Changed Telegram SDK to async so the app's own JavaScript can initialize independently. Telegram WebApp access is now looked up lazily, and SDK-specific calls are optional-safe.
+- Audio test tone volume/duration increased, and audio unlock is attempted on pointerdown for Start and Test Sound while still requiring a real user gesture. Startup/runtime JS errors are reported immediately.
+- Added a visible client boot-ready status and regression test for non-blocking SDK loading.
+- Cache-busting version: 20261102-nonblocking-sdk. Market strategy, Twelve Data, server scan lease, and manual-only order safety are unchanged. Must verify CI, deploy, and real Telegram/Xiaomi interaction before calling device acceptance complete.
