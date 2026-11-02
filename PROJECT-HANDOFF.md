@@ -580,3 +580,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Patched `main-market/public/app.js` to normalize scalar/array/null selection values before using `.find()`. Preserves selected pair and one-pair-at-a-time behavior; no server/analyzer strategy changes.
 - Client fix commit: `c73c67c925240342ed950d17e7954169ef943e95`.
 - Added a regression test verifying persisted scalar selection cannot trigger this startup crash. CI and Render deployment pending; Telegram/Xiaomi device confirmation remains outstanding.
+
+
+### Separate REST support from live Streaming support — 2026-11-02
+
+- User confirmed EUR/USD works while other selectable pairs report unsupported. Render logs show EUR/GBP successfully loaded REST history, then the Twelve Data WebSocket subscription failed and the backend incorrectly promoted that Streaming failure to an overall pair UNSUPPORTED state.
+- Root cause: `feedStatus()` treated any `streamStatus === UNSUPPORTED` as total pair failure before checking whether REST was READY. `analyzeMarket()` also returned early without indicators when there was no live tick, hiding valid REST-derived price/Close/RSI.
+- Changed status model: `UNSUPPORTED` now means REST itself is unavailable; `REST_ONLY` means REST history is ready but live Streaming is unavailable. REST_ONLY is API ONLINE for data display, but it never permits CALL/PUT without a fresh tick.
+- Analyzer now calculates indicators from at least 200 closed REST candles even without Streaming, exposes `lastPrice`, `metrics.rsi14`, `livePriceReady:false`, and forces STANDBY with an explicit reason until fresh Streaming arrives.
+- UI distinguishes REST_ONLY and displays Price, Close, RSI and data age. Stream subscription errors no longer erase usable REST data or mark the REST feed as locked.
+- Added regression test for 220 closed candles with no Streaming: indicators and Close must be available while signal remains STANDBY.
+- Pair list remains six selectable pairs; no claim that all six have live Streaming entitlement. EUR/USD behavior and analyzer thresholds are preserved. User device acceptance and per-pair Twelve Data Streaming entitlements remain to be verified.
+- Code changes in progress; update commit IDs, CI and Render deployment status after verification.
