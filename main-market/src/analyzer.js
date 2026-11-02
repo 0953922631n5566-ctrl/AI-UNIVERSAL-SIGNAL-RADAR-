@@ -162,10 +162,12 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
   const { regime, rangeHigh, rangeLow, atrRatio } = context;
   const nearResistance = rangeHigh >= last.close && rangeHigh - last.close <= atr14 * 0.4;
   const nearSupport = rangeLow <= last.close && last.close - rangeLow <= atr14 * 0.4;
+  const momentum3 = last.close - candles.at(-4).close;
   const momentum5 = last.close - candles.at(-6).close;
+  const lastThree = candles.slice(-4);
+  const upBars = lastThree.slice(1).filter((candle, index) => candle.close > lastThree[index].close).length;
+  const downBars = 3 - upBars;
   const bodyAtr = Math.abs(last.close - last.open) / atr14;
-  const prior = macd(closes.slice(0, -1));
-  const histogramGrowing = prior && Math.abs(macdData.histogram) >= Math.abs(prior.histogram);
   const streamReady = finite(tickAgeSeconds) && tickAgeSeconds >= 0 &&
     tickAgeSeconds <= MAX_STREAM_AGE_SECONDS;
   const restFallbackReady = allowRestFallback && finite(validated.ageSeconds) &&
@@ -176,7 +178,7 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
     `EMA 9/21/50: ${ema9.toFixed(5)} / ${ema21.toFixed(5)} / ${ema50.toFixed(5)}`,
     `RSI 14: ${rsi14.toFixed(1)} · MACD histogram: ${macdData.histogram.toFixed(7)}`,
     `ATR14: ${atr14.toFixed(6)} · volatility ratio: ${atrRatio.toFixed(2)}`,
-    `5-bar momentum: ${momentum5.toFixed(5)} · candle body: ${bodyAtr.toFixed(2)} ATR`,
+    `3/5-bar momentum: ${momentum3.toFixed(5)} / ${momentum5.toFixed(5)} · last 3 bars: ${upBars} up / ${downBars} down · body: ${bodyAtr.toFixed(2)} ATR`,
     `Support: ${rangeLow.toFixed(5)} · Resistance: ${rangeHigh.toFixed(5)}`
   ];
 
@@ -195,19 +197,21 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
   } else if (regime === "REVERSAL") {
     reason = "พบโครงสร้างที่อาจกลับตัว — รอแท่งยืนยันเพิ่ม";
   } else if (regime === "TRENDING_UP" && context.rising &&
-      last.close > ema9 && previous.close >= ema21 &&
-      rsi14 >= 52 && rsi14 <= 68 && momentum5 > 0 &&
-      macdData.histogram > 0 && histogramGrowing &&
-      !nearResistance && bodyAtr <= 1.5) {
+      last.close > ema9 &&
+      rsi14 >= 50 && rsi14 <= 75 &&
+      momentum3 > 0 && momentum5 > 0 && upBars >= 2 &&
+      macdData.histogram > 0 &&
+      !nearResistance && bodyAtr <= 1.8) {
     signal = "CALL";
-    reason = "แนวโน้มขึ้นมีโครงสร้างต่อเนื่อง โมเมนตัมและ MACD สนับสนุน และยังมีระยะก่อนแนวต้าน";
+    reason = "ตามโมเมนตัมขาขึ้น: EMA 9/21/50 เรียงตัว, MACD เป็นบวก, RSI และแรงส่ง 3/5 แท่งยืนยัน";
   } else if (regime === "TRENDING_DOWN" && context.falling &&
-      last.close < ema9 && previous.close <= ema21 &&
-      rsi14 >= 32 && rsi14 <= 48 && momentum5 < 0 &&
-      macdData.histogram < 0 && histogramGrowing &&
-      !nearSupport && bodyAtr <= 1.5) {
+      last.close < ema9 &&
+      rsi14 >= 25 && rsi14 <= 50 &&
+      momentum3 < 0 && momentum5 < 0 && downBars >= 2 &&
+      macdData.histogram < 0 &&
+      !nearSupport && bodyAtr <= 1.8) {
     signal = "PUT";
-    reason = "แนวโน้มลงมีโครงสร้างต่อเนื่อง โมเมนตัมและ MACD สนับสนุน และยังมีระยะก่อนแนวรับ";
+    reason = "ตามโมเมนตัมขาลง: EMA 9/21/50 เรียงตัว, MACD เป็นลบ, RSI และแรงส่ง 3/5 แท่งยืนยัน";
   } else if (nearResistance || nearSupport) {
     reason = "ราคาเข้าใกล้แนวรับหรือแนวต้าน — ไม่ไล่ราคา";
   }
