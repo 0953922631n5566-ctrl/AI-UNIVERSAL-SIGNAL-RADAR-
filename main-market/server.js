@@ -159,6 +159,16 @@ wss.on("connection",ws=>{
    for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
    publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
   }
+  if(m.action==="select"){
+   const chosen=SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol));if(!chosen)return;
+   selectedSymbols=[chosen];
+   const old=upstream;upstream=null;if(old)old.close();clearInterval(heartbeat);heartbeat=null;clearInterval(watchdog);watchdog=null;clearTimeout(retryTimer);retryTimer=null;
+   for(const f of feeds.values()){f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;if(f.symbol!==chosen){f.tickAt=0;f.lastTick=null;f.analysis=standby("ไม่ได้เลือกสแกนคู่นี้")}}
+   const f=feeds.get(chosen);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;
+   if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";
+   if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเปลี่ยนไปสแกน "+chosen);
+   publish();if(monitoring){startRest();syncSelected().catch(e=>console.error("[market-feed] selected-pair switch failed",e.message))}
+  }
   if(m.action==="stop")stop();
  });
  ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
