@@ -320,3 +320,23 @@ At task completion, report:
 - Pair availability is not guaranteed merely because a pair appears in the selector: Twelve Data API key plan, market coverage, and quota determine support. Each selected pair is tested by REST fetch; failures display an explicit unsupported/error state. Do not claim all six are live-tested until each has returned valid candles and streaming data.
 - No broker order execution was added. The Mini App continues to display manual CALL/PUT/STANDBY only.
 - Remaining validation: check final backend deploy LIVE, verify /health reports six symbols, test each pair with the actual configured Twelve Data key, confirm REST history + live stream for each, and test selector/countdown/notifications inside Telegram on Android.
+
+
+---
+
+## 2026-11-02 — Single-file Mini App status clarification and CI repair
+
+- Re-inspected the actual default-branch tree and confirmed the deployed Root Mini App is already a single-file implementation in `index.html` (inline HTML/CSS/JavaScript, 21 KB). Root-level `app.js` and `styles.css` are absent; there were no separate root assets to delete.
+- Rejected replacing the live frontend with the user-pasted mockup because it contains `TWELVE_API_KEY = "demo"`, randomly fabricated prices, and random CALL/PUT decisions via `Math.random()`. That code is not connected to Twelve Data and could display false trading signals.
+- Confirmed the real single-file frontend calls the deployed MAIN MARKET API at `https://ai-signal-radar-main-market.onrender.com`, authenticates with Telegram `initData`, and calls `/api/auth`, `/api/state`, and `/api/control`. It offers the six allowed Forex pairs and displays REST/Streaming status, candle history, indicators, reason/evidence, countdown, signal expiry, sound and vibration controls.
+- Root cause found for a misleading OFFLINE badge: after successful Telegram authentication and while idle, the frontend deliberately labelled the service OFFLINE because no market scan was active. The backend snapshot separately reports `serverOnline: true`. Updated `index.html` to distinguish SERVER ONLINE (server reachable, scan idle), CONNECTING (scan active but feed not yet ready), MARKET LIVE (fresh Streaming price), API LOCKED, and OFFLINE (server unreachable). This prevents idle state from being mistaken for a broken server.
+- Updated `.github/workflows/root-mini-app.yml`: the previous CI still attempted `node --check app.js` and checked obsolete split-file selectors, although root app.js/styles.css no longer exist. The workflow now syntax-checks inline JavaScript in index.html, checks the six pairs and required controls/API routes, asserts no split root assets are required, and blocks demo API keys/random simulated market data.
+- Commits on `main`:
+  - `51c8ad8195593aca0f1299028f055e31e8bcaf51` — distinguish server-online from market-feed state in the UI.
+  - `743838e65175d5099d2c85200ef1db6262417ce3` — replace obsolete split-file CI checks.
+  - `79f4a2d9d10a7409eda8da3d70d98934b3bbb070` — fix inline script extraction in CI workflow.
+- Render frontend service `srv-dbk35e8ae00c73fmpi30` is configured for auto-deploy on every main commit. A new deployment is expected from the latest commit; its final status must be checked after this handoff commit.
+- Backend service `srv-dbjls149v7es73ag0k4g` is configured on branch `main-market`; the latest observed backend deployment is LIVE. Startup logs confirmed both Telegram Bot Token and Twelve Data API key are configured (values not exposed). Backend CI logs show 19/19 tests passed and 0 failures.
+- Six Forex symbols are present in the backend allowlist and frontend selector. Actual Twelve Data REST/Streaming access for each pair is not yet verified with live user account requests.
+- Not yet verified: successful Telegram initData authentication from the user's actual Mini App launch, authenticated REST history fetch, first live Streaming tick, six-pair provider entitlements, physical Android audio/vibration, or end-to-end signal behavior. The Render/GitHub inspection tools did not provide an external HTTP response for the public health endpoint, and no user-device session logs were present in Render request logs. Do not claim end-to-end success.
+- Next verification: inspect GitHub Actions run for the new root workflow and latest Render static-site deployment; then obtain a fresh Telegram launch and compare the exact UI error with backend logs if authentication still fails. Preserve STANDBY unless real fresh data and validated evidence support CALL/PUT. Manual only; no broker order execution.
