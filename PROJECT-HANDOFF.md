@@ -463,3 +463,14 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - PR #5 merged into `main-market`; squash commit: `1b71d38920fc58994ca5fe2d31f585035d5f701f`.
 - GitHub Actions Main Market Checks run #70 succeeded. Render build succeeded; Render deployment `dep-dbk0i8h5efls73eh559g` reached `live` and deploy-ended event reported `succeeded` at 2026-11-02T03:53:43Z. Runtime logs confirm `MAIN MARKET single-pair Radar listening on 10000` and `Your service is live`.
 - Primary URL: https://ai-signal-radar-main-market.onrender.com. Ask the user to fully close/reopen Telegram Mini App to refresh. Visual layout and pair-modal interaction on the user's Xiaomi 11T Telegram WebView, plus actual sound/vibration, still require device acceptance testing; do not claim those are verified.
+
+
+## 2026-11-02 — Audio/haptics reliability and simplified Mini App UI (in progress)
+
+- User reported the Telegram Mini App appeared frozen and neither the alert sound test nor vibration test produced a physical response. Render being LIVE is not proof of browser/device media behavior.
+- Root cause found in deployed client code: the sound-test button reported "sent" without awaiting/checking playback; when the sound toggle was off, the test path could create an AudioContext and then skip the actual tone because the tone function used the non-forced unlock path. The vibration test also always reported success while silently swallowing unsupported/failed API calls.
+- Work isolated on `fix/main-market-audio-haptics-simple-ui`: create/resume Web Audio directly from the test button's user gesture, await playback setup, report Web Audio unsupported/blocked errors, use Telegram HapticFeedback first and browser vibration as fallback, and report unsupported/rejected vibration instead of false success.
+- Simplified Main Market presentation to a compact dark-green layout with clear pair selection, one prominent live signal, compact regime/reason, start/stop, and separate sound/vibration tests. No demo signal or auto-order functionality.
+- Preserve server/analyzer logic, Twelve Data, six supported NON-OTC pairs, one-pair-at-a-time behavior, 200 closed-candle warmup, data freshness locks, signal hold, and 10s/3s alert policy.
+- Automated regression tests added for device-test handling and simplified UI. Build, PR, Render deployment and on-device acceptance pending.
+- Device limitation: a web app can confirm Web Audio API readiness and whether the browser accepted a vibration command, but cannot prove that the phone physically emitted sound/vibration. Telegram WebView/Android media volume, DND, system vibration settings and app permissions still need physical acceptance.
