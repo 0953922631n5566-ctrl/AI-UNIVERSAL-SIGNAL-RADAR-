@@ -583,6 +583,7 @@ function rateLimitControl(req, res, next) {
 
 const allowedOrigins = new Set([
   "https://ai-universal-signal-radar.onrender.com",
+  "https://my-ai-signal-bot-v2.onrender.com",
   "https://ai-signal-radar-main-market.onrender.com"
 ]);
 app.use((req, res, next) => {
