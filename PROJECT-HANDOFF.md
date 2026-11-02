@@ -778,3 +778,45 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - `9d805c2f6b66aa1a8ab7d5403e8966c56cc0bffc` — CI assertions.
 - Validation still pending at this handoff update: latest GitHub Actions run for the combined code changes; controlled Render deployment; real Twelve Data REST/Streaming checks on the configured account; Telegram WebView cookie/session behavior and physical vibration on a handset. Do not claim these are live-tested until evidence is collected.
 - Production protection: no PR merge, Render branch change, or production deployment was performed in this change set. Existing `main-market` and Android/OCR `main` remain untouched.
+
+
+## 2026-11-02 — Main Market v2 production promotion and Static Mini App sync
+
+### Release source and CI
+- PR #9 was marked ready and squash-merged into `main-market`.
+- Merge commit: `eca36f92541e0dd38ec8a9a66e3e65afd46310b7`.
+- Latest candidate CI before merge:
+  - Main Market Checks run `41400652463`: **17/17 passed**, 0 failed, 0 npm vulnerabilities.
+  - Main Market v2 Rewrite Checks run `41400652474`: **17/17 passed**, including syntax checks and cross-origin, 60/80 candle and haptic assertions.
+- The prior v2 workflow failure was only a quoting defect in the CI credential-count grep. The workflow assertion was corrected and the latest run passed.
+
+### Render deployment — verified
+- Existing Node API service `srv-dbjls149v7es73ag0k4g` remains on branch `main-market`, Singapore, Free plan, Auto Deploy on commit.
+- Deploy `dep-dbk2u62vcj2c73fitnj0` for merge commit `eca36f92541e0dd38ec8a9a66e3e65afd46310b7` reached **live**.
+- Render events confirm build succeeded and deploy ended with `deployStatus=succeeded`.
+- Render logs confirm the service ran `cd main-market && npm start` and printed `MAIN MARKET v2 listening on 10000`; Render then reported “Your service is live”.
+- Render build logs show the install-time suite completed with **17 tests passed / 0 failed**, and npm reported **0 vulnerabilities**.
+
+### Static Mini App UI — verified deploy
+- Existing Static Site `srv-dbjhmeutlv9c73d8m9q0` remains on branch `main`, publish path `.`, URL `https://ai-universal-signal-radar.onrender.com`.
+- Synced only the three root frontend assets from the merged `main-market/public/` directory to the existing Static Site branch `main`:
+  - `index.html` commit `8e55f0207e91b372f2a52da7e29630cf15ad2465`
+  - `app.js` commit `5ec029cecdfd5476ac7ee42e1bb7e2ced65bd171`
+  - `styles.css` commit `8bbcaea811e7d7ea69204dca4a4882f92c2387f9`
+- Final Static Site deploy `dep-dbk2uoeq1p3s73bbbn4g` for commit `8bbcaea811e7d7ea69204dca4a4882f92c2387f9` reached **live**; Render events show build and deploy succeeded.
+- The Android/OCR project files were not edited. Only the Main Market root Mini App HTML/CSS/JS assets were replaced on `main`.
+
+### Current runtime contract
+- Minimum closed M1 candles: **60**.
+- Twelve Data REST request: **80** bars.
+- Internal buffer: 100 bars; one selected pair at a time; REST refresh 300 seconds.
+- EMA 9/21/50, RSI14, MACD(12,26,9), ATR14/20 and recent range are calculable with 60 closed bars.
+- CALL/PUT still requires a fresh Twelve Data Streaming tick no older than 25 seconds. REST-only, stale, malformed or unsupported feeds remain STANDBY. Previous legacy production logs showed EUR/USD Streaming available while several other pairs were REST-only; re-test current v2 account entitlement per pair.
+- Telegram initData HMAC validation and session-cookie protection are enabled. Server reads `TELEGRAM_BOT_TOKEN` or legacy `BOT_TOKEN`. User confirmed an existing Render bot token; Render metadata does not expose secret names/values for independent inspection.
+
+### Still awaiting real-user runtime confirmation
+- The Render control plane confirms both services are live, but the assistant's web retrieval environment could not fetch the public Render URLs; do not claim independent external HTTP browser verification.
+- No authenticated Telegram Mini App client has yet been observed connecting to the new API after promotion. The user must reopen the existing Telegram Mini App so the new static assets load, then test Start/Stop and the vibration test button.
+- Physical vibration depends on Telegram/device haptics settings and Android WebView support; CI verifies code paths, not physical device response.
+- Actual Twelve Data REST/Streaming responses for all six pairs have not yet been captured on v2. REST success alone does not authorize CALL/PUT.
+- No backtest, paper-trading, or out-of-sample predictive edge has been established. Manual trading only; no broker orders.
