@@ -216,3 +216,11 @@ At task completion, report:
 - The Main Market Node service now explicitly allows CORS from the root static-site origin for GET/POST/OPTIONS and Content-Type only. Server branch commit: `779f856e376134515142d89c2dbfb0980f6139f8`.
 - Important correction: the earlier root redirect-only entry point was replaced by this full root-hosted UI; the static site no longer needs a redirect to expose the pair selector and buttons.
 - Pending verification: latest root static-site deployment, latest Main Market Node deployment, GitHub root Mini App CI, live HTTP/CORS responses, Telegram WebView interaction and physical sound/vibration. The public Main Market API still lacks Telegram `initData` authentication; do not call this fully production-secure until that blocker is resolved.
+
+
+### Idle server status correction — 2026-11-02
+
+- Root and canonical Main Market clients now distinguish the availability of the web server from whether market scanning is running. When the backend state endpoint responds while scanning is idle, the badge displays `SERVER ONLINE` instead of incorrectly showing `OFFLINE`; actual feed status remains CONNECTING/LOCKED/OFFLINE when scanning is active and market data is unavailable.
+- Root client commit: `1dd315f42cae5a39576e25a30b75751b7ee18842`; root CI extension: `ba70a0e4fe4648eb2f87936e493f84d767e46fb1`.
+- Main Market server/client commits: `e40c0f23b4546ca406cbe49244ca825f89b707c0`, `398f1255134f59edc167788fa8f1bd07f9fbb263`; regression test commit: `cc7a6b651eb66dada3e7e2162b1a785fa2be4607`.
+- CI and Render redeploys triggered by these latest commits are pending verification at the time of this note.
