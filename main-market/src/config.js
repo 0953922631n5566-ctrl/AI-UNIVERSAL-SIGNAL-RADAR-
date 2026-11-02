@@ -8,9 +8,9 @@ export const SYMBOLS = Object.freeze([
 ]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
-export const MIN_CLOSED_CANDLES = 200;
-export const HISTORY_CANDLES = 220;
-export const MAX_CANDLES = 260;
+export const MIN_CLOSED_CANDLES = 60;
+export const HISTORY_CANDLES = 80;
+export const MAX_CANDLES = 100;
 export const REST_SYNC_SECONDS = 300;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
