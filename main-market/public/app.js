@@ -64,7 +64,7 @@ function countdown(symbol,next,signal,apiStatus,isMonitoring){
  rec.timer=setInterval(()=>{const current=remaining(),left=Math.ceil(current);show(left);if(rec.previous>10&&current<=10)fireWatch();if(rec.previous>3&&current<=3)fireEntry();rec.previous=current;if(current<=0){clearInterval(rec.timer);rec.timer=null;countdowns.delete(symbol)}},100);
 }
 function render(s){
- const api=s.apiStatus||"OFFLINE",pill=$("connection");pill.className="pill api-"+api.toLowerCase();pill.textContent=api==="ONLINE"?"● API LIVE":api==="LOCKED"?"● API LOCKED":api==="CONNECTING"?"● CONNECTING":"● OFFLINE";
+ const api=s.apiStatus||"OFFLINE",pill=$("connection");if(!s.monitoring&&s.serverOnline){pill.className="pill api-online";pill.textContent="● SERVER ONLINE"}else{pill.className="pill api-"+api.toLowerCase();pill.textContent=api==="ONLINE"?"● API LIVE":api==="LOCKED"?"● API LOCKED":api==="CONNECTING"?"● CONNECTING":"● OFFLINE"}
  $("apiMessage").textContent=s.apiMessage||"รอเชื่อมต่อ Twelve Data";
  $("marketMode").textContent="NON-OTC · 1 MINUTE · MANUAL ONLY";
  if(s.monitoring&&Array.isArray(s.selectedSymbols))setSelected(s.selectedSymbols);
