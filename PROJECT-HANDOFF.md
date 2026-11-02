@@ -828,3 +828,42 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added a regression test proving both 60-bar minimum readiness and 80-bar context use.
 - Commits: `3e035c3aece718e367dd6d1270fc155f50fd9f2c` (analyzer); `3a5b305145acc1da2748ff8799fd938541dc0060` and `6fcdae49880e1a2ab6c53001b8a70af14688c8af` (tests).
 - Render deploy `dep-dbk2vs8gbm7c7386j8q0` for code commit `6fcdae49880e1a2ab6c53001b8a70af14688c8af` reached **live**. Render build logs confirm **18/18 tests passed**, 0 failed, 0 npm vulnerabilities, and the Node process started successfully. Static Site remains live on the already-verified v2 UI; no frontend change was required for this analyzer-only refinement. The latest handoff-only commit may trigger another same-code API redeploy.
+
+
+## 2026-11-02 — Critical Mini App boot-order and pre-alert fixes
+
+### Root cause found
+- User correctly reported that a successful build/deploy did not mean the product worked end-to-end.
+- Inspected the actual Static Site HTML and found the Telegram WebApp SDK was included with `async`. The app's bottom-of-page initialization could run before the asynchronous Telegram SDK, read `window.Telegram.WebApp.initData` as missing, disable Start/Stop and never attempt the API authentication request.
+- This was a real launch-order defect, not a phone-model issue. Fixed by making Telegram SDK a synchronous script loaded before `app.js`, and bumped the client cache version to `20261102-v3`.
+- Verified root Static Site `app.js` is byte-for-byte identical to the API-source `main-market/public/app.js`, and root HTML has the synchronous Telegram SDK script before app.js.
+
+### Alert timing defect found
+- Previous UI pre-candle alerts checked the currently displayed `feed.signal`. The signal is intentionally held for 40 seconds, while 10-second/3-second pre-candle alerts happen near the 60-second candle close; a valid signal could expire before the pre-alert window.
+- Added server-side `preAlertSignal` scoped to the current closed-candle ID. It retains the validated CALL/PUT direction for that candle after the 40-second display hold, clears on candle change or invalidation, and is included in the public state.
+- Client pre-alert logic now uses `preAlertSignal`, while the visible signal still respects the 40-second hold and per-candle dedupe. This preserves the original hold duration and makes 10s/3s warnings possible.
+- Added a regression test for 10s/3s pre-alert behavior after the 40s display hold.
+
+### Runtime diagnostics
+- `/health` now reports safe booleans for Telegram token and Twelve Data key presence (never values), minimum/history candle counts, REST refresh cadence and whether Streaming is required for directional signals.
+- Added sanitized logs for Telegram authentication rejection/success and scan-start requests; no initData, cookies, Telegram user IDs or secret values are logged.
+- These logs allow checking whether the actual Telegram Mini App reaches the backend and whether auth succeeds, instead of relying on build status.
+
+### Deployed
+- Static Site branch `main`:
+  - Telegram SDK load-order fix commit `4ca5ff0c0ba0fdad9ab8347df49005c035bcb72b`, deploy `dep-dbk32r15efls73ejgga0` succeeded.
+  - Latest client sync with pre-alert fix commit `260f7fb0bdd2b157d822ebee4ab90b85426ceae4`, deploy `dep-dbk33mjm8hqs738cddr0` succeeded/live.
+- API branch `main-market`:
+  - Pre-alert direction persistence commit `d5c6241ce721f039e79dc4713ceef4727fc0ca8e`, deploy `dep-dbk33e2vcj2c73fj31kg` succeeded/live.
+  - UI pre-alert client commit `493346f1336a92a2e5f6a7c0f12fb63d1d4ccf6c`, deploy `dep-dbk33gaqphnc73eduod0` succeeded/live.
+  - Safe health/auth diagnostics commit `db8c1a5fb272120fcf2c72e376677cb0f8bccb68`, deploy `dep-dbk33uogbm7c7386m3ug` succeeded/live.
+  - Latest health endpoint assertions commit `85a51cb6b3898c26f81554b4f08596bf74ca93d4`, deploy `dep-dbk3427dnq4s73edn69g` succeeded/live.
+- Latest observed Render build executed `npm test`: **19 tests passed, 0 failed**; npm reported 0 vulnerabilities.
+- The API server process starts successfully and Render reports the service live. Static Site and API now carry the same v3 client assets.
+
+### What remains unproven (do not overclaim)
+- Render's request-log/metrics query returned no request records/data for the new API after deployment, so an authenticated Telegram WebView session, successful live auth, actual REST call on the current deployment and live Streaming ticks are **not yet evidenced**.
+- The Telegram Mini App URL configured in BotFather is an external setting not readable through the connected GitHub/Render interfaces. Do not assume it points to `https://ai-universal-signal-radar.onrender.com`; previous conversations referenced the older `https://my-ai-signal-bot-v2.onrender.com`. This mismatch may cause Telegram to keep opening an older app.
+- The assistant's web/container runtime cannot directly fetch the public Render domains in this environment (DNS/network unavailable), so do not claim an external HTTP smoke test.
+- Pair-level Twelve Data entitlement remains account-dependent. REST history and Streaming are separate capabilities. Only a pair with successful REST history and a fresh Streaming tick may issue CALL/PUT under the current safe rule; REST-only pairs remain STANDBY.
+- Physical haptics remain dependent on Telegram and Android device support; the code path is present, but no handset vibration has been observed remotely.
