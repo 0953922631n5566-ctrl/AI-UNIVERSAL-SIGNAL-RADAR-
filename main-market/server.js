@@ -6,7 +6,7 @@ const app=express(),server=http.createServer(app),wss=new WebSocketServer({serve
 const PORT=Number(process.env.PORT||3000),INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(REST_SYNC_SECONDS,Number(process.env.REST_SYNC_SECONDS||REST_SYNC_SECONDS)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
 const feeds=new Map(SYMBOLS.map(symbol=>[symbol,{symbol,candles:[],tickAt:0,lastTick:null,lastRestSyncAt:0,restSyncPromise:null,subscribeAt:0,restStatus:"NOT_CHECKED",restMessage:"ยังไม่ได้ตรวจสอบข้อมูล",streamStatus:"WAITING",streamMessage:"รอเริ่มเชื่อมต่อ",analysis:null,activeSignal:null,activeUntil:0,signalCandle:null,lastAlertId:null,dataLocked:false}]));
-let selectedSymbols=[...DEFAULT_SYMBOLS],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,monitoring=false,globalLockMessage=null;
+let selectedSymbols=[...DEFAULT_SYMBOLS],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,monitoring=false,globalLockMessage=null,httpLeaseUntil=0;
 const standby=(reason,extra={})=>({signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra});
 function feedStatus(f){
  if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")return"UNSUPPORTED";
@@ -140,7 +140,7 @@ function startStream(){
  ws.on("close",()=>{if(upstream!==ws)return;console.warn("[market-feed] WebSocket CLOSED");upstream=null;clearInterval(heartbeat);heartbeat=null;for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage="Streaming หลุด กำลังเชื่อมต่อใหม่";f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(f.streamMessage)}}publish();if(monitoring)retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
- monitoring=false;stopTimers();const old=upstream;upstream=null;if(old)old.close();
+ monitoring=false;httpLeaseUntil=0;stopTimers();const old=upstream;upstream=null;if(old)old.close();
  for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;f.dataLocked=false;if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("หยุดเฝ้าระวังแล้ว")}
  globalLockMessage=null;publish();
 }
@@ -148,29 +148,24 @@ app.use(express.static(path.join(APP_DIR,"public")));
 app.get("/",(_,res)=>res.sendFile(path.join(APP_DIR,"public","index.html")));
 app.get("/health",(_,r)=>r.json({ok:true,service:"main-market",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY}));
 app.get("/api/state",(_,r)=>r.json(snapshot()));
-wss.on("connection",ws=>{
- ws.send(JSON.stringify({type:"market_state",data:snapshot()}));
- ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}
-  if(m.action==="start"){
-   const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);
-   const chosen=SYMBOLS.find(s=>requested.includes(normalizeSymbol(s)))||DEFAULT_SYMBOLS[0];
-   selectedSymbols=[chosen];
-   monitoring=true;globalLockMessage=null;startRest();
-   for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
-   publish();syncSelected({force:true}).catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
-  }
-  if(m.action==="select"){
-   const chosen=SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol));if(!chosen)return;
-   selectedSymbols=[chosen];
-   const old=upstream;upstream=null;if(old)old.close();clearInterval(heartbeat);heartbeat=null;clearInterval(watchdog);watchdog=null;clearTimeout(retryTimer);retryTimer=null;
-   for(const f of feeds.values()){f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;if(f.symbol!==chosen){f.tickAt=0;f.lastTick=null;f.analysis=standby("ไม่ได้เลือกสแกนคู่นี้")}}
-   const f=feeds.get(chosen);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;
-   if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";
-   if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเปลี่ยนไปสแกน "+chosen);
-   publish();if(monitoring){startRest();syncSelected({force:true}).catch(e=>console.error("[market-feed] selected-pair switch failed",e.message))}
-  }
-  if(m.action==="stop")stop();
- });
- ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
-});
+function handleControlAction(m={}){
+ if(m.action==="start"){
+  const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);const chosen=SYMBOLS.find(s=>requested.includes(normalizeSymbol(s)))||DEFAULT_SYMBOLS[0];selectedSymbols=[chosen];monitoring=true;httpLeaseUntil=Date.now()+12000;globalLockMessage=null;startRest();
+  for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}publish();syncSelected({force:true}).catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));return true;
+ }
+ if(m.action==="select"){
+  const chosen=SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol));if(!chosen)return false;selectedSymbols=[chosen];if(monitoring)httpLeaseUntil=Date.now()+12000;const old=upstream;upstream=null;if(old)old.close();clearInterval(heartbeat);heartbeat=null;clearInterval(watchdog);watchdog=null;clearTimeout(retryTimer);retryTimer=null;
+  for(const f of feeds.values()){f.activeSignal=null;f.activeUntil=0;f.lastAlertId=null;f.signalCandle=null;if(f.symbol!==chosen){f.tickAt=0;f.lastTick=null;f.analysis=standby("ไม่ได้เลือกสแกนคู่นี้")}}
+  const f=feeds.get(chosen);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเปลี่ยนไปสแกน "+chosen);publish();if(monitoring){startRest();syncSelected({force:true}).catch(e=>console.error("[market-feed] selected-pair switch failed",e.message))}return true;
+ }
+ if(m.action==="heartbeat"){if(monitoring)httpLeaseUntil=Date.now()+12000;return true}if(m.action==="stop"){stop();return true}return false;
+}
+app.use(express.json({limit:"2kb"}));
+app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
+app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
+app.get("/health",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json({ok:true,service:"main-market",version:"2026-11-02-http-fallback",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY})});
+app.get("/api/state",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json(snapshot())});
+app.post("/api/control",(req,res)=>{const action=req.body?.action;if(!["start","select","stop","heartbeat"].includes(action))return res.status(400).json({ok:false,error:"Unsupported action"});if(action==="select"&&!SYMBOLS.some(s=>normalizeSymbol(s)===normalizeSymbol(req.body?.symbol)))return res.status(400).json({ok:false,error:"Unsupported pair"});if(action==="start"&&Array.isArray(req.body?.symbols)&&!req.body.symbols.some(s=>SYMBOLS.some(x=>normalizeSymbol(x)===normalizeSymbol(s))))return res.status(400).json({ok:false,error:"Unsupported pair"});handleControlAction(req.body);res.setHeader("Cache-Control","no-store");res.json({ok:true,state:snapshot()})});
+setInterval(()=>{if(monitoring&&![...wss.clients].some(c=>c.readyState===WebSocket.OPEN)&&httpLeaseUntil&&Date.now()>httpLeaseUntil){console.warn("[market-feed] HTTP client lease expired; stopping scan");stop()}},5000);
+wss.on("connection",ws=>{ws.send(JSON.stringify({type:"market_state",data:snapshot()}));ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}handleControlAction(m)});ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))setTimeout(()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN)&&Date.now()>httpLeaseUntil)stop()},13000)})});
 server.listen(PORT,()=>console.log("MAIN MARKET single-pair Radar listening on "+PORT));
