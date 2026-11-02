@@ -1,0 +1,29 @@
+name: Main Market v2 Rewrite Checks
+on:
+  push:
+    branches: [rewrite/main-market-v2]
+    paths: ["main-market/**", ".github/workflows/main-market-v2.yml"]
+  pull_request:
+    branches: [main-market]
+    paths: ["main-market/**", ".github/workflows/main-market-v2.yml"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: main-market/package.json
+      - name: Install and run tests
+        run: cd main-market && npm install
+      - name: Syntax-check application modules
+        run: |
+          cd main-market
+          node --check server.js
+          node --check src/config.js
+          node --check src/analyzer.js
+          node --check src/twelve-data.js
+          node --check public/app.js
