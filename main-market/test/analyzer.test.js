@@ -64,8 +64,8 @@ test("the selector exposes exactly six pairs and scans one default pair", () => 
   assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");
   assert.equal(resolveSymbol("BTC/USD"), null);
   assert.equal(new Set(SYMBOLS).size, 6);
-  assert.equal(MIN_CLOSED_CANDLES, 200);
-  assert.equal(HISTORY_CANDLES, 220);
+  assert.equal(MIN_CLOSED_CANDLES, 60);
+  assert.equal(HISTORY_CANDLES, 80);
   assert.equal(REST_SYNC_SECONDS, 300);
 });
 
@@ -89,8 +89,27 @@ test("REST history can provide indicators but cannot produce direction without a
   assert.equal("confidence" in result, false);
 });
 
-test("a live candle cannot be counted as one of the 200 required closed candles", () => {
-  const history = makeCandles(199);
+test("60 closed candles are enough to calculate the full indicator set", () => {
+  const result = analyzeMarket(makeCandles(60), { tickAgeSeconds: null });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.requiredCandles, 60);
+  assert.equal(result.closedCandleCount, 60);
+  assert.ok(Number.isFinite(result.metrics.ema50));
+  assert.ok(Number.isFinite(result.metrics.rsi14));
+  assert.ok(Number.isFinite(result.metrics.macdHistogram));
+  assert.ok(Number.isFinite(result.metrics.atr14));
+});
+
+test("59 closed candles remain insufficient", () => {
+  const result = analyzeMarket(makeCandles(59), { tickAgeSeconds: null });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.requiredCandles, 60);
+  assert.equal(result.closedCandleCount, 59);
+  assert.match(result.reason, /59\/60/);
+});
+
+test("a live candle cannot be counted as one of the 60 required closed candles", () => {
+  const history = makeCandles(59);
   const currentEpoch = Math.floor(Date.now() / 60000) * 60;
   history.push({
     time: "live", epoch: currentEpoch, open: 1.08,
@@ -98,8 +117,8 @@ test("a live candle cannot be counted as one of the 200 required closed candles"
   });
   const result = analyzeMarket(history, { tickAgeSeconds: 0 });
   assert.equal(result.signal, "STANDBY");
-  assert.equal(result.closedCandleCount, 199);
-  assert.equal(result.requiredCandles, 200);
+  assert.equal(result.closedCandleCount, 59);
+  assert.equal(result.requiredCandles, 60);
 });
 
 test("malformed OHLC values fail closed", () => {
@@ -164,7 +183,7 @@ test("Twelve Data REST parsing sorts bars, removes current candle and validates 
   const result = await fetchCandles({
     apiKey: "test-key", symbol: "EUR/USD", fetchImpl: fakeFetch, now
   });
-  assert.equal(result.candles.length, 220);
+  assert.equal(result.candles.length, 80);
   assert.ok(result.candles[0].epoch < result.candles.at(-1).epoch);
   assert.ok(result.candles.every(c => c.live === false));
 });
@@ -200,6 +219,8 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   assert.ok(js.includes("function savePair(value)"));
   assert.match(js, /function authenticateTelegram\(\)/);
   assert.ok(js.includes("getTelegram()?.initData"));
+  assert.ok(js.includes("haptic.impactOccurred"));
+  assert.ok(js.includes("haptic.notificationOccurred"));
   assert.ok(js.includes("if (!authenticated) return;"));
   assert.match(js, /function regimeLabel\(value\)/);
   assert.match(css, /\.signal-display\.call/);
