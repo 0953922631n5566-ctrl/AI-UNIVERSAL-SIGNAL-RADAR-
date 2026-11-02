@@ -878,3 +878,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - Deploy: `dep-dbk35egae00c73fmpjhg` — **live/succeeded**.
 - The alias serves the same root Main Market v3 HTML/JS/CSS as the primary Static Site. The client still calls the canonical API `https://ai-signal-radar-main-market.onrender.com`.
 - This preserves the previously used Telegram URL without needing BotFather changes, if that remains the configured URL. The primary Static Site `https://ai-universal-signal-radar.onrender.com` also remains live.
+
+
+### Latest environment audit — 2026-11-02
+- Render startup audit for Node service `srv-dbjls149v7es73ag0k4g` confirmed:
+  - `TWELVE_DATA_API_KEY` is present.
+  - Minimum closed candles = 60; REST history = 80; refresh = 300 seconds.
+  - **No environment variable name containing TELEGRAM, BOT or TOKEN exists in this service's process environment** (sanitized name-only audit; no secret values logged).
+  - Therefore `TELEGRAM_BOT_TOKEN` / legacy `BOT_TOKEN` is genuinely missing from the current API service, despite prior assumption that a token existed in Render. It may have been configured on an older/different service; the current Node API cannot access it.
+- This is now a hard blocker: `/api/auth` returns HTTP 503 without a Telegram bot token, so the new Mini App cannot create a session, start scanning or open the authenticated WebSocket. Do not ask the user to test the app until the token is added.
+- Required Render variable name is exactly `TELEGRAM_BOT_TOKEN`; value must be the bot's existing BotFather token. Add it to Node service `srv-dbjls149v7es73ag0k4g` only. Do not place it in the public GitHub repository or share it in chat. After adding, Render will restart/redeploy the service; startup audit should report `telegramBotTokenConfigured: true`.
+- The Twelve Data key is present but current-deploy 80-bar REST retrieval and pair-specific Streaming have not yet been exercised because Telegram authentication is blocked.
+- Current API source includes sanitized token-variable-name audit commit `b28e2390ccf4227fa61227baf70196114875ea78`; Render deploy `dep-dbk36k7avr4c73clpp40` reached live.
+- Legacy Telegram URL alias `https://my-ai-signal-bot-v2.onrender.com` is live at Static Site `srv-dbk35e8ae00c73fmpi30`, deploy `dep-dbk35egae00c73fmpjhg`. Both it and the primary Static Site serve the same Main Market v3 frontend.
