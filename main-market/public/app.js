@@ -71,6 +71,7 @@ function setConnection(status, message, idle = false) {
     (status === "ONLINE" ? "live" : status === "LOCKED" ? "locked" : "");
 }
 function render(state) {
+  if (!state.monitoring && state.selectedSymbol && state.selectedSymbol !== selectedSymbol) return;
   latestState = state;
   monitoring = Boolean(state.monitoring);
   if (monitoring && PAIRS.includes(state.selectedSymbol)) savePair(state.selectedSymbol);
