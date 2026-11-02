@@ -4,6 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
+import { randomBytes } from "node:crypto";
+import { validateTelegramInitData } from "./src/telegram-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import {
@@ -15,10 +17,14 @@ import {
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.TWELVE_DATA_API_KEY || "";
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
+const sessions = new Map();
+const authRequests = new Map();
 const VERSION = "2026-11-02-v2-rewrite";
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: "/live" });
+const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
@@ -514,6 +520,43 @@ function stop(clearSignal = true) {
 
 function finite(value) { return Number.isFinite(value); }
 
+function cookieValue(header, name) {
+  for (const part of String(header || "").split(";")) {
+    const index = part.indexOf("=");
+    if (index < 0) continue;
+    if (part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
+  }
+  return "";
+}
+
+function sessionForRequest(req) {
+  const token = cookieValue(req.headers.cookie, "radar_session");
+  const session = token ? sessions.get(token) : null;
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function requireTelegramSession(req, res, next) {
+  const session = sessionForRequest(req);
+  if (!session) return res.status(401).json({ ok: false, error: "กรุณาเปิด Mini App ผ่าน Telegram ใหม่อีกครั้ง" });
+  req.telegramUserId = session.userId;
+  next();
+}
+
+function rateLimitAuth(req, res, next) {
+  const key = req.ip || req.socket.remoteAddress || "unknown";
+  const now = Date.now();
+  const recent = (authRequests.get(key) || []).filter(time => now - time < 5 * 60 * 1000);
+  if (recent.length >= 10) return res.status(429).json({ ok: false, error: "ยืนยันตัวตนถี่เกินไป กรุณารอสักครู่" });
+  recent.push(now);
+  authRequests.set(key, recent);
+  next();
+}
+
 function rateLimitControl(req, res, next) {
   const key = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
@@ -552,11 +595,22 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true, service: "main-market", version: VERSION,
     symbols: SYMBOLS, selectedSymbol, interval: INTERVAL,
-    monitoring, streamConnected: Boolean(upstream), apiKeyConfigured: Boolean(API_KEY)
+    interval: INTERVAL, apiKeyConfigured: Boolean(API_KEY), telegramAuthConfigured: Boolean(BOT_TOKEN)
   });
 });
-app.get("/api/state", (_req, res) => { noCache(res); res.json(snapshot()); });
-app.post("/api/control", rateLimitControl, async (req, res) => {
+app.post("/api/auth", rateLimitAuth, (req, res) => {
+  if (!BOT_TOKEN) return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Telegram Bot Token" });
+  const validation = validateTelegramInitData(req.body?.initData, BOT_TOKEN);
+  if (!validation.ok) return res.status(401).json({ ok: false, error: "ยืนยัน Telegram ไม่สำเร็จ กรุณาเปิด Mini App ใหม่" });
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  sessions.set(token, { userId: validation.userId, expiresAt });
+  res.setHeader("Set-Cookie", `radar_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
+  noCache(res);
+  res.json({ ok: true, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
+});
+app.get("/api/state", requireTelegramSession, (_req, res) => { noCache(res); res.json(snapshot()); });
+app.post("/api/control", requireTelegramSession, rateLimitControl, async (req, res) => {
   const body = req.body || {};
   try {
     if (body.action === "start") await start(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL);
@@ -582,6 +636,25 @@ setInterval(() => {
   }
 }, 5000);
 
+server.on("upgrade", (req, socket, head) => {
+  const pathname = new URL(req.url || "/", "http://localhost").pathname;
+  if (pathname !== "/live") {
+    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  const session = sessionForRequest(req);
+  if (!session) {
+    socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, client => {
+    client.telegramUserId = session.userId;
+    wss.emit("connection", client, req);
+  });
+});
+
 wss.on("connection", socket => {
   socket.send(JSON.stringify({ type: "market_state", data: snapshot() }));
   socket.on("message", raw => {
@@ -599,3 +672,10 @@ wss.on("connection", socket => {
 });
 
 server.listen(PORT, () => console.log(`MAIN MARKET v2 listening on ${PORT}`));
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessions) {
+    if (session.expiresAt <= now) sessions.delete(token);
+  }
+}, 5 * 60 * 1000).unref();
