@@ -57,12 +57,16 @@ function makeCandles(count = 220, {
 }
 
 test("the Main Market backend exposes EUR/USD only", () => {
-  assert.deepEqual(SYMBOLS, ["EUR/USD"]);
+  assert.deepEqual(SYMBOLS, ["EUR/USD", "GBP/USD", "AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY"]);
   assert.equal(DEFAULT_SYMBOL, "EUR/USD");
   assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");
-  assert.equal(resolveSymbol("AUD/USD"), null);
+  assert.equal(resolveSymbol("AUD/USD"), "AUD/USD");
+  assert.equal(resolveSymbol("GBP/USD"), "GBP/USD");
+  assert.equal(resolveSymbol("EUR/GBP"), "EUR/GBP");
+  assert.equal(resolveSymbol("GBP/JPY"), "GBP/JPY");
+  assert.equal(resolveSymbol("EUR/JPY"), "EUR/JPY");
   assert.equal(resolveSymbol("BTC/USD"), null);
-  assert.equal(new Set(SYMBOLS).size, 1);
+  assert.equal(new Set(SYMBOLS).size, 6);
   assert.equal(MIN_CLOSED_CANDLES, 60);
   assert.equal(HISTORY_CANDLES, 80);
   assert.equal(REST_SYNC_SECONDS, 300);

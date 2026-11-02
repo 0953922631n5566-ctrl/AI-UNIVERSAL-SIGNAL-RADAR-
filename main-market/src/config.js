@@ -1,4 +1,4 @@
-export const SYMBOLS = Object.freeze(["EUR/USD"]);
+export const SYMBOLS = Object.freeze(["EUR/USD","GBP/USD","AUD/USD","EUR/GBP","GBP/JPY","EUR/JPY"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
 export const MIN_CLOSED_CANDLES = 60;
