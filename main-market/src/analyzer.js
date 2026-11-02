@@ -226,7 +226,7 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
       macdHistogram: macdData.histogram,
       atr14, atr20, volatilityRatio: atrRatio,
       support: rangeLow, resistance: rangeHigh,
-      momentum5, bodyAtr
+      momentum3, momentum5, upBars, downBars, bodyAtr
     },
     lastPrice: last.close,
     lastCandleTime: last.time,

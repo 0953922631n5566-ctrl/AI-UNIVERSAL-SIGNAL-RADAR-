@@ -353,7 +353,6 @@ function startWatchdog() {
       feed.analysis = standby("ราคา Streaming ไม่อัปเดตเกิน 25 วินาที");
       if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "TIMEOUT";
       evaluate(feed);
-      evaluate(feed);
     } else if (!feed.tickAt && feed.streamStatus === "SUBSCRIBING" &&
         Date.now() - feed.subscribeAt > 25000) {
       feed.streamStatus = "TIMEOUT";

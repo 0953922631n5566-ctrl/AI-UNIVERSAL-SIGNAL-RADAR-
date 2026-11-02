@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   SYMBOLS, DEFAULT_SYMBOL, MIN_CLOSED_CANDLES, HISTORY_CANDLES,
-  REST_SYNC_SECONDS, resolveSymbol
+  REST_SYNC_SECONDS, SIGNAL_HOLD_SECONDS, resolveSymbol
 } from "../src/config.js";
 import { analyzeMarket, ema, rsi } from "../src/analyzer.js";
 import { fetchCandles } from "../src/twelve-data.js";
@@ -56,20 +56,18 @@ function makeCandles(count = 220, {
   });
 }
 
-test("the Main Market backend exposes six selectable Forex pairs", () => {
-  assert.deepEqual(SYMBOLS, ["EUR/USD", "GBP/USD", "AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY"]);
+test("the Main Market backend is locked to EUR/USD only", () => {
+  assert.deepEqual(SYMBOLS, ["EUR/USD"]);
   assert.equal(DEFAULT_SYMBOL, "EUR/USD");
   assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");
-  assert.equal(resolveSymbol("AUD/USD"), "AUD/USD");
-  assert.equal(resolveSymbol("GBP/USD"), "GBP/USD");
-  assert.equal(resolveSymbol("EUR/GBP"), "EUR/GBP");
-  assert.equal(resolveSymbol("GBP/JPY"), "GBP/JPY");
-  assert.equal(resolveSymbol("EUR/JPY"), "EUR/JPY");
-  assert.equal(resolveSymbol("BTC/USD"), null);
-  assert.equal(new Set(SYMBOLS).size, 6);
+  for (const pair of ["AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD", "BTC/USD"]) {
+    assert.equal(resolveSymbol(pair), null, `${pair} must be rejected`);
+  }
+  assert.equal(new Set(SYMBOLS).size, 1);
   assert.equal(MIN_CLOSED_CANDLES, 60);
   assert.equal(HISTORY_CANDLES, 80);
   assert.equal(REST_SYNC_SECONDS, 180);
+  assert.equal(SIGNAL_HOLD_SECONDS, 40);
 });
 
 test("server and REST client use the same reduced warmup limits", async () => {
@@ -184,6 +182,43 @@ test("directional decisions are limited to CALL, PUT or STANDBY and never invent
   assert.ok(result.regime);
   assert.ok(Array.isArray(result.evidence));
   assert.equal("confidence" in result, false);
+});
+
+
+function makeMomentumCandles(direction = 1) {
+  const count = 220;
+  const start = Math.floor(Date.now() / 60000) * 60 - count * 60;
+  const closes = Array.from({ length: count }, (_, i) => {
+    const trend = i * 0.00003 + Math.sin(i * 1.5 + 1.4) * 0.00006;
+    return direction > 0 ? 1.08 + trend : 1.20 - trend;
+  });
+  return closes.map((close, i) => {
+    const open = i ? closes[i - 1] : close - direction * 0.00001;
+    const epoch = start + i * 60;
+    return {
+      time: new Date(epoch * 1000).toISOString(),
+      epoch, open,
+      high: Math.max(open, close) + 0.00001,
+      low: Math.min(open, close) - 0.00001,
+      close, live: false
+    };
+  });
+}
+
+test("momentum-following engine can issue a supported CALL without waiting for a perfect MACD expansion", () => {
+  const result = analyzeMarket(makeMomentumCandles(1), { tickAgeSeconds: 0 });
+  assert.equal(result.regime, "TRENDING_UP");
+  assert.equal(result.signal, "CALL");
+  assert.ok(result.metrics.momentum5 > 0);
+  assert.match(result.reason, /โมเมนตัมขาขึ้น/);
+});
+
+test("momentum-following engine can issue a supported PUT in a downtrend", () => {
+  const result = analyzeMarket(makeMomentumCandles(-1), { tickAgeSeconds: 0 });
+  assert.equal(result.regime, "TRENDING_DOWN");
+  assert.equal(result.signal, "PUT");
+  assert.ok(result.metrics.momentum5 < 0);
+  assert.match(result.reason, /โมเมนตัมขาลง/);
 });
 
 test("Twelve Data REST parsing sorts bars, removes current candle and validates OHLC", async () => {
