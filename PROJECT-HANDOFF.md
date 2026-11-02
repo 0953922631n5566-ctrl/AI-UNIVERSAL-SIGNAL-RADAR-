@@ -525,3 +525,21 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Audio test tone volume/duration increased, and audio unlock is attempted on pointerdown for Start and Test Sound while still requiring a real user gesture. Startup/runtime JS errors are reported immediately.
 - Added a visible client boot-ready status and regression test for non-blocking SDK loading.
 - Cache-busting version: 20261102-nonblocking-sdk. Market strategy, Twelve Data, server scan lease, and manual-only order safety are unchanged. Must verify CI, deploy, and real Telegram/Xiaomi interaction before calling device acceptance complete.
+
+
+## 2026-11-02 — Main Market sound and vibration alert correction
+
+- Scope: branch `main-market` only. Android/OCR branch `main` was not changed.
+- Source commits:
+  - `61ff3c462f5e72f975bab84327472e79800f57dc` — make pre-candle sound and vibration directional-only.
+  - `4a62785ec6812d036dea0a100d2d36995a086388` — add regression assertions for CALL/PUT-only pre-alerts and haptic feedback.
+- Changes in `main-market/public/app.js`:
+  - The 10-second warning now only fires when the selected pair has CALL or PUT and API status is ONLINE; STANDBY stays silent.
+  - Both 10-second warning and 3-second entry-preparation alerts request vibration as well as sound.
+  - Telegram HapticFeedback notification API is preferred (success for signal, warning for preparation), then impact API, then browser `navigator.vibrate` fallback.
+  - Device test status distinguishes Telegram haptics from browser vibration and reports unsupported/blocked feedback.
+- Added a regression test in `main-market/test/analyzer.test.js` for directional-only alerts and both haptic pathways.
+- Current source head before this documentation update: `4a62785ec6812d036dea0a100d2d36995a086388`.
+- Pending verification: GitHub Actions test run and Render auto-deploy for the latest code; actual audible output and physical vibration must still be confirmed on the user's Android device inside Telegram. Browser/Telegram APIs can report that a request was sent but cannot prove the phone physically vibrated or that media volume is audible.
+- Important outstanding blocker from prior audit: `POST /api/control` and `GET /api/state` do not yet have Telegram `initData` authentication. No BOT_TOKEN availability was verified because Render does not expose secret values through the available service inspection. Do not expose or hardcode tokens; secure the endpoints before calling the service production-ready.
+- Market-feed limitation remains: directional output requires a fresh Twelve Data streaming tick; REST resync alone cannot guarantee precise 10s/3s timing. Six pairs are selectable one at a time, but each pair's Twelve Data entitlement must be verified individually.
