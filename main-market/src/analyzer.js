@@ -166,8 +166,11 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
   const bodyAtr = Math.abs(last.close - last.open) / atr14;
   const prior = macd(closes.slice(0, -1));
   const histogramGrowing = prior && Math.abs(macdData.histogram) >= Math.abs(prior.histogram);
-  const liveReady = finite(tickAgeSeconds) && tickAgeSeconds >= 0 &&
+  const streamReady = finite(tickAgeSeconds) && tickAgeSeconds >= 0 &&
     tickAgeSeconds <= MAX_STREAM_AGE_SECONDS;
+  const restFallbackReady = allowRestFallback && finite(validated.ageSeconds) &&
+    validated.ageSeconds <= MAX_CANDLE_AGE_SECONDS;
+  const liveReady = streamReady || restFallbackReady;
 
   const evidence = [
     `EMA 9/21/50: ${ema9.toFixed(5)} / ${ema21.toFixed(5)} / ${ema50.toFixed(5)}`,
@@ -180,9 +183,11 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
   let signal = "STANDBY";
   let reason = "หลักฐานยังไม่สอดคล้องกัน — รอจังหวะที่ชัดเจน";
   if (!liveReady) {
-    reason = tickAgeSeconds === null
-      ? "ข้อมูล REST ใช้คำนวณบริบทได้ แต่ยังไม่มีราคา Streaming สด — งด CALL/PUT"
-      : "ราคา Streaming เก่าหรือผิดปกติ — ล็อกสัญญาณไว้ที่ STANDBY";
+    reason = allowRestFallback
+      ? "ข้อมูล REST fallback เก่าเกินกำหนด — ล็อกสัญญาณไว้ที่ STANDBY"
+      : tickAgeSeconds === null
+        ? "ข้อมูล REST ใช้คำนวณบริบทได้ แต่ยังไม่มีราคา Streaming สด — งด CALL/PUT"
+        : "ราคา Streaming เก่าหรือผิดปกติ — ล็อกสัญญาณไว้ที่ STANDBY";
   } else if (regime === "HIGH_VOLATILITY") {
     reason = "ความผันผวนสูงผิดปกติ — รอให้ตลาดสงบก่อน";
   } else if (regime === "RANGING") {
@@ -207,8 +212,13 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
     reason = "ราคาเข้าใกล้แนวรับหรือแนวต้าน — ไม่ไล่ราคา";
   }
 
+  if (signal !== "STANDBY" && restFallbackReady) {
+    reason = "REST FALLBACK · วิเคราะห์จากแท่ง M1 ที่ปิดแล้ว: " + reason;
+  }
+
   return {
     signal, regime, reason, evidence,
+    dataMode: streamReady ? "STREAMING" : restFallbackReady ? "REST_FALLBACK" : "UNAVAILABLE",
     metrics: {
       ema9, ema21, ema50, rsi14,
       macdLine: macdData.line,

@@ -182,9 +182,11 @@ function classifyError(error) {
 
 function evaluate(feed) {
   const tickAge = feed.tickAt ? (Date.now() - feed.tickAt) / 1000 : null;
+  const restFallback = ["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus);
   const result = analyzeMarket(feed.candles, {
     now: Date.now(),
     tickAgeSeconds: tickAge,
+    allowRestFallback: restFallback,
     maxAgeSeconds: MAX_CANDLE_AGE_SECONDS
   });
   const candleId = result.lastCandleEpoch ?? null;
@@ -226,7 +228,8 @@ function evaluate(feed) {
         ? result.regime === "TRENDING_DOWN" || close < ema21
         : result.regime === "TRENDING_UP" || close > ema21
     );
-    if (invalid || !feed.tickAt || Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000) {
+    const restFallbackFresh = restFallback && finite(result.ageSeconds) && result.ageSeconds <= MAX_CANDLE_AGE_SECONDS;
+    if (invalid || (!restFallbackFresh && (!feed.tickAt || Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000))) {
       feed.activeSignal = null;
       feed.activeUntil = 0;
       feed.signalCandle = candleId;
@@ -350,11 +353,12 @@ function startWatchdog() {
       feed.analysis = standby("ราคา Streaming ไม่อัปเดตเกิน 25 วินาที");
       if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "TIMEOUT";
       evaluate(feed);
+      evaluate(feed);
     } else if (!feed.tickAt && feed.streamStatus === "SUBSCRIBING" &&
         Date.now() - feed.subscribeAt > 25000) {
       feed.streamStatus = "TIMEOUT";
       feed.streamMessage = "ยังไม่ได้รับราคา Streaming ภายใน 25 วินาที";
-      feed.analysis = standby(feed.streamMessage);
+      evaluate(feed);
     }
     publish();
   }, 5000);
@@ -423,7 +427,7 @@ function startStream() {
       if (failedSymbol || status === "error" || status === "failed") {
         feed.streamStatus = "UNSUPPORTED";
         feed.streamMessage = text || "Twelve Data ปฏิเสธการสมัคร Streaming";
-        feed.analysis = standby("ไม่มีสิทธิ์ Streaming สำหรับ " + symbol + ": " + feed.streamMessage);
+        evaluate(feed);
       } else if (status === "success" || succeeded.length) {
         feed.streamStatus = "SUBSCRIBED";
         feed.streamMessage = "สมัครรับ Streaming แล้ว — รอ tick แรก";
@@ -440,7 +444,7 @@ function startStream() {
       } else {
         feed.streamStatus = "ERROR";
         feed.streamMessage = text;
-        feed.analysis = standby("Streaming ผิดพลาด: " + text);
+        evaluate(feed);
         publish();
       }
     }
@@ -452,7 +456,7 @@ function startStream() {
     feed.streamMessage = error.message;
     feed.activeSignal = null;
     feed.activeUntil = 0;
-    feed.analysis = standby("เชื่อมต่อ Streaming ไม่สำเร็จ: " + error.message);
+    evaluate(feed);
     publish();
   });
 
@@ -467,7 +471,7 @@ function startStream() {
       feed.streamStatus = "ERROR";
       feed.streamMessage = "Streaming หลุด — กำลังเชื่อมต่อใหม่";
     }
-    feed.analysis = standby(feed.streamMessage);
+    evaluate(feed);
     publish();
     if (monitoring) retryTimer = setTimeout(startStream, 8000);
   });
@@ -621,7 +625,8 @@ app.get("/health", (_req, res) => {
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
       restRefreshSeconds: REST_SYNC_SECONDS,
-      streamingRequiredForSignals: true
+      streamingRequiredForSignals: false,
+      restFallbackEnabled: true
     }
   });
 });
