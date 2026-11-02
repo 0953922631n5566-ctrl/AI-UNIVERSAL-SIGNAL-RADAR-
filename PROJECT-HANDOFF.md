@@ -927,3 +927,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Additional safety fix: audio-unlock failure is no longer allowed to block the Start command; Telegram vibration now invokes both impact and notification haptics when supported.
 - Commits: `23a096867d3842d0260552a7d6e826f06082f7dc` (client hardening), `012ea07d0da84b9f2459c35bd7382701aabc3564` (test contract update).
 - Re-run Render build and verify all tests pass before user retest.
+
+
+### v4 test contract follow-up
+- Render exposed two remaining stale test expectations: the new feed section needed a stable `id="feed"`, and the pre-alert test expected the old inline expression instead of the new helper.
+- Added the feed ID and updated the regression assertion to validate the helper-based CALL/PUT pre-alert gate.
+- Commits: `6fb5de4073332e56c7b7a0efa8fa92711fe47248` (feed target), `b088a249c6d9f9467c5dc2da2a26cf1eadca0b8f` (test assertions).
+- Next gate: Render must show all 19 tests passing and node --check succeeding; then deploy must reach live before Android retest.
