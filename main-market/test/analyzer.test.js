@@ -221,35 +221,30 @@ test("Twelve Data rejects unsupported symbols and classifies provider errors", a
   );
 });
 
-test("mobile UI keeps one-pair selector, signal light and manual controls", async () => {
+test("mobile UI v4 keeps one-pair selector, signal light and manual controls", async () => {
   const { readFile } = await import("node:fs/promises");
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   const js = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
   assert.match(html, /<script src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"><\/script>/);
-  assert.doesNotMatch(html, /<script async src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"/);
   assert.ok(html.indexOf("telegram-web-app.js") < html.indexOf("/app.js"));
-  assert.match(html, /id="pairModal"/);
-  assert.ok(html.includes('id="feedStatus"'));
-  assert.ok(js.includes("state.selectedSymbol !== selectedSymbol"));
-  assert.equal((html.match(/data-pair-select/g) || []).length, 6);
+  assert.equal((html.match(/<option/g) || []).length, 6);
+  assert.ok(html.includes('id="feed"'));
+  assert.ok(html.includes('id="signalPanel"'));
   assert.match(html, /id="start"/);
   assert.match(html, /id="stop"/);
   assert.match(html, /id="sound"/);
   assert.match(html, /id="vibration"/);
-  assert.ok(js.includes("function savePair(value)"));
-  assert.match(js, /function authenticateTelegram\(\)/);
-  assert.ok(js.includes("getTelegram()?.initData"));
-  assert.ok(js.includes("haptic.impactOccurred"));
-  assert.ok(js.includes("haptic.notificationOccurred"));
-  assert.ok(js.includes("if (!authenticated) return;"));
-  assert.match(js, /function regimeLabel\(value\)/);
-  assert.match(css, /\.signal-display\.call/);
-  assert.match(css, /\.signal-display\.put/);
-  assert.match(css, /\.signal-display\.standby/);
+  assert.match(js, /async function authenticate\(\)/);
+  assert.ok(js.includes("tg()?.initData"));
+  assert.ok(js.includes('request("/api/control"'));
+  assert.ok(js.includes("setInterval(poll,2000)"));
+  assert.ok(js.includes("h.impactOccurred"));
+  assert.ok(js.includes("h.notificationOccurred"));
+  assert.match(css, /\.signal-panel\.call/);
+  assert.match(css, /\.signal-panel\.put/);
   assert.doesNotMatch(js, /sendOrder\(|placeOrder\(/);
 });
-
 test("pre-candle alerts retain a valid direction after the 40-second display hold", async () => {
   const { readFile } = await import("node:fs/promises");
   const server = await readFile(new URL("../server.js", import.meta.url), "utf8");
