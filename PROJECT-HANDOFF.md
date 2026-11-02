@@ -234,3 +234,10 @@ At task completion, report:
 - Root branch code commit: `5a883258b80b84e4dc5dcc3c1803eba22e233c92`.
 - Canonical `main-market` client commit: `c73c67c925240342ed950d17e7954169ef943e95`.
 - Added regression assertions to root Mini App CI and Main Market Node tests. Pending: CI results, Render auto-deploy status, live API response and Telegram/Xiaomi interaction. Do not claim the device is fixed until user reopens the Mini App after deployment and confirms controls respond.
+
+
+### REST-only pair display compatibility — 2026-11-02
+
+- Updated the root Static Site client to match the Main Market API's new separate `REST_ONLY` status.
+- REST_ONLY is displayed as `REST ใช้ได้ · ไม่มี LIVE`; Price, Close and RSI are rendered from the 200+ closed-candle REST analysis. Directional signals remain STANDBY until fresh live Streaming is available.
+- Root branch UI commit follows. Android/OCR branch untouched.
