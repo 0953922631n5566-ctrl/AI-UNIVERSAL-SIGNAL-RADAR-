@@ -266,3 +266,10 @@ At task completion, report:
 - OCR/Android project source remains untouched; only the root Telegram Mini App assets were replaced.
 - Backend v4 tests: Render recorded 19/19 tests passing, 0 failing, and successful Node syntax checks; backend code deploy commit `4f1e557be7d997ad1938c7a84e435b40e1d79296` reached LIVE.
 - Pending: Render Static Site deploy for branch `main` must reach LIVE; then the user must fully close and reopen Telegram Mini App. Runtime market data and device alerts are not yet device-verified.
+
+
+## 2026-11-02 — Mini App session fix (root static frontend)
+- The Telegram Mini App is served from this root `main` branch, so the live root `app.js` was updated to authenticate using a short-lived in-memory Bearer session token returned only after server-side Telegram initData verification.
+- Static asset query version bumped to `20261102-v5` to force Telegram WebView to fetch the corrected client script. Backend validates Bearer tokens and retains the secure cookie fallback.
+- Backend changes on `main-market`: commit `46ef384e081637e7b7dfc882bf6232a524587452` plus regex correction `0b7436e1fb6962b65d3dac3bec16b4cecfd66028`. Root client commit `8a59f45f9f378aa89e9af53c39886c856d7255c2`.
+- User device verification is still pending: confirm Start becomes enabled and tapping it triggers a `[radar] start requested` backend log.
