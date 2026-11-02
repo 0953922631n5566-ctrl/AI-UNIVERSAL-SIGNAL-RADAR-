@@ -1,0 +1,43 @@
+name: Main Market v2 Rewrite Checks
+on:
+  push:
+    branches: [rewrite/main-market-v2]
+    paths: ["main-market/**", ".github/workflows/main-market-v2.yml"]
+  pull_request:
+    branches: [main-market]
+    paths: ["main-market/**", ".github/workflows/main-market-v2.yml"]
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: main-market/package.json
+      - name: Install and run tests
+        run: cd main-market && npm install
+      - name: Verify Telegram Mini App cross-origin authentication wiring
+        run: |
+          cd main-market
+          grep -Fq 'const API_ORIGIN = "https://ai-signal-radar-main-market.onrender.com";' public/app.js
+          test "$(grep -Fc 'credentials: "include"' public/app.js)" -ge 3
+          grep -Fq 'new URL(API_ORIGIN).host' public/app.js
+          grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
+          grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
+          grep -Fq 'export const MIN_CLOSED_CANDLES = 60;' src/config.js
+          grep -Fq 'export const HISTORY_CANDLES = 80;' src/config.js
+          grep -Fq 'haptic.impactOccurred' public/app.js
+          grep -Fq 'haptic.notificationOccurred' public/app.js
+          grep -Fq 'allowedOrigins.has(origin)' server.js
+      - name: Syntax-check application modules
+        run: |
+          cd main-market
+          node --check server.js
+          node --check src/config.js
+          node --check src/analyzer.js
+          node --check src/twelve-data.js
+          node --check src/telegram-auth.js
+          node --check public/app.js

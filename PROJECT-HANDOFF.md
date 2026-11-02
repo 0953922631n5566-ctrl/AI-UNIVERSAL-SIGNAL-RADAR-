@@ -611,3 +611,170 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Files changed in this checkpoint: `PROJECT-HANDOFF.md` only.
 - Validation status: source inspection confirms the six-pair configuration and single-pair enforcement; no new automated test/build/deploy was triggered by this documentation-only update. Existing tests in source cover the selection contract, but this checkpoint does not claim a fresh test run, Render deployment, external HTTP check, or Xiaomi/Telegram device test.
 - Next PM steps: run the branch's full `npm test` and syntax-check/build pipeline; inspect current Render deployment state; confirm live REST/Streaming entitlement one pair at a time (especially EUR/USD baseline, then the other five); verify pair switching, signal invalidation, countdown/alerts, and actual device behavior. Record each pair as REST-supported / Streaming-supported / REST-only / unsupported / not yet verified; never infer support from selector presence.
+
+
+---
+
+## 2026-11-02 — User-authorized MAIN MARKET v2 rewrite (candidate checkpoint)
+
+The user explicitly authorized a complete rewrite: “ผมอนุญาตให้คุณเขียนครับใหม่ทั้งหมด”. Scope was confirmed as MAIN MARKET only. The existing Android/OCR project on `main` must remain untouched.
+
+### Isolation and source control
+- Created isolated branch: `rewrite/main-market-v2`, based on `main-market`.
+- Opened draft PR #9 to `main-market`: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/9
+- Latest candidate commit: `15dabf2f35a745b8464312411c5ac473d6fa75dc`.
+- Production branch `main-market` has not been merged or modified by this rewrite. Android/OCR branch `main` was not changed.
+- Candidate changed 10 files: `main-market/REWRITE-PLAN.md`, `main-market/src/config.js`, `main-market/src/analyzer.js`, `main-market/src/twelve-data.js`, `main-market/server.js`, `main-market/public/index.html`, `main-market/public/styles.css`, `main-market/public/app.js`, `main-market/test/analyzer.test.js`, and `.github/workflows/main-market-v2.yml`.
+
+### Implemented on the isolated candidate
+- Replaced runtime configuration with the six confirmed Non-OTC pairs, one selected pair at a time, EUR/USD default, M1, 200 closed-candle warmup, 220-bar REST request, 300-second REST refresh, 25-second live tick freshness limit and 40-second signal hold.
+- Rebuilt Twelve Data REST parsing: pair allowlist, request timeout, provider error classification, OHLC validation, UTC timestamp parsing, duplicate timestamp removal, chronological sorting and exclusion of the current unclosed candle.
+- Rebuilt the evidence/decision engine: EMA 9/21/50, RSI14, MACD, ATR, volatility, recent momentum, candle structure and support/resistance; recognizes trending, ranging, high-volatility, reversal and unclear regimes.
+- Analyzer rejects malformed OHLC, duplicate/reversed timestamps, stale history and gaps among the latest five M1 bars. Older historical market-closure gaps are tolerated. REST history can show indicators, but CALL/PUT requires a fresh Streaming tick. The engine is transparent rule-based logic, not a trained ML model; no predictive edge or win rate is claimed.
+- Rebuilt Node service around one server-enforced selected pair, separate REST/Streaming state, HTTP/WebSocket transport, client lease, fail-closed handling, signal hold, invalidation and per-candle deduplication.
+- Rebuilt mobile Mini App layout and pair selector, live signal lamp, market regime/evidence, price/Close/RSI/EMA display, candle countdown, start/stop, sound/vibration and 10s/3s directional-only alerts.
+- Added a fresh regression suite and a v2-specific workflow.
+
+### Automated verification
+- GitHub Actions Main Market Checks run `41395675719`: **success**.
+- GitHub Actions Main Market v2 Rewrite Checks run `41395675750`: **success**.
+- Logs for run `41395675719` show `npm install` succeeded and `npm test` completed with **13 tests passed, 0 failed**. The v2 workflow's syntax-check step also completed successfully for server, config, analyzer, Twelve Data client and browser client.
+- The HTTP smoke test starts the Express service and verifies root HTML, health, start, heartbeat and stop control paths.
+- These checks apply to the candidate commit `15dabf2f35a745b8464312411c5ac473d6fa75dc`.
+
+### Not yet done / release blockers
+- PR #9 is still a draft and has not been merged. Render remains connected to `main-market`; the candidate has **not** been deployed. No production service was changed by this rewrite.
+- The assistant runtime cannot reach GitHub over direct network from its local container; verification was performed through GitHub Actions. No local clone/build was claimed.
+- Live Twelve Data REST and Streaming entitlement for each of the six pairs has not been retested against the user's actual key. Provider WebSocket subscribe responses and live ticks remain unverified on this candidate.
+- Public control/state endpoints still need Telegram `initData` authentication (or another approved authenticated session design) before production promotion. Rate limiting and CORS are not authentication. Do not claim production security.
+- Physical sound and vibration on Telegram WebView / Xiaomi 11T remain unverified.
+- No historical backtest, paper-trading, latency, false-positive or out-of-sample predictive validation has been run. Do not label the system Production-Ready.
+- No secrets or API keys were added to the repository or client code. No paid resources were created.
+
+### Next PM actions
+1. Review candidate server/client lifecycle and close the Telegram authentication/security gap before promotion.
+2. Add provider WebSocket protocol fixtures/integration tests and verify REST/Streaming separately for each pair with the user's live account.
+3. Verify latest PR checks remain green after any further edits, then request promotion only after security review.
+4. After an approved merge, inspect Render deployment and verify health/runtime logs. Finally test Telegram WebView and physical alerts on Xiaomi 11T.
+
+
+### Follow-up fixes and final candidate verification — 2026-11-02
+
+- Follow-up review fixed three UI/runtime edge cases on the rewrite branch:
+  - Bound the feed-status element referenced by the client, preventing a null-element render exception.
+  - When the app is idle, synchronize the saved local pair with the server's selected pair before showing that pair's market data; ignore a stale idle snapshot for a different pair.
+  - Keep the next-M1 countdown aligned to the next clock minute even before the first live tick arrives.
+- Signal lifecycle hardening: if evidence reverses during the 40-second hold, cancel to STANDBY and retain the candle dedupe marker so an opposite signal cannot immediately fire on the same closed candle.
+- Stale feed, data error and unsupported REST states now map to API LOCKED while scanning; REST_ONLY remains data-display ONLINE but directional output remains blocked.
+- Added regression assertions for saved-pair synchronization, the feed-status element and the health interval field.
+- Final code commit tested: `e1056d9ab8f978dcf7410f30b8fb8c1b1a8aefc6`.
+- Final candidate CI:
+  - Main Market v2 Rewrite Checks run `41395902930`: **success**, including install/test and all syntax checks.
+  - Main Market Checks run `41395903066`: **success**; logs show **13 tests passed, 0 failed**.
+- The subsequent handoff documentation commit is `983f0cb02ebbcdbe72df7a585073f842bc23a502`; it changes documentation only. The validated application code remains the preceding tested commit.
+- PR #9 remains draft/unmerged. No Render deployment or production branch update has occurred.
+- Remaining release blockers are unchanged: Telegram `initData` authentication, actual Twelve Data REST/Streaming verification per pair, physical Telegram/Xiaomi sound/haptics, and historical/out-of-sample market validation.
+
+
+
+## 2026-11-02 — Telegram Mini App authentication implemented on v2 candidate
+
+- Implemented server-side Telegram Web App `initData` validation in `main-market/src/telegram-auth.js` using Telegram's HMAC-SHA256 verification algorithm, timing-safe hash comparison, duplicate-field rejection, mandatory user ID, 24-hour maximum age and 60-second future-clock tolerance.
+- Added `POST /api/auth` which exchanges valid initData for a cryptographically random, four-hour, HttpOnly, Secure, SameSite=Lax session cookie. Authentication requests are rate-limited. Session records are kept server-side and expired sessions are periodically removed.
+- Protected `GET /api/state` and `POST /api/control` with the session middleware. Protected WebSocket `/live` during the HTTP upgrade; unauthenticated upgrades receive HTTP 401. No initData or session token is placed in a WebSocket URL or application log.
+- Mini App now requires Telegram's raw `WebApp.initData` before polling, connecting or issuing controls. When opened outside Telegram or when verification fails, the controls stay disabled and the UI displays an authentication/locked message.
+- Health endpoint exposes only non-sensitive service metadata. JSON body limit increased to 8 KB for Telegram initData payloads.
+- Added tests for valid signature, tampering, expired/future auth dates, missing bot token, unauthenticated HTTP state/control, unauthenticated WebSocket rejection, authenticated WebSocket, and authenticated start/heartbeat/stop.
+- Latest validated application code commit: `1c6fc8254820fef736ddd333cbc8f3ac12d89422`.
+- The server also accepts the legacy `BOT_TOKEN` environment variable as a fallback, while `TELEGRAM_BOT_TOKEN` is the documented preferred name. `.env.example` now lists `TWELVE_DATA_API_KEY`, `TELEGRAM_BOT_TOKEN` and `PORT` only.
+- GitHub Actions results for the final application code commit:
+  - Main Market Checks run `41397415865`: **success**, `npm test` reports **14 passed / 0 failed**; syntax checks passed.
+  - Main Market v2 Rewrite Checks run `41397415903`: **success**, `npm test` reports **14 passed / 0 failed**; syntax checks passed for server, config, analyzer, Twelve Data client, Telegram auth module and browser client.
+  - Both install workflows reported **0 npm vulnerabilities**.
+- PR #9 remains **Draft / open / unmerged**. Render production service remains attached to branch `main-market`; no v2 code was deployed and no production branch was changed.
+- Release blocker: production must have `TELEGRAM_BOT_TOKEN` configured as a private Render environment variable before the new Mini App can authenticate. No bot token has been supplied or confirmed in the project context. Do not ask the user to paste it into chat or commit it to GitHub. Set it only in the Render Dashboard after the user has access to BotFather's token.
+- Still not verified: real Twelve Data REST and Streaming entitlement for all six pairs using the user's live API key; Telegram WebView cookie/session behavior on Xiaomi 11T; actual sound/vibration and 10s/3s timing on device; historical/backtest and out-of-sample predictive performance. The rule engine remains heuristic and must not be marketed as a proven predictive AI.
+- Promotion policy: do not merge PR #9 or point the production Render service at this branch until the bot token is configured privately and the live provider + Telegram device gates are passed. Existing `main-market` production and Android/OCR `main` remain preserved.
+
+
+
+### Production provider observations from Render logs — 2026-11-02 (legacy main-market deployment)
+
+- These observations are from the existing production service running the older `main-market` branch, not from the v2 candidate.
+- During the single-pair checks around 05:17–05:29 UTC, the old service logged successful REST history loads of 220 requested / 220 available / 200 required for GBP/JPY, EUR/GBP, GBP/USD and AUD/USD. For those same attempts the Twelve Data Streaming subscription was rejected as unsupported.
+- EUR/USD logged a successful first live Streaming price in the same period.
+- EUR/JPY appears in earlier multi-pair production logs with Streaming reported unsupported; a fresh single-pair REST result for EUR/JPY was not established in the latest log window.
+- This confirms why v2 separates REST-only from Streaming: a pair may display REST-derived Price/Close/RSI while remaining STANDBY for direction until a fresh live tick is available. Do not infer live signal capability from successful REST history or selector presence.
+- This is legacy-service evidence only; repeat the per-pair check against the v2 candidate after it is deployed with the private secrets configured.
+
+
+### User confirmation — existing Render Telegram bot token — 2026-11-02
+
+- User confirmed in chat that the Main Market Render service already has a Telegram bot token configured.
+- The v2 server reads `TELEGRAM_BOT_TOKEN` first and falls back to the legacy `BOT_TOKEN` variable. Therefore either existing variable name is supported by the candidate code; no new token needs to be sent in chat.
+- The assistant cannot inspect secret environment-variable names/values through the available Render service metadata. Record this as user-confirmed presence, not independently verified environment configuration. Do not expose or request the secret.
+- Deployment check still required: confirm the Telegram Mini App URL opens the Main Market service origin (`https://ai-signal-radar-main-market.onrender.com`) because this candidate uses same-origin relative `/api/auth`, `/api/state`, `/api/control`, and `/live` paths with an HttpOnly session cookie. A separate static-site origin would need a deliberate credentialed CORS/API/WebSocket design; do not assume the old cross-origin static copy works with this session implementation.
+- No production deployment or PR merge is authorized by this confirmation alone. Keep PR #9 Draft until same-origin Mini App routing, actual provider access for each pair, and Xiaomi/Telegram device checks are complete.
+
+
+### Release gate recheck — 2026-11-02 (after user confirmed BOT_TOKEN exists)
+
+- Re-fetched PR #9: open, Draft, not merged; base `main-market`; head `rewrite/main-market-v2`; current PR head is the documentation checkpoint `bab1da5b01bba608635bb65ff328d5af7b5de532`.
+- Re-fetched Actions for application commit `1c6fc8254820fef736ddd333cbc8f3ac12d89422`: Main Market Checks run `41397415865` and Main Market v2 Rewrite Checks run `41397415903` both completed successfully. PR head subsequently changed only for documentation; no app-code changes since that validated application commit are recorded in this checkpoint.
+- Render production service `ai-signal-radar-main-market` is still configured to branch `main-market`, Auto Deploy on commit. Latest deploy `dep-dbk1mv5h3lcs738poeq0` is Live for production commit `0f046d986da825efc0272cf763ca45d8e91e77d3` (documentation-only commit). This is the existing production deployment, not the v2 candidate.
+- Render service metadata does not expose environment-variable names or values. User confirmed BOT_TOKEN exists, and candidate code supports both `BOT_TOKEN` and `TELEGRAM_BOT_TOKEN`; actual variable-name presence cannot be independently read through available Render tools.
+- Attempted direct public `/health` check through available web retrieval; endpoint was not accessible through that retrieval tool. No HTTP success is claimed from that attempt.
+- Render error-log query returned historical npm-test failures dated 2026-11-02 00:37–04:32 UTC; these precede the latest live deployment at 05:12 UTC. They are historical build/app errors, not proof that the current live deployment is failing. Request-log query returned no records in the queried range. Recheck latest app logs after any controlled runtime test.
+- Critical operational dependency: PR #9's candidate uses same-origin relative API paths and a Secure HttpOnly cookie. It must be served from the Main Market Render origin, not an unrelated static-site origin. Telegram Mini App URL configuration is external to this GitHub repository and has not been independently inspected.
+- No merge, production branch change, environment-variable mutation, or deployment of v2 was performed in this checkpoint.
+
+
+### Telegram Mini App URL discovery and cross-origin auth correction — 2026-11-02
+
+- Do not ask the user to provide the Mini App URL again. It was found in the connected GitHub repository and Render workspace.
+- Render Static Site service `AI-UNIVERSAL-SIGNAL-RADAR-` (`srv-dbjhmeutlv9c73d8m9q0`) is configured from repository branch `main`, rootDir empty, publishPath `.`, auto-deploy on commit; public UI URL: `https://ai-universal-signal-radar.onrender.com`.
+- Render Node Web Service `ai-signal-radar-main-market` (`srv-dbjls149v7es73ag0k4g`) is configured from branch `main-market`; canonical API/WebSocket origin: `https://ai-signal-radar-main-market.onrender.com`.
+- Root `index.html` and `app.js` on branch `main` contain the complete Main Market Mini App UI and explicitly call the canonical Node API over cross-origin HTTPS and WSS. The project handoff documents this as the current Main Market Mini App. This is the configured project UI origin, though the BotFather-side Telegram URL value itself is not exposed by GitHub/Render tools.
+- Previous v2 auth implementation incorrectly assumed same-origin paths/cookies. Corrected candidate branch `rewrite/main-market-v2` only:
+  - client uses explicit `API_ORIGIN=https://ai-signal-radar-main-market.onrender.com` for auth, state, and control requests;
+  - all credentialed fetches use `credentials: include`;
+  - WebSocket connects to the canonical API host, not the static-site host;
+  - server returns `Access-Control-Allow-Credentials: true` for exact allowlisted origins, including the static Mini App origin;
+  - v2 workflow now asserts these cross-origin auth/session wiring requirements.
+- This is a source-level correction, not a live browser/Telegram verification. CI must pass after the final patch; actual Telegram WebView cookie behavior still requires runtime validation after a controlled deployment.
+- Keep PR #9 Draft and do not merge/deploy until CI passes and release checks are complete. Do not alter branch `main` or production branch `main-market` in this fix.
+
+
+### Cross-origin credential propagation follow-up — 2026-11-02
+
+- Candidate client now sends `credentials: "include"` on all three authenticated HTTP operations: POST `/api/auth`, GET `/api/state`, and POST `/api/control`. WebSocket now targets the canonical API host, so the API-host session cookie is sent on the socket handshake.
+- Candidate server returns `Access-Control-Allow-Credentials: true` only when the request Origin is in the exact allowlist (or is the API's own origin). The allowed list contains the verified static Mini App origin and canonical API origin. No wildcard origin is used.
+- v2 workflow now checks the explicit API origin, WebSocket target, exact static origin allowlist, credentialed CORS header, and at least three credentialed fetches.
+- GitHub Actions for app-code commit `548f60161d54cae426869b55399e13c737bd8d6b`: Main Market Checks run `41398658621` and Main Market v2 Rewrite Checks run `41398658722` both completed successfully. The later workflow-only assertion update `a04be1752557a8a1fff00613bdbc40973dd40a02` has not yet been independently confirmed by a returned Actions run; do not claim that additional grep assertion itself passed until its run is visible.
+- PR #9 remains Draft and unmerged. No Render deployment has been made for the candidate. Runtime cookie/CORS/WebSocket behavior in Telegram WebView is still unverified.
+
+
+## 2026-11-02 — 60-candle warmup and stronger vibration correction
+
+- User reported that the Mini App played sound but vibration was absent, and asked to reduce the REST warmup from 200+ bars if needed so the app can be run.
+- Changed candidate configuration on `rewrite/main-market-v2`:
+  - Minimum closed M1 candles: **60** (previously 200).
+  - Twelve Data REST request: **80** bars (previously 220).
+  - Internal candle buffer: **100** bars (previously 260).
+  - REST refresh remains 300 seconds (about 288 requests/day for one selected pair if continuously active), and only one selected pair is requested at a time.
+- 60 bars are sufficient for the configured EMA50, RSI14, MACD(12,26,9), ATR14/20 and recent 20-bar range calculations. The analyzer still rejects malformed OHLC, duplicate/out-of-order timestamps, stale data and gaps among the most recent five M1 bars.
+- Server state now reports the configured minimum (60) instead of a hard-coded 200. REST history can display indicators, but CALL/PUT still requires an actual fresh Streaming tick no older than 25 seconds; REST-only pairs remain STANDBY.
+- Strengthened haptic alert handling: directional signals use Telegram `HapticFeedback.impactOccurred("heavy")` plus `notificationOccurred("success")`; 10-second/3-second preparation alerts use medium/heavy impact plus warning notification. Android browser vibration remains the fallback when Telegram HapticFeedback is unavailable. The existing vibration toggle and test button remain enabled by default.
+- Added WebSocket Origin allowlist enforcement matching the credentialed CORS origins. The approved static Mini App origin and same-origin API are accepted; foreign browser origins are rejected with HTTP 403 before session handling.
+- Added regression tests for 60-bar indicator readiness, 59-bar STANDBY, the 80-bar REST cap, vibration methods, approved Mini App WebSocket origin and rejected foreign origin.
+- Updated v2 CI assertions to enforce the 60/80 settings, both haptic methods and WebSocket origin guard.
+- Code commits in this change set:
+  - `60412859804ea1617bf3b86e3e541ea5d44807e` — 60/80/100 candle configuration.
+  - `d7108f5f1cc0126bc21dd1a00b63984cf4507684` — candle threshold and indicator tests.
+  - `5ae340798baaa4adbd1df150d7509e6756ed4206` — stronger vibration/haptic handling.
+  - `e366329330c99a9a9bbb1d684e0e9013eec58084` and `1a0da85aa378e5cb1ade495dfcabb66d5c320e03` — WebSocket origin restriction and correct HTTP rejection framing.
+  - `fd5ba92d42746f558753d2614e48c689dca7d6cf` — origin and haptic regression coverage.
+  - `d13d5fd5742defafd23ad76b74c31f32bf2ebbc2` — expose actual 60-bar requirement in server state.
+  - `9d805c2f6b66aa1a8ab7d5403e8966c56cc0bffc` — CI assertions.
+- Validation still pending at this handoff update: latest GitHub Actions run for the combined code changes; controlled Render deployment; real Twelve Data REST/Streaming checks on the configured account; Telegram WebView cookie/session behavior and physical vibration on a handset. Do not claim these are live-tested until evidence is collected.
+- Production protection: no PR merge, Render branch change, or production deployment was performed in this change set. Existing `main-market` and Android/OCR `main` remain untouched.
