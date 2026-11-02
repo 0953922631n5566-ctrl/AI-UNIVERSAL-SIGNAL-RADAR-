@@ -167,7 +167,7 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   assert.match(html, /id="stop"/);
   assert.match(html, /id="sound"/);
   assert.match(html, /id="vibration"/);
-  assert.match(js, /function savePair\\(value\\)/);
+  assert.ok(js.includes("function savePair(value)"));
   assert.match(js, /function regimeLabel\(value\)/);
   assert.match(css, /\.signal-display\.call/);
   assert.match(css, /\.signal-display\.put/);
