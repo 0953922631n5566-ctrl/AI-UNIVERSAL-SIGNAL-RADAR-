@@ -23,7 +23,7 @@ jobs:
         run: |
           cd main-market
           grep -Fq 'const API_ORIGIN = "https://ai-signal-radar-main-market.onrender.com";' public/app.js
-          test "$(grep -Fc 'credentials: \"include\"' public/app.js)" -ge 3
+          test "$(grep -Fc 'credentials: "include"' public/app.js)" -ge 3
           grep -Fq 'new URL(API_ORIGIN).host' public/app.js
           grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
           grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
