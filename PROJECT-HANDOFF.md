@@ -656,3 +656,21 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 2. Add provider WebSocket protocol fixtures/integration tests and verify REST/Streaming separately for each pair with the user's live account.
 3. Verify latest PR checks remain green after any further edits, then request promotion only after security review.
 4. After an approved merge, inspect Render deployment and verify health/runtime logs. Finally test Telegram WebView and physical alerts on Xiaomi 11T.
+
+
+### Follow-up fixes and final candidate verification — 2026-11-02
+
+- Follow-up review fixed three UI/runtime edge cases on the rewrite branch:
+  - Bound the feed-status element referenced by the client, preventing a null-element render exception.
+  - When the app is idle, synchronize the saved local pair with the server's selected pair before showing that pair's market data; ignore a stale idle snapshot for a different pair.
+  - Keep the next-M1 countdown aligned to the next clock minute even before the first live tick arrives.
+- Signal lifecycle hardening: if evidence reverses during the 40-second hold, cancel to STANDBY and retain the candle dedupe marker so an opposite signal cannot immediately fire on the same closed candle.
+- Stale feed, data error and unsupported REST states now map to API LOCKED while scanning; REST_ONLY remains data-display ONLINE but directional output remains blocked.
+- Added regression assertions for saved-pair synchronization, the feed-status element and the health interval field.
+- Final code commit tested: `e1056d9ab8f978dcf7410f30b8fb8c1b1a8aefc6`.
+- Final candidate CI:
+  - Main Market v2 Rewrite Checks run `41395902930`: **success**, including install/test and all syntax checks.
+  - Main Market Checks run `41395903066`: **success**; logs show **13 tests passed, 0 failed**.
+- The subsequent handoff documentation commit is `983f0cb02ebbcdbe72df7a585073f842bc23a502`; it changes documentation only. The validated application code remains the preceding tested commit.
+- PR #9 remains draft/unmerged. No Render deployment or production branch update has occurred.
+- Remaining release blockers are unchanged: Telegram `initData` authentication, actual Twelve Data REST/Streaming verification per pair, physical Telegram/Xiaomi sound/haptics, and historical/out-of-sample market validation.
