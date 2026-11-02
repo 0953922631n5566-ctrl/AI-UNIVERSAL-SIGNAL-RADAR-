@@ -14,6 +14,10 @@ function statusLabel(p){
  const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"ไม่รองรับ",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STREAM_TIMEOUT:"ไม่พบราคา Streaming",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
  return labels[p.supportStatus]||p.supportStatus||"กำลังตรวจสอบ";
 }
+function regimeLabel(value){
+ const labels={TRENDING_UP:"TRENDING · ขาขึ้น",TRENDING_DOWN:"TRENDING · ขาลง",TRENDING:"TRENDING · มีแนวโน้ม",RANGING:"RANGING · ออกข้าง",HIGH_VOLATILITY:"HIGH VOLATILITY · ผันผวนสูง",REVERSAL:"REVERSAL · เฝ้าระวังกลับตัว",UNCLEAR:"UNCLEAR · ยังไม่ชัดเจน",UNKNOWN:"รอข้อมูลตลาด"};
+ return labels[value]||labels.UNKNOWN;
+}
 function updatePairCards(s){
  const pairs=s.pairs||{},chosen=new Set(selectedSymbols()),entries=Object.entries(pairs).filter(([symbol])=>chosen.has(symbol));
  $("pairCards").innerHTML=entries.map(([symbol,p])=>{
@@ -25,8 +29,9 @@ function updatePairCards(s){
     <div class="signal-lamp" aria-hidden="true"><span></span></div>
     <div class="signal-copy"><small>${sig==="CALL"?"สัญญาณขาขึ้น":sig==="PUT"?"สัญญาณขาลง":"รอสัญญาณที่ชัดเจน"}</small><strong>${escapeHtml(sig)}</strong><em>${sig==="CALL"?"พิจารณาเข้า CALL":sig==="PUT"?"พิจารณาเข้า PUT":"ยังไม่เข้าออเดอร์"}</em></div>
    </div>
+   <div class="regime-row"><span>MARKET REGIME</span><strong class="regime-badge regime-${String(p.regime||"UNKNOWN").toLowerCase().replace(/[^a-z0-9_-]/g,"-")}">${escapeHtml(regimeLabel(p.regime))}</strong></div>
    <div class="pair-metrics"><span>ราคา <b>${price}</b></span><span>RSI <b>${rsi}</b></span><span>DATA AGE <b>${age}</b></span></div>
-   <p class="pair-reason">${escapeHtml(p.reason||p.statusMessage||"รอข้อมูล")}</p>
+   <div class="reason-panel"><div class="reason-heading">✦ AI REASONING</div><p class="pair-reason">${escapeHtml(p.reason||p.statusMessage||"รอข้อมูล")}</p></div>
    <p class="pair-status-message">${escapeHtml(p.statusMessage||"")}</p>
    <div class="pair-countdown" id="countdown-${symbol.replace("/","-")}">แท่งถัดไป --:--</div>
   </article>`;
