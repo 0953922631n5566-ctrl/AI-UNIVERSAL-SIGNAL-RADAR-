@@ -1,13 +1,13 @@
-<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#10151f"><title>AI UNIVERSAL SIGNAL RADAR</title><script src="https://telegram.org/js/telegram-web-app.js"></script><link rel="stylesheet" href="/styles.css"></head><body><main class="app"><header><div><div class="eyebrow">MAIN MARKET · MULTI-PAIR MONITOR</div><h1>AI UNIVERSAL SIGNAL RADAR</h1></div><span id="connection" class="pill">OFFLINE</span></header>
-<section class="market"><div class="muted">ตลาดหลัก · NON-OTC · 1 MINUTE</div><strong>เลือกคู่เงินที่ต้องการสแกน</strong><div id="marketMode" class="muted">MANUAL ONLY · NO AUTO ORDERS</div><div id="apiMessage" class="api-message">รอเชื่อมต่อ Twelve Data</div></section>
-<section class="selector"><div class="selector-head"><h2>คู่เงิน (เลือกได้หลายคู่)</h2><span>เลือกเริ่มต้นทั้ง 6 คู่</span></div><div class="pair-selector">
-<label><input data-pair-select type="checkbox" value="AUD/USD" checked><b>AUD/USD</b></label>
-<label><input data-pair-select type="checkbox" value="EUR/USD" checked><b>EUR/USD</b></label>
-<label><input data-pair-select type="checkbox" value="EUR/GBP" checked><b>EUR/GBP</b></label>
-<label><input data-pair-select type="checkbox" value="GBP/JPY" checked><b>GBP/JPY</b></label>
-<label><input data-pair-select type="checkbox" value="EUR/JPY" checked><b>EUR/JPY</b></label>
-<label><input data-pair-select type="checkbox" value="GBP/USD" checked><b>GBP/USD</b></label>
-</div><div class="selector-note">ระบบจะตรวจสอบสิทธิ์ REST และ Streaming แยกแต่ละคู่ หากไม่รองรับจะแสดงสถานะและแจ้งเตือน</div></section>
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#10151f"><title>AI UNIVERSAL SIGNAL RADAR</title><script src="https://telegram.org/js/telegram-web-app.js"></script><link rel="stylesheet" href="/styles.css"></head><body><main class="app"><header><div><div class="eyebrow">MAIN MARKET · SINGLE-PAIR SCANNER</div><h1>AI UNIVERSAL SIGNAL RADAR</h1></div><span id="connection" class="pill">OFFLINE</span></header>
+<section class="market"><div class="muted">ตลาดหลัก · NON-OTC · 1 MINUTE</div><strong>เลือกคู่เงินที่ต้องการสแกน (ครั้งละ 1 คู่)</strong><div id="marketMode" class="muted">MANUAL ONLY · NO AUTO ORDERS</div><div id="apiMessage" class="api-message">รอเชื่อมต่อ Twelve Data</div></section>
+<section class="selector"><div class="selector-head"><h2>เลือกคู่เงิน (สแกนทีละ 1 คู่)</h2><span>เปลี่ยนคู่ได้ระหว่างสแกน</span></div><div class="pair-selector">
+<label><input data-pair-select type="radio" name="pair-select" value="AUD/USD"><b>AUD/USD</b></label>
+<label><input data-pair-select type="radio" name="pair-select" value="EUR/USD" checked><b>EUR/USD</b></label>
+<label><input data-pair-select type="radio" name="pair-select" value="EUR/GBP"><b>EUR/GBP</b></label>
+<label><input data-pair-select type="radio" name="pair-select" value="GBP/JPY"><b>GBP/JPY</b></label>
+<label><input data-pair-select type="radio" name="pair-select" value="EUR/JPY"><b>EUR/JPY</b></label>
+<label><input data-pair-select type="radio" name="pair-select" value="GBP/USD"><b>GBP/USD</b></label>
+</div><div class="selector-note">ระบบจะสแกนเฉพาะคู่ที่เลือก เมื่อเปลี่ยนคู่จะหยุดคู่เดิมและเชื่อมต่อคู่ใหม่อัตโนมัติ</div></section>
 <div class="controls"><button id="start">▶ เริ่มสแกนคู่ที่เลือก</button><button id="stop" class="secondary" disabled>หยุดสแกน</button></div>
 <div class="pair-summary" id="pairSummary">6 คู่ที่เลือก · รอเริ่มสแกน</div>
 <section id="pairCards" class="pair-cards"><div class="empty-state">เลือกคู่เงินแล้วกดเริ่มสแกน เพื่อรับสัญญาณแยกแต่ละคู่</div></section>
