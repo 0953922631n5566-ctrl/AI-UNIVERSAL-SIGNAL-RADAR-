@@ -146,7 +146,9 @@ function stop(){
 }
 app.use(express.json({limit:"2kb"}));
 app.get("/",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","index.html"))});
-app.use(express.static(path.join(APP_DIR,"public"),{maxAge:0,setHeaders(res,file){if(/\\.(?:html|js|css)$/i.test(file))res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate")}}));
+app.get("/app.js",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","app.js"))});
+app.get("/styles.css",(_,res)=>{res.setHeader("Cache-Control","no-store, max-age=0, must-revalidate");res.sendFile(path.join(APP_DIR,"public","styles.css"))});
+app.use(express.static(path.join(APP_DIR,"public")));
 app.get("/health",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json({ok:true,service:"main-market",version:"2026-11-02-http-fallback",symbols:SYMBOLS,selectedSymbols,interval:INTERVAL,monitoring,streamConnected:!!upstream,apiKeyConfigured:!!process.env.TWELVE_DATA_API_KEY})});
 app.get("/api/state",(_,r)=>{r.setHeader("Cache-Control","no-store");r.json(snapshot())});
 function handleControlAction(m={}){
