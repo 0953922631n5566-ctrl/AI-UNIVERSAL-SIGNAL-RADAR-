@@ -12,8 +12,6 @@ export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds
  if(!Array.isArray(c)||closedCount<MIN_CANDLES)return standby(`ประวัติแท่งเทียนที่ปิดแล้วไม่ครบ ${MIN_CANDLES} แท่ง (${closedCount}/${MIN_CANDLES})`,{closedCandleCount:closedCount,requiredCandles:MIN_CANDLES});
  const last=c.at(-1),age=Number.isFinite(last.epoch)?Math.max(0,now/1000-last.epoch):Infinity;
  if(age>maxAgeSeconds)return standby("ข้อมูลแท่งเทียนล่าช้า",{ageSeconds:Math.round(age)});
- if(tickAgeSeconds===null)return standby("ยังไม่มีราคา Streaming สำหรับยืนยันจังหวะสด");
- if(tickAgeSeconds>25)return standby("ราคา Streaming หยุดอัปเดต",{tickAgeSeconds});
  const v=c.map(x=>x.close),e9=ema(v,9),e21=ema(v,21),e26=ema(v,26),r=rsi(v),m=macd(v),a14=avgRange(c,14),a20=avgRange(c,20);
  if([e9,e21,e26,r,m.line,m.signal,m.histogram,a14,a20].some(x=>!Number.isFinite(x)))return standby("หลักฐานคำนวณไม่ครบ");
  const recent=c.slice(-20),res=Math.max(...recent.slice(0,-1).map(x=>x.high)),sup=Math.min(...recent.slice(0,-1).map(x=>x.low));
@@ -26,13 +24,15 @@ export function analyzeMarket(c,{now=Date.now(),maxAgeSeconds=180,tickAgeSeconds
  const nearR=res-last.close<=a14*.35,nearS=last.close-sup<=a14*.35;
  const momentum5=last.close-c.at(-6).close,bodyToAtr=Math.abs(last.close-last.open)/a14;
  const evidence=[`Price action: ${last.close>=last.open?"bullish":"bearish"} body ${bodyToAtr.toFixed(2)} ATR · 5-bar momentum: ${momentum5.toFixed(5)}`,`EMA 9/21/26: ${e9.toFixed(5)} / ${e21.toFixed(5)} / ${e26.toFixed(5)}`,`RSI 14: ${r.toFixed(1)} · MACD histogram: ${m.histogram.toFixed(7)}`,`ATR14/ATR20: ${vol.toFixed(2)} · 20-bar range: ${range.toFixed(4)}%`,`Support: ${sup.toFixed(5)} · Resistance: ${res.toFixed(5)}`];
+ const liveReady=tickAgeSeconds!==null&&tickAgeSeconds<=25;
  let signal="STANDBY",reason="หลักฐานยังไม่สอดคล้องกันหรือยังไม่ยืนยัน";
- if(regime==="TRENDING_UP"&&r>=50&&r<=68&&last.close>e9&&momentum5>0&&!nearR){signal="CALL";reason="แนวโน้มขึ้นและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวต้าน"}
+ if(!liveReady)reason=tickAgeSeconds===null?"คำนวณจากแท่งปิด REST ได้แล้ว แต่รอราคา Streaming สดก่อนยืนยัน CALL/PUT":"ราคา Streaming หยุดอัปเดต: แสดงค่า REST แต่ยังไม่ยืนยันสัญญาณ";
+ else if(regime==="TRENDING_UP"&&r>=50&&r<=68&&last.close>e9&&momentum5>0&&!nearR){signal="CALL";reason="แนวโน้มขึ้นและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวต้าน"}
  else if(regime==="TRENDING_DOWN"&&r>=32&&r<=50&&last.close<e9&&momentum5<0&&!nearS){signal="PUT";reason="แนวโน้มลงและโมเมนตัมสนับสนุน โดยยังไม่ชิดแนวรับ"}
  else if(regime==="RANGING")reason="ตลาดออกข้าง: รอการทะลุกรอบที่ยืนยันได้";
  else if(regime==="HIGH_VOLATILITY")reason="ความผันผวนสูงผิดปกติ: งดไล่ราคา";
  else if(regime==="REVERSAL")reason="พบสัญญาณอาจกลับตัว แต่ต้องรอการยืนยันเพิ่ม";
  else if(nearR||nearS)reason="ราคาอยู่ใกล้แนวรับ/แนวต้าน: ความเสี่ยงไล่ราคาสูง";
- return{signal,regime,reason,evidence,metrics:{ema9:e9,ema21:e21,ema26:e26,rsi14:r,macdLine:m.line,macdSignal:m.signal,macdHistogram:m.histogram,atr14:a14,volatilityRatio:vol,support:sup,resistance:res},lastPrice:last.close,lastCandleTime:last.time,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age),candleCount:c.length,closedCandleCount:closedCount,requiredCandles:MIN_CANDLES,analyzedAt:new Date(now).toISOString()};
+ return{signal,regime,reason,evidence,metrics:{ema9:e9,ema21:e21,ema26:e26,rsi14:r,macdLine:m.line,macdSignal:m.signal,macdHistogram:m.histogram,atr14:a14,volatilityRatio:vol,support:sup,resistance:res},lastPrice:last.close,lastCandleTime:last.time,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age),candleCount:c.length,closedCandleCount:closedCount,requiredCandles:MIN_CANDLES,livePriceReady:liveReady,analyzedAt:new Date(now).toISOString()};
 }
 function standby(reason,extra={}){return{signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra}}
