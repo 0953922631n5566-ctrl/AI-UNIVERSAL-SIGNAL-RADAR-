@@ -93,8 +93,9 @@ async function syncPair(f,{force=false}={}){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function syncSelected({force=false}={}){
  for(let i=0;i<selectedSymbols.length;i++){
-  const f=feeds.get(selectedSymbols[i]);if(f.restStatus==="UNSUPPORTED")continue;
+  const f=feeds.get(selectedSymbols[i]);if(f.restStatus==="UNSUPPORTED"){if(Date.now()-f.lastRestSyncAt<SYNC*1000)continue;f.restStatus="NOT_CHECKED";f.streamStatus="WAITING";f.restMessage="กำลังตรวจสอบสิทธิ์คู่เงินอีกครั้ง"}
   await syncPair(f,{force});
+  if(globalLockMessage)break;
   if(i<selectedSymbols.length-1)await delay(1100);
  }
  if(monitoring&&!upstream&&selectedSymbols.some(s=>feeds.get(s).restStatus==="READY"))startStream();
@@ -116,7 +117,7 @@ function startStream(){
  let ws;
  try{ws=new WebSocket("wss://ws.twelvedata.com/v1/quotes/price?apikey="+encodeURIComponent(process.env.TWELVE_DATA_API_KEY));upstream=ws}
  catch(e){markLocked("สร้างการเชื่อมต่อ Twelve Data Streaming ไม่สำเร็จ: "+e.message);retryTimer=setTimeout(startStream,8000);return}
- ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",selectedSymbols);for(const symbol of subscribeSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:subscribeSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
+ ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",subscribeSymbols);for(const symbol of subscribeSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:subscribeSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
  ws.on("message",raw=>{
   if(upstream!==ws)return;let m;try{m=JSON.parse(raw.toString())}catch{return}
   if(m.event==="price"&&m.symbol){const f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol)));const p=Number(m.price),t=Number(m.timestamp);if(f&&selectedSymbols.includes(f.symbol)&&Number.isFinite(p)&&Number.isFinite(t)){if(!f.tickAt)console.info("[market-feed] First live price received",f.symbol);applyTick(f,p,t)}return}
