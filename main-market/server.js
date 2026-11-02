@@ -582,7 +582,7 @@ app.use((req, res, next) => {
   if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigins.has(origin) ? 204 : 403);
   next();
 });
-app.use(express.json({ limit: "2kb" }));
+app.use(express.json({ limit: "8kb" }));
 
 function noCache(res) {
   res.setHeader("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
