@@ -289,3 +289,19 @@ At task completion, report:
 - Alert behavior in the rebuilt UI: unique backend alertId for CALL/PUT, 40-second server expiry, 10-second and 3-second pre-close alerts only when backend preAlertSignal is CALL/PUT, with sound/haptics. Browser/Telegram audio permissions and physical vibration still require device verification.
 - Commit/test/deploy details will be added after the Git write and Render checks below.
 - Acceptance status at this checkpoint: single-file implementation prepared; not yet live-verified, browser-console-tested, or device-tested. Market data and signal validity remain dependent on configured Render secrets, Twelve Data subscription/streaming permissions, and the live backend.
+
+
+### Delivery update — single-file MAIN MARKET frontend and EUR/USD backend lock (2026-11-02)
+
+- Frontend commit on `main`: `54c20184350a24d42e8b96f3b49bbf366dbf9c08` — `Rebuild Telegram Mini App as single-file EUR/USD frontend`.
+- Replaced root `index.html` with a self-contained document containing inline CSS and JavaScript. No root external `app.js` or `styles.css` references remain.
+- Deleted root `app.js` and root `styles.css` in the same atomic Git tree commit. Verified root directory listing now contains `index.html`, README and handoff plus directories; deleted assets are absent.
+- Verified the committed HTML contains inline `<style>` and inline `<script>`, and has no `/app.js` or `/styles.css` asset references. Inline JavaScript syntax compilation result: PASS.
+- Telegram Static Site `my-ai-signal-bot-v2` deploy `dep-dbk4eu15efls73eksl9g` completed with Render status `live` for commit `54c20184350a24d42e8b96f3b49bbf366dbf9c08`. Auto deploy was used; no manual deploy trigger was needed.
+- Backend config/test commit on `main-market`: `36699a4029ec35f1d9799951e99ac3cddfbc4acd` — restricts backend symbol allowlist to exactly `EUR/USD`; tests now assert other pairs are rejected.
+- Render backend deploy `dep-dbk4f9vavr4c73cn2cu0` completed with status `live`. Build logs show 19 tests, 19 passed, 0 failed; npm audit found 0 vulnerabilities; service startup log confirms `MAIN MARKET v2 listening on 10000`. Startup logs confirm both Telegram bot token and Twelve Data API key are configured (values are not exposed).
+- Backend still requires 60 closed M1 candles (fetches 80) to support EMA50/MACD/ATR calculations. This was deliberately retained; reducing to five candles would make those requested indicators mathematically unavailable/reliably under-warmed. Fresh Streaming is required before directional CALL/PUT; otherwise STANDBY.
+- The analyzer is currently a transparent deterministic regime/evidence rule engine, not a trained machine-learning model. No model training, historical performance evaluation or adaptive parameter learning is claimed.
+- The Telegram frontend URL and both Render deploy records are verified from Render metadata. Direct HTTP/browser fetch of the public URL could not be completed from the current execution environment (network DNS lookup unavailable), so actual page rendering in Telegram, browser console behavior, audio permission and physical vibration remain unverified until device-side testing.
+- No automatic broker orders, OCR, OTC or 8xTrade functionality was added.
+- Remaining production gates: (1) user opens/closes the Telegram Mini App to force WebView refresh and checks the UI buttons; (2) confirm Telegram auth and Start request in backend logs; (3) verify Twelve Data REST returns 80 EUR/USD bars and live Streaming tick updates; (4) test 10s/3s sounds and vibration on Android; (5) observe countdown, 40-second expiry, invalidation and no duplicate alerts; (6) add persistent historical audit storage and evaluate signals on chronological out-of-sample data before describing the analyzer as validated AI.
