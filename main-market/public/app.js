@@ -279,6 +279,7 @@ async function control(action, extra = {}, keepalive = false) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
+    credentials: "include",
     keepalive,
     body: JSON.stringify({ action, ...extra })
   });
