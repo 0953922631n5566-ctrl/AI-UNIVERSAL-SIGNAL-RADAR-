@@ -1,4 +1,5 @@
-const API_ORIGIN="https://ai-signal-radar-main-market.onrender.com";\nconst $=id=>document.getElementById(id),getTelegram=()=>window.Telegram?.WebApp;try{const app=getTelegram();app?.ready?.();app?.expand?.()}catch(e){console.warn("[radar] Telegram WebApp bootstrap:",e?.message||e)}
+const API_ORIGIN="https://ai-signal-radar-main-market.onrender.com";
+const $=id=>document.getElementById(id),getTelegram=()=>window.Telegram?.WebApp;try{const app=getTelegram();app?.ready?.();app?.expand?.()}catch(e){console.warn("[radar] Telegram WebApp bootstrap:",e?.message||e)}
 window.addEventListener("error",e=>{const el=$("apiMessage");if(el)el.textContent="หน้าแอปเกิดข้อผิดพลาด: "+(e.message||"JavaScript error")});window.addEventListener("unhandledrejection",e=>{const el=$("apiMessage");if(el)el.textContent="คำสั่งในหน้าแอปผิดพลาด: "+(e.reason?.message||String(e.reason||"unknown error"))});
 const SYMBOLS=["AUD/USD","EUR/USD","EUR/GBP","GBP/JPY","EUR/JPY","GBP/USD"];
 let socket=null,monitoring=false,lastApiAlert="",audioContext=null,pollingTimer=null,leaseTimer=null,reconnectTimer=null,socketTimeout=null;
