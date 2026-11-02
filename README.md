@@ -1,20 +1,24 @@
-# AI Universal Signal Radar
+# AI Universal Signal Radar — Main Market
 
-MAIN MARKET only — EUR/USD, M1. Node.js 20+ service with a five-layer deterministic analysis engine and mobile Mini App.
+Single-market signal dashboard for **EUR/USD, 1-minute candles**.
 
-## Run
+## Runtime
+- Node.js 18.x
+- Express 4
+- Twelve Data API key supplied through the Render environment variable `TWELVE_DATA_API_KEY`
+- Start command: `npm start`
 
-1. Set `TWELVE_DATA_API_KEY` in the environment.
-2. Run `npm install` (no external dependencies) and `npm start`.
-3. Open `/`; health endpoint is `/api/health`.
+## Render configuration
+- Build: `npm install`
+- Start: `npm start`
+- Environment: `TWELVE_DATA_API_KEY` (set privately in Render; never commit credentials)
 
-## Environment
+## Signal behavior
+- Outputs CALL, PUT, or STANDBY.
+- Uses EMA(5/20), RSI(14), and a market-regime filter.
+- After a CALL/PUT decision, the next newly observed candle is forced to STANDBY (one-candle cooldown).
+- Stale data is forced to STANDBY.
+- Manual decision support only; no broker orders are placed.
 
-- `TWELVE_DATA_API_KEY` — required, server-side only.
-- `DATA_REFRESH_MS` — default 125000 ms (about 691 REST requests/day while continuously scanning).
-- `MAX_CANDLE_AGE_MS` — default 180000.
-- `MIN_SIGNAL_SCORE` — default 68.
-
-The service only evaluates closed candles. It fails safe to STANDBY on missing keys, stale data, provider errors, or insufficient history. The first five candles are the minimum data-ingest threshold; EMA50/RSI14/MACD/ADX require longer history before a directional signal is eligible. No automatic broker orders are sent.
-
-REST polling at a quota-safe 125 seconds cannot guarantee tick-level 10s/3s pre-close alerts or one decision per minute. The browser countdown and local alerts are clock-based; provider refreshes remain limited by the configured API quota. Signals are held for 40 seconds.
+## Important validation notes
+The supplied strategy uses the latest Twelve Data bar returned by the API; the API response may include a still-forming minute candle. This implementation does not independently confirm candle closure. The one-candle cooldown is applied per newly observed timestamp by this single-process server. Verify live API access and candle timestamps before relying on signals. This is a rule-based indicator engine, not a trained machine-learning model.
