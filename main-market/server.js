@@ -9,21 +9,20 @@ const feeds=new Map(SYMBOLS.map(symbol=>[symbol,{symbol,candles:[],tickAt:0,last
 let selectedSymbols=[...DEFAULT_SYMBOLS],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,monitoring=false,globalLockMessage=null,httpLeaseUntil=0;
 const standby=(reason,extra={})=>({signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra});
 function feedStatus(f){
- if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")return"UNSUPPORTED";
+ if(f.restStatus==="UNSUPPORTED")return"UNSUPPORTED";
  if(globalLockMessage||f.dataLocked)return"LOCKED";
  if(f.restStatus==="ERROR")return"DATA_ERROR";
  if(f.restStatus!=="READY")return"CHECKING";
  const age=f.tickAt?(Date.now()-f.tickAt)/1000:Infinity;
  if(age<=25)return"SUPPORTED";
- if(f.streamStatus==="ERROR")return"STREAM_ERROR";
- if(f.streamStatus==="TIMEOUT")return"STREAM_TIMEOUT";
+ if(f.streamStatus==="UNSUPPORTED"||f.streamStatus==="ERROR"||f.streamStatus==="TIMEOUT")return"REST_ONLY";
  if(f.tickAt)return"STALE";
  return"WAITING_PRICE";
 }
 function publicFeed(f){
  const status=feedStatus(f),age=f.tickAt?(Date.now()-f.tickAt)/1000:null;
  const x=f.analysis||standby(f.restMessage||"รอข้อมูล");
- return{...x,symbol:f.symbol,selected:selectedSymbols.includes(f.symbol),supportStatus:status,restStatus:f.restStatus,streamStatus:f.streamStatus,statusMessage:status==="UNSUPPORTED"?(f.restMessage||f.streamMessage):status==="LOCKED"?(globalLockMessage||f.restMessage):status==="DATA_ERROR"?f.restMessage:status==="STREAM_ERROR"?f.streamMessage:status==="STREAM_TIMEOUT"?f.streamMessage:status==="STALE"?"ราคา Streaming ไม่อัปเดตเกิน 25 วินาที":status==="WAITING_PRICE"?"ข้อมูลย้อนหลังพร้อมแล้ว — รอราคา Streaming สด":status==="CHECKING"?"กำลังตรวจสอบคู่เงินกับ Twelve Data":status==="SUPPORTED"?"รองรับข้อมูลย้อนหลังและ Streaming สด":f.streamMessage,apiStatus:status==="SUPPORTED"?"ONLINE":status==="LOCKED"?"LOCKED":monitoring?"CONNECTING":"OFFLINE",tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:f.lastTick,candleCount:f.candles.length,closedCandleCount:f.candles.filter(c=>!c.live&&c.epoch<Math.floor(Date.now()/60000)*60).length,requiredCandles:MIN_CANDLES,nextCandleAt:f.candles.length?(f.candles.at(-1).epoch+60)*1000:null,signalExpiresAt:f.activeSignal?new Date(f.activeUntil).toISOString():null,alertId:f.lastAlertId,source:"Twelve Data REST history + shared live-price WebSocket"};
+ return{...x,symbol:f.symbol,selected:selectedSymbols.includes(f.symbol),supportStatus:status,restStatus:f.restStatus,streamStatus:f.streamStatus,statusMessage:status==="UNSUPPORTED"?(f.restMessage||f.streamMessage):status==="LOCKED"?(globalLockMessage||f.restMessage):status==="DATA_ERROR"?f.restMessage:status==="STREAM_ERROR"?f.streamMessage:status==="STREAM_TIMEOUT"?f.streamMessage:status==="STALE"?"ราคา Streaming ไม่อัปเดตเกิน 25 วินาที":status==="WAITING_PRICE"?"ข้อมูลย้อนหลังพร้อมแล้ว — รอราคา Streaming สด":status==="CHECKING"?"กำลังตรวจสอบคู่เงินกับ Twelve Data":status==="SUPPORTED"?"รองรับข้อมูลย้อนหลังและ Streaming สด":status==="REST_ONLY"?"REST รองรับ: มีแท่งปิดและคำนวณราคา/RSI/Close ได้ แต่ยังไม่มี Streaming สด":f.streamMessage,apiStatus:(status==="SUPPORTED"||status==="REST_ONLY")?"ONLINE":status==="LOCKED"?"LOCKED":monitoring?"CONNECTING":"OFFLINE",tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:f.lastTick,candleCount:f.candles.length,closedCandleCount:f.candles.filter(c=>!c.live&&c.epoch<Math.floor(Date.now()/60000)*60).length,requiredCandles:MIN_CANDLES,nextCandleAt:f.candles.length?(f.candles.at(-1).epoch+60)*1000:null,signalExpiresAt:f.activeSignal?new Date(f.activeUntil).toISOString():null,alertId:f.lastAlertId,source:"Twelve Data REST history + shared live-price WebSocket"};
 }
 function snapshot(){
  const pairs={};for(const symbol of selectedSymbols)pairs[symbol]=publicFeed(feeds.get(symbol));
@@ -128,15 +127,15 @@ function startStream(){
    const good=Array.isArray(m.success)?m.success:[],bad=Array.isArray(m.fails)?m.fails:Array.isArray(m.failed)?m.failed:[];
    const getSymbol=x=>typeof x==="string"?x:x?.symbol||x?.name||x?.ticker;
    for(const item of good){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="READY";f.streamMessage="Twelve Data ตอบรับการสมัครรับราคา"}}
-   for(const item of bad){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage="Twelve Data ไม่อนุญาต Streaming: "+message;f.analysis=standby("ไม่รองรับ Streaming สำหรับ "+f.symbol+": "+message);console.warn("[market-feed] STREAM UNSUPPORTED",f.symbol,message)}}
+   for(const item of bad){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="UNSUPPORTED";f.streamMessage="Twelve Data ไม่อนุญาต Streaming: "+message;f.analysis=standby("ไม่รองรับ Streaming สำหรับ "+f.symbol+": "+message);console.warn("[market-feed] STREAM UNSUPPORTED",f.symbol,message)}}
    const status=String(m.status||"").toLowerCase();
    if(status==="success"&&!good.length&&!bad.length){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="READY";f.streamMessage="Twelve Data ตอบรับคำขอ Streaming"}}}
-   if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,mentioned=selectedSymbols.filter(s=>message.toUpperCase().includes(s)),targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):mentioned.length?mentioned.map(s=>feeds.get(s)):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
+   if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,mentioned=selectedSymbols.filter(s=>message.toUpperCase().includes(s)),targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):mentioned.length?mentioned.map(s=>feeds.get(s)):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
    publish();return;
   }
-  if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else if(isUnsupportedError(msg)){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=msg;f.analysis=standby("ไม่รองรับ Streaming: "+msg)}}publish()}else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
+  if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else if(isUnsupportedError(msg)){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="UNSUPPORTED";f.streamMessage=msg;f.analysis=standby("ไม่รองรับ Streaming: "+msg)}}publish()}else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
  });
- ws.on("error",e=>{if(upstream!==ws)return;console.error("[market-feed] WebSocket error:",e.message);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=e.message;f.dataLocked=true;f.analysis=standby("เชื่อมต่อ Streaming ไม่สำเร็จ: "+e.message)}}publish()});
+ ws.on("error",e=>{if(upstream!==ws)return;console.error("[market-feed] WebSocket error:",e.message);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=e.message;f.analysis=standby("เชื่อมต่อ Streaming ไม่สำเร็จ: "+e.message)}}publish()});
  ws.on("close",()=>{if(upstream!==ws)return;console.warn("[market-feed] WebSocket CLOSED");upstream=null;clearInterval(heartbeat);heartbeat=null;for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage="Streaming หลุด กำลังเชื่อมต่อใหม่";f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(f.streamMessage)}}publish();if(monitoring)retryTimer=setTimeout(startStream,8000)});
 }
 function stop(){
