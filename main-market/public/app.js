@@ -1,3 +1,4 @@
+const API_ORIGIN = "https://ai-signal-radar-main-market.onrender.com";
 const $ = id => document.getElementById(id);
 const PAIRS = ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"];
 const getTelegram = () => window.Telegram?.WebApp;
@@ -28,11 +29,11 @@ async function authenticateTelegram() {
     return false;
   }
   try {
-    const response = await fetch("/api/auth", {
+    const response = await fetch(API_ORIGIN + "/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
-      credentials: "same-origin",
+      credentials: "include",
       body: JSON.stringify({ initData })
     });
     const result = await response.json().catch(() => ({}));
@@ -274,7 +275,7 @@ function vibrate(kind = "signal", force = false) {
 }
 async function control(action, extra = {}, keepalive = false) {
   if (!authenticated) throw new Error("กรุณายืนยันตัวตนผ่าน Telegram ก่อน");
-  const response = await fetch("/api/control", {
+  const response = await fetch(API_ORIGIN + "/api/control", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
@@ -289,7 +290,7 @@ async function control(action, extra = {}, keepalive = false) {
 async function pollState() {
   if (!authenticated) return;
   try {
-    const response = await fetch("/api/state", { cache: "no-store" });
+    const response = await fetch(API_ORIGIN + "/api/state", { cache: "no-store", credentials: "include" });
     if (!response.ok) throw new Error("HTTP " + response.status);
     const state = await response.json();
     if (!state.monitoring && state.selectedSymbol !== selectedSymbol) {
@@ -326,7 +327,7 @@ function connect() {
   if (socket && socket.readyState <= WebSocket.OPEN) return;
   try {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const current = new WebSocket(protocol + "//" + location.host + "/live");
+    const current = new WebSocket(protocol + "//" + new URL(API_ORIGIN).host + "/live");
     socket = current;
     socketTimeout = setTimeout(() => {
       if (current.readyState === WebSocket.CONNECTING) current.close();
