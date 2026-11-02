@@ -36,3 +36,11 @@ Updated: 2026-11-02
 - Check Render deployment status after commit.
 - Source publication does not prove Telegram authentication, Twelve Data access for each pair, Streaming entitlements, live ticks, Android audio/vibration, or end-to-end signals. These remain unverified until tested in the user's Telegram session.
 - Preserve STANDBY for stale, unsupported, invalid, or insufficient data. Keep OCR/OTC separate from MAIN MARKET.
+
+
+### EUR/USD-only momentum release — 2026-11-02
+- Frontend commit: `51804f33bfbe3ab52540577e7192c185bd8f699e` — root `index.html` now offers EUR/USD only. Frontend CI run `41441747654` passed. Render frontend deploy `dep-dbk7okm417fc73bmaheg` is LIVE.
+- Backend commit: `4034ca1e23acfb81daa3719d99acd0cb130f0c93` — backend symbol allowlist is EUR/USD only and the analyzer now uses 3-bar + 5-bar momentum, 2-of-3 candle direction, EMA trend alignment, MACD direction, widened RSI continuation bands (CALL 50–75, PUT 25–50), and a 1.8 ATR candle-body ceiling. Removed the previous-close EMA21 and MACD-histogram-expansion requirements to make continuation signals less restrictive.
+- Safety remains: high-volatility, ranging, reversal, support/resistance, stale-data, and insufficient-history filters; one signal per closed M1 candle; no duplicate same-candle alerts; contradictory evidence cancels; 40-second hold; sound/vibration pre-alerts at 10s and 3s remain enabled when Streaming is live. REST fallback does not have tick-level timing and therefore cannot guarantee those pre-close alerts.
+- Backend CI run `41441892631` passed all 23 tests, including deterministic CALL and PUT momentum cases. Render backend deploy `dep-dbk7p5dg1s2s738njtl0` build and deploy events both succeeded at 2026-11-02 12:06 UTC.
+- Live Twelve Data EUR/USD Streaming entitlement and actual user-device alert behavior still require an end-to-end session from Telegram. No automatic broker orders are sent.
