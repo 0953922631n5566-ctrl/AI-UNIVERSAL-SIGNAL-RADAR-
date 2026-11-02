@@ -11,7 +11,7 @@ function vibrate(force=false){if(!$("vibration").checked&&!force)return;try{if(t
 function notify(message){if(tg?.showAlert)tg.showAlert(message);else window.alert(message)}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function statusLabel(p){
- const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"ไม่รองรับ",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
+ const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"ไม่รองรับ",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STREAM_TIMEOUT:"ไม่พบราคา Streaming",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
  return labels[p.supportStatus]||p.supportStatus||"กำลังตรวจสอบ";
 }
 function updatePairCards(s){
@@ -56,6 +56,7 @@ function render(s){
  if(s.monitoring&&Array.isArray(s.selectedSymbols))setSelected(s.selectedSymbols);
  updatePairCards(s);
  for(const [symbol,p] of Object.entries(s.pairs||{})){
+  if(s.monitoring&&p.supportStatus==="STREAM_TIMEOUT"){const key=symbol+":timeout:"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ยังยืนยันการรองรับ Streaming ไม่ได้\\n"+(p.statusMessage||"ยังไม่ได้รับราคา Streaming สด"))}}
   if(s.monitoring&&p.supportStatus==="UNSUPPORTED"){
    const key=symbol+":"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ไม่รองรับ\n"+(p.statusMessage||"บัญชี Twelve Data อาจไม่มีสิทธิ์ใช้งานคู่นี้"))}
   }
