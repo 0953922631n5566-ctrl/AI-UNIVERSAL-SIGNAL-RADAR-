@@ -10,6 +10,8 @@ function closePairModal(){const modal=$("pairModal");modal?.classList.remove("op
 function getAudioContext(){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error("เบราว์เซอร์นี้ไม่รองรับ Web Audio");if(!audioContext||audioContext.state==="closed")audioContext=new C();return audioContext}
 async function unlockAudio(){const ctx=getAudioContext();if(ctx.state!=="running")await ctx.resume();if(ctx.state!=="running")throw new Error("ระบบยังไม่อนุญาตให้เล่นเสียง กรุณาเปิดเสียงสื่อของโทรศัพท์");return ctx}
 async function tone(k,force=false){if(!$("sound").checked&&!force)return false;const ctx=await unlockAudio();const notes=k==="signal"?[880,1175]:k==="watch"?[740,988]:[k==="entry"?980:660];for(let i=0;i<notes.length;i++){const o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime+i*.16;o.type="sine";o.frequency.setValueAtTime(notes[i],t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.22,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.24);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.25)}return true}
+function playAlertTone(kind){tone(kind).catch(e=>{const status=$("testStatus");if(status)status.textContent="เสียงแจ้งเตือนไม่พร้อม: "+(e.message||"ตรวจสอบเสียงสื่อของโทรศัพท์")})}
+function playAlertVibration(){if(!$("vibration").checked)return;const result=vibrate();if(!result.ok){const status=$("testStatus");if(status)status.textContent="สั่นแจ้งเตือนไม่ได้: "+result.reason}}
 function vibrate(force=false){if(!$("vibration").checked&&!force)return{ok:false,reason:"ปิดการสั่นไว้"};try{if(typeof tg?.HapticFeedback?.impactOccurred==="function"){tg.HapticFeedback.impactOccurred("heavy");return{ok:true,method:"telegram"}}if(typeof navigator.vibrate==="function"){const accepted=navigator.vibrate([180,90,180]);return accepted?{ok:true,method:"browser"}:{ok:false,reason:"ระบบปฏิเสธคำสั่งสั่น"}}return{ok:false,reason:"อุปกรณ์หรือ Telegram WebView ไม่รองรับการสั่น"}}catch(e){return{ok:false,reason:e.message||"ส่งคำสั่งสั่นไม่สำเร็จ"}}}
 function notify(message){if(tg?.showAlert)tg.showAlert(message);else window.alert(message)}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -46,8 +48,8 @@ function countdown(symbol,next,signal,apiStatus,isMonitoring){
  const old=countdowns.get(symbol),priorSignal=old?.signal||"STANDBY";
  const directional=()=>signal==="CALL"||signal==="PUT";
  const remaining=()=>Math.max(0,(target-Date.now())/1000);
- const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE")return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);tone("watch")};
- const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);tone("entry");vibrate()};
+ const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE")return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);playAlertTone("watch")};
+ const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);playAlertTone("entry");playAlertVibration()};
  const show=left=>{const el=$("countdown-"+symbol.replace("/","-"));if(el)el.textContent="แท่งถัดไป "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0")};
  if(old&&old.target===target&&old.timer){
   const current=remaining(),becameDirectional=(priorSignal!=="CALL"&&priorSignal!=="PUT")&&directional();show(Math.ceil(current));
@@ -72,7 +74,7 @@ function render(s){
    const key=symbol+":"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ไม่รองรับ\n"+(p.statusMessage||"บัญชี Twelve Data อาจไม่มีสิทธิ์ใช้งานคู่นี้"))}
   }
   if(s.monitoring&&p.apiStatus==="ONLINE"&&(p.signal==="CALL"||p.signal==="PUT")&&p.alertId){
-   const key=symbol+":"+p.alertId;if(lastSignalAlerts.get(symbol)!==key){lastSignalAlerts.set(symbol,key);tone("signal");vibrate()}
+   const key=symbol+":"+p.alertId;if(lastSignalAlerts.get(symbol)!==key){lastSignalAlerts.set(symbol,key);playAlertTone("signal");playAlertVibration()}
   }
   countdown(symbol,p.nextCandleAt,p.signal,p.apiStatus,!!s.monitoring);
  }
