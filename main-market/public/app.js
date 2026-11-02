@@ -253,7 +253,12 @@ async function pollState() {
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
-    render(await response.json());
+    const state = await response.json();
+    if (!state.monitoring && state.selectedSymbol !== selectedSymbol) {
+      await control("select", { symbol: selectedSymbol });
+      return;
+    }
+    render(state);
   } catch (error) {
     setConnection("OFFLINE", "ติดต่อเซิร์ฟเวอร์ไม่ได้: " + (error.message || "ตรวจสอบอินเทอร์เน็ต"));
   }
@@ -351,11 +356,9 @@ function selectPair(value) {
   $("rsiValue").textContent = "—";
   $("emaValue").textContent = "—";
   $("evidenceList").innerHTML = "";
-  if (monitoring) {
-    control("select", { symbol: value }).catch(error => {
-      $("apiMessage").textContent = "เปลี่ยนคู่เงินไม่สำเร็จ: " + error.message;
-    });
-  }
+  control("select", { symbol: value }).catch(error => {
+    $("apiMessage").textContent = "เปลี่ยนคู่เงินไม่สำเร็จ: " + error.message;
+  });
 }
 function initialize() {
   try { getTelegram()?.ready?.(); getTelegram()?.expand?.(); } catch {}
