@@ -157,7 +157,7 @@ wss.on("connection",ws=>{
    selectedSymbols=[chosen];
    monitoring=true;globalLockMessage=null;startRest();
    for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
-   publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
+   publish();syncSelected({force:true}).catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
   }
   if(m.action==="select"){
    const chosen=SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol));if(!chosen)return;
@@ -167,10 +167,10 @@ wss.on("connection",ws=>{
    const f=feeds.get(chosen);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;
    if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";
    if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเปลี่ยนไปสแกน "+chosen);
-   publish();if(monitoring){startRest();syncSelected().catch(e=>console.error("[market-feed] selected-pair switch failed",e.message))}
+   publish();if(monitoring){startRest();syncSelected({force:true}).catch(e=>console.error("[market-feed] selected-pair switch failed",e.message))}
   }
   if(m.action==="stop")stop();
  });
  ws.on("close",()=>{if(![...wss.clients].some(c=>c.readyState===WebSocket.OPEN))stop()});
 });
-server.listen(PORT,()=>console.log("MAIN MARKET multi-pair Radar listening on "+PORT));
+server.listen(PORT,()=>console.log("MAIN MARKET single-pair Radar listening on "+PORT));
