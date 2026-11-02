@@ -56,14 +56,13 @@ function makeCandles(count = 220, {
   });
 }
 
-test("the selector exposes exactly six pairs and scans one default pair", () => {
-  assert.deepEqual(SYMBOLS, [
-    "AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"
-  ]);
+test("the Main Market backend exposes EUR/USD only", () => {
+  assert.deepEqual(SYMBOLS, ["EUR/USD"]);
   assert.equal(DEFAULT_SYMBOL, "EUR/USD");
   assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");
+  assert.equal(resolveSymbol("AUD/USD"), null);
   assert.equal(resolveSymbol("BTC/USD"), null);
-  assert.equal(new Set(SYMBOLS).size, 6);
+  assert.equal(new Set(SYMBOLS).size, 1);
   assert.equal(MIN_CLOSED_CANDLES, 60);
   assert.equal(HISTORY_CANDLES, 80);
   assert.equal(REST_SYNC_SECONDS, 300);
