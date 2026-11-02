@@ -706,3 +706,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - EUR/JPY appears in earlier multi-pair production logs with Streaming reported unsupported; a fresh single-pair REST result for EUR/JPY was not established in the latest log window.
 - This confirms why v2 separates REST-only from Streaming: a pair may display REST-derived Price/Close/RSI while remaining STANDBY for direction until a fresh live tick is available. Do not infer live signal capability from successful REST history or selector presence.
 - This is legacy-service evidence only; repeat the per-pair check against the v2 candidate after it is deployed with the private secrets configured.
+
+
+### User confirmation — existing Render Telegram bot token — 2026-11-02
+
+- User confirmed in chat that the Main Market Render service already has a Telegram bot token configured.
+- The v2 server reads `TELEGRAM_BOT_TOKEN` first and falls back to the legacy `BOT_TOKEN` variable. Therefore either existing variable name is supported by the candidate code; no new token needs to be sent in chat.
+- The assistant cannot inspect secret environment-variable names/values through the available Render service metadata. Record this as user-confirmed presence, not independently verified environment configuration. Do not expose or request the secret.
+- Deployment check still required: confirm the Telegram Mini App URL opens the Main Market service origin (`https://ai-signal-radar-main-market.onrender.com`) because this candidate uses same-origin relative `/api/auth`, `/api/state`, `/api/control`, and `/live` paths with an HttpOnly session cookie. A separate static-site origin would need a deliberate credentialed CORS/API/WebSocket design; do not assume the old cross-origin static copy works with this session implementation.
+- No production deployment or PR merge is authorized by this confirmation alone. Keep PR #9 Draft until same-origin Mini App routing, actual provider access for each pair, and Xiaomi/Telegram device checks are complete.
