@@ -543,3 +543,13 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Pending verification: GitHub Actions test run and Render auto-deploy for the latest code; actual audible output and physical vibration must still be confirmed on the user's Android device inside Telegram. Browser/Telegram APIs can report that a request was sent but cannot prove the phone physically vibrated or that media volume is audible.
 - Important outstanding blocker from prior audit: `POST /api/control` and `GET /api/state` do not yet have Telegram `initData` authentication. No BOT_TOKEN availability was verified because Render does not expose secret values through the available service inspection. Do not expose or hardcode tokens; secure the endpoints before calling the service production-ready.
 - Market-feed limitation remains: directional output requires a fresh Twelve Data streaming tick; REST resync alone cannot guarantee precise 10s/3s timing. Six pairs are selectable one at a time, but each pair's Twelve Data entitlement must be verified individually.
+
+
+### Verification result — Main Market feedback fix (2026-11-02)
+
+- Regression test source correction: `1c0aefdf3310c27cd5a4f5dcab79440a34335f85` (the initial test commit had an escaped newline; corrected before successful build).
+- GitHub Actions run `41389059005` completed successfully for commit `1c0aefdf3310c27cd5a4f5dcab79440a34335f85`; install and all 17 tests passed, 0 failed.
+- Render deploy `dep-dbk14q7avr4c73cjp4mg` for the same commit reached status `live`; Render build logs show 17 tests passed / 0 failed and Build successful.
+- Public `/health` endpoint could not be fetched from the assistant's web runtime; Render deployment state is verified, but HTTP response content and actual Telegram WebView/device behavior are not independently verified.
+- Next device check: open the Main Market Mini App, enable both sound and vibration, tap Start once to unlock audio, then use the in-app Test Sound and Test Vibration controls. Confirm the 10-second warning and 3-second entry alert only occur on CALL/PUT; STANDBY must remain silent. Check phone media volume and Telegram's haptics setting if the test controls report sent but no physical feedback is perceived.
+- Do not consider security closed: Telegram `initData` validation for `/api/control` and `/api/state` is still outstanding. Also, actual live Twelve Data tick reception and supported status per selected pair still require a real client session.
