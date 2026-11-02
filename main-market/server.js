@@ -153,8 +153,8 @@ wss.on("connection",ws=>{
  ws.on("message",raw=>{let m;try{m=JSON.parse(raw.toString())}catch{return}
   if(m.action==="start"){
    const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);
-   selectedSymbols=SYMBOLS.filter(s=>requested.includes(normalizeSymbol(s)));
-   if(!selectedSymbols.length)selectedSymbols=[...DEFAULT_SYMBOLS];
+   const chosen=SYMBOLS.find(s=>requested.includes(normalizeSymbol(s)))||DEFAULT_SYMBOLS[0];
+   selectedSymbols=[chosen];
    monitoring=true;globalLockMessage=null;startRest();
    for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
    publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
