@@ -113,7 +113,7 @@ function startStream(){
   if(!monitoring)return;
   for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")continue;
    if(f.tickAt&&Date.now()-f.tickAt>25000){f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby("ราคา Streaming ของ "+symbol+" หยุดอัปเดตเกิน 25 วินาที");}
-   else if(!f.tickAt&&f.streamStatus==="SUBSCRIBING"&&f.subscribeAt&&Date.now()-f.subscribeAt>25000){f.streamStatus="TIMEOUT";f.streamMessage="ไม่พบราคา Streaming ภายใน 25 วินาที — ยังยืนยันไม่ได้ว่าคู่นี้รองรับหรือไม่";f.analysis=standby(f.streamMessage)}
+   else if(!f.tickAt&&(f.streamStatus==="SUBSCRIBING"||f.streamStatus==="READY")&&f.subscribeAt&&Date.now()-f.subscribeAt>25000){f.streamStatus="TIMEOUT";f.streamMessage="ไม่พบราคา Streaming ภายใน 25 วินาที — ยังยืนยันไม่ได้ว่าคู่นี้รองรับหรือไม่";f.analysis=standby(f.streamMessage)}
   }publish();
  },5000);
  let ws;
