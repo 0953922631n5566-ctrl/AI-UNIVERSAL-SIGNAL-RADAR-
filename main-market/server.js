@@ -359,6 +359,9 @@ function startWatchdog() {
       feed.streamStatus = "TIMEOUT";
       feed.streamMessage = "ยังไม่ได้รับราคา Streaming ภายใน 25 วินาที";
       evaluate(feed);
+    } else if (["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus)) {
+      // REST fallback has no tick events; keep the 40-second signal hold and expiry accurate.
+      evaluate(feed);
     }
     publish();
   }, 5000);
