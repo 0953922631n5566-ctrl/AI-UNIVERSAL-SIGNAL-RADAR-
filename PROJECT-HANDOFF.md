@@ -820,3 +820,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Physical vibration depends on Telegram/device haptics settings and Android WebView support; CI verifies code paths, not physical device response.
 - Actual Twelve Data REST/Streaming responses for all six pairs have not yet been captured on v2. REST success alone does not authorize CALL/PUT.
 - No backtest, paper-trading, or out-of-sample predictive edge has been established. Manual trading only; no broker orders.
+
+
+### Indicator-history refinement after release — 2026-11-02
+- Follow-up inspection found that the 80-bar REST response was fetched but the analyzer only retained the minimum 60 bars for calculation.
+- Corrected `main-market/src/analyzer.js` to require 60 closed bars but retain up to `HISTORY_CANDLES=80` for EMA/MACD/ATR and range context. This preserves the shorter warmup while using the full requested history for better indicator initialization.
+- Added a regression test proving both 60-bar minimum readiness and 80-bar context use.
+- Commits: `3e035c3aece718e367dd6d1270fc155f50fd9f2c` (analyzer); `3a5b305145acc1da2748ff8799fd938541dc0060` and `6fcdae49880e1a2ab6c53001b8a70af14688c8af` (tests).
+- This is a post-release refinement; latest CI and Render redeploy are pending. Existing Render API and Static Site remain live on the previously verified v2 version until the new deployment completes.
