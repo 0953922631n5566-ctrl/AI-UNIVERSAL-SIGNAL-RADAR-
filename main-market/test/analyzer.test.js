@@ -245,8 +245,7 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     const authenticatedState = await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { cookie } });
     assert.equal(authenticatedState.status, 200);
     const start = await fetch(`http://127.0.0.1:${port}/api/control`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      headers: { "content-type": "application/json", cookie },
+      method: "POST", headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
     });
     assert.equal(start.status, 200);
