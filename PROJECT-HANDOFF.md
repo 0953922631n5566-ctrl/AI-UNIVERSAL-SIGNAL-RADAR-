@@ -273,3 +273,19 @@ At task completion, report:
 - Static asset query version bumped to `20261102-v5` to force Telegram WebView to fetch the corrected client script. Backend validates Bearer tokens and retains the secure cookie fallback.
 - Backend changes on `main-market`: commit `46ef384e081637e7b7dfc882bf6232a524587452` plus regex correction `0b7436e1fb6962b65d3dac3bec16b4cecfd66028`. Root client commit `8a59f45f9f378aa89e9af53c39886c856d7255c2`.
 - User device verification is still pending: confirm Start becomes enabled and tapping it triggers a `[radar] start requested` backend log.
+
+
+## 2026-11-02 — Single-file Telegram Mini App rebuild (MAIN MARKET)
+
+- User explicitly authorized rebuilding the Telegram Mini App UI to the new MAIN MARKET specification rather than treating the prior UI as the design baseline.
+- Verified repository: `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`, default branch `main`, latest parent commit `82b834aa5f52947721c195082833209b94b0ff84`; GitHub access has admin/push permissions.
+- Read this handoff and inspected the live root frontend source plus the Main Market backend branch before editing.
+- Confirmed Telegram Mini App production target: Render Static Site `my-ai-signal-bot-v2`, branch `main`, root directory, publish path `.`, auto-deploy enabled, URL `https://my-ai-signal-bot-v2.onrender.com`. Also found a second root Static Site `https://ai-universal-signal-radar.onrender.com` on the same branch.
+- Root frontend previously referenced `/app.js` and `/styles.css`; this was the exact split-file layout identified by the user. Existing frontend also exposed six currency pairs although the new spec says EUR/USD only.
+- Rebuilt root `index.html` as a self-contained HTML document with inline CSS and JavaScript. The only external script is Telegram's official WebApp SDK. UI is fixed to EUR/USD, M1, MAIN MARKET / NON-OTC, with live API/stream state, regime, CALL/PUT/STANDBY, reasons/evidence, price/indicator metrics, candle/signal countdowns, Start/Stop, sound/vibration toggles and test controls. It uses the existing authenticated backend endpoints and Bearer session token; no secrets are embedded.
+- Removed root `app.js` and `styles.css` from the root Git tree in the same commit. The separate backend-served copies under `main-market/public/` are intentionally untouched in this change because the Node backend currently serves those paths and its tests assert their presence; this change targets the Telegram root Static Site only.
+- No OCR, OTC or 8xTrade code was introduced.
+- Backend source review: Main Market currently uses Twelve Data REST plus live-price WebSocket; it requires 60 closed M1 candles and fetches up to 80, validates OHLC/order/recent continuity/freshness, and forces STANDBY when live streaming is not fresh. Its analyzer is a transparent rule-based situation/regime/evidence engine, not a trained AI model. Server config still lists six supported symbols; this frontend hard-locks EUR/USD, but backend-level restriction to EUR/USD remains a follow-up requirement.
+- Alert behavior in the rebuilt UI: unique backend alertId for CALL/PUT, 40-second server expiry, 10-second and 3-second pre-close alerts only when backend preAlertSignal is CALL/PUT, with sound/haptics. Browser/Telegram audio permissions and physical vibration still require device verification.
+- Commit/test/deploy details will be added after the Git write and Render checks below.
+- Acceptance status at this checkpoint: single-file implementation prepared; not yet live-verified, browser-console-tested, or device-tested. Market data and signal validity remain dependent on configured Render secrets, Twelve Data subscription/streaming permissions, and the live backend.
