@@ -253,3 +253,16 @@ At task completion, report:
 - Backend backend/app.py implements bearer-token auth, metadata/image size/type/freshness checks, session endpoints and duplicate/out-of-order sequence rejection. It deliberately returns STANDBY with VISION_ADAPTER_NOT_CONFIGURED; no perception/decision model adapter or model evaluation exists. RADAR_INGEST_TOKEN is required server-side and is not set in source. Render workspace currently has only the Main Market Node web service and the static site; no deployed FastAPI/frame-ingest service was found.
 - Status separation: Android source implemented partially; debug APK built and artifact/hash verified; web UI deployed; frame-ingest backend not deployed; Xiaomi 11T not device-tested in this run; screen-to-backend end-to-end and chart perception not validated. Keep all directional output suppressed and STANDBY until a real, evaluated model is configured.
 - Next priority: implement the missing Android frame acquisition/JPEG/HTTPS pipeline and response handling without embedding secrets in the public APK; then deploy the FastAPI backend using a server-side secret, add a real vision adapter and evaluation tests, and only then run end-to-end plus Xiaomi 11T validation. No paid resources were created or enabled.
+
+
+## 2026-11-02 — Telegram frontend deployment target alignment
+
+- Important deployment-path correction: BotFather Mini App is configured to use the legacy Static Site URL `https://my-ai-signal-bot-v2.onrender.com`, which serves the repository root on branch `main`. Updating only `main-market/public/*` would update the backend-hosted frontend but would not change the page the user's Telegram Mini App actually loads.
+- Copied the rebuilt v4 frontend to the root files served by the Telegram Static Site:
+  - `index.html` commit `66ccf22b5b6c621f75e90b3419d7e00c35d3779d`
+  - `styles.css` commit `1ebc1a052fc5a1026ee7ff323b88599f847c08fe`
+  - `app.js` commit `11f1928e252347d95d95a962ea93425184769482`
+- These root assets call the existing Main Market backend at `https://ai-signal-radar-main-market.onrender.com`. No BotFather URL change is needed.
+- OCR/Android project source remains untouched; only the root Telegram Mini App assets were replaced.
+- Backend v4 tests: Render recorded 19/19 tests passing, 0 failing, and successful Node syntax checks; backend code deploy commit `4f1e557be7d997ad1938c7a84e435b40e1d79296` reached LIVE.
+- Pending: Render Static Site deploy for branch `main` must reach LIVE; then the user must fully close and reopen Telegram Mini App. Runtime market data and device alerts are not yet device-verified.
