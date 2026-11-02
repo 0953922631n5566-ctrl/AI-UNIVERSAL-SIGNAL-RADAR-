@@ -93,7 +93,10 @@ function publicFeed(feed) {
     closedCandleCount: feed.candles.filter(c => !c.live).length,
     requiredCandles: 200,
     nextCandleAt: feed.candles.length
-      ? (feed.candles.at(-1).epoch + 60) * 1000 : null,
+      ? (feed.candles.at(-1).live
+        ? feed.candles.at(-1).epoch + 60
+        : Math.max(feed.candles.at(-1).epoch + 60, Math.floor(Date.now() / 60000) * 60 + 60)) * 1000
+      : null,
     signalExpiresAt: feed.activeSignal
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
