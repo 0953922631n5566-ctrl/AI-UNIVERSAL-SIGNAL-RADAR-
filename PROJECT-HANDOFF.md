@@ -451,3 +451,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Preserved: prior approved mobile layout, compact single-pair selector, EUR/USD default, market calculations, 200 closed-candle warmup, freshness/API locks, signal hold, alert timing/sound/vibration, and manual-only/no-auto-orders behavior.
 - Excluded prototype-only simulation/autocycling, fake CALL/PUT test states, OTC default, unsupported crypto options, and broker order buttons.
 - Not yet verified: actual Telegram WebView rendering on Xiaomi 11T, device sound/vibration, and live market feed behavior after refresh. Render LIVE/build success does not establish those device checks.
+
+
+## 2026-11-02 — Full Kawasaki neon Main Market layout (user-approved visual reference)
+
+- User clarified that the supplied HTML is the exact visual direction desired for the Telegram Mini App, not merely a request to add a reasoning box. Rebuilt the Main Market UI shell to match the reference: near-black/green Kawasaki neon palette, Universal Radar header and connection pill, selected-pair + M1 bar, large pulsing CALL/PUT/neutral STANDBY lamp, Market Regime badge, AI REASONING panel, neon pair-selection modal, start/stop controls, sound/vibration preferences and compact footer.
+- Pair selector is now a modal rather than the previous inline details dropdown. It retains only the six existing Main Market supported NON-OTC pairs (AUD/USD, EUR/USD, EUR/GBP, GBP/JPY, EUR/JPY, GBP/USD), defaults to EUR/USD, and continues scanning one selected pair at a time.
+- Live data and analyzer outputs remain authoritative: signal, regime, reason, price, RSI, feed status and candle countdown are populated from the existing Twelve Data/Main Market WebSocket state. No demo cycling or fabricated scenarios.
+- Deliberately excluded from the supplied prototype: OTC default, BTC/USD and ETH/USD (not configured in this Main Market service), CALL/PUT manual broker-order buttons, Telegram sendData order payloads, force-standby order button and fake test-signal controls. The app remains manual-only and does not place broker orders.
+- Preserved analyzer formulas, 200 closed-candle warmup, feed freshness locks, 40-second signal hold, 10-second pre-alert, 3-second entry alert, sound/vibration behavior, Twelve Data API handling and backend pair switching.
+- PR #5 merged into `main-market`; squash commit: `1b71d38920fc58994ca5fe2d31f585035d5f701f`.
+- GitHub Actions Main Market Checks run #70 succeeded. Render build succeeded; Render deployment `dep-dbk0i8h5efls73eh559g` reached `live` and deploy-ended event reported `succeeded` at 2026-11-02T03:53:43Z. Runtime logs confirm `MAIN MARKET single-pair Radar listening on 10000` and `Your service is live`.
+- Primary URL: https://ai-signal-radar-main-market.onrender.com. Ask the user to fully close/reopen Telegram Mini App to refresh. Visual layout and pair-modal interaction on the user's Xiaomi 11T Telegram WebView, plus actual sound/vibration, still require device acceptance testing; do not claim those are verified.
