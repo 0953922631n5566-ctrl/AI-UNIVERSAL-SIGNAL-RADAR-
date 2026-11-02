@@ -611,3 +611,48 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Files changed in this checkpoint: `PROJECT-HANDOFF.md` only.
 - Validation status: source inspection confirms the six-pair configuration and single-pair enforcement; no new automated test/build/deploy was triggered by this documentation-only update. Existing tests in source cover the selection contract, but this checkpoint does not claim a fresh test run, Render deployment, external HTTP check, or Xiaomi/Telegram device test.
 - Next PM steps: run the branch's full `npm test` and syntax-check/build pipeline; inspect current Render deployment state; confirm live REST/Streaming entitlement one pair at a time (especially EUR/USD baseline, then the other five); verify pair switching, signal invalidation, countdown/alerts, and actual device behavior. Record each pair as REST-supported / Streaming-supported / REST-only / unsupported / not yet verified; never infer support from selector presence.
+
+
+---
+
+## 2026-11-02 — User-authorized MAIN MARKET v2 rewrite (candidate checkpoint)
+
+The user explicitly authorized a complete rewrite: “ผมอนุญาตให้คุณเขียนครับใหม่ทั้งหมด”. Scope was confirmed as MAIN MARKET only. The existing Android/OCR project on `main` must remain untouched.
+
+### Isolation and source control
+- Created isolated branch: `rewrite/main-market-v2`, based on `main-market`.
+- Opened draft PR #9 to `main-market`: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/9
+- Latest candidate commit: `15dabf2f35a745b8464312411c5ac473d6fa75dc`.
+- Production branch `main-market` has not been merged or modified by this rewrite. Android/OCR branch `main` was not changed.
+- Candidate changed 10 files: `main-market/REWRITE-PLAN.md`, `main-market/src/config.js`, `main-market/src/analyzer.js`, `main-market/src/twelve-data.js`, `main-market/server.js`, `main-market/public/index.html`, `main-market/public/styles.css`, `main-market/public/app.js`, `main-market/test/analyzer.test.js`, and `.github/workflows/main-market-v2.yml`.
+
+### Implemented on the isolated candidate
+- Replaced runtime configuration with the six confirmed Non-OTC pairs, one selected pair at a time, EUR/USD default, M1, 200 closed-candle warmup, 220-bar REST request, 300-second REST refresh, 25-second live tick freshness limit and 40-second signal hold.
+- Rebuilt Twelve Data REST parsing: pair allowlist, request timeout, provider error classification, OHLC validation, UTC timestamp parsing, duplicate timestamp removal, chronological sorting and exclusion of the current unclosed candle.
+- Rebuilt the evidence/decision engine: EMA 9/21/50, RSI14, MACD, ATR, volatility, recent momentum, candle structure and support/resistance; recognizes trending, ranging, high-volatility, reversal and unclear regimes.
+- Analyzer rejects malformed OHLC, duplicate/reversed timestamps, stale history and gaps among the latest five M1 bars. Older historical market-closure gaps are tolerated. REST history can show indicators, but CALL/PUT requires a fresh Streaming tick. The engine is transparent rule-based logic, not a trained ML model; no predictive edge or win rate is claimed.
+- Rebuilt Node service around one server-enforced selected pair, separate REST/Streaming state, HTTP/WebSocket transport, client lease, fail-closed handling, signal hold, invalidation and per-candle deduplication.
+- Rebuilt mobile Mini App layout and pair selector, live signal lamp, market regime/evidence, price/Close/RSI/EMA display, candle countdown, start/stop, sound/vibration and 10s/3s directional-only alerts.
+- Added a fresh regression suite and a v2-specific workflow.
+
+### Automated verification
+- GitHub Actions Main Market Checks run `41395675719`: **success**.
+- GitHub Actions Main Market v2 Rewrite Checks run `41395675750`: **success**.
+- Logs for run `41395675719` show `npm install` succeeded and `npm test` completed with **13 tests passed, 0 failed**. The v2 workflow's syntax-check step also completed successfully for server, config, analyzer, Twelve Data client and browser client.
+- The HTTP smoke test starts the Express service and verifies root HTML, health, start, heartbeat and stop control paths.
+- These checks apply to the candidate commit `15dabf2f35a745b8464312411c5ac473d6fa75dc`.
+
+### Not yet done / release blockers
+- PR #9 is still a draft and has not been merged. Render remains connected to `main-market`; the candidate has **not** been deployed. No production service was changed by this rewrite.
+- The assistant runtime cannot reach GitHub over direct network from its local container; verification was performed through GitHub Actions. No local clone/build was claimed.
+- Live Twelve Data REST and Streaming entitlement for each of the six pairs has not been retested against the user's actual key. Provider WebSocket subscribe responses and live ticks remain unverified on this candidate.
+- Public control/state endpoints still need Telegram `initData` authentication (or another approved authenticated session design) before production promotion. Rate limiting and CORS are not authentication. Do not claim production security.
+- Physical sound and vibration on Telegram WebView / Xiaomi 11T remain unverified.
+- No historical backtest, paper-trading, latency, false-positive or out-of-sample predictive validation has been run. Do not label the system Production-Ready.
+- No secrets or API keys were added to the repository or client code. No paid resources were created.
+
+### Next PM actions
+1. Review candidate server/client lifecycle and close the Telegram authentication/security gap before promotion.
+2. Add provider WebSocket protocol fixtures/integration tests and verify REST/Streaming separately for each pair with the user's live account.
+3. Verify latest PR checks remain green after any further edits, then request promotion only after security review.
+4. After an approved merge, inspect Render deployment and verify health/runtime logs. Finally test Telegram WebView and physical alerts on Xiaomi 11T.
