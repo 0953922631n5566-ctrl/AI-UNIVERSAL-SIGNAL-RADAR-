@@ -21,8 +21,10 @@ Updated: 2026-11-02
 ## REST / Streaming limitation — important
 - Backend currently fetches historical M1 candles through Twelve Data REST and separately attempts price Streaming.
 - Backend marks a pair REST_ONLY if Streaming is unavailable. In this mode it analyzes only closed M1 candles fetched through Twelve Data REST, provided the latest candle is no older than 180 seconds.
-- REST fallback refresh cadence is 180 seconds (maximum 480 REST refreshes/day for one continuously monitored selected pair). A fresh REST fallback may produce CALL/PUT using the same evidence engine; stale/invalid/insufficient REST data remains STANDBY. The UI identifies this as REST FALLBACK.
-- Streaming remains preferred when a fresh tick is available. No API key is exposed in the browser. REST-only signal behavior is covered by a new analyzer test and must be confirmed by CI and Render deployment.
+- REST fallback refresh cadence is 180 seconds (maximum 480 REST refreshes/day for one continuously monitored selected pair). A fresh REST fallback may produce CALL/PUT using the same evidence engine; stale/invalid/insufficient REST data remains STANDBY. Streaming remains preferred when a fresh tick is available.
+- REST fallback does not provide tick-by-tick updates or reliable 10s/3s pre-candle alerts. The UI suppresses 10s/3s pre-alerts in REST_FALLBACK mode and still alerts when a new qualifying REST-based signal is created. The 40-second signal hold is expired by the backend watchdog.
+- Backend REST fallback commit: e712afe7288ba1cf995ac36ae6bbfb1eb35aefb3. GitHub Actions run 41438059744 passed; Render backend deploy dep-dbk7b3bncjis73eb01f0 is LIVE. This verifies build/tests and publication, not live provider entitlement for each of the six pairs or a device-level trade-signal session.
+- No API key is exposed in the browser. Keep all provider credentials in Render Environment.
 
 ## Render configuration
 - Frontend service: srv-dbk35e8ae00c73fmpi30, workspace tea-db8qa8nf3r2c73f1htk0, auto deploy on main commits.
