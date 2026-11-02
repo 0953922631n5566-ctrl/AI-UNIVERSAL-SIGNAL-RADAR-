@@ -36,7 +36,7 @@ function publish(){
  for(const c of wss.clients)if(c.readyState===WebSocket.OPEN)c.send(msg);
 }
 function isGlobalApiError(message){return/\b(401|429)\b|quota|credit limit|rate.?limit|unauthori[sz]ed|invalid api.?key|apikey is invalid/i.test(String(message||""))}
-function isUnsupportedError(message){return/\\b403\\b|forbidden|unsupported|not supported|invalid symbol|symbol (?:is )?not found|not found|not available|permission|plan|subscription|access denied|does not have access/i.test(String(message||""))}
+function isUnsupportedError(message){return/\b403\b|forbidden|unsupported|not supported|invalid symbol|symbol (?:is )?not found|not found|not available|permission|plan|subscription|access denied|does not have access/i.test(String(message||""))}
 function markLocked(message){
  globalLockMessage=String(message||"Twelve Data API ไม่พร้อม");
  for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(globalLockMessage)}
