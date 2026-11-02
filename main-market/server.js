@@ -710,6 +710,8 @@ wss.on("connection", socket => {
 
 server.listen(PORT, () => {
   console.log(`MAIN MARKET v2 listening on ${PORT}`);
+  console.info("[radar] token-related environment variable names",
+    Object.keys(process.env).filter(key => /(TELEGRAM|BOT|TOKEN)/i.test(key)).sort());
   console.info("[radar] startup configuration", {
     telegramBotTokenConfigured: Boolean(BOT_TOKEN),
     twelveDataApiKeyConfigured: Boolean(API_KEY),
