@@ -752,3 +752,29 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - v2 workflow now checks the explicit API origin, WebSocket target, exact static origin allowlist, credentialed CORS header, and at least three credentialed fetches.
 - GitHub Actions for app-code commit `548f60161d54cae426869b55399e13c737bd8d6b`: Main Market Checks run `41398658621` and Main Market v2 Rewrite Checks run `41398658722` both completed successfully. The later workflow-only assertion update `a04be1752557a8a1fff00613bdbc40973dd40a02` has not yet been independently confirmed by a returned Actions run; do not claim that additional grep assertion itself passed until its run is visible.
 - PR #9 remains Draft and unmerged. No Render deployment has been made for the candidate. Runtime cookie/CORS/WebSocket behavior in Telegram WebView is still unverified.
+
+
+## 2026-11-02 — 60-candle warmup and stronger vibration correction
+
+- User reported that the Mini App played sound but vibration was absent, and asked to reduce the REST warmup from 200+ bars if needed so the app can be run.
+- Changed candidate configuration on `rewrite/main-market-v2`:
+  - Minimum closed M1 candles: **60** (previously 200).
+  - Twelve Data REST request: **80** bars (previously 220).
+  - Internal candle buffer: **100** bars (previously 260).
+  - REST refresh remains 300 seconds (about 288 requests/day for one selected pair if continuously active), and only one selected pair is requested at a time.
+- 60 bars are sufficient for the configured EMA50, RSI14, MACD(12,26,9), ATR14/20 and recent 20-bar range calculations. The analyzer still rejects malformed OHLC, duplicate/out-of-order timestamps, stale data and gaps among the most recent five M1 bars.
+- Server state now reports the configured minimum (60) instead of a hard-coded 200. REST history can display indicators, but CALL/PUT still requires an actual fresh Streaming tick no older than 25 seconds; REST-only pairs remain STANDBY.
+- Strengthened haptic alert handling: directional signals use Telegram `HapticFeedback.impactOccurred("heavy")` plus `notificationOccurred("success")`; 10-second/3-second preparation alerts use medium/heavy impact plus warning notification. Android browser vibration remains the fallback when Telegram HapticFeedback is unavailable. The existing vibration toggle and test button remain enabled by default.
+- Added WebSocket Origin allowlist enforcement matching the credentialed CORS origins. The approved static Mini App origin and same-origin API are accepted; foreign browser origins are rejected with HTTP 403 before session handling.
+- Added regression tests for 60-bar indicator readiness, 59-bar STANDBY, the 80-bar REST cap, vibration methods, approved Mini App WebSocket origin and rejected foreign origin.
+- Updated v2 CI assertions to enforce the 60/80 settings, both haptic methods and WebSocket origin guard.
+- Code commits in this change set:
+  - `60412859804ea1617bf3b86e3e541ea5d44807e` — 60/80/100 candle configuration.
+  - `d7108f5f1cc0126bc21dd1a00b63984cf4507684` — candle threshold and indicator tests.
+  - `5ae340798baaa4adbd1df150d7509e6756ed4206` — stronger vibration/haptic handling.
+  - `e366329330c99a9a9bbb1d684e0e9013eec58084` and `1a0da85aa378e5cb1ade495dfcabb66d5c320e03` — WebSocket origin restriction and correct HTTP rejection framing.
+  - `fd5ba92d42746f558753d2614e48c689dca7d6cf` — origin and haptic regression coverage.
+  - `d13d5fd5742defafd23ad76b74c31f32bf2ebbc2` — expose actual 60-bar requirement in server state.
+  - `9d805c2f6b66aa1a8ab7d5403e8966c56cc0bffc` — CI assertions.
+- Validation still pending at this handoff update: latest GitHub Actions run for the combined code changes; controlled Render deployment; real Twelve Data REST/Streaming checks on the configured account; Telegram WebView cookie/session behavior and physical vibration on a handset. Do not claim these are live-tested until evidence is collected.
+- Production protection: no PR merge, Render branch change, or production deployment was performed in this change set. Existing `main-market` and Android/OCR `main` remain untouched.
