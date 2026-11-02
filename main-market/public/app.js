@@ -200,7 +200,7 @@ function updateTimers() {
 function checkPreAlerts(target, remaining) {
   if (!monitoring || !latestState || latestState.apiStatus !== "ONLINE") return;
   const feed = latestState.pairs?.[selectedSymbol] || latestState;
-  if (!["CALL", "PUT"].includes(feed.signal)) return;
+  if (!["CALL", "PUT"].includes(feed.preAlertSignal)) return;
   const key = selectedSymbol + ":" + target;
   if (remaining <= 10 && remaining > 3 && !preAlerts.has(key + ":10")) {
     preAlerts.add(key + ":10");
