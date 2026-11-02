@@ -92,12 +92,11 @@ test("duplicate or reversed candle timestamps fail closed", () => {
 
 test("recent missing M1 bars fail closed, while older market-closure gaps are tolerated", () => {
   const oldGap = makeCandles(220);
-  oldGap[30].epoch += 3600;
-  for (let i = 31; i < oldGap.length; i++) oldGap[i].epoch += 3600;
+  for (let i = 0; i < 30; i++) oldGap[i].epoch -= 3600;
   assert.ok(analyzeMarket(oldGap, { tickAgeSeconds: null }).metrics);
 
   const recentGap = makeCandles(220);
-  recentGap.at(-2).epoch -= 60;
+  recentGap.splice(-3, 1);
   const result = analyzeMarket(recentGap, { tickAgeSeconds: 0 });
   assert.equal(result.signal, "STANDBY");
   assert.match(result.reason, /ช่องว่าง/);
