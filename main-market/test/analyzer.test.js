@@ -250,6 +250,18 @@ test("mobile UI keeps one-pair selector, signal light and manual controls", asyn
   assert.doesNotMatch(js, /sendOrder\(|placeOrder\(/);
 });
 
+test("pre-candle alerts retain a valid direction after the 40-second display hold", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const server = await readFile(new URL("../server.js", import.meta.url), "utf8");
+  const js = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  assert.ok(server.includes("preAlertSignal: null"));
+  assert.ok(server.includes("feed.preAlertSignal = result.signal"));
+  assert.ok(server.includes("preAlertSignal: feed.preAlertSignal"));
+  assert.ok(js.includes('includes(feed.preAlertSignal)'));
+  assert.ok(js.includes('remaining <= 10 && remaining > 3'));
+  assert.ok(js.includes('remaining <= 3 && remaining > 0'));
+});
+
 test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", async () => {
   const port = 32189;
   const child = spawn(process.execPath, ["server.js"], {
