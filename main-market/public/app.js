@@ -1,105 +1,413 @@
-const $=id=>document.getElementById(id),getTelegram=()=>window.Telegram?.WebApp;try{const app=getTelegram();app?.ready?.();app?.expand?.()}catch(e){console.warn("[radar] Telegram WebApp bootstrap:",e?.message||e)}
-window.addEventListener("error",e=>{const el=$("apiMessage");if(el)el.textContent="หน้าแอปเกิดข้อผิดพลาด: "+(e.message||"JavaScript error")});window.addEventListener("unhandledrejection",e=>{const el=$("apiMessage");if(el)el.textContent="คำสั่งในหน้าแอปผิดพลาด: "+(e.reason?.message||String(e.reason||"unknown error"))});
-const SYMBOLS=["AUD/USD","EUR/USD","EUR/GBP","GBP/JPY","EUR/JPY","GBP/USD"];
-let socket=null,monitoring=false,lastApiAlert="",audioContext=null,pollingTimer=null,leaseTimer=null,reconnectTimer=null,socketTimeout=null;
-const alerts=new Set(),announcedIssues=new Set(),lastSignalAlerts=new Map(),countdowns=new Map();
-const saved=(()=>{try{const one=localStorage.getItem("mainMarketSelectedPair");if(SYMBOLS.includes(one))return one;const x=JSON.parse(localStorage.getItem("mainMarketSelectedPairs")||"null");return Array.isArray(x)&&x.some(s=>SYMBOLS.includes(s))?x.find(s=>SYMBOLS.includes(s)):"EUR/USD"}catch{return"EUR/USD"}})();
-function selectedSymbols(){return [document.querySelector("[data-pair-select]:checked")?.value||"EUR/USD"]}
-function setSelected(values){const list=Array.isArray(values)?values:(values==null?[]:[values]);const one=list.find(s=>SYMBOLS.includes(s))||"EUR/USD";document.querySelectorAll("[data-pair-select]").forEach(x=>x.checked=x.value===one);const label=$("selectedPairLabel");if(label)label.textContent=one;const summary=$("pairSummary");if(summary&&!monitoring)summary.textContent=one+" · รอเริ่มสแกน";try{localStorage.setItem("mainMarketSelectedPair",one)}catch{}} 
-function openPairModal(){const modal=$("pairModal");modal?.classList.add("open");modal?.setAttribute("aria-hidden","false")}
-function closePairModal(){const modal=$("pairModal");modal?.classList.remove("open");modal?.setAttribute("aria-hidden","true")}
-function getAudioContext(){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error("เบราว์เซอร์นี้ไม่รองรับ Web Audio");if(!audioContext||audioContext.state==="closed")audioContext=new C();return audioContext}
-async function unlockAudio(){const ctx=getAudioContext();if(ctx.state!=="running")await ctx.resume();if(ctx.state!=="running")throw new Error("ระบบยังไม่อนุญาตให้เล่นเสียง กรุณาเปิดเสียงสื่อของโทรศัพท์");return ctx}
-async function tone(k,force=false){if(!$("sound").checked&&!force)return false;const ctx=await unlockAudio();const notes=k==="signal"?[880,1175]:k==="watch"?[740,988]:[k==="entry"?980:660];for(let i=0;i<notes.length;i++){const o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime+i*.19;o.type="sine";o.frequency.setValueAtTime(notes[i],t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.48,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.32);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.33)}return true}
-function playAlertTone(kind){tone(kind).catch(e=>{const status=$("testStatus");if(status)status.textContent="เสียงแจ้งเตือนไม่พร้อม: "+(e.message||"ตรวจสอบเสียงสื่อของโทรศัพท์")})}
-function playAlertVibration(kind="signal"){if(!$("vibration").checked)return;const result=vibrate(false,kind);if(!result.ok){const status=$("testStatus");if(status)status.textContent="สั่นแจ้งเตือนไม่ได้: "+result.reason}}
-function vibrate(force=false,kind="signal"){if(!$("vibration").checked&&!force)return{ok:false,reason:"ปิดการสั่นไว้"};try{const app=getTelegram(),haptic=app?.HapticFeedback;if(typeof haptic?.notificationOccurred==="function"){haptic.notificationOccurred(kind==="signal"?"success":"warning");return{ok:true,method:"telegram-notification"}}if(typeof haptic?.impactOccurred==="function"){haptic.impactOccurred(kind==="signal"?"heavy":"medium");return{ok:true,method:"telegram-impact"}}if(typeof navigator.vibrate==="function"){const accepted=navigator.vibrate(kind==="signal"?[180,90,180]:[120,70,120]);return accepted?{ok:true,method:"browser"}:{ok:false,reason:"ระบบปฏิเสธคำสั่งสั่น"}}return{ok:false,reason:"อุปกรณ์หรือ Telegram WebView ไม่รองรับ HapticFeedback / Vibration"}}catch(e){return{ok:false,reason:e.message||"ส่งคำสั่งสั่นไม่สำเร็จ"}}}
-function notify(message){const app=getTelegram();if(typeof app?.showAlert==="function")app.showAlert(message);else window.alert(message)}
-function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function statusLabel(p){
- const labels={SUPPORTED:"รองรับ · LIVE",UNSUPPORTED:"REST ไม่รองรับ",REST_ONLY:"REST ใช้ได้ · ไม่มี LIVE",LOCKED:"API ถูกล็อก",DATA_ERROR:"โหลดข้อมูลผิดพลาด",STREAM_ERROR:"Streaming ผิดพลาด",STREAM_TIMEOUT:"ไม่พบราคา Streaming",STALE:"ราคาเก่า",WAITING_PRICE:"รอราคา Streaming",CHECKING:"กำลังตรวจสอบ",OFFLINE:"หยุด"};
- return labels[p.supportStatus]||p.supportStatus||"กำลังตรวจสอบ";
+const $ = id => document.getElementById(id);
+const PAIRS = ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"];
+const getTelegram = () => window.Telegram?.WebApp;
+let selectedSymbol = readSavedPair();
+let monitoring = false;
+let socket = null;
+let socketTimeout = null;
+let reconnectTimer = null;
+let pollTimer = null;
+let leaseTimer = null;
+let wsHeartbeat = null;
+let countdownTimer = null;
+let audioContext = null;
+let latestState = null;
+let lastApiAlert = "";
+const signalAlerts = new Set();
+const preAlerts = new Set();
+
+function readSavedPair() {
+  try {
+    const value = localStorage.getItem("mainMarketSelectedPair");
+    return PAIRS.includes(value) ? value : "EUR/USD";
+  } catch { return "EUR/USD"; }
 }
-function regimeLabel(value){
- const labels={TRENDING_UP:"TRENDING · ขาขึ้น",TRENDING_DOWN:"TRENDING · ขาลง",TRENDING:"TRENDING · มีแนวโน้ม",RANGING:"RANGING · ออกข้าง",HIGH_VOLATILITY:"HIGH VOLATILITY · ผันผวนสูง",REVERSAL:"REVERSAL · เฝ้าระวังกลับตัว",UNCLEAR:"UNCLEAR · ยังไม่ชัดเจน",UNKNOWN:"รอข้อมูลตลาด"};
- return labels[value]||labels.UNKNOWN;
+function savePair(value) {
+  selectedSymbol = PAIRS.includes(value) ? value : "EUR/USD";
+  try { localStorage.setItem("mainMarketSelectedPair", selectedSymbol); } catch {}
+  document.querySelectorAll("[data-pair-select]").forEach(input => {
+    input.checked = input.value === selectedSymbol;
+  });
+  $("selectedPairLabel").textContent = selectedSymbol;
 }
-function updatePairCards(s){
- const pairs=s.pairs||{},chosen=new Set(selectedSymbols()),entries=Object.entries(pairs).filter(([symbol])=>chosen.has(symbol));
- $("pairCards").innerHTML=entries.map(([symbol,p])=>{
-  const sig=p.signal||"STANDBY",status=p.supportStatus||"CHECKING",price=Number.isFinite(p.lastTickPrice)?p.lastTickPrice.toFixed(5):Number.isFinite(p.lastPrice)?p.lastPrice.toFixed(5):"—";
-  const rsi=Number.isFinite(p.metrics?.rsi14)?p.metrics.rsi14.toFixed(1):"—",close=Number.isFinite(p.lastPrice)?p.lastPrice.toFixed(5):"—",age=Number.isFinite(p.tickAgeSeconds)?p.tickAgeSeconds+"s":"—";
-  return `<article class="pair-card ${status==="UNSUPPORTED"?"unsupported":status==="SUPPORTED"?"supported":""}">
-   <div class="pair-head"><strong>${escapeHtml(symbol)}</strong><span class="pair-status ${status.toLowerCase()}">${escapeHtml(statusLabel(p))}</span></div>
-   <div class="signal-display ${sig.toLowerCase()}" role="status" aria-live="polite" aria-label="สัญญาณ ${escapeHtml(sig)}">
-    <div class="signal-lamp" aria-hidden="true"><span></span></div>
-    <div class="signal-copy"><small>${sig==="CALL"?"สัญญาณขาขึ้น":sig==="PUT"?"สัญญาณขาลง":"รอสัญญาณที่ชัดเจน"}</small><strong>${escapeHtml(sig)}</strong><em>${sig==="CALL"?"พิจารณาเข้า CALL":sig==="PUT"?"พิจารณาเข้า PUT":"ยังไม่เข้าออเดอร์"}</em></div>
-   </div>
-   <div class="regime-row"><span>MARKET REGIME</span><strong class="regime-badge regime-${String(p.regime||"UNKNOWN").toLowerCase().replace(/[^a-z0-9_-]/g,"-")}">${escapeHtml(regimeLabel(p.regime))}</strong></div>
-   <div class="pair-metrics"><span>ราคา <b>${price}</b></span><span>Close <b>${close}</b></span><span>RSI <b>${rsi}</b></span><span>DATA AGE <b>${age}</b></span></div>
-   <div class="reason-panel"><div class="reason-heading">✦ AI REASONING</div><p class="pair-reason">${escapeHtml(p.reason||p.statusMessage||"รอข้อมูล")}</p></div>
-   <p class="pair-status-message">${escapeHtml(p.statusMessage||"")}</p>
-   <div class="pair-countdown" id="countdown-${symbol.replace("/","-")}">แท่งถัดไป --:--</div>
-  </article>`;
- }).join("");
- $("pairSummary").textContent=`${entries.length} คู่ที่เลือก · ${s.onlineCount||0} คู่รับราคา LIVE · ${s.unsupportedCount||0} คู่ไม่รองรับ`;
+function openPairModal() {
+  $("pairModal").classList.add("open");
+  $("pairModal").setAttribute("aria-hidden", "false");
 }
-function countdown(symbol,next,signal,apiStatus,isMonitoring){
- const target=Number(next),candleStart=target-60000;if(!Number.isFinite(target))return;
- const old=countdowns.get(symbol),priorSignal=old?.signal||"STANDBY";
- const directional=()=>signal==="CALL"||signal==="PUT";
- const remaining=()=>Math.max(0,(target-Date.now())/1000);
- const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);playAlertTone("watch");playAlertVibration("watch")};
- const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);playAlertTone("entry");playAlertVibration("entry")};
- const show=left=>{const el=$("countdown-"+symbol.replace("/","-"));if(el)el.textContent="แท่งถัดไป "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0")};
- if(old&&old.target===target&&old.timer){
-  const current=remaining(),becameDirectional=(priorSignal!=="CALL"&&priorSignal!=="PUT")&&directional();show(Math.ceil(current));
-  if(current<=10&&current>0)fireWatch();
-  if(current<=3&&current>0&&(becameDirectional||directional()))fireEntry();
-  old.signal=signal;return;
- }
- if(old?.timer)clearInterval(old.timer);
- const rec={target,signal,timer:null,previous:remaining()};countdowns.set(symbol,rec);
- show(Math.ceil(rec.previous));if(rec.previous<=10&&rec.previous>0)fireWatch();if(rec.previous<=3&&rec.previous>0)fireEntry();
- rec.timer=setInterval(()=>{const current=remaining(),left=Math.ceil(current);show(left);if(rec.previous>10&&current<=10)fireWatch();if(rec.previous>3&&current<=3)fireEntry();rec.previous=current;if(current<=0){clearInterval(rec.timer);rec.timer=null;countdowns.delete(symbol)}},100);
+function closePairModal() {
+  $("pairModal").classList.remove("open");
+  $("pairModal").setAttribute("aria-hidden", "true");
 }
-function render(s){
- const api=s.apiStatus||"OFFLINE",pill=$("connection");if(!s.monitoring&&s.serverOnline){pill.className="pill api-online";pill.textContent="● SERVER ONLINE"}else{pill.className="pill api-"+api.toLowerCase();pill.textContent=api==="ONLINE"?"● API LIVE":api==="LOCKED"?"● API LOCKED":api==="CONNECTING"?"● CONNECTING":"● OFFLINE"}
- $("apiMessage").textContent=s.apiMessage||"รอเชื่อมต่อ Twelve Data";
- $("marketMode").textContent="NON-OTC · 1 MINUTE · MANUAL ONLY";
- if(s.monitoring&&Array.isArray(s.selectedSymbols))setSelected(s.selectedSymbols);
- updatePairCards(s);
- for(const [symbol,p] of Object.entries(s.pairs||{})){
-  if(s.monitoring&&p.supportStatus==="STREAM_TIMEOUT"){const key=symbol+":timeout:"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ยังยืนยันการรองรับ Streaming ไม่ได้\n"+(p.statusMessage||"ยังไม่ได้รับราคา Streaming สด"))}}
-  if(s.monitoring&&p.supportStatus==="UNSUPPORTED"){
-   const key=symbol+":"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ไม่รองรับ\n"+(p.statusMessage||"บัญชี Twelve Data อาจไม่มีสิทธิ์ใช้งานคู่นี้"))}
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+function number(value, digits = 5) {
+  return Number.isFinite(value) ? value.toFixed(digits) : "—";
+}
+function regimeLabel(value) {
+  return ({
+    TRENDING_UP: "TRENDING · ขาขึ้น",
+    TRENDING_DOWN: "TRENDING · ขาลง",
+    RANGING: "RANGING · ออกข้าง",
+    HIGH_VOLATILITY: "HIGH VOLATILITY · ผันผวนสูง",
+    REVERSAL: "REVERSAL · เฝ้าระวังกลับตัว",
+    UNCLEAR: "UNCLEAR · ยังไม่ชัดเจน"
+  })[value] || "รอข้อมูลตลาด";
+}
+function setConnection(status, message, idle = false) {
+  const pill = $("connection");
+  pill.className = "pill " + (idle ? "online" :
+    status === "ONLINE" ? "online" :
+    status === "LOCKED" ? "locked" :
+    status === "CONNECTING" ? "connecting" : "offline");
+  pill.textContent = idle ? "● SERVER ONLINE" :
+    status === "ONLINE" ? "● API LIVE" :
+    status === "LOCKED" ? "● API LOCKED" :
+    status === "CONNECTING" ? "● CONNECTING" : "● OFFLINE";
+  $("apiMessage").textContent = message || "รอข้อมูลจาก Twelve Data";
+  $("feedStatus").className = "feed-status " +
+    (status === "ONLINE" ? "live" : status === "LOCKED" ? "locked" : "");
+}
+function render(state) {
+  latestState = state;
+  monitoring = Boolean(state.monitoring);
+  if (monitoring && PAIRS.includes(state.selectedSymbol)) savePair(state.selectedSymbol);
+  $("start").disabled = monitoring;
+  $("stop").disabled = !monitoring;
+
+  const idle = !monitoring && state.serverOnline;
+  setConnection(state.apiStatus || "OFFLINE", state.apiMessage || state.statusMessage, idle);
+
+  const feed = state.pairs?.[state.selectedSymbol] || state;
+  const status = feed.supportStatus || "CHECKING";
+  $("feedTitle").textContent = status === "SUPPORTED" ? "รับราคา Streaming สด" :
+    status === "REST_ONLY" ? "REST พร้อม · รอราคา LIVE" :
+    status === "LOCKED" ? "API ถูกล็อก · STANDBY" :
+    status === "UNSUPPORTED" ? "คู่เงินนี้ไม่รองรับ REST" :
+    monitoring ? "กำลังตรวจสอบข้อมูลตลาด" : "รอเริ่มสแกน";
+
+  const signal = ["CALL", "PUT", "STANDBY"].includes(feed.signal) ? feed.signal : "STANDBY";
+  $("signalDisplay").className = "signal-display " + signal.toLowerCase();
+  $("signalValue").textContent = signal;
+  $("signalSub").textContent = signal === "CALL" ? "สัญญาณทิศทางขึ้น" :
+    signal === "PUT" ? "สัญญาณทิศทางลง" : "รอหลักฐานที่ชัดเจน";
+  $("signalAction").textContent = signal === "CALL" ? "พิจารณา CALL ด้วยตนเอง" :
+    signal === "PUT" ? "พิจารณา PUT ด้วยตนเอง" : "ยังไม่เข้าออเดอร์";
+  $("regimeValue").textContent = regimeLabel(feed.regime);
+  $("regimeValue").className = /TRENDING/.test(feed.regime) ? "up" :
+    /VOLATILITY|REVERSAL|RANGING/.test(feed.regime) ? "caution" : "";
+
+  const livePrice = Number.isFinite(feed.lastTickPrice) ? feed.lastTickPrice : null;
+  $("livePrice").textContent = number(livePrice);
+  $("closePrice").textContent = number(feed.lastPrice);
+  $("rsiValue").textContent = number(feed.metrics?.rsi14, 1);
+  $("emaValue").textContent = [
+    number(feed.metrics?.ema9), number(feed.metrics?.ema21), number(feed.metrics?.ema50)
+  ].join(" / ");
+  $("reasonText").textContent = feed.reason || feed.statusMessage || "รอข้อมูล";
+  $("evidenceList").innerHTML = (Array.isArray(feed.evidence) ? feed.evidence : [])
+    .slice(0, 5).map(item => "<li>" + escapeHtml(item) + "</li>").join("");
+  $("signalTime").textContent = feed.analyzedAt
+    ? new Date(feed.analyzedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "—";
+  $("dataAge").textContent = Number.isFinite(feed.tickAgeSeconds)
+    ? "LIVE AGE " + feed.tickAgeSeconds + "s"
+    : "REST · ไม่มี LIVE";
+
+  if (feed.nextCandleAt) {
+    $("candleCountdown").dataset.target = String(feed.nextCandleAt);
+  } else {
+    delete $("candleCountdown").dataset.target;
+    $("candleCountdown").textContent = "--:--";
   }
-  if(s.monitoring&&p.apiStatus==="ONLINE"&&(p.signal==="CALL"||p.signal==="PUT")&&p.alertId){
-   const key=symbol+":"+p.alertId;if(lastSignalAlerts.get(symbol)!==key){lastSignalAlerts.set(symbol,key);playAlertTone("signal");playAlertVibration()}
+  if (feed.signalExpiresAt) {
+    $("signalExpiry").dataset.target = String(Date.parse(feed.signalExpiresAt));
+  } else {
+    delete $("signalExpiry").dataset.target;
+    $("signalExpiry").textContent = "—";
   }
-  countdown(symbol,p.nextCandleAt,p.signal,p.apiStatus,!!s.monitoring);
- }
- if(api==="LOCKED"&&s.apiMessage&&lastApiAlert!==s.apiMessage){lastApiAlert=s.apiMessage;if(s.monitoring)notify(s.apiMessage)}if(api==="ONLINE"||api==="OFFLINE")lastApiAlert="";
+
+  if (monitoring && state.apiStatus === "ONLINE" &&
+      (signal === "CALL" || signal === "PUT") && feed.alertId &&
+      !signalAlerts.has(feed.alertId)) {
+    signalAlerts.add(feed.alertId);
+    playTone("signal");
+    vibrate("signal");
+  }
+  if (state.apiStatus === "LOCKED" && state.apiMessage &&
+      lastApiAlert !== state.apiMessage && monitoring) {
+    lastApiAlert = state.apiMessage;
+    notify(state.apiMessage);
+  }
+  if (state.apiStatus !== "LOCKED") lastApiAlert = "";
+  updateTimers();
 }
-function clearCountdowns(){for(const rec of countdowns.values())if(rec.timer)clearInterval(rec.timer);countdowns.clear();$("pairCards").querySelectorAll(".pair-countdown").forEach(el=>el.textContent="แท่งถัดไป --:--")}
-function lockClient(message){const pill=$("connection");pill.className="pill api-locked";pill.textContent="● API OFFLINE";$("apiMessage").textContent=message;clearCountdowns();if(lastApiAlert!==message){lastApiAlert=message;if(monitoring)notify(message)}}
-async function sendHttpAction(action,extra={}){const response=await fetch("/api/control",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({action,...extra})});const result=await response.json().catch(()=>({ok:false,error:"เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง"}));if(!response.ok||!result.ok)throw new Error(result.error||"คำสั่งไม่สำเร็จ");if(result.state)render(result.state);return result}
-async function pollState(){try{const response=await fetch("/api/state",{cache:"no-store"});if(!response.ok)throw new Error("HTTP "+response.status);render(await response.json())}catch(e){const pill=$("connection");pill.className="pill api-offline";pill.textContent="● SERVER OFFLINE";$("apiMessage").textContent="ติดต่อเซิร์ฟเวอร์ไม่ได้: "+(e.message||"ตรวจสอบอินเทอร์เน็ต")}}
-function startPolling(){if(!pollingTimer){pollState();pollingTimer=setInterval(pollState,2000)}if(monitoring)sendHttpAction("heartbeat").catch(()=>{});if(!leaseTimer)leaseTimer=setInterval(()=>{if(monitoring)sendHttpAction("heartbeat").catch(()=>{})},5000)}
-function stopPolling(){if(pollingTimer)clearInterval(pollingTimer);if(leaseTimer)clearInterval(leaseTimer);pollingTimer=null;leaseTimer=null}
-function scheduleReconnect(){if(reconnectTimer)return;reconnectTimer=setTimeout(()=>{reconnectTimer=null;connect()},4000)}
-function connect(){if(socket&&socket.readyState<=1)return;const protocol=location.protocol==="https:"?"wss":"ws",ws=new WebSocket(protocol+"://"+location.host+"/live");socket=ws;socketTimeout=setTimeout(()=>{if(ws.readyState===0)ws.close()},8000);ws.onopen=()=>{clearTimeout(socketTimeout);socketTimeout=null;stopPolling()};ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch{return}if(m.type==="market_state")render(m.data)};ws.onclose=()=>{clearTimeout(socketTimeout);socketTimeout=null;if(socket===ws)socket=null;startPolling();scheduleReconnect()};ws.onerror=()=>{try{ws.close()}catch{startPolling();scheduleReconnect()}}}
-$("openPairModal").addEventListener("click",openPairModal);
-$("closePairModal").addEventListener("click",closePairModal);
-$("pairModal").addEventListener("click",e=>{if(e.target===$("pairModal"))closePairModal()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closePairModal()});
-document.querySelectorAll("[data-pair-select]").forEach(x=>x.addEventListener("change",()=>{const symbol=x.value;setSelected([symbol]);closePairModal();$("pairSummary").textContent="คู่ที่เลือก: "+symbol+(monitoring?" · กำลังเปลี่ยนคู่ที่สแกน":" · กดเริ่มเพื่อสแกน");if(monitoring)sendHttpAction("select",{symbol}).catch(e=>{$("apiMessage").textContent="เปลี่ยนคู่เงินไม่สำเร็จ: "+e.message})}));
-setSelected(saved);
-$("start").onclick=()=>{const values=selectedSymbols();if(!values.length){notify("กรุณาเลือกอย่างน้อย 1 คู่เงินก่อนเริ่ม");return}unlockAudio().catch(()=>{});monitoring=true;$("start").disabled=true;$("stop").disabled=false;connect();sendHttpAction("start",{symbols:values}).catch(e=>{startPolling();$("apiMessage").textContent="เริ่มสแกนไม่สำเร็จ: "+e.message;$("start").disabled=false;$("stop").disabled=true})};
-$("sound").addEventListener("change",()=>{if($("sound").checked)unlockAudio().catch(()=>{})});
-$("testSound").onclick=async()=>{const status=$("testStatus");status.textContent="กำลังทดสอบเสียง…";try{await tone("signal",true);status.textContent="กำลังเล่นเสียงทดสอบ หากยังไม่ได้ยินให้ตรวจระดับเสียงสื่อของโทรศัพท์"}catch(e){status.textContent="เสียงไม่พร้อม: "+(e.message||"อุปกรณ์ไม่รองรับ")}};
-$("testVibration").onclick=()=>{const result=vibrate(true,"signal");$("testStatus").textContent=result.ok?(result.method.startsWith("telegram")?"ส่ง HapticFeedback ผ่าน Telegram แล้ว — ตรวจการตอบสนองที่ตัวเครื่อง":"ส่งคำสั่ง Vibration ผ่านเบราว์เซอร์แล้ว — ตรวจการสั่นที่ตัวเครื่อง"):"สั่นไม่ได้: "+result.reason};
-$("stop").onclick=()=>{monitoring=false;$("start").disabled=false;$("stop").disabled=true;clearCountdowns();sendHttpAction("stop").catch(e=>{$("apiMessage").textContent="หยุดสแกนไม่สำเร็จ: "+e.message})};
-document.addEventListener("pointerdown",e=>{if(e.target?.closest?.("#testSound,#start"))unlockAudio().catch(()=>{})},{capture:true});
-const readyStatus=$("testStatus");if(readyStatus)readyStatus.textContent="ระบบควบคุมพร้อม · แตะทดสอบเสียงหรือเริ่มสแกน";
-pollState();connect();
+function updateTimers() {
+  const now = Date.now();
+  const target = Number($("candleCountdown").dataset.target);
+  if (Number.isFinite(target) && target > 0) {
+    const remaining = Math.max(0, Math.ceil((target - now) / 1000));
+    $("candleCountdown").textContent =
+      String(Math.floor(remaining / 60)).padStart(2, "0") + ":" +
+      String(remaining % 60).padStart(2, "0");
+    checkPreAlerts(target, remaining);
+  }
+  const expiry = Number($("signalExpiry").dataset.target);
+  if (Number.isFinite(expiry) && expiry > 0) {
+    const remaining = Math.max(0, Math.ceil((expiry - now) / 1000));
+    $("signalExpiry").textContent = remaining ? remaining + "s" : "หมดอายุ";
+  }
+}
+function checkPreAlerts(target, remaining) {
+  if (!monitoring || !latestState || latestState.apiStatus !== "ONLINE") return;
+  const feed = latestState.pairs?.[selectedSymbol] || latestState;
+  if (!["CALL", "PUT"].includes(feed.signal)) return;
+  const key = selectedSymbol + ":" + target;
+  if (remaining <= 10 && remaining > 3 && !preAlerts.has(key + ":10")) {
+    preAlerts.add(key + ":10");
+    playTone("watch");
+    vibrate("watch");
+  }
+  if (remaining <= 3 && remaining > 0 && !preAlerts.has(key + ":3")) {
+    preAlerts.add(key + ":3");
+    playTone("entry");
+    vibrate("entry");
+  }
+  if (preAlerts.size > 80) {
+    const keep = [...preAlerts].slice(-40);
+    preAlerts.clear();
+    keep.forEach(value => preAlerts.add(value));
+  }
+}
+function notify(message) {
+  try {
+    const telegram = getTelegram();
+    if (typeof telegram?.showAlert === "function") telegram.showAlert(message);
+    else if (typeof window.alert === "function") window.alert(message);
+  } catch (error) { console.warn("[radar] alert unavailable", error); }
+}
+function getAudioContext() {
+  const Context = window.AudioContext || window.webkitAudioContext;
+  if (!Context) throw new Error("อุปกรณ์ไม่รองรับ Web Audio");
+  if (!audioContext || audioContext.state === "closed") audioContext = new Context();
+  return audioContext;
+}
+async function unlockAudio() {
+  const context = getAudioContext();
+  if (context.state !== "running") await context.resume();
+  if (context.state !== "running") throw new Error("เบราว์เซอร์ยังไม่อนุญาตเสียง");
+  return context;
+}
+async function playTone(kind, force = false) {
+  if (!$("sound").checked && !force) return;
+  const context = await unlockAudio();
+  const notes = kind === "signal" ? [880, 1175, 1480] :
+    kind === "watch" ? [660] : [980, 1250];
+  notes.forEach((frequency, index) => {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const startAt = context.currentTime + index * 0.16;
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.38, startAt + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.28);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + 0.29);
+  });
+}
+function vibrate(kind = "signal", force = false) {
+  if (!$("vibration").checked && !force) return { ok: false, reason: "ปิดการสั่นไว้" };
+  try {
+    const haptic = getTelegram()?.HapticFeedback;
+    if (typeof haptic?.notificationOccurred === "function") {
+      haptic.notificationOccurred(kind === "signal" ? "success" : "warning");
+      return { ok: true, method: "Telegram HapticFeedback" };
+    }
+    if (typeof navigator.vibrate === "function") {
+      const accepted = navigator.vibrate(kind === "signal" ? [180, 90, 180] : [100, 70, 100]);
+      return accepted ? { ok: true, method: "Browser Vibration" } :
+        { ok: false, reason: "ระบบปฏิเสธคำสั่งสั่น" };
+    }
+    return { ok: false, reason: "อุปกรณ์หรือ WebView ไม่รองรับ HapticFeedback" };
+  } catch (error) { return { ok: false, reason: error.message || "สั่งสั่นไม่สำเร็จ" }; }
+}
+async function control(action, extra = {}, keepalive = false) {
+  const response = await fetch("/api/control", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    keepalive,
+    body: JSON.stringify({ action, ...extra })
+  });
+  const result = await response.json().catch(() => ({ ok: false, error: "ข้อมูลจากเซิร์ฟเวอร์ไม่ถูกต้อง" }));
+  if (!response.ok || !result.ok) throw new Error(result.error || "คำสั่งไม่สำเร็จ");
+  if (result.state) render(result.state);
+  return result;
+}
+async function pollState() {
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    render(await response.json());
+  } catch (error) {
+    setConnection("OFFLINE", "ติดต่อเซิร์ฟเวอร์ไม่ได้: " + (error.message || "ตรวจสอบอินเทอร์เน็ต"));
+  }
+}
+function startPolling() {
+  if (!pollTimer) {
+    pollState();
+    pollTimer = setInterval(pollState, 2000);
+  }
+  if (!leaseTimer) {
+    control("heartbeat").catch(() => {});
+    leaseTimer = setInterval(() => {
+      if (monitoring) control("heartbeat").catch(() => {});
+    }, 5000);
+  }
+}
+function stopPolling() {
+  clearInterval(pollTimer); pollTimer = null;
+  clearInterval(leaseTimer); leaseTimer = null;
+}
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 4000);
+}
+function connect() {
+  if (socket && socket.readyState <= WebSocket.OPEN) return;
+  try {
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    const current = new WebSocket(protocol + "//" + location.host + "/live");
+    socket = current;
+    socketTimeout = setTimeout(() => {
+      if (current.readyState === WebSocket.CONNECTING) current.close();
+    }, 8000);
+    current.onopen = () => {
+      clearTimeout(socketTimeout); socketTimeout = null;
+      stopPolling();
+      clearInterval(wsHeartbeat);
+      wsHeartbeat = setInterval(() => {
+        if (current.readyState === WebSocket.OPEN) current.send(JSON.stringify({ action: "heartbeat" }));
+      }, 5000);
+    };
+    current.onmessage = event => {
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      if (message.type === "market_state") render(message.data);
+    };
+    current.onclose = () => {
+      clearTimeout(socketTimeout); socketTimeout = null;
+      clearInterval(wsHeartbeat); wsHeartbeat = null;
+      if (socket === current) socket = null;
+      startPolling();
+      scheduleReconnect();
+    };
+    current.onerror = () => { try { current.close(); } catch { startPolling(); scheduleReconnect(); } };
+  } catch (error) {
+    console.warn("[radar] WebSocket unavailable", error);
+    startPolling();
+    scheduleReconnect();
+  }
+}
+function startScan() {
+  if (monitoring) return;
+  monitoring = true;
+  $("start").disabled = true;
+  $("stop").disabled = false;
+  unlockAudio().catch(() => {});
+  connect();
+  control("start", { symbol: selectedSymbol }).catch(error => {
+    monitoring = false;
+    $("start").disabled = false;
+    $("stop").disabled = true;
+    $("apiMessage").textContent = "เริ่มสแกนไม่สำเร็จ: " + error.message;
+    startPolling();
+  });
+}
+function stopScan(keepalive = false) {
+  monitoring = false;
+  $("start").disabled = false;
+  $("stop").disabled = true;
+  control("stop", {}, keepalive).catch(error => {
+    $("apiMessage").textContent = "หยุดสแกนไม่สำเร็จ: " + error.message;
+  });
+}
+function selectPair(value) {
+  if (!PAIRS.includes(value)) return;
+  savePair(value);
+  closePairModal();
+  $("feedTitle").textContent = monitoring ? "กำลังเปลี่ยนคู่เงิน" : "รอเริ่มสแกน";
+  $("reasonText").textContent = "เลือก " + value + " แล้ว";
+  $("signalValue").textContent = "STANDBY";
+  $("signalDisplay").className = "signal-display standby";
+  $("regimeValue").textContent = "รอข้อมูลตลาด";
+  $("livePrice").textContent = "—";
+  $("closePrice").textContent = "—";
+  $("rsiValue").textContent = "—";
+  $("emaValue").textContent = "—";
+  $("evidenceList").innerHTML = "";
+  if (monitoring) {
+    control("select", { symbol: value }).catch(error => {
+      $("apiMessage").textContent = "เปลี่ยนคู่เงินไม่สำเร็จ: " + error.message;
+    });
+  }
+}
+function initialize() {
+  try { getTelegram()?.ready?.(); getTelegram()?.expand?.(); } catch {}
+  savePair(selectedSymbol);
+  $("openPairModal").addEventListener("click", openPairModal);
+  $("closePairModal").addEventListener("click", closePairModal);
+  $("pairModal").addEventListener("click", event => {
+    if (event.target === $("pairModal")) closePairModal();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closePairModal();
+  });
+  document.querySelectorAll("[data-pair-select]").forEach(input => {
+    input.addEventListener("change", () => selectPair(input.value));
+  });
+  $("start").addEventListener("click", startScan);
+  $("stop").addEventListener("click", () => stopScan());
+  $("sound").addEventListener("change", () => {
+    if ($("sound").checked) unlockAudio().catch(() => {});
+  });
+  $("testSound").addEventListener("click", async () => {
+    $("testStatus").textContent = "กำลังทดสอบเสียง…";
+    try {
+      await playTone("signal", true);
+      $("testStatus").textContent = "ส่งเสียงทดสอบแล้ว · ตรวจระดับเสียงสื่อของโทรศัพท์";
+    } catch (error) {
+      $("testStatus").textContent = "เสียงไม่พร้อม: " + error.message;
+    }
+  });
+  $("testVibration").addEventListener("click", () => {
+    const result = vibrate("signal", true);
+    $("testStatus").textContent = result.ok
+      ? "ส่งคำสั่ง " + result.method + " แล้ว · โปรดตรวจการตอบสนองที่ตัวเครื่อง"
+      : "สั่นไม่ได้: " + result.reason;
+  });
+  document.addEventListener("pointerdown", event => {
+    if (event.target?.closest?.("#start,#testSound")) unlockAudio().catch(() => {});
+  }, { capture: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" && monitoring) stopScan(true);
+  });
+  window.addEventListener("pagehide", () => {
+    if (monitoring) stopScan(true);
+  });
+  window.addEventListener("error", event => {
+    $("apiMessage").textContent = "หน้าแอปเกิดข้อผิดพลาด: " + (event.message || "JavaScript error");
+  });
+  window.addEventListener("unhandledrejection", event => {
+    $("apiMessage").textContent = "คำสั่งผิดพลาด: " + (event.reason?.message || String(event.reason || "unknown"));
+  });
+  countdownTimer = setInterval(updateTimers, 200);
+  pollState();
+  connect();
+}
+initialize();
