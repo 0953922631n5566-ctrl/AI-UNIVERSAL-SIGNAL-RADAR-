@@ -1,0 +1,37 @@
+name: Root Mini App Checks
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "app.js"
+      - "styles.css"
+      - ".github/workflows/root-mini-app.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "app.js"
+      - "styles.css"
+      - ".github/workflows/root-mini-app.yml"
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: node --check app.js
+      - name: Verify Mini App controls and API wiring
+        run: |
+          grep -q 'id="openPairModal"' index.html
+          grep -q 'id="start"' index.html
+          grep -q 'id="stop"' index.html
+          grep -q 'id="testSound"' index.html
+          grep -q 'id="testVibration"' index.html
+          grep -q 'API_ORIGIN+"/api/control"' app.js
+          grep -q 'API_ORIGIN+"/api/state"' app.js
+          grep -q 'wss://ai-signal-radar-main-market.onrender.com/live' app.js
