@@ -302,3 +302,14 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Still pending real data acceptance: user must press Start in the Mini App; inspect Render log `[market-feed] REST history loaded` and confirm `receivedClosed >= 200`, then confirm a fresh WebSocket tick enables metrics without a 30/60/200-minute accumulation wait. This has not been observed in a post-deploy user session yet.
 - External HTTP GET /health and Telegram/Xiaomi device display/audio were not independently verified in this run. Do not claim these checks passed.
 - Handoff-only update; use `[skip render]` so documentation does not trigger a redundant service deployment.
+
+
+## 2026-11-02 — Increase Main Market notification volume
+
+- User confirmed the 10-second pre-close watch sound is now audible and working normally. Directional CALL/PUT entry alert has not yet been heard in a real signal event, so that acceptance test remains pending.
+- User reported that the alert sound level was too quiet and asked to increase it.
+- Inspected the current `main-market/public/app.js` on branch `main-market`. The Web Audio oscillator gain envelope peaked at `0.18` for all generated tones.
+- Updated the peak gain from `0.18` to `0.32` (approximately 5 dB higher amplitude, subject to device/browser output behavior). This increases the 10-second watch, 3-second entry-preparation, and CALL/PUT tones consistently.
+- Source commit: `43790b6d06c745ffb9cf171ccc91c283417fe589`.
+- Preserved tone frequencies, duration, alert timing, per-candle deduplication, sound toggle, vibration behavior, signal logic, 200-closed-candle preload, and manual-only/no-auto-orders policy. No Android/OCR branch changes.
+- Render auto-deploy is expected from the source commit; build/test/deploy status must be checked before asking the user to reload. Physical loudness and CALL/PUT playback must still be verified on the user's Xiaomi 11T / Telegram WebView. The user may also need to raise Android media volume; app gain cannot override the phone's system volume or silent/DND settings.
