@@ -21,7 +21,10 @@ function updatePairCards(s){
   const rsi=Number.isFinite(p.metrics?.rsi14)?p.metrics.rsi14.toFixed(1):"—",age=Number.isFinite(p.tickAgeSeconds)?p.tickAgeSeconds+"s":"—";
   return `<article class="pair-card ${status==="UNSUPPORTED"?"unsupported":status==="SUPPORTED"?"supported":""}">
    <div class="pair-head"><strong>${escapeHtml(symbol)}</strong><span class="pair-status ${status.toLowerCase()}">${escapeHtml(statusLabel(p))}</span></div>
-   <div class="pair-signal ${sig.toLowerCase()}">${escapeHtml(sig)}</div>
+   <div class="signal-display ${sig.toLowerCase()}" role="status" aria-live="polite" aria-label="สัญญาณ ${escapeHtml(sig)}">
+    <div class="signal-lamp" aria-hidden="true"><span></span></div>
+    <div class="signal-copy"><small>${sig==="CALL"?"สัญญาณขาขึ้น":sig==="PUT"?"สัญญาณขาลง":"รอสัญญาณที่ชัดเจน"}</small><strong>${escapeHtml(sig)}</strong><em>${sig==="CALL"?"พิจารณาเข้า CALL":sig==="PUT"?"พิจารณาเข้า PUT":"ยังไม่เข้าออเดอร์"}</em></div>
+   </div>
    <div class="pair-metrics"><span>ราคา <b>${price}</b></span><span>RSI <b>${rsi}</b></span><span>DATA AGE <b>${age}</b></span></div>
    <p class="pair-reason">${escapeHtml(p.reason||p.statusMessage||"รอข้อมูล")}</p>
    <p class="pair-status-message">${escapeHtml(p.statusMessage||"")}</p>
