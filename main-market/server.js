@@ -544,7 +544,9 @@ function cookieValue(header, name) {
 }
 
 function sessionForRequest(req) {
-  const token = cookieValue(req.headers.cookie, "radar_session");
+  const authorization = String(req.headers.authorization || "");
+  const bearer = authorization.match(/^Bearer\\s+([a-f0-9]{64})$/i)?.[1] || "";
+  const token = bearer || cookieValue(req.headers.cookie, "radar_session");
   const session = token ? sessions.get(token) : null;
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
@@ -592,7 +594,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigins.has(origin) ? 204 : 403);
@@ -634,10 +636,10 @@ app.post("/api/auth", rateLimitAuth, (req, res) => {
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
   sessions.set(token, { userId: validation.userId, expiresAt });
-  res.setHeader("Set-Cookie", `radar_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
+  res.setHeader("Set-Cookie", `radar_session=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
   noCache(res);
   console.info("[auth] Telegram Mini App session created");
-  res.json({ ok: true, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
+  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
 });
 app.get("/api/state", requireTelegramSession, (_req, res) => { noCache(res); res.json(snapshot()); });
 app.post("/api/control", requireTelegramSession, rateLimitControl, async (req, res) => {
