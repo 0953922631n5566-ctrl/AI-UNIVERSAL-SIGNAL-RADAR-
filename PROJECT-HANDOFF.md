@@ -9,7 +9,9 @@
 Inspect GitHub permissions and read this file before each task. Implement directly where possible, adapt when blocked, preserve existing functionality, run tests/build/deploy checks, update this handoff and commit every material change. Report implemented/tested/built/deployed/live-verified/device-tested/production-validated separately. Never claim 100% reliability or Production-Ready without evidence. This is durable project guidance, not a system prompt that can force unrelated sessions.
 
 ## Requirements
-- Twelve Data only; EUR/USD only; Non-OTC; 1-minute.
+- Twelve Data only; six selectable Non-OTC pairs: AUD/USD, EUR/USD, EUR/GBP, GBP/JPY, EUR/JPY, GBP/USD.
+- Scan exactly one selected pair at a time; EUR/USD is the default. Switching pairs clears the prior pair's active signal context and loads/reuses the newly selected pair's history.
+- 1-minute candles (1M); never scan all six concurrently.
 - Situation-aware market perception and regime selection: TRENDING, RANGING, HIGH_VOLATILITY, REVERSAL, UNCLEAR.
 - Adaptive evidence includes EMA, RSI, MACD, price action, support/resistance, volatility and momentum.
 - Outputs CALL / PUT / STANDBY with auditable reasons. No fake confidence scores.
@@ -592,3 +594,20 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Added regression test for 220 closed candles with no Streaming: indicators and Close must be available while signal remains STANDBY.
 - Pair list remains six selectable pairs; no claim that all six have live Streaming entitlement. EUR/USD behavior and analyzer thresholds are preserved. User device acceptance and per-pair Twelve Data Streaming entitlements remain to be verified.
 - Code changes in progress; update commit IDs, CI and Render deployment status after verification.
+
+
+## 2026-11-02 — Confirmed master scope: six pairs, single-pair scanning
+
+- User explicitly confirmed the product scope: support all six pairs — AUD/USD, EUR/USD, EUR/GBP, GBP/JPY, EUR/JPY, GBP/USD — while selecting/scanning exactly one pair at a time. EUR/USD remains the default.
+- This confirmation supersedes any older handoff text that says EUR/USD is the only selectable symbol or that all six pairs should scan concurrently. Historical checkpoints below are retained as history, not current requirements.
+- Re-inspected current `main-market` source before recording this decision:
+  - `main-market/src/config.js`: `SYMBOLS` contains exactly the six requested pairs; `DEFAULT_SYMBOLS` contains only EUR/USD; `REST_SYNC_SECONDS=300`.
+  - `main-market/server.js`: server enforces a single selected symbol on Start, accepts a single-pair `select` action, closes the prior stream, clears prior signal context, and starts history/stream work for the chosen pair.
+  - `main-market/public/app.js`: compact selector persists one selected pair and sends one symbol on Start; changing the pair while monitoring sends a single-pair select action.
+  - `main-market/test/analyzer.test.js`: regression assertions cover the exact six-symbol list, EUR/USD default, one-pair selection, and 300-second REST refresh.
+- No market calculation or UI code change was required for this confirmation: the current source already implements the confirmed selection model. This checkpoint updates the authoritative project requirements and handoff only; it does not claim new runtime or provider capability.
+- Important distinction: listing a pair in the selector does not prove the user's Twelve Data account supports REST history or live WebSocket prices for that pair. Each selected pair must be checked at runtime. REST-only data may display price/Close/RSI, but CALL/PUT remains blocked without a fresh live Streaming tick; unsupported, stale or unconfirmed feeds remain STANDBY.
+- Current technical baseline visible in source: 200 fully closed 1-minute candles required, request 220 historical bars, REST resync every 300 seconds, fresh Streaming tick required for directional output, manual-only trading, no broker order placement, no OCR/OTC.
+- Files changed in this checkpoint: `PROJECT-HANDOFF.md` only.
+- Validation status: source inspection confirms the six-pair configuration and single-pair enforcement; no new automated test/build/deploy was triggered by this documentation-only update. Existing tests in source cover the selection contract, but this checkpoint does not claim a fresh test run, Render deployment, external HTTP check, or Xiaomi/Telegram device test.
+- Next PM steps: run the branch's full `npm test` and syntax-check/build pipeline; inspect current Render deployment state; confirm live REST/Streaming entitlement one pair at a time (especially EUR/USD baseline, then the other five); verify pair switching, signal invalidation, countdown/alerts, and actual device behavior. Record each pair as REST-supported / Streaming-supported / REST-only / unsupported / not yet verified; never infer support from selector presence.
