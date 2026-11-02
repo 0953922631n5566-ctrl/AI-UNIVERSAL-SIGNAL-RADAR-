@@ -1,62 +1,14 @@
 <!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050807">
-<title>AI Universal Signal Radar</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-<main class="app-shell">
-<div class="ambient-glow" id="ambientGlow"></div>
-<header class="topbar">
- <div class="brand"><span class="live-dot"><i></i></span><div><div class="brand-title">UNIVERSAL RADAR</div><div class="brand-subtitle">MAIN MARKET · NON-OTC</div></div></div>
- <span id="connection" class="connection-pill pill api-offline">● OFFLINE</span>
-</header>
-<section class="pair-timebar">
- <button id="openPairModal" class="pair-trigger" type="button">
-  <span class="pair-icon">◈</span><span class="pair-trigger-copy"><small>SELECT PAIR</small><b id="selectedPairLabel">EUR/USD</b></span><span class="chevron">⌄</span>
- </button>
- <div class="timeframe"><small>TIMEFRAME</small><b>M1 <span>(1 MIN)</span></b></div>
-</section>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#090e0b"><title>AI Universal Signal Radar</title><script src="https://telegram.org/js/telegram-web-app.js"></script><link rel="stylesheet" href="/styles.css"></head>
+<body><main class="app-shell">
+<header class="topbar"><div class="brand"><span class="brand-mark">◈</span><div><strong>UNIVERSAL RADAR</strong><small>MAIN MARKET · NON-OTC</small></div></div><span id="connection" class="pill api-offline">● OFFLINE</span></header>
+<section class="pair-bar"><button id="openPairModal" class="pair-trigger" type="button"><span class="pair-trigger-copy"><small>คู่เงินที่เลือก</small><b id="selectedPairLabel">EUR/USD</b></span><span class="chevron">⌄</span></button><div class="timeframe"><small>กรอบเวลา</small><b>M1 · 1 นาที</b></div></section>
 <div class="status-line"><span id="marketMode">NON-OTC · 1 MINUTE · MANUAL ONLY</span><span id="apiMessage">รอเชื่อมต่อ Twelve Data</span></div>
-<section id="pairCards" class="pair-cards">
- <div class="empty-state">เลือกคู่เงินแล้วกดเริ่มสแกน เพื่อรับสัญญาณของคู่นั้น</div>
-</section>
-<div id="pairSummary" class="pair-summary">EUR/USD · รอเริ่มสแกน</div>
-<section class="main-controls">
- <button id="start" class="start-button" type="button">▶ เริ่มสแกน</button>
- <button id="stop" class="stop-button" type="button" disabled>หยุดสแกน</button>
-</section>
-<section class="preference-panel">
- <label class="toggle"><input id="sound" type="checkbox" checked><span class="toggle-track"></span><span>เสียงแจ้งเตือน</span></label>
- <label class="toggle"><input id="vibration" type="checkbox" checked><span class="toggle-track"></span><span>สั่นแจ้งเตือน</span></label>
-</section>
-<div class="device-tests">
- <button id="testSound" type="button">♫ ทดสอบเสียง</button><button id="testVibration" type="button">▧ ทดสอบสั่น</button>
-</div>
-<div id="testStatus" class="test-status" role="status">กดปุ่มเพื่อทดสอบเสียงและการสั่น</div>
-<footer><span><i class="footer-dot"></i> MANUAL ONLY · NO AUTO ORDERS</span><span id="syncTimer">M1 · LIVE DATA</span></footer>
-</main>
-<div id="pairModal" class="modal-backdrop" aria-hidden="true">
- <section class="pair-modal" role="dialog" aria-modal="true" aria-labelledby="pairModalTitle">
-  <div class="modal-header"><div><span class="modal-kicker">MARKET SELECTOR</span><h2 id="pairModalTitle">เลือกคู่เงิน</h2></div><button id="closePairModal" class="modal-close" type="button" aria-label="ปิด">×</button></div>
-  <div class="pair-options">
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="AUD/USD"><span class="pair-flags">🇦🇺 🇺🇸</span><span class="pair-option-copy"><b>AUD/USD</b><small>Australian Dollar / US Dollar</small></span><span class="option-arrow">›</span></label>
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/USD" checked><span class="pair-flags">🇪🇺 🇺🇸</span><span class="pair-option-copy"><b>EUR/USD</b><small>Euro / US Dollar</small></span><span class="option-arrow">›</span></label>
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/GBP"><span class="pair-flags">🇪🇺 🇬🇧</span><span class="pair-option-copy"><b>EUR/GBP</b><small>Euro / British Pound</small></span><span class="option-arrow">›</span></label>
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/JPY"><span class="pair-flags">🇬🇧 🇯🇵</span><span class="pair-option-copy"><b>GBP/JPY</b><small>British Pound / Japanese Yen</small></span><span class="option-arrow">›</span></label>
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/JPY"><span class="pair-flags">🇪🇺 🇯🇵</span><span class="pair-option-copy"><b>EUR/JPY</b><small>Euro / Japanese Yen</small></span><span class="option-arrow">›</span></label>
-   <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/USD"><span class="pair-flags">🇬🇧 🇺🇸</span><span class="pair-option-copy"><b>GBP/USD</b><small>British Pound / US Dollar</small></span><span class="option-arrow">›</span></label>
-  </div>
-  <p class="modal-note">ระบบจะสแกนเฉพาะคู่เงินที่คุณเลือกทีละ 1 คู่</p>
- </section>
-</div>
-<script src="/app.js"></script>
-</body>
-</html>
+<section id="pairCards" class="pair-cards"><div class="empty-state">เลือกคู่เงินแล้วกดเริ่มสแกน</div></section><div id="pairSummary" class="pair-summary">EUR/USD · รอเริ่มสแกน</div>
+<section class="main-controls"><button id="start" class="start-button" type="button">เริ่มสแกน</button><button id="stop" class="stop-button" type="button" disabled>หยุด</button></section>
+<section class="settings"><label><input id="sound" type="checkbox" checked><span>เสียง</span></label><label><input id="vibration" type="checkbox" checked><span>สั่น</span></label></section>
+<section class="device-tests"><button id="testSound" type="button">ทดสอบเสียง</button><button id="testVibration" type="button">ทดสอบสั่น</button></section><div id="testStatus" class="test-status" role="status">กดทดสอบเพื่อเช็กอุปกรณ์</div>
+<footer><span>MANUAL ONLY · ไม่ส่งคำสั่งซื้ออัตโนมัติ</span><span id="syncTimer">M1 · LIVE DATA</span></footer></main>
+<div id="pairModal" class="modal-backdrop" aria-hidden="true"><section class="pair-modal" role="dialog" aria-modal="true" aria-labelledby="pairModalTitle"><div class="modal-header"><div><small>MARKET SELECTOR</small><h2 id="pairModalTitle">เลือกคู่เงิน</h2></div><button id="closePairModal" class="modal-close" type="button" aria-label="ปิด">×</button></div>
+<div class="pair-options">
+<label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="AUD/USD"><b>AUD/USD</b><small>🇦🇺 / 🇺🇸</small></label><label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/USD" checked><b>EUR/USD</b><small>🇪🇺 / 🇺🇸</small></label><label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/GBP"><b>EUR/GBP</b><small>🇪🇺 / 🇬🇧</small></label><label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/JPY"><b>GBP/JPY</b><small>🇬🇧 / 🇯🇵</small></label><label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/JPY"><b>EUR/JPY</b><small>🇪🇺 / 🇯🇵</small></label><label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/USD"><b>GBP/USD</b><small>🇬🇧 / 🇺🇸</small></label></div><p class="modal-note">สแกนทีละ 1 คู่เงินตามที่เลือก</p></section></div><script src="/app.js"></script></body></html>
