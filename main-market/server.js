@@ -97,13 +97,16 @@ async function syncSelected({force=false}={}){
   await syncPair(f,{force});
   if(i<selectedSymbols.length-1)await delay(1100);
  }
+ if(monitoring&&!upstream&&selectedSymbols.some(s=>feeds.get(s).restStatus==="READY"))startStream();
 }
 function startRest(){if(restTimer)return;restTimer=setInterval(()=>syncSelected().catch(e=>console.error("[market-feed] REST cycle failed",e.message)),SYNC*1000)}
 function stopTimers(){clearInterval(restTimer);restTimer=null;clearInterval(heartbeat);heartbeat=null;clearInterval(watchdog);watchdog=null;clearTimeout(retryTimer);retryTimer=null}
 function startStream(){
  if(upstream||!monitoring)return;
  if(!process.env.TWELVE_DATA_API_KEY){markLocked("ยังไม่ได้ตั้ง Twelve Data API Key ฝั่งเซิร์ฟเวอร์");return}
- console.info("[market-feed] START requested",{symbols:selectedSymbols,interval:INTERVAL});
+ const subscribeSymbols=selectedSymbols.filter(s=>feeds.get(s).restStatus==="READY"&&feeds.get(s).streamStatus!=="UNSUPPORTED");
+ if(!subscribeSymbols.length){publish();return}
+ console.info("[market-feed] START requested",{symbols:subscribeSymbols,interval:INTERVAL});
  startRest();clearInterval(watchdog);watchdog=setInterval(()=>{
   if(!monitoring)return;
   for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")continue;
@@ -113,7 +116,7 @@ function startStream(){
  let ws;
  try{ws=new WebSocket("wss://ws.twelvedata.com/v1/quotes/price?apikey="+encodeURIComponent(process.env.TWELVE_DATA_API_KEY));upstream=ws}
  catch(e){markLocked("สร้างการเชื่อมต่อ Twelve Data Streaming ไม่สำเร็จ: "+e.message);retryTimer=setTimeout(startStream,8000);return}
- ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",selectedSymbols);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:selectedSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
+ ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",selectedSymbols);for(const symbol of subscribeSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:subscribeSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
  ws.on("message",raw=>{
   if(upstream!==ws)return;let m;try{m=JSON.parse(raw.toString())}catch{return}
   if(m.event==="price"&&m.symbol){const f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol)));const p=Number(m.price),t=Number(m.timestamp);if(f&&selectedSymbols.includes(f.symbol)&&Number.isFinite(p)&&Number.isFinite(t)){if(!f.tickAt)console.info("[market-feed] First live price received",f.symbol);applyTick(f,p,t)}return}
@@ -149,9 +152,9 @@ wss.on("connection",ws=>{
    const requested=Array.isArray(m.symbols)?m.symbols.map(normalizeSymbol):DEFAULT_SYMBOLS.map(normalizeSymbol);
    selectedSymbols=SYMBOLS.filter(s=>requested.includes(normalizeSymbol(s)));
    if(!selectedSymbols.length)selectedSymbols=[...DEFAULT_SYMBOLS];
-   monitoring=true;globalLockMessage=null;
+   monitoring=true;globalLockMessage=null;startRest();
    for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
-   publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));startStream();
+   publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
   }
   if(m.action==="stop")stop();
  });
