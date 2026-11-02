@@ -24,7 +24,7 @@ async function login(){const init=tg()&&tg().initData;if(!init)throw Error("เ�
 function regime(v){return({TRENDING_UP:"TRENDING · ขาขึ้น",TRENDING_DOWN:"TRENDING · ขาลง",RANGING:"RANGING · ออกข้าง",HIGH_VOLATILITY:"HIGH VOLATILITY",REVERSAL:"REVERSAL",UNCLEAR:"UNCLEAR"})[v]||"UNCLEAR";}
 function render(s){if(!s)return;state=s;running=!!s.monitoring;$("start").disabled=!auth||running;$("stop").disabled=!running;$("pairSelect").disabled=!auth||running;if(PAIRS.includes(s.selectedSymbol)){pair=s.selectedSymbol;$("pairSelect").value=pair;}const f=s.pairs&&s.pairs[pair]||s,k=f.apiStatus||s.apiStatus||"OFFLINE";
 if(f.supportStatus==="SUPPORTED")status("live",f.statusMessage||"Streaming สด");
-else if(s.serverOnline&&f.supportStatus==="REST_ONLY")status("rest","Streaming ไม่พร้อม · REST history fallback ทำงาน; ระบบจะคง STANDBY เมื่อไม่มี tick สดตามกฎความปลอดภัย");
+else if(s.serverOnline&&f.supportStatus==="REST_ONLY")status("rest","Streaming ไม่พร้อม · ใช้ REST fallback วิเคราะห์จากแท่ง M1 ที่ปิดแล้วเมื่อข้อมูลยังสด");
 else if(s.serverOnline&&k==="LOCKED")status("locked",s.apiMessage||f.statusMessage);
 else if(s.serverOnline&&s.monitoring)status("wait",s.apiMessage||"กำลังเชื่อมต่อข้อมูล");
 else if(s.serverOnline)status("server","เซิร์ฟเวอร์ออนไลน์ · รอเริ่มสแกน");else status("offline",s.apiMessage||"เซิร์ฟเวอร์ไม่ตอบสนอง");

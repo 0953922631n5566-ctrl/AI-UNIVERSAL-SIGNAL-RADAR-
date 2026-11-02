@@ -20,8 +20,9 @@ Updated: 2026-11-02
 
 ## REST / Streaming limitation — important
 - Backend currently fetches historical M1 candles through Twelve Data REST and separately attempts price Streaming.
-- Backend marks a pair REST_ONLY if Streaming is unavailable. Its current analyzer explicitly requires a fresh Streaming tick for CALL/PUT; REST history can populate context/indicators but the safe output remains STANDBY without a live tick.
-- Therefore the new UI labels REST_ONLY as REST FALLBACK but does not claim REST-only directional signals are enabled. To enable directional decisions from REST alone, backend analyzer, polling cadence, signal freshness/expiry rules, and tests must be changed and deployed as a separate backend task. Do not bypass this safety gate in the browser or expose API keys.
+- Backend marks a pair REST_ONLY if Streaming is unavailable. In this mode it analyzes only closed M1 candles fetched through Twelve Data REST, provided the latest candle is no older than 180 seconds.
+- REST fallback refresh cadence is 180 seconds (maximum 480 REST refreshes/day for one continuously monitored selected pair). A fresh REST fallback may produce CALL/PUT using the same evidence engine; stale/invalid/insufficient REST data remains STANDBY. The UI identifies this as REST FALLBACK.
+- Streaming remains preferred when a fresh tick is available. No API key is exposed in the browser. REST-only signal behavior is covered by a new analyzer test and must be confirmed by CI and Render deployment.
 
 ## Render configuration
 - Frontend service: srv-dbk35e8ae00c73fmpi30, workspace tea-db8qa8nf3r2c73f1htk0, auto deploy on main commits.
