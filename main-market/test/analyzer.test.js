@@ -252,7 +252,7 @@ test("pre-candle alerts retain a valid direction after the 40-second display hol
   assert.ok(server.includes("preAlertSignal: null"));
   assert.ok(server.includes("feed.preAlertSignal = result.signal"));
   assert.ok(server.includes("preAlertSignal: feed.preAlertSignal"));
-  assert.ok(js.includes('includes(feed.preAlertSignal)'));
+  assert.ok(js.includes('includes(latestPreAlert())'));
   assert.ok(js.includes('remaining <= 10 && remaining > 3'));
   assert.ok(js.includes('remaining <= 3 && remaining > 0'));
 });
