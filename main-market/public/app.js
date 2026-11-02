@@ -7,9 +7,12 @@ function selectedSymbols(){return [document.querySelector("[data-pair-select]:ch
 function setSelected(values){const one=values.find(s=>SYMBOLS.includes(s))||"EUR/USD";document.querySelectorAll("[data-pair-select]").forEach(x=>x.checked=x.value===one);const label=$("selectedPairLabel");if(label)label.textContent=one;const summary=$("pairSummary");if(summary&&!monitoring)summary.textContent=one+" · รอเริ่มสแกน";try{localStorage.setItem("mainMarketSelectedPair",one)}catch{}} 
 function openPairModal(){const modal=$("pairModal");modal?.classList.add("open");modal?.setAttribute("aria-hidden","false")}
 function closePairModal(){const modal=$("pairModal");modal?.classList.remove("open");modal?.setAttribute("aria-hidden","true")}
-function unlockAudio(force=false){if(!$("sound").checked&&!force)return;try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;if(!audioContext||audioContext.state==="closed")audioContext=new C();if(audioContext.state==="suspended")audioContext.resume().catch(()=>{});}catch{}}
-async function tone(k,force=false){if(!$("sound").checked&&!force)return;try{unlockAudio();if(!audioContext)return;if(audioContext.state!=="running")await audioContext.resume();const notes=k==="signal"?[880,1175]:k==="watch"?[740,988]:[k==="entry"?980:660];for(let i=0;i<notes.length;i++){const o=audioContext.createOscillator(),g=audioContext.createGain(),t=audioContext.currentTime+i*.13;o.type="sine";o.frequency.setValueAtTime(notes[i],t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.32,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.19);o.connect(g);g.connect(audioContext.destination);o.start(t);o.stop(t+.2);}}catch{}}
-function vibrate(force=false){if(!$("vibration").checked&&!force)return;try{if(tg?.HapticFeedback)tg.HapticFeedback.impactOccurred("heavy");if(navigator.vibrate)navigator.vibrate([150,70,150]);}catch{}}
+function getAudioContext(){const C=window.AudioContext||window.webkitAudioContext;if(!C)throw new Error("เบราว์เซอร์นี้ไม่รองรับ Web Audio");if(!audioContext||audioContext.state==="closed")audioContext=new C();return audioContext}
+async function unlockAudio(){const ctx=getAudioContext();if(ctx.state!=="running")await ctx.resume();if(ctx.state!=="running")throw new Error("ระบบยังไม่อนุญาตให้เล่นเสียง กรุณาเปิดเสียงสื่อของโทรศัพท์");return ctx}
+async function tone(k,force=false){if(!$("sound").checked&&!force)return false;const ctx=await unlockAudio();const notes=k==="signal"?[880,1175]:k==="watch"?[740,988]:[k==="entry"?980:660];for(let i=0;i<notes.length;i++){const o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime+i*.16;o.type="sine";o.frequency.setValueAtTime(notes[i],t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.22,t+.025);g.gain.exponentialRampToValueAtTime(.0001,t+.24);o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+.25)}return true}
+function playAlertTone(kind){tone(kind).catch(e=>{const status=$("testStatus");if(status)status.textContent="เสียงแจ้งเตือนไม่พร้อม: "+(e.message||"ตรวจสอบเสียงสื่อของโทรศัพท์")})}
+function playAlertVibration(){if(!$("vibration").checked)return;const result=vibrate();if(!result.ok){const status=$("testStatus");if(status)status.textContent="สั่นแจ้งเตือนไม่ได้: "+result.reason}}
+function vibrate(force=false){if(!$("vibration").checked&&!force)return{ok:false,reason:"ปิดการสั่นไว้"};try{if(typeof tg?.HapticFeedback?.impactOccurred==="function"){tg.HapticFeedback.impactOccurred("heavy");return{ok:true,method:"telegram"}}if(typeof navigator.vibrate==="function"){const accepted=navigator.vibrate([180,90,180]);return accepted?{ok:true,method:"browser"}:{ok:false,reason:"ระบบปฏิเสธคำสั่งสั่น"}}return{ok:false,reason:"อุปกรณ์หรือ Telegram WebView ไม่รองรับการสั่น"}}catch(e){return{ok:false,reason:e.message||"ส่งคำสั่งสั่นไม่สำเร็จ"}}}
 function notify(message){if(tg?.showAlert)tg.showAlert(message);else window.alert(message)}
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function statusLabel(p){
@@ -45,8 +48,8 @@ function countdown(symbol,next,signal,apiStatus,isMonitoring){
  const old=countdowns.get(symbol),priorSignal=old?.signal||"STANDBY";
  const directional=()=>signal==="CALL"||signal==="PUT";
  const remaining=()=>Math.max(0,(target-Date.now())/1000);
- const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE")return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);tone("watch")};
- const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);tone("entry");vibrate()};
+ const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE")return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);playAlertTone("watch")};
+ const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);playAlertTone("entry");playAlertVibration()};
  const show=left=>{const el=$("countdown-"+symbol.replace("/","-"));if(el)el.textContent="แท่งถัดไป "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0")};
  if(old&&old.target===target&&old.timer){
   const current=remaining(),becameDirectional=(priorSignal!=="CALL"&&priorSignal!=="PUT")&&directional();show(Math.ceil(current));
@@ -71,7 +74,7 @@ function render(s){
    const key=symbol+":"+p.statusMessage;if(!announcedIssues.has(key)){announcedIssues.add(key);notify(symbol+" ไม่รองรับ\n"+(p.statusMessage||"บัญชี Twelve Data อาจไม่มีสิทธิ์ใช้งานคู่นี้"))}
   }
   if(s.monitoring&&p.apiStatus==="ONLINE"&&(p.signal==="CALL"||p.signal==="PUT")&&p.alertId){
-   const key=symbol+":"+p.alertId;if(lastSignalAlerts.get(symbol)!==key){lastSignalAlerts.set(symbol,key);tone("signal");vibrate()}
+   const key=symbol+":"+p.alertId;if(lastSignalAlerts.get(symbol)!==key){lastSignalAlerts.set(symbol,key);playAlertTone("signal");playAlertVibration()}
   }
   countdown(symbol,p.nextCandleAt,p.signal,p.apiStatus,!!s.monitoring);
  }
@@ -87,9 +90,9 @@ $("pairModal").addEventListener("click",e=>{if(e.target===$("pairModal"))closePa
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closePairModal()});
 document.querySelectorAll("[data-pair-select]").forEach(x=>x.addEventListener("change",()=>{const symbol=x.value;setSelected([symbol]);closePairModal();$("pairSummary").textContent="คู่ที่เลือก: "+symbol+(monitoring?" · กำลังเปลี่ยนคู่ที่สแกน":" · กดเริ่มเพื่อสแกน");if(monitoring&&socket?.readyState===1)socket.send(JSON.stringify({action:"select",symbol}))}));
 setSelected(saved);
-$("start").onclick=()=>{const values=selectedSymbols();if(!values.length){notify("กรุณาเลือกอย่างน้อย 1 คู่เงินก่อนเริ่ม");return}unlockAudio();monitoring=true;$("start").disabled=true;$("stop").disabled=false;connect();if(socket?.readyState===1)sendStart()};
-$("sound").addEventListener("change",()=>{if($("sound").checked)unlockAudio()});
-$("testSound").onclick=()=>{unlockAudio(true);tone("signal",true);$("testStatus").textContent="ส่งเสียงทดสอบแล้ว"};
-$("testVibration").onclick=()=>{vibrate(true);$("testStatus").textContent="ส่งคำสั่งสั่นทดสอบแล้ว"};
+$("start").onclick=()=>{const values=selectedSymbols();if(!values.length){notify("กรุณาเลือกอย่างน้อย 1 คู่เงินก่อนเริ่ม");return}unlockAudio().catch(()=>{});monitoring=true;$("start").disabled=true;$("stop").disabled=false;connect();if(socket?.readyState===1)sendStart()};
+$("sound").addEventListener("change",()=>{if($("sound").checked)unlockAudio().catch(()=>{})});
+$("testSound").onclick=async()=>{const status=$("testStatus");status.textContent="กำลังทดสอบเสียง…";try{await tone("signal",true);status.textContent="กำลังเล่นเสียงทดสอบ หากยังไม่ได้ยินให้ตรวจระดับเสียงสื่อของโทรศัพท์"}catch(e){status.textContent="เสียงไม่พร้อม: "+(e.message||"อุปกรณ์ไม่รองรับ")}};
+$("testVibration").onclick=()=>{const result=vibrate(true);$("testStatus").textContent=result.ok?(result.method==="telegram"?"ส่งคำสั่งสั่นผ่าน Telegram แล้ว — ตรวจการสั่นที่ตัวเครื่อง":"ส่งคำสั่งสั่นผ่านเบราว์เซอร์แล้ว — ตรวจการสั่นที่ตัวเครื่อง"):"สั่นไม่ได้: "+result.reason};
 $("stop").onclick=()=>{monitoring=false;$("start").disabled=false;$("stop").disabled=true;if(socket?.readyState===1)socket.send(JSON.stringify({action:"stop"}));socket?.close();socket=null;clearCountdowns()};
 fetch("/api/state").then(r=>r.json()).then(render).catch(()=>{});connect();
