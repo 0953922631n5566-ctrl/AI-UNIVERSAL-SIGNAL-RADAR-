@@ -426,3 +426,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - New interface replaces small signal text with a large circular lamp and large CALL/PUT/STANDBY label. Green CALL, red PUT, neutral grey STANDBY. Thai action guidance differentiates “พิจารณาเข้า CALL/PUT” from “ยังไม่เข้าออเดอร์”. Pair card is full-width and price/RSI/data-age/countdown are enlarged for mobile.
 - Preserved: compact pair dropdown, six selectable pairs but one active pair, EUR/USD default, existing analysis and data-quality gates, 200 closed-candle warmup, alert timing/sound/vibration, and manual-only/no-auto-orders behavior. No Android/OCR changes.
 - Not yet verified: visual rendering on user's Telegram WebView/Xiaomi 11T and physical CALL/PUT sound/vibration; no live signal event was fabricated for UI testing. User should close/reopen Mini App to load the new assets. If display still appears cached, fully close Telegram Mini App and reopen the link.
+
+
+## 2026-11-02 — Neon regime / AI reasoning UI enhancement (implementation branch)
+
+- User supplied a neon-style HTML prototype and asked to use its additional presentation ideas while retaining the previously approved Main Market screen/layout.
+- Reviewed current handoff, live branch source, analyzer output contract and UI. The existing UI already had the large CALL/PUT/STANDBY lamp, single-pair dropdown and manual-only behavior.
+- Added a compact MARKET REGIME badge mapped from the analyzer's actual regime field (TRENDING_UP, TRENDING_DOWN, RANGING, HIGH_VOLATILITY, REVERSAL, UNCLEAR/UNKNOWN) and an explicitly labeled AI REASONING panel using the analyzer's actual reason string.
+- Added subtle neon pulse animation to directional CALL/PUT lamps with reduced-motion support. STANDBY remains visually neutral grey as in the approved Main Market design.
+- Deliberately excluded prototype simulation/autocycling, fabricated sample regimes, manual test CALL/PUT controls, OTC default, unsupported BTC/ETH choices, and broker-order buttons/sendData order payloads. These would misrepresent the real Twelve Data feed or conflict with manual-only/no-auto-order requirements.
+- No analyzer rules, candle warmup, market-data source, pair list, alert timing, signal hold, or server order behavior changed.
+- Added regression test for actual regime/reason rendering and absence of simulation/order UI.
+- Implementation branch: feature/neon-regime-reasoning-ui. Tests/build/PR/deployment/device validation pending.

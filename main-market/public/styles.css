@@ -30,3 +30,20 @@
 .pair-status-message{font-size:10px;min-height:0}
 .pair-countdown{text-align:center;font-size:14px;font-weight:850;padding:10px;margin-top:12px;border-radius:10px;background:#101a27;color:#f1f6fc}
 @media(max-width:380px){.signal-display{gap:12px;padding:16px 10px;min-height:164px}.signal-lamp{width:100px;height:100px;border-width:6px}.signal-copy strong{font-size:36px}}
+
+
+/* Neon market-regime and reasoning panel, integrated with the existing Main Market card */
+.regime-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px;padding:9px 11px;border:1px solid #35465a;border-radius:10px;background:#111b29}
+.regime-row>span{font-size:9px;font-weight:850;letter-spacing:.1em;color:#91a5ba}
+.regime-badge{font-size:10px;line-height:1.35;text-align:right;color:#d6e2ed}
+.regime-trending_up,.regime-trending_down{color:#75efb5}
+.regime-ranging,.regime-unclear,.regime-unknown{color:#b9c5d2}
+.regime-high_volatility,.regime-reversal{color:#ffd27a}
+.reason-panel{margin-top:11px;padding:12px 13px;border:1px solid #34475b;border-left:4px solid #39c98b;border-radius:0 11px 11px 0;background:linear-gradient(110deg,#0e1924,#142131)}
+.reason-heading{font-size:10px;font-weight:900;letter-spacing:.09em;color:#7cf0b8}
+.reason-panel .pair-reason{margin:6px 0 0;font-size:12px;line-height:1.55;color:#e0eaf3}
+.signal-display.call .signal-lamp span{animation:neonCall 1.6s ease-in-out infinite}
+.signal-display.put .signal-lamp span{animation:neonPut 1.6s ease-in-out infinite}
+@keyframes neonCall{0%,100%{filter:brightness(1);transform:scale(1);box-shadow:0 0 18px #6bffbd,0 0 38px #35ed9a}50%{filter:brightness(1.25);transform:scale(1.055);box-shadow:0 0 28px #a2ffd3,0 0 52px #35ed9a}}
+@keyframes neonPut{0%,100%{filter:brightness(1);transform:scale(1);box-shadow:0 0 18px #ff8490,0 0 38px #ff4658}50%{filter:brightness(1.25);transform:scale(1.055);box-shadow:0 0 28px #ffc0c5,0 0 52px #ff4658}}
+@media(prefers-reduced-motion:reduce){.signal-display.call .signal-lamp span,.signal-display.put .signal-lamp span{animation:none}}
