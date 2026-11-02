@@ -41,8 +41,9 @@ jobs:
             assert.ok(html.includes(`id="${id}"`), `Missing required control: ${id}`);
           }
 
-          for (const pair of ['EUR/USD', 'AUD/USD', 'EUR/GBP', 'GBP/JPY', 'EUR/JPY', 'GBP/USD']) {
-            assert.ok(html.includes(pair), `Missing supported pair: ${pair}`);
+          assert.ok(html.includes('EUR/USD'), 'EUR/USD must be present');
+          for (const pair of ['AUD/USD', 'EUR/GBP', 'GBP/JPY', 'EUR/JPY', 'GBP/USD']) {
+            assert.ok(!html.includes(pair), `Non-target pair must be removed: ${pair}`);
           }
 
           assert.ok(html.includes('https://ai-signal-radar-main-market.onrender.com'));

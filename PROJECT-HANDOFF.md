@@ -9,7 +9,7 @@ Updated: 2026-11-02
 
 ## Scope
 - MAIN MARKET / NON-OTC only, M1, manual signal review only, no automatic broker orders.
-- Six pairs: EUR/USD, AUD/USD, EUR/GBP, GBP/JPY, EUR/JPY, GBP/USD.
+- Current active pair: EUR/USD only. Other pairs are intentionally disabled in both frontend and backend until separately verified.
 - UI: CALL / PUT / STANDBY, regime, reason/evidence, EMA, RSI, MACD, price, age, countdown, scan controls, sound and vibration.
 - No simulated data, random signals, demo API key, or browser-exposed Twelve Data secret.
 
