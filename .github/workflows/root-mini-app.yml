@@ -26,8 +26,9 @@ jobs:
           import assert from 'node:assert/strict';
 
           const html = fs.readFileSync('index.html', 'utf8');
-          const inlineScripts = [...html.matchAll(/<script(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/gi)]
-            .map(match => match[1])
+          const inlineScripts = html.split('<script').slice(1)
+            .filter(part => !part.slice(0, 200).includes('src='))
+            .map(part => part.slice(part.indexOf('>') + 1, part.indexOf('</script>')))
             .filter(source => source.trim());
 
           assert.ok(inlineScripts.length > 0, 'index.html must contain an inline JavaScript application');
