@@ -571,3 +571,12 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Server commit: `e40c0f23b4546ca406cbe49244ca825f89b707c0`; UI commit: `398f1255134f59edc167788fa8f1bd07f9fbb263`; regression test commit: `cc7a6b651eb66dada3e7e2162b1a785fa2be4607`.
 - This is only server availability reporting; it does not imply Twelve Data is streaming or that all pairs are supported.
 - Pending: latest GitHub Actions, Render deploy, HTTP/CORS preflight, and Telegram device verification.
+
+
+### Mini App startup crash fix — 2026-11-02
+
+- User screenshot exposed `Uncaught TypeError: values.find is not a function` with OFFLINE status and inert controls.
+- Confirmed the canonical client called `setSelected(saved)` at startup while `saved` is a scalar string from localStorage; the function assumed an array and threw before `pollState()` / WebSocket connection initialization.
+- Patched `main-market/public/app.js` to normalize scalar/array/null selection values before using `.find()`. Preserves selected pair and one-pair-at-a-time behavior; no server/analyzer strategy changes.
+- Client fix commit: `c73c67c925240342ed950d17e7954169ef943e95`.
+- Added a regression test verifying persisted scalar selection cannot trigger this startup crash. CI and Render deployment pending; Telegram/Xiaomi device confirmation remains outstanding.
