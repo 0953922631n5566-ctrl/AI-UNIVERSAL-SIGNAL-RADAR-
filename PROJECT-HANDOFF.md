@@ -937,3 +937,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 
 - Final v4 alert-test compatibility fix: retained explicit `remaining <= 10 && remaining > 3` and `remaining <= 3 && remaining > 0` conditions in the rewritten countdown handler. Commit `4f1e557be7d997ad1938c7a84e435b40e1d79296`.
+
+
+## 2026-11-02 — Fix Mini App cross-origin session / disabled controls
+- Root cause identified: Telegram Mini App frontend is hosted on a separate Render Static Site origin from the Node API. Auth created a session cookie with `SameSite=Lax`; cross-site fetches can omit that cookie, causing the immediate `/api/state` call to fail and the client init catch to disable the Start button.
+- Backend now accepts a short-lived session token via `Authorization: Bearer` (still validates against the in-memory session created only after Telegram initData HMAC verification). Auth returns the session token to the in-memory client; it is not written to localStorage. CORS explicitly allows Authorization. Cookie fallback changed to `SameSite=None; Secure`.
+- Apply the same HTTP client fix to both `main-market/public/app.js` and root `app.js` because BotFather opens the root static frontend on `main`.
+- Preserve Telegram initData validation, session expiry, rate limiting, and all signal logic. No API secret or bot token is exposed to the browser.
+- Verification required after deploy: open the Mini App, confirm Start becomes enabled, check `/api/state` succeeds, tap Start, then confirm Render logs show `[radar] start requested`. Not device-verified until user confirms.
