@@ -357,3 +357,16 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
   - `37a29d00dc39c4458c816e143c36511040286dce` and `3c46a1ea8f37f5bf9fdb6c1e6cd3d266691b5c22` — client warning/label and readable alert formatting.
 - Latest Render deploy: `dep-dbjtgu0gbm7c7383a8ug`, source commit `3c46a1ea8f37f5bf9fdb6c1e6cd3d266691b5c22`, status `live`, finished 2026-11-02T00:26:37Z. Build log confirms 7 tests passed / 0 failed, the configured Node syntax-check chain passed, and the process started with `MAIN MARKET multi-pair Radar listening on 10000`.
 - Still pending: user-side Mini App refresh and real Twelve Data account acceptance per pair; no claim that all six currently have Streaming permission until fresh logs show it. The app is deployed, but runtime support and audible/haptic acceptance must be checked after the user taps Start.
+
+
+## 2026-11-02 — Restore original single-pair Main Market scanner with pair selector
+
+- User chose to return to the original single-market scanning model rather than scan all six pairs concurrently.
+- UI now uses mutually exclusive radio-style pair choices for AUD/USD, EUR/USD, EUR/GBP, GBP/JPY, EUR/JPY and GBP/USD. EUR/USD is the default selection.
+- When monitoring is running and the user selects a different pair, the client sends a `select` action; the server closes the previous WebSocket, clears signal state/timers for the old pair, changes the selected symbol, loads/reuses that pair's 220-bar REST history, and subscribes to Streaming for that one pair only.
+- Start action is server-enforced to accept exactly one symbol even if a stale client sends multiple symbols.
+- Restored REST resync cadence from 15 minutes to 5 minutes (300 seconds), appropriate for a single selected pair. Render env var `REST_SYNC_SECONDS` was explicitly set to `300` so an older 900-second environment override cannot defeat the restored cadence.
+- Preserved original analysis behavior: 200 closed-candle warmup, 220 history request, EMA/RSI/MACD/ATR/Price Action, STANDBY on stale/missing data, 40-second signal hold, 10s/3s alerts, CALL/PUT sound and vibration, manual-only/no auto-orders.
+- Files changed: `src/config.js`, `server.js`, `public/app.js`, `public/index.html`, `test/analyzer.test.js`.
+- Test now asserts six selectable symbols, only EUR/USD as the default, and 300-second REST refresh.
+- Pending validation: Render build/test/deploy and actual user-device switching between symbols. Do not call this change live until Render reports the latest deploy LIVE. Check that the selected pair alone is shown and receives fresh ticks after changing radio selection.
