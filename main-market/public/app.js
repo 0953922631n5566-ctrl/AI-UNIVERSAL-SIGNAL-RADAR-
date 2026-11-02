@@ -37,15 +37,15 @@ function countdown(symbol,next,signal,apiStatus,isMonitoring){
  const remaining=()=>Math.max(0,(target-Date.now())/1000);
  const fireWatch=()=>{if(!isMonitoring||apiStatus!=="ONLINE")return;const key=symbol+":"+candleStart+":watch:10";if(alerts.has(key))return;alerts.add(key);tone("watch")};
  const fireEntry=()=>{if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return;const key=symbol+":"+candleStart+":"+signal+":entry:3";if(alerts.has(key))return;alerts.add(key);tone("entry");vibrate()};
+ const show=left=>{const el=$("countdown-"+symbol.replace("/","-"));if(el)el.textContent="แท่งถัดไป "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0")};
  if(old&&old.target===target&&old.timer){
-  const current=remaining(),becameDirectional=(priorSignal!=="CALL"&&priorSignal!=="PUT")&&directional();
+  const current=remaining(),becameDirectional=(priorSignal!=="CALL"&&priorSignal!=="PUT")&&directional();show(Math.ceil(current));
   if(current<=10&&current>0)fireWatch();
   if(current<=3&&current>0&&(becameDirectional||directional()))fireEntry();
   old.signal=signal;return;
  }
  if(old?.timer)clearInterval(old.timer);
  const rec={target,signal,timer:null,previous:remaining()};countdowns.set(symbol,rec);
- const show=left=>{const el=$("countdown-"+symbol.replace("/","-"));if(el)el.textContent="แท่งถัดไป "+String(Math.floor(left/60)).padStart(2,"0")+":"+String(left%60).padStart(2,"0")};
  show(Math.ceil(rec.previous));if(rec.previous<=10&&rec.previous>0)fireWatch();if(rec.previous<=3&&rec.previous>0)fireEntry();
  rec.timer=setInterval(()=>{const current=remaining(),left=Math.ceil(current);show(left);if(rec.previous>10&&current<=10)fireWatch();if(rec.previous>3&&current<=3)fireEntry();rec.previous=current;if(current<=0){clearInterval(rec.timer);rec.timer=null;countdowns.delete(symbol)}},100);
 }
