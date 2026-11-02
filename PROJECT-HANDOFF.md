@@ -438,3 +438,16 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - No analyzer rules, candle warmup, market-data source, pair list, alert timing, signal hold, or server order behavior changed.
 - Added regression test for actual regime/reason rendering and absence of simulation/order UI.
 - Implementation branch: feature/neon-regime-reasoning-ui. Tests/build/PR/deployment/device validation pending.
+
+
+### Neon regime / reasoning UI — deployment verification (2026-11-02)
+
+- PR #4 merged into `main-market`; squash commit: `5cc7a7a83198fe552ae9277a9f04c5e3da355e12`.
+- Render deployment: `dep-dbju142vcj2c73fe4bc0`, status `live`; deploy-ended event reports `succeeded` at 2026-11-02T01:00:41Z.
+- Build logs confirm 10 tests passed / 0 failed, including the new live regime/reasoning UI regression test. npm audit reported 0 vulnerabilities; Node syntax checks completed as part of postinstall.
+- Runtime logs confirm the new process started: `MAIN MARKET single-pair Radar listening on 10000`. Render reports the deployment live.
+- Public URL remains https://ai-signal-radar-main-market.onrender.com. User should fully close and reopen the Telegram Mini App to refresh the new assets.
+- Implemented: actual analyzer regime badge, AI REASONING panel using the live reason string, subtle animated CALL/PUT lamps with reduced-motion support. STANDBY remains neutral grey.
+- Preserved: prior approved mobile layout, compact single-pair selector, EUR/USD default, market calculations, 200 closed-candle warmup, freshness/API locks, signal hold, alert timing/sound/vibration, and manual-only/no-auto-orders behavior.
+- Excluded prototype-only simulation/autocycling, fake CALL/PUT test states, OTC default, unsupported crypto options, and broker order buttons.
+- Not yet verified: actual Telegram WebView rendering on Xiaomi 11T, device sound/vibration, and live market feed behavior after refresh. Render LIVE/build success does not establish those device checks.
