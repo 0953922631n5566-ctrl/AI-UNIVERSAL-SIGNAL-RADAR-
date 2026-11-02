@@ -695,3 +695,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Release blocker: production must have `TELEGRAM_BOT_TOKEN` configured as a private Render environment variable before the new Mini App can authenticate. No bot token has been supplied or confirmed in the project context. Do not ask the user to paste it into chat or commit it to GitHub. Set it only in the Render Dashboard after the user has access to BotFather's token.
 - Still not verified: real Twelve Data REST and Streaming entitlement for all six pairs using the user's live API key; Telegram WebView cookie/session behavior on Xiaomi 11T; actual sound/vibration and 10s/3s timing on device; historical/backtest and out-of-sample predictive performance. The rule engine remains heuristic and must not be marketed as a proven predictive AI.
 - Promotion policy: do not merge PR #9 or point the production Render service at this branch until the bot token is configured privately and the live provider + Telegram device gates are passed. Existing `main-market` production and Android/OCR `main` remain preserved.
+
+
+
+### Production provider observations from Render logs — 2026-11-02 (legacy main-market deployment)
+
+- These observations are from the existing production service running the older `main-market` branch, not from the v2 candidate.
+- During the single-pair checks around 05:17–05:29 UTC, the old service logged successful REST history loads of 220 requested / 220 available / 200 required for GBP/JPY, EUR/GBP, GBP/USD and AUD/USD. For those same attempts the Twelve Data Streaming subscription was rejected as unsupported.
+- EUR/USD logged a successful first live Streaming price in the same period.
+- EUR/JPY appears in earlier multi-pair production logs with Streaming reported unsupported; a fresh single-pair REST result for EUR/JPY was not established in the latest log window.
+- This confirms why v2 separates REST-only from Streaming: a pair may display REST-derived Price/Close/RSI while remaining STANDBY for direction until a fresh live tick is available. Do not infer live signal capability from successful REST history or selector presence.
+- This is legacy-service evidence only; repeat the per-pair check against the v2 candidate after it is deployed with the private secrets configured.
