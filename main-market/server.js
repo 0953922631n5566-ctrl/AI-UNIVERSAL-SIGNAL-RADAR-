@@ -93,7 +93,7 @@ async function syncPair(f,{force=false}={}){
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function syncSelected({force=false}={}){
  for(let i=0;i<selectedSymbols.length;i++){
-  const f=feeds.get(selectedSymbols[i]);if(f.restStatus==="UNSUPPORTED"){if(Date.now()-f.lastRestSyncAt<SYNC*1000)continue;f.restStatus="NOT_CHECKED";f.streamStatus="WAITING";f.restMessage="กำลังตรวจสอบสิทธิ์คู่เงินอีกครั้ง"}
+  const f=feeds.get(selectedSymbols[i]);if(f.streamStatus==="UNSUPPORTED"&&Date.now()-f.lastRestSyncAt>=SYNC*1000)f.streamStatus="WAITING";if(f.restStatus==="UNSUPPORTED"){if(Date.now()-f.lastRestSyncAt<SYNC*1000)continue;f.restStatus="NOT_CHECKED";f.streamStatus="WAITING";f.restMessage="กำลังตรวจสอบสิทธิ์คู่เงินอีกครั้ง"}
   await syncPair(f,{force});
   if(globalLockMessage)break;
   if(i<selectedSymbols.length-1)await delay(1100);
@@ -132,7 +132,7 @@ function startStream(){
    if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,mentioned=selectedSymbols.filter(s=>message.toUpperCase().includes(s)),targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):mentioned.length?mentioned.map(s=>feeds.get(s)):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
    publish();return;
   }
-  if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
+  if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else if(isUnsupportedError(msg)){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=msg;f.analysis=standby("ไม่รองรับ Streaming: "+msg)}}publish()}else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
  });
  ws.on("error",e=>{if(upstream!==ws)return;console.error("[market-feed] WebSocket error:",e.message);for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=e.message;f.dataLocked=true;f.analysis=standby("เชื่อมต่อ Streaming ไม่สำเร็จ: "+e.message)}}publish()});
  ws.on("close",()=>{if(upstream!==ws)return;console.warn("[market-feed] WebSocket CLOSED");upstream=null;clearInterval(heartbeat);heartbeat=null;for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage="Streaming หลุด กำลังเชื่อมต่อใหม่";f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby(f.streamMessage)}}publish();if(monitoring)retryTimer=setTimeout(startStream,8000)});
