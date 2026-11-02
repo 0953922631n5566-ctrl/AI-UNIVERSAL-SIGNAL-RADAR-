@@ -474,3 +474,19 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Preserve server/analyzer logic, Twelve Data, six supported NON-OTC pairs, one-pair-at-a-time behavior, 200 closed-candle warmup, data freshness locks, signal hold, and 10s/3s alert policy.
 - Automated regression tests added for device-test handling and simplified UI. GitHub Actions Main Market Checks run #76 succeeded: 13 tests passed / 0 failed, including the new sound/haptics and simplified-layout regressions. npm install succeeded. PR #6 is open for merge; Render deployment and on-device acceptance are pending. Alert playback failures are surfaced in the on-screen test-status line rather than becoming unhandled promise rejections. The former neon-animation CSS assertions were updated to match the simplified static lamp style.
 - Device limitation: a web app can confirm Web Audio API readiness and whether the browser accepted a vibration command, but cannot prove that the phone physically emitted sound/vibration. Telegram WebView/Android media volume, DND, system vibration settings and app permissions still need physical acceptance.
+
+
+### Audio/haptics simplified UI — merge and deployment verification (2026-11-02)
+
+- PR #6 merged into `main-market`; squash commit: `e56bc461ba826f276e65cdec0a82b5998d979a11`.
+- Source branch: `fix/main-market-audio-haptics-simple-ui`.
+- GitHub Actions Main Market Checks run #76 passed: npm install succeeded; 13 tests passed / 0 failed, including audio/haptics diagnostics and simplified-layout regressions.
+- Render deployment `dep-dbk0m5bm8hqs738a7m1g` reached `live`; deploy-ended event reports `succeeded` at 2026-11-02T04:02:03Z.
+- Render runtime logs confirm process startup: `MAIN MARKET single-pair Radar listening on 10000`; Render reports `Your service is live`.
+- Updated client now initializes/resumes Web Audio from the direct user tap, awaits test-tone setup and displays an error when Web Audio is unavailable or blocked. This fixes the previous test-path bug where a disabled sound toggle could prevent the forced test tone.
+- Vibration test now calls Telegram HapticFeedback when available, falls back to browser vibration otherwise, and displays unsupported/rejected results rather than always claiming success. The UI explicitly distinguishes a sent haptic command from confirmed physical vibration.
+- Replaced the visually dense Kawasaki neon shell with a simpler compact dark-green screen. Retained actual live CALL/PUT/STANDBY, regime/reason, price/RSI/data age/countdown, single-pair selector, start/stop and sound/vibration controls.
+- No changes to server, market calculations, Twelve Data, 200 closed-candle warmup, 40-second signal hold, 10s/3s alert timing, freshness locks, six NON-OTC pairs or manual-only behavior. Android/OCR branch remains untouched.
+- Post-deploy error-log query after 04:02:03Z returned no error entries at the time checked.
+- Public endpoint/browser UI could not be fetched from this assistant network environment (DNS resolution failure / web fetch inaccessible). Render's successful deploy event and runtime startup logs are verified, but external HTTP response and user's Telegram/Xiaomi rendering remain unverified.
+- Physical speaker/vibrator behavior cannot be tested remotely. User acceptance remains required: fully close/reopen Telegram Mini App, tap each test button, and verify actual phone output. If test status says unsupported/blocked, use that exact message to diagnose the device/browser setting. Do not report device acceptance until confirmed.
