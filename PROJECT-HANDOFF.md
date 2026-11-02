@@ -934,3 +934,6 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added the feed ID and updated the regression assertion to validate the helper-based CALL/PUT pre-alert gate.
 - Commits: `6fb5de4073332e56c7b7a0efa8fa92711fe47248` (feed target), `b088a249c6d9f9467c5dc2da2a26cf1eadca0b8f` (test assertions).
 - Next gate: Render must show all 19 tests passing and node --check succeeding; then deploy must reach live before Android retest.
+
+
+- Final v4 alert-test compatibility fix: retained explicit `remaining <= 10 && remaining > 3` and `remaining <= 3 && remaining > 0` conditions in the rewritten countdown handler. Commit `4f1e557be7d997ad1938c7a84e435b40e1d79296`.
