@@ -685,10 +685,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App now requires Telegram's raw `WebApp.initData` before polling, connecting or issuing controls. When opened outside Telegram or when verification fails, the controls stay disabled and the UI displays an authentication/locked message.
 - Health endpoint exposes only non-sensitive service metadata. JSON body limit increased to 8 KB for Telegram initData payloads.
 - Added tests for valid signature, tampering, expired/future auth dates, missing bot token, unauthenticated HTTP state/control, unauthenticated WebSocket rejection, authenticated WebSocket, and authenticated start/heartbeat/stop.
-- Latest validated application code commit: `ad7a1f6028f96b1bdf0ee6b23ddda1143ee45b05`.
-- GitHub Actions results on that commit:
-  - Main Market Checks run `41397286506`: **success**, `npm test` reports **14 passed / 0 failed**.
-  - Main Market v2 Rewrite Checks run `41397286178`: **success**, `npm test` reports **14 passed / 0 failed**, and syntax checks passed for server, config, analyzer, Twelve Data client, Telegram auth module and browser client.
+- Latest validated application code commit: `1c6fc8254820fef736ddd333cbc8f3ac12d89422`.
+- The server also accepts the legacy `BOT_TOKEN` environment variable as a fallback, while `TELEGRAM_BOT_TOKEN` is the documented preferred name. `.env.example` now lists `TWELVE_DATA_API_KEY`, `TELEGRAM_BOT_TOKEN` and `PORT` only.
+- GitHub Actions results for the final application code commit:
+  - Main Market Checks run `41397415865`: **success**, `npm test` reports **14 passed / 0 failed**; syntax checks passed.
+  - Main Market v2 Rewrite Checks run `41397415903`: **success**, `npm test` reports **14 passed / 0 failed**; syntax checks passed for server, config, analyzer, Twelve Data client, Telegram auth module and browser client.
+  - Both install workflows reported **0 npm vulnerabilities**.
 - PR #9 remains **Draft / open / unmerged**. Render production service remains attached to branch `main-market`; no v2 code was deployed and no production branch was changed.
 - Release blocker: production must have `TELEGRAM_BOT_TOKEN` configured as a private Render environment variable before the new Mini App can authenticate. No bot token has been supplied or confirmed in the project context. Do not ask the user to paste it into chat or commit it to GitHub. Set it only in the Render Dashboard after the user has access to BotFather's token.
 - Still not verified: real Twelve Data REST and Streaming entitlement for all six pairs using the user's live API key; Telegram WebView cookie/session behavior on Xiaomi 11T; actual sound/vibration and 10s/3s timing on device; historical/backtest and out-of-sample predictive performance. The rule engine remains heuristic and must not be marketed as a proven predictive AI.
