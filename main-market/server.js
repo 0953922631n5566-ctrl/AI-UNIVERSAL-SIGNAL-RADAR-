@@ -637,6 +637,12 @@ setInterval(() => {
 }, 5000);
 
 server.on("upgrade", (req, socket, head) => {
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.has(origin) && origin !== `https://${req.headers.host}`) {
+    socket.write("HTTP/1.1 403 Forbidden\\r\\nConnection: close\\r\\n\\r\\n");
+    socket.destroy();
+    return;
+  }
   const pathname = new URL(req.url || "/", "http://localhost").pathname;
   if (pathname !== "/live") {
     socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
