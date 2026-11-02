@@ -404,3 +404,14 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - The six always-visible pair choices were replaced with a single selected-pair dropdown trigger and an overlay menu. Selection closes the menu and updates the selected pair display. Existing live pair-switch action, EUR/USD default, 200-candle preload, 300-second REST refresh, analysis and alert behavior are preserved.
 - Not yet verified: public HTTP response body from this assistant environment, actual rendering/interaction inside Telegram WebView on Xiaomi 11T, whether this resolves the user's reported freeze, and real Twelve Data streaming acceptance for each chosen pair. The user must close the old Mini App and reopen the deployed URL to receive the new HTML/CSS/JS. Do not claim device acceptance or market feed correctness until observed.
 - Next acceptance test: reopen the Mini App, confirm the screen shows one compact pair button, tap it to see the six options, select AUD/USD, then select EUR/USD while monitoring. Confirm the menu closes after selection, the selected label changes, and the status accurately reports LIVE/unsupported/waiting without fabricating a signal.
+
+
+## 2026-11-02 — Large manual entry signal display redesign
+
+- User requested a larger, clearer signal light to help decide when to manually enter an order.
+- Work isolated on branch `feature/large-entry-signal-display`, based on latest `main-market`. Android/OCR `main` branch untouched.
+- UI change: replace the small CALL/PUT/STANDBY text with a prominent signal panel, large circular lamp, large directional label, and explicit Thai action guidance: CALL = พิจารณาเข้า CALL; PUT = พิจารณาเข้า PUT; STANDBY = ยังไม่เข้าออเดอร์. Green for CALL, red for PUT, neutral grey for STANDBY.
+- Make the selected single-pair card full-width on mobile, enlarge pair name/status, price/RSI/data-age metrics and candle countdown. Preserve the compact pair dropdown and existing sound/vibration controls.
+- No changes to EMA/RSI/MACD/ATR/Price Action calculations, signal thresholds/hold, data freshness requirements, alert timing, Twelve Data integration, single-pair selection, or server-side no-auto-orders behavior.
+- Add regression coverage that the client renders all three large signal states and the CSS defines distinct CALL/PUT/STANDBY lamp styling.
+- Validation/build/deploy and actual Telegram/Xiaomi display remain pending. Do not ask user to refresh until the PR is merged and Render deployment is confirmed LIVE.
