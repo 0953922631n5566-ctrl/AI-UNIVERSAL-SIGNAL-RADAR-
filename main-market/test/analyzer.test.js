@@ -97,16 +97,25 @@ test("REST history can provide indicators but cannot produce direction without a
   assert.equal("confidence" in result, false);
 });
 
-test("60 closed candles are the minimum and up to 80 fetched bars feed the indicators", () => {
+test("60 closed candles are enough to calculate the full indicator set", () => {
   const result = analyzeMarket(makeCandles(60), { tickAgeSeconds: null });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.requiredCandles, 60);
+  assert.equal(result.closedCandleCount, 60);
+  assert.equal(result.candleCount, 60);
+  assert.ok(Number.isFinite(result.metrics.ema50));
+  assert.ok(Number.isFinite(result.metrics.rsi14));
+  assert.ok(Number.isFinite(result.metrics.macdHistogram));
+  assert.ok(Number.isFinite(result.metrics.atr14));
+});
+
+test("the analyzer uses all 80 fetched bars when available", () => {
+  const result = analyzeMarket(makeCandles(80), { tickAgeSeconds: null });
   assert.equal(result.signal, "STANDBY");
   assert.equal(result.requiredCandles, 60);
   assert.equal(result.closedCandleCount, 80);
   assert.equal(result.candleCount, 80);
   assert.ok(Number.isFinite(result.metrics.ema50));
-  assert.ok(Number.isFinite(result.metrics.rsi14));
-  assert.ok(Number.isFinite(result.metrics.macdHistogram));
-  assert.ok(Number.isFinite(result.metrics.atr14));
 });
 
 test("59 closed candles remain insufficient", () => {
