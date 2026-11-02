@@ -31,13 +31,13 @@ export function rsi(values, period = 14) {
 }
 
 function macd(values) {
-  if (values.length < 35) return null;
-  const line = ema(values, 12) - ema(values, 26);
+  if (values.length < 43) return null;
   const signalValues = [];
   for (let end = 35; end <= values.length; end++) {
     const slice = values.slice(0, end);
     signalValues.push(ema(slice, 12) - ema(slice, 26));
   }
+  const line = ema(values, 12) - ema(values, 26);
   const signal = ema(signalValues, 9);
   return finite(line) && finite(signal)
     ? { line, signal, histogram: line - signal }
@@ -89,9 +89,12 @@ function validateCandles(input, now) {
     }
     if (i > 0) {
       const delta = candle.epoch - ordered[i - 1].epoch;
-      if (delta !== 60) return { ok: false, reason: delta <= 0
-        ? "แท่งเทียนซ้ำหรือเวลาไม่เรียงตามลำดับ"
-        : "พบช่องว่างของข้อมูล M1 — รอประวัติที่ต่อเนื่อง" };
+      if (delta <= 0) return { ok: false, reason: "แท่งเทียนซ้ำหรือเวลาไม่เรียงตามลำดับ" };
+      // Market closures can create historical gaps. The most recent five M1 bars
+      // must nevertheless be consecutive before a directional decision is allowed.
+      if (i >= ordered.length - 4 && delta !== 60) {
+        return { ok: false, reason: "แท่ง M1 ล่าสุดมีช่องว่าง — รอข้อมูลต่อเนื่องก่อน" };
+      }
     }
   }
 
@@ -103,7 +106,7 @@ function validateCandles(input, now) {
   return { ok: true, candles: ordered, ageSeconds, closedCandleCount: ordered.length };
 }
 
-function classifyRegime({ closes, candles, ema9, ema21, ema50, rsi14, macdData, atr14, atr20 }) {
+function classifyRegime({ candles, ema9, ema21, ema50, rsi14, macdData, atr14, atr20 }) {
   const last = candles.at(-1);
   const recent = candles.slice(-20);
   const rangeHigh = Math.max(...recent.slice(0, -1).map(c => c.high));
@@ -127,28 +130,11 @@ function classifyRegime({ closes, candles, ema9, ema21, ema50, rsi14, macdData, 
   else if (rising && macdData.histogram > 0) regime = "TRENDING_UP";
   else if (falling && macdData.histogram < 0) regime = "TRENDING_DOWN";
 
-  return {
-    regime,
-    rangeHigh,
-    rangeLow,
-    atrRatio,
-    rangePercent,
-    trendSpread,
-    rising,
-    falling,
-    reversalUp,
-    reversalDown
-  };
+  return { regime, rangeHigh, rangeLow, atrRatio, rising, falling };
 }
 
-/**
- * Transparent rule-based evidence engine, not a trained ML model.
- * Directional decisions are disabled unless the provider's live tick is fresh.
- */
-export function analyzeMarket(input, {
-  now = Date.now(),
-  tickAgeSeconds = null
-} = {}) {
+/** Transparent rule-based evidence engine; it is not a trained ML model. */
+export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null } = {}) {
   const validated = validateCandles(input, now);
   if (!validated.ok) return standby(validated.reason, {
     closedCandleCount: validated.closedCandleCount ?? 0,
@@ -167,24 +153,18 @@ export function analyzeMarket(input, {
   const macdData = macd(closes);
   const atr14 = atr(candles, 14);
   const atr20 = atr(candles, 20);
-  const required = [ema9, ema21, ema50, rsi14, atr14, atr20];
-  if (required.some(value => !finite(value)) || !macdData) {
+  if ([ema9, ema21, ema50, rsi14, atr14, atr20].some(value => !finite(value)) || !macdData) {
     return standby("คำนวณตัวชี้วัดไม่ครบหรือข้อมูลไม่เพียงพอ");
   }
 
-  const context = classifyRegime({
-    closes, candles, ema9, ema21, ema50, rsi14, macdData, atr14, atr20
-  });
+  const context = classifyRegime({ candles, ema9, ema21, ema50, rsi14, macdData, atr14, atr20 });
   const { regime, rangeHigh, rangeLow, atrRatio } = context;
   const nearResistance = rangeHigh - last.close <= atr14 * 0.4;
   const nearSupport = last.close - rangeLow <= atr14 * 0.4;
   const momentum5 = last.close - candles.at(-6).close;
-  const body = last.close - last.open;
-  const bodyAtr = Math.abs(body) / atr14;
-  const histogramGrowing = Math.abs(macdData.histogram) >= Math.abs(
-    ema(closes.slice(0, -1), 12) - ema(closes.slice(0, -1), 26) -
-    (macd(closes.slice(0, -1))?.signal ?? 0)
-  );
+  const bodyAtr = Math.abs(last.close - last.open) / atr14;
+  const prior = macd(closes.slice(0, -1));
+  const histogramGrowing = prior && Math.abs(macdData.histogram) >= Math.abs(prior.histogram);
   const liveReady = finite(tickAgeSeconds) && tickAgeSeconds >= 0 &&
     tickAgeSeconds <= MAX_STREAM_AGE_SECONDS;
 
