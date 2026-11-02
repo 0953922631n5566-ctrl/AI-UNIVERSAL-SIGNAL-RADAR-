@@ -379,3 +379,16 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Build logs: 7 tests passed / 0 failed; configured `node --check` chain completed and build reported successful. New process log confirms `MAIN MARKET single-pair Radar listening on 10000`.
 - Runtime config: `REST_SYNC_SECONDS=300` on Render; one REST history refresh per selected pair every five minutes.
 - Verified by source/build/deploy only. Not yet device-verified: user must close/reopen Telegram Mini App, select another pair while running, confirm only one pair card appears and fresh live price is received. Do not claim all six pairs are provider-supported; only the currently selected pair is checked, and unsupported selection must remain STANDBY with a clear warning.
+
+
+## 2026-11-02 — Restore compact dropdown pair selector and address frozen/overloaded Mini App layout
+
+- User reported the deployed Main Market Mini App appeared stuck and asked to restore the prior compact screen with one pair-selection button that opens an in-page dropdown menu, rather than showing six pair choices permanently on the screen.
+- Confirmed Render service `ai-signal-radar-main-market` uses repository `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`, branch `main-market`, URL `https://ai-signal-radar-main-market.onrender.com`. Android/OCR on `main` remains out of scope and untouched.
+- Inspected current `main-market/public/index.html`, `public/app.js`, `public/styles.css`, `server.js`, configuration and tests. The latest deployed source used six always-visible radio rows/grid in the selector area. This is the concrete UI mismatch with the requested compact dropdown. The current deployment was LIVE; Render logs show process startup and successful deploy, but they do not establish the user's exact on-device freeze cause.
+- Work is isolated to branch `fix/main-market-dropdown-selector` based on the deployed single-pair source commit `3d7a2283075b39e17cea29c553c597dc364970e7`.
+- Planned UI fix: replace the always-visible six-pair grid with one selected-pair summary button; tapping opens an overlay dropdown menu containing the same six radio options. Selecting an option closes the menu, updates the selected-pair label and local preference, and preserves the existing live single-pair switch action.
+- Preserve server-side single-pair enforcement, EUR/USD default, 200 closed-candle warmup, 220-bar REST preload, 300-second REST refresh, existing analysis/alerts and fail-closed STANDBY rules. No strategy or provider logic is intentionally changed.
+- Add an automated markup regression test to ensure the compact dropdown exists and six options remain available without the old always-visible selector grid.
+- Validation/build/deploy and merge status are pending; do not ask the user to reload until the updated branch is merged, Render reports a successful LIVE deployment, and service logs confirm startup.
+- Device-specific Telegram WebView behavior and whether this resolves the reported freeze still require the user's Xiaomi/Telegram acceptance test. If the UI still freezes, obtain a screenshot and inspect fresh request/app logs before changing market logic.
