@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 const PAIRS = ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"];
 const getTelegram = () => window.Telegram?.WebApp;
 let selectedSymbol = readSavedPair();
+let authenticated = false;
 let monitoring = false;
 let socket = null;
 let socketTimeout = null;
@@ -15,6 +16,40 @@ let latestState = null;
 let lastApiAlert = "";
 const signalAlerts = new Set();
 const preAlerts = new Set();
+
+async function authenticateTelegram() {
+  const initData = getTelegram()?.initData;
+  if (!initData) {
+    authenticated = false;
+    $("start").disabled = true;
+    $("stop").disabled = true;
+    document.querySelectorAll("[data-pair-select]").forEach(input => { input.disabled = true; });
+    setConnection("LOCKED", "กรุณาเปิด AI Signal Radar ผ่าน Telegram Mini App เพื่อยืนยันตัวตน");
+    return false;
+  }
+  try {
+    const response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      credentials: "same-origin",
+      body: JSON.stringify({ initData })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || "ยืนยัน Telegram ไม่สำเร็จ");
+    authenticated = true;
+    $("start").disabled = false;
+    $("stop").disabled = true;
+    document.querySelectorAll("[data-pair-select]").forEach(input => { input.disabled = false; });
+    return true;
+  } catch (error) {
+    authenticated = false;
+    $("start").disabled = true;
+    $("stop").disabled = true;
+    setConnection("LOCKED", error.message || "ยืนยัน Telegram ไม่สำเร็จ");
+    return false;
+  }
+}
 
 function readSavedPair() {
   try {
@@ -238,6 +273,7 @@ function vibrate(kind = "signal", force = false) {
   } catch (error) { return { ok: false, reason: error.message || "สั่งสั่นไม่สำเร็จ" }; }
 }
 async function control(action, extra = {}, keepalive = false) {
+  if (!authenticated) throw new Error("กรุณายืนยันตัวตนผ่าน Telegram ก่อน");
   const response = await fetch("/api/control", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -251,6 +287,7 @@ async function control(action, extra = {}, keepalive = false) {
   return result;
 }
 async function pollState() {
+  if (!authenticated) return;
   try {
     const response = await fetch("/api/state", { cache: "no-store" });
     if (!response.ok) throw new Error("HTTP " + response.status);
@@ -285,6 +322,7 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 4000);
 }
 function connect() {
+  if (!authenticated) return;
   if (socket && socket.readyState <= WebSocket.OPEN) return;
   try {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -321,7 +359,7 @@ function connect() {
   }
 }
 function startScan() {
-  if (monitoring) return;
+  if (!authenticated || monitoring) return;
   monitoring = true;
   $("start").disabled = true;
   $("stop").disabled = false;
@@ -344,7 +382,7 @@ function stopScan(keepalive = false) {
   });
 }
 function selectPair(value) {
-  if (!PAIRS.includes(value)) return;
+  if (!authenticated || !PAIRS.includes(value)) return;
   savePair(value);
   closePairModal();
   $("feedTitle").textContent = monitoring ? "กำลังเปลี่ยนคู่เงิน" : "รอเริ่มสแกน";
@@ -361,8 +399,10 @@ function selectPair(value) {
     $("apiMessage").textContent = "เปลี่ยนคู่เงินไม่สำเร็จ: " + error.message;
   });
 }
-function initialize() {
+async function initialize() {
   try { getTelegram()?.ready?.(); getTelegram()?.expand?.(); } catch {}
+  $("start").disabled = true;
+  $("stop").disabled = true;
   savePair(selectedSymbol);
   $("openPairModal").addEventListener("click", openPairModal);
   $("closePairModal").addEventListener("click", closePairModal);
@@ -411,7 +451,9 @@ function initialize() {
     $("apiMessage").textContent = "คำสั่งผิดพลาด: " + (event.reason?.message || String(event.reason || "unknown"));
   });
   countdownTimer = setInterval(updateTimers, 200);
-  pollState();
-  connect();
+  if (await authenticateTelegram()) {
+    pollState();
+    connect();
+  }
 }
 initialize();
