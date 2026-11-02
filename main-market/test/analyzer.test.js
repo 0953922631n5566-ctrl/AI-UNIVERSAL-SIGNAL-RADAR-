@@ -56,7 +56,7 @@ function makeCandles(count = 220, {
   });
 }
 
-test("the Main Market backend exposes EUR/USD only", () => {
+test("the Main Market backend exposes six selectable Forex pairs", () => {
   assert.deepEqual(SYMBOLS, ["EUR/USD", "GBP/USD", "AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY"]);
   assert.equal(DEFAULT_SYMBOL, "EUR/USD");
   assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");

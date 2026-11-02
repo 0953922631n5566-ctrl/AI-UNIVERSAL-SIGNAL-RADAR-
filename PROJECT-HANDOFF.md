@@ -945,3 +945,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Apply the same HTTP client fix to both `main-market/public/app.js` and root `app.js` because BotFather opens the root static frontend on `main`.
 - Preserve Telegram initData validation, session expiry, rate limiting, and all signal logic. No API secret or bot token is exposed to the browser.
 - Verification required after deploy: open the Mini App, confirm Start becomes enabled, check `/api/state` succeeds, tap Start, then confirm Render logs show `[radar] start requested`. Not device-verified until user confirms.
+
+
+### Delivery update — API history warm start and selectable Forex pairs (2026-11-02)
+
+- Frontend commit on `main`: `ced6fcd9546f199a9d5a2dab4e7b4d40a0917fe7`. Root `index.html` remains a single-file HTML/CSS/JS Mini App.
+- Added manual Forex selector: EUR/USD, GBP/USD, AUD/USD, EUR/GBP, GBP/JPY, EUR/JPY. EUR/USD remains the default.
+- Mini App selection is sent to the backend; it renders the selected market's own status, indicators, explanation, countdown and signal. The selector is disabled while scanning.
+- UI explicitly explains that historical M1 candles are fetched from Twelve Data on Start; user does not need to wait for the app to accumulate 60 candles.
+- Backend commit on `main-market`: `67d5fc9648d77e44fad190168cd297183519261c`. Backend allowlist now includes the same six Forex pairs; unsupported provider symbols/plan entitlements fail closed and display unsupported/data error rather than issuing signals.
+- The backend already performs a forced REST history fetch on Start (`syncSelected({ force: true })`) using outputsize 80 and then starts Twelve Data Streaming. 60 closed candles remain the minimum analysis warm-up because the current analyzer uses EMA50, MACD signal line and ATR. This is fetched from API, not accumulated live. Five candles cannot provide the requested full indicator set.
+- Build/test evidence for backend deploy `dep-dbk4jojm8hqs738dudlg`: Render logs show 19 tests passed, 0 failed, and Build successful. At time of writing deploy was transitioning from build to live; verify final deploy status separately.
+- Frontend deploy `dep-dbk4jqrncjis73e7l870` reached `live` for commit `ced6fcd9546f199a9d5a2dab4e7b4d40a0917fe7`.
+- Pair availability is not guaranteed merely because a pair appears in the selector: Twelve Data API key plan, market coverage, and quota determine support. Each selected pair is tested by REST fetch; failures display an explicit unsupported/error state. Do not claim all six are live-tested until each has returned valid candles and streaming data.
+- No broker order execution was added. The Mini App continues to display manual CALL/PUT/STANDBY only.
+- Remaining validation: check final backend deploy LIVE, verify /health reports six symbols, test each pair with the actual configured Twelve Data key, confirm REST history + live stream for each, and test selector/countdown/notifications inside Telegram on Android.
