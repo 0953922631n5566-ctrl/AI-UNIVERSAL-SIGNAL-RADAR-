@@ -392,3 +392,15 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Add an automated markup regression test to ensure the compact dropdown exists and six options remain available without the old always-visible selector grid.
 - Validation/build/deploy and merge status are pending; do not ask the user to reload until the updated branch is merged, Render reports a successful LIVE deployment, and service logs confirm startup.
 - Device-specific Telegram WebView behavior and whether this resolves the reported freeze still require the user's Xiaomi/Telegram acceptance test. If the UI still freezes, obtain a screenshot and inspect fresh request/app logs before changing market logic.
+
+
+### Dropdown restoration — build and deployment verification (2026-11-02)
+
+- PR #2 merged into `main-market`; merge/squash commit: `f73ed6f2838979e9316f836f85ea5ce4d0cc1068`.
+- Render deployment: `dep-dbjtrne417fc73bbtng0`, source commit `f73ed6f2838979e9316f836f85ea5ce4d0cc1068`, status `live`; finished 2026-11-02T00:49:05.938Z.
+- Render build completed successfully. Build logs confirm the new dropdown regression test passed, all 8 tests passed / 0 failed, npm audit reported 0 vulnerabilities, and the configured Node syntax-check chain ran as part of postinstall without a build failure.
+- Render runtime logs confirm the new process started successfully: `MAIN MARKET single-pair Radar listening on 10000` at 2026-11-02T00:48:58Z.
+- Service remains on Free / Singapore / branch `main-market`, URL `https://ai-signal-radar-main-market.onrender.com`. No paid resource or market strategy change.
+- The six always-visible pair choices were replaced with a single selected-pair dropdown trigger and an overlay menu. Selection closes the menu and updates the selected pair display. Existing live pair-switch action, EUR/USD default, 200-candle preload, 300-second REST refresh, analysis and alert behavior are preserved.
+- Not yet verified: public HTTP response body from this assistant environment, actual rendering/interaction inside Telegram WebView on Xiaomi 11T, whether this resolves the user's reported freeze, and real Twelve Data streaming acceptance for each chosen pair. The user must close the old Mini App and reopen the deployed URL to receive the new HTML/CSS/JS. Do not claim device acceptance or market feed correctness until observed.
+- Next acceptance test: reopen the Mini App, confirm the screen shows one compact pair button, tap it to see the six options, select AUD/USD, then select EUR/USD while monitoring. Confirm the menu closes after selection, the selected label changes, and the status accurately reports LIVE/unsupported/waiting without fabricating a signal.
