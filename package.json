@@ -1,0 +1,14 @@
+{
+  "name": "ai-universal-signal-radar",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Main Market EUR/USD M1 signal analysis radar",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,46 +1,32 @@
 # PROJECT HANDOFF — AI UNIVERSAL SIGNAL RADAR
+
 Updated: 2026-11-02
 
+## Full replacement
+- Repository: `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`
+- Branch: `main`
+- Scope: MAIN MARKET / NON-OTC only, EUR/USD, M1, manual signal review only. No Android/OCR, Telegram authentication, OTC or broker order execution.
+- Files: `package.json`, `server.js`, `public/index.html`, `README.md`, `PROJECT-HANDOFF.md`.
+- Removed legacy paths: `.github/`, `android/`, `backend/`, old root `index.html`, and old README content.
+
 ## Architecture
-- Frontend: root index.html, a single-file HTML/CSS/JavaScript Mini App. No root app.js or styles.css dependency.
-- Render frontend: my-ai-signal-bot-v2, service srv-dbk35e8ae00c73fmpi30, https://my-ai-signal-bot-v2.onrender.com, branch main, publish path .
-- Backend: separate Node service ai-signal-radar-main-market, service srv-dbjls149v7es73ag0k4g, https://ai-signal-radar-main-market.onrender.com, branch main-market, source main-market/.
-- API contract: POST /api/auth with Telegram initData; GET /api/state; POST /api/control actions start, select, heartbeat, stop.
+1. Market Perception: validated closed Twelve Data candles; EMA5/20/50, RSI14, MACD, ATR and ADX.
+2. Market Regime: Trending, Ranging, High Volatility, Reversal, or UNCLEAR.
+3. Adaptive Analysis: evaluates EMA alignment, momentum, RSI and MACD evidence.
+4. Decision Engine: CALL / PUT / STANDBY with score and evidence; stale/insufficient/unsafe conditions fail to STANDBY.
+5. Continuous Monitoring: scheduled provider refresh, data-age checks, one signal per closed candle, 40-second signal hold and expiry.
 
-## Scope
-- MAIN MARKET / NON-OTC only, M1, manual signal review only, no automatic broker orders.
-- Current active pair: EUR/USD only. Other pairs are intentionally disabled in both frontend and backend until separately verified.
-- UI: CALL / PUT / STANDBY, regime, reason/evidence, EMA, RSI, MACD, price, age, countdown, scan controls, sound and vibration.
-- No simulated data, random signals, demo API key, or browser-exposed Twelve Data secret.
+## Runtime
+- Node.js >=20; `npm start`; no third-party npm dependencies.
+- Required Render environment variable: `TWELVE_DATA_API_KEY` (never commit the key).
+- Optional: `DATA_REFRESH_MS=125000`, `MAX_CANDLE_AGE_MS=180000`, `MIN_SIGNAL_SCORE=68`.
+- REST polling default is about 691 calls/day if continuously running. It cannot guarantee tick-level 10s/3s alerts or minute-by-minute signal evaluation. Browser alerts are based on the local minute clock.
+- Minimum candle intake is 5; directional signals wait until sufficient indicator history exists (at least 51 candles for EMA50/ADX).
+- Endpoints: `GET /api/health`, `GET /api/state`, `GET /api/candles`, `POST /api/start`, `POST /api/stop`.
 
-## Clean-sheet root replacement
-- Previous root index.html was replaced with newly authored single-file source. Root README.md and PROJECT-HANDOFF.md were also recreated.
-- Loose root files are index.html, README.md, PROJECT-HANDOFF.md. The .github, android, and backend directories are preserved: they are directories containing CI, Android build sources, and service code, not loose root files.
-- Existing backend API contract and Telegram authentication are retained so the new frontend can connect to the separately deployed service.
-
-## REST / Streaming limitation — important
-- Backend currently fetches historical M1 candles through Twelve Data REST and separately attempts price Streaming.
-- Backend marks a pair REST_ONLY if Streaming is unavailable. In this mode it analyzes only closed M1 candles fetched through Twelve Data REST, provided the latest candle is no older than 180 seconds.
-- REST fallback refresh cadence is 180 seconds (maximum 480 REST refreshes/day for one continuously monitored selected pair). A fresh REST fallback may produce CALL/PUT using the same evidence engine; stale/invalid/insufficient REST data remains STANDBY. Streaming remains preferred when a fresh tick is available.
-- REST fallback does not provide tick-by-tick updates or reliable 10s/3s pre-candle alerts. The UI suppresses 10s/3s pre-alerts in REST_FALLBACK mode and still alerts when a new qualifying REST-based signal is created. The 40-second signal hold is expired by the backend watchdog.
-- Backend REST fallback commit: e712afe7288ba1cf995ac36ae6bbfb1eb35aefb3. GitHub Actions run 41438059744 passed; Render backend deploy dep-dbk7b3bncjis73eb01f0 is LIVE. This verifies build/tests and publication, not live provider entitlement for each of the six pairs or a device-level trade-signal session.
-- No API key is exposed in the browser. Keep all provider credentials in Render Environment.
-
-## Render configuration
-- Frontend service: srv-dbk35e8ae00c73fmpi30, workspace tea-db8qa8nf3r2c73f1htk0, auto deploy on main commits.
-- Backend service: srv-dbjls149v7es73ag0k4g, branch main-market, rootDir blank, build: cd main-market && npm install, start: cd main-market && npm start.
-- Secrets remain in Render environment variables; never commit tokens or API keys.
-
-## Verification required
-- GitHub Actions should parse inline JavaScript and verify the six pairs, API origin/routes, and controls.
-- Check Render deployment status after commit.
-- Source publication does not prove Telegram authentication, Twelve Data access for each pair, Streaming entitlements, live ticks, Android audio/vibration, or end-to-end signals. These remain unverified until tested in the user's Telegram session.
-- Preserve STANDBY for stale, unsupported, invalid, or insufficient data. Keep OCR/OTC separate from MAIN MARKET.
-
-
-### EUR/USD-only momentum release — 2026-11-02
-- Frontend commit: `51804f33bfbe3ab52540577e7192c185bd8f699e` — root `index.html` now offers EUR/USD only. Frontend CI run `41441747654` passed. Render frontend deploy `dep-dbk7okm417fc73bmaheg` is LIVE.
-- Backend commit: `4034ca1e23acfb81daa3719d99acd0cb130f0c93` — backend symbol allowlist is EUR/USD only and the analyzer now uses 3-bar + 5-bar momentum, 2-of-3 candle direction, EMA trend alignment, MACD direction, widened RSI continuation bands (CALL 50–75, PUT 25–50), and a 1.8 ATR candle-body ceiling. Removed the previous-close EMA21 and MACD-histogram-expansion requirements to make continuation signals less restrictive.
-- Safety remains: high-volatility, ranging, reversal, support/resistance, stale-data, and insufficient-history filters; one signal per closed M1 candle; no duplicate same-candle alerts; contradictory evidence cancels; 40-second hold; sound/vibration pre-alerts at 10s and 3s remain enabled when Streaming is live. REST fallback does not have tick-level timing and therefore cannot guarantee those pre-close alerts.
-- Backend CI run `41441892631` passed all 23 tests, including deterministic CALL and PUT momentum cases. Render backend deploy `dep-dbk7p5dg1s2s738njtl0` build and deploy events both succeeded at 2026-11-02 12:06 UTC.
-- Live Twelve Data EUR/USD Streaming entitlement and actual user-device alert behavior still require an end-to-end session from Telegram. No automatic broker orders are sent.
+## Commit / Build / Deploy status
+- Commit: pending at time of this handoff update.
+- GitHub Actions: no workflow retained in the replacement tree; local syntax check is `npm run check`.
+- Render: source replacement will trigger the existing static-site service on branch main, but that service type cannot run Node.js. A separate Node Web Service must be created with build command `npm install` and start command `npm start`.
+- Deploy is not confirmed until the new Render Web Service reports LIVE and `/api/health` returns `ok: true`.
+- Live Twelve Data access and device audio/vibration must be tested with the user's API key and browser/device.

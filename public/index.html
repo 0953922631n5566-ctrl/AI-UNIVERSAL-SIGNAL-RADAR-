@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#050b07"><title>AI UNIVERSAL SIGNAL RADAR</title>
+<style>
+:root{color-scheme:dark;--bg:#050b07;--panel:#0c1710;--line:#1b3825;--muted:#91a397;--text:#edf7ef;--green:#00e676;--red:#ff3b62;--grey:#84918a;--amber:#ffc857}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;background:radial-gradient(ellipse at 50% 0,#10351d 0,transparent 48%),var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,sans-serif;padding:14px}
+.app{width:min(100%,430px);min-height:calc(100dvh - 28px);margin:auto;display:flex;flex-direction:column;gap:13px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px}.brand b{display:block;font-size:15px;letter-spacing:1px;color:var(--green)}.brand small{color:var(--muted);font-size:9px;letter-spacing:1.5px}
+.pill{font-size:9px;border:1px solid var(--line);padding:6px 9px;border-radius:20px;color:var(--amber)}.pill.live{color:var(--green);border-color:#00e67688}.pill.bad{color:var(--red);border-color:#ff3b6288}
+.panel{border:1px solid var(--line);background:linear-gradient(145deg,#0d1b12,#09120c);border-radius:14px;padding:12px}
+.pair{text-align:center}.pair b{display:block;font-size:20px;letter-spacing:1px}.pair small{color:var(--muted);font-size:9px;letter-spacing:1px}
+.signal{min-height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;border-radius:16px;border:1px solid #39453d;background:radial-gradient(circle,#142019,#09100b 72%);transition:.2s}
+.lamp{width:68px;height:68px;border-radius:50%;background:#66736b;box-shadow:0 0 0 7px #ffffff08,inset 0 0 14px #0008}
+.signal strong{font-size:36px;letter-spacing:2px;color:var(--grey)}.signal small{font-size:10px;color:var(--muted);text-align:center;padding:0 12px}
+.signal.call{border-color:#00e67699;box-shadow:0 0 24px #00e67620}.signal.call .lamp{background:var(--green);box-shadow:0 0 30px #00e676aa}.signal.call strong{color:var(--green)}
+.signal.put{border-color:#ff3b6299;box-shadow:0 0 24px #ff3b6220}.signal.put .lamp{background:var(--red);box-shadow:0 0 30px #ff3b62aa}.signal.put strong{color:var(--red)}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.metric{padding:9px;border:1px solid var(--line);border-radius:10px;background:#09140d}.metric span{display:block;font-size:8px;color:var(--muted);letter-spacing:1px}.metric b{display:block;margin-top:4px;font-size:13px;overflow-wrap:anywhere}
+.reason{font-size:11px;color:#d2e4d7}.reason strong{color:var(--green);font-size:9px;letter-spacing:1px}.reason p{margin:5px 0}.reason ul{padding-left:18px;margin:5px 0}.reason li{margin:3px 0;color:#b9cabe}
+.timers{display:grid;grid-template-columns:1fr 1fr;gap:8px}.timer{text-align:center;padding:12px 6px;border:1px solid var(--line);border-radius:12px;background:#09140d}.timer span{display:block;color:var(--muted);font-size:9px}.timer b{display:block;font-size:23px;font-variant-numeric:tabular-nums;color:var(--amber)}
+.controls{display:flex;gap:8px}.controls button{flex:1;border:0;border-radius:10px;padding:13px;font-weight:850;font-size:13px}.start{background:var(--green);color:#031008}.stop{background:#1b2a20;color:#e4f0e7;border:1px solid var(--line)!important}button:disabled{opacity:.45}
+.prefs{display:flex;justify-content:center;gap:20px;color:var(--muted);font-size:11px}.prefs input{accent-color:var(--green)}
+footer{text-align:center;color:#718277;font-size:9px;margin-top:auto;padding-top:8px;border-top:1px solid var(--line)}
+.warning{display:none;text-align:center;padding:8px;border:1px solid #ffc85788;border-radius:9px;color:var(--amber);font-size:10px}.warning.show{display:block}
+@media(max-width:360px){body{padding:9px}.signal{min-height:165px}.signal strong{font-size:30px}}
+</style></head><body><main class="app">
+<header><div class="brand"><b>◈ AI UNIVERSAL SIGNAL RADAR</b><small>MAIN MARKET · EUR/USD · M1</small></div><div id="connection" class="pill">CONNECTING</div></header>
+<div class="panel pair"><b>EUR / USD</b><small>NON-OTC · 1 MINUTE · MANUAL REVIEW ONLY</small></div>
+<div id="signalPanel" class="signal"><div class="lamp"></div><strong id="signal">STANDBY</strong><small id="hint">รอเริ่มสแกนและข้อมูลจาก Twelve Data</small></div>
+<div class="panel reason"><strong>MARKET DECISION</strong><p id="reason">ระบบยังไม่เริ่มทำงาน</p><ul id="evidence"></ul></div>
+<div class="metrics">
+<div class="metric"><span>PRICE · LAST CLOSED</span><b id="price">—</b></div><div class="metric"><span>MARKET REGIME</span><b id="regime">UNCLEAR</b></div>
+<div class="metric"><span>EMA 5 / 20 / 50</span><b id="emas">—</b></div><div class="metric"><span>RSI 14</span><b id="rsi">—</b></div>
+<div class="metric"><span>MACD HISTOGRAM</span><b id="macd">—</b></div><div class="metric"><span>DATA AGE</span><b id="age">—</b></div>
+<div class="metric"><span>SIGNAL SCORE</span><b id="score">—</b></div><div class="metric"><span>API STATUS</span><b id="api">—</b></div>
+</div>
+<div class="timers"><div class="timer"><span>แท่ง M1 ปิดใน</span><b id="countdown">--:--</b></div><div class="timer"><span>สัญญาณหมดอายุใน</span><b id="expiry">—</b></div></div>
+<div id="warning" class="warning">เหลือ 10 วินาทีก่อนปิดแท่งเทียน</div>
+<div class="controls"><button id="start" class="start">เริ่มสแกน</button><button id="stop" class="stop" disabled>หยุด</button></div>
+<div class="prefs"><label><input id="sound" type="checkbox" checked> เสียงเตือน</label><label><input id="vibrate" type="checkbox" checked> สั่นเตือน</label></div>
+<footer>AI UNIVERSAL SIGNAL RADAR · NO AUTO TRADING · DATA BY TWELVE DATA</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let running=false,lastSignalId=null,alerted10=null,alerted3=null,audioCtx=null,lastState=null;
+function beep(freq=880,duration=.13){if(!$('sound').checked)return;try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(.0001,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.12,audioCtx.currentTime+.015);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+duration);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration+.02);}catch(e){}}
+function vibrate(pattern){if($('vibrate').checked&&navigator.vibrate)navigator.vibrate(pattern);}
+function fmt(v,d=6){return v===null||v===undefined?'—':Number(v).toFixed(d);}
+async function api(path,method='GET'){const r=await fetch(path,{method,headers:{'content-type':'application/json'},cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'HTTP '+r.status);return j;}
+function render(s){
+ lastState=s;const sig=s.signal||'STANDBY';$('signal').textContent=sig;$('signalPanel').className='signal '+(sig==='CALL'?'call':sig==='PUT'?'put':'');$('hint').textContent=sig==='STANDBY'?'ยังไม่มีสัญญาณที่ผ่านเกณฑ์':(s.signalReason||'ยืนยันจากแท่งปิด');
+ $('reason').textContent=s.signalReason||'รอข้อมูล';$('evidence').innerHTML='';(s.evidence||[]).forEach(x=>{const li=document.createElement('li');li.textContent=x;$('evidence').appendChild(li)});
+ $('price').textContent=fmt(s.price);$('regime').textContent=s.regime||'UNCLEAR';$('score').textContent=(s.score??0)+' / 100';
+ const i=s.indicators||{};$('emas').textContent=[i.ema5,i.ema20,i.ema50].map(x=>fmt(x)).join(' / ');$('rsi').textContent=fmt(i.rsi14,2);$('macd').textContent=fmt(i.macd?.histogram,7);
+ $('age').textContent=s.dataAgeMs==null?'—':Math.max(0,Math.round(s.dataAgeMs/1000))+'s';$('api').textContent=s.lastError?'ERROR':(s.connected?'CONNECTED':'WAITING');
+ $('connection').textContent=s.connected?'CONNECTED':(s.running?'CONNECTING':'OFFLINE');$('connection').className='pill '+(s.connected?'live':(s.lastError?'bad':''));
+ $('start').disabled=!!s.running;$('stop').disabled=!s.running;
+ if(s.signalId&&s.signalId!==lastSignalId&&sig!=='STANDBY'){lastSignalId=s.signalId;beep(sig==='CALL'?1050:520,.22);vibrate([120,70,120]);}
+}
+async function poll(){try{const s=await api('/api/state');render(s);}catch(e){$('connection').textContent='OFFLINE';$('connection').className='pill bad';$('reason').textContent=e.message;}}
+$('start').addEventListener('click',async()=>{try{if(!$('sound').checked){}audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();await api('/api/start','POST');running=true;await poll();}catch(e){$('reason').textContent=e.message;}});
+$('stop').addEventListener('click',async()=>{try{await api('/api/stop','POST');running=false;await poll();}catch(e){$('reason').textContent=e.message;}});
+function clock(){
+ const now=Date.now(),remaining=60-Math.floor((now%60000)/1000);$('countdown').textContent='00:'+String(remaining).padStart(2,'0');
+ $('warning').classList.toggle('show',remaining<=10&&remaining>0);
+ const candle=Math.floor(now/60000);
+ if(remaining===10&&alerted10!==candle){alerted10=candle;beep(760,.12);}
+ if(remaining===3&&alerted3!==candle){alerted3=candle;beep(1120,.16);vibrate([180,80,180]);}
+ const exp=lastState?.signalExpiresAt;$('expiry').textContent=exp?Math.max(0,Math.ceil((exp-now)/1000))+'s':'—';
+}
+setInterval(clock,200);setInterval(poll,3000);poll();clock();
+</script></body></html>
