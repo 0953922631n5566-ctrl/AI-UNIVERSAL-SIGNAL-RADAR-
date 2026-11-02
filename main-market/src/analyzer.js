@@ -159,8 +159,8 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null }
 
   const context = classifyRegime({ candles, ema9, ema21, ema50, rsi14, macdData, atr14, atr20 });
   const { regime, rangeHigh, rangeLow, atrRatio } = context;
-  const nearResistance = rangeHigh - last.close <= atr14 * 0.4;
-  const nearSupport = last.close - rangeLow <= atr14 * 0.4;
+  const nearResistance = rangeHigh >= last.close && rangeHigh - last.close <= atr14 * 0.4;
+  const nearSupport = rangeLow <= last.close && last.close - rangeLow <= atr14 * 0.4;
   const momentum5 = last.close - candles.at(-6).close;
   const bodyAtr = Math.abs(last.close - last.open) / atr14;
   const prior = macd(closes.slice(0, -1));
