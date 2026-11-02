@@ -4,15 +4,11 @@ on:
     branches: [main]
     paths:
       - "index.html"
-      - "app.js"
-      - "styles.css"
       - ".github/workflows/root-mini-app.yml"
   pull_request:
     branches: [main]
     paths:
       - "index.html"
-      - "app.js"
-      - "styles.css"
       - ".github/workflows/root-mini-app.yml"
   workflow_dispatch:
 jobs:
@@ -23,19 +19,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check JavaScript syntax
-        run: node --check app.js
-      - name: Verify Mini App controls and API wiring
+      - name: Validate the single-file Mini App
         run: |
-          grep -q 'id="openPairModal"' index.html
-          grep -q 'id="start"' index.html
-          grep -q 'id="stop"' index.html
-          grep -q 'id="testSound"' index.html
-          grep -q 'id="testVibration"' index.html
-          grep -Fq 'const idle = !monitoring && state.serverOnline;' app.js
-          grep -Fq 'idle ? "● SERVER ONLINE" :' app.js
-          grep -Fq 'fetch(API_ORIGIN + "/api/control"' app.js
-          grep -Fq 'fetch(API_ORIGIN + "/api/state"' app.js
-          grep -Fq 'new WebSocket(protocol + "//" + new URL(API_ORIGIN).host + "/live")' app.js
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import assert from 'node:assert/strict';
 
-          grep -Fq 'return PAIRS.includes(value) ? value : "EUR/USD";' app.js
+          const html = fs.readFileSync('index.html', 'utf8');
+          const inlineScripts = [...html.matchAll(/<script(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/gi)]
+            .map(match => match[1])
+            .filter(source => source.trim());
+
+          assert.ok(inlineScripts.length > 0, 'index.html must contain an inline JavaScript application');
+          for (const [index, source] of inlineScripts.entries()) {
+            new Function(source);
+            console.log(`Inline script ${index + 1}: syntax OK`);
+          }
+
+          for (const id of ['pairSelect', 'start', 'stop', 'testSound', 'testVibration']) {
+            assert.ok(html.includes(`id="${id}"`), `Missing required control: ${id}`);
+          }
+
+          for (const pair of ['EUR/USD', 'AUD/USD', 'EUR/GBP', 'GBP/JPY', 'EUR/JPY', 'GBP/USD']) {
+            assert.ok(html.includes(pair), `Missing supported pair: ${pair}`);
+          }
+
+          assert.ok(html.includes('https://ai-signal-radar-main-market.onrender.com'));
+          assert.ok(html.includes('/api/auth') && html.includes('/api/state') && html.includes('/api/control'));
+          assert.ok(!fs.existsSync('app.js'), 'Root app.js must not be required by the single-file app');
+          assert.ok(!fs.existsSync('styles.css'), 'Root styles.css must not be required by the single-file app');
+          assert.ok(!html.includes('TWELVE_API_KEY = "demo"'), 'Demo API key is not allowed');
+          assert.ok(!html.includes('Math.random()'), 'Randomly simulated market data/signals are not allowed');
+
+          console.log('Single-file Mini App checks passed.');
+          NODE
