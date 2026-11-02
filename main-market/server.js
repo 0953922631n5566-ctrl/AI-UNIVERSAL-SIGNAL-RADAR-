@@ -70,7 +70,7 @@ function applyTick(f,price,epoch){
 }
 async function syncPair(f,{force=false}={}){
  if(f.restSyncPromise)return f.restSyncPromise;
- if(!force&&f.lastRestSyncAt&&Date.now()-f.lastRestSyncAt<SYNC*1000)return;
+ if(!force&&f.restStatus==="READY"&&f.lastRestSyncAt&&Date.now()-f.lastRestSyncAt<SYNC*1000)return;
  f.lastRestSyncAt=Date.now();
  f.restSyncPromise=(async()=>{
   try{
@@ -125,7 +125,7 @@ function startStream(){
    for(const item of bad){const rawSymbol=getSymbol(item),f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)));if(f){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage="Twelve Data ไม่อนุญาต Streaming: "+message;f.analysis=standby("ไม่รองรับ Streaming สำหรับ "+f.symbol+": "+message);console.warn("[market-feed] STREAM UNSUPPORTED",f.symbol,message)}}
    const status=String(m.status||"").toLowerCase();
    if(status==="success"&&!good.length&&!bad.length){for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="READY";f.streamMessage="Twelve Data ตอบรับคำขอ Streaming"}}}
-   if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
+   if((status==="error"||status==="failed")&&!bad.length){const rawSymbol=m.symbol||m.params?.symbol,mentioned=selectedSymbols.filter(s=>message.toUpperCase().includes(s)),targets=rawSymbol?[feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(rawSymbol)))].filter(Boolean):mentioned.length?mentioned.map(s=>feeds.get(s)):selectedSymbols.map(s=>feeds.get(s));for(const f of targets){f.streamStatus="UNSUPPORTED";f.dataLocked=true;f.streamMessage=message;f.analysis=standby("Twelve Data ไม่รองรับ Streaming: "+message)}}
    publish();return;
   }
   if(m.status==="error"||m.event==="error"){const msg=m.message||m.code||"Twelve Data Streaming error";if(isGlobalApiError(msg))markLocked("Twelve Data Streaming: "+msg);else{for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="ERROR";f.streamMessage=msg;f.analysis=standby("Streaming ผิดพลาด: "+msg)}}publish()}}
@@ -151,7 +151,7 @@ wss.on("connection",ws=>{
    if(!selectedSymbols.length)selectedSymbols=[...DEFAULT_SYMBOLS];
    monitoring=true;globalLockMessage=null;
    for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
-   publish();syncSelected({force:true}).catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));startStream();
+   publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));startStream();
   }
   if(m.action==="stop")stop();
  });
