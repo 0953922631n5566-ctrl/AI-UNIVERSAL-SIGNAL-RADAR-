@@ -266,6 +266,14 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
       deniedSocket.on("error", () => resolve(0));
     });
     assert.equal(deniedSocketStatus, 401);
+    const foreignOriginStatus = await new Promise(resolve => {
+      const foreignSocket = new WebSocketClient(`ws://127.0.0.1:${port}/live`, {
+        headers: { Origin: "https://evil.example" }
+      });
+      foreignSocket.on("unexpected-response", (_request, response) => resolve(response.statusCode));
+      foreignSocket.on("error", () => resolve(0));
+    });
+    assert.equal(foreignOriginStatus, 403);
     const authResponse = await fetch(`http://127.0.0.1:${port}/api/auth`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: signedInitData() })
@@ -275,7 +283,7 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     assert.ok(cookie);
     const authenticatedState = await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { cookie } });
     assert.equal(authenticatedState.status, 200);
-    const liveSocket = new WebSocketClient(`ws://127.0.0.1:${port}/live`, { headers: { Cookie: cookie } });
+    const liveSocket = new WebSocketClient(`ws://127.0.0.1:${port}/live`, { headers: { Cookie: cookie, Origin: "https://ai-universal-signal-radar.onrender.com" } });
     const liveMessage = await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("authenticated WebSocket timed out")), 1500);
       liveSocket.once("message", data => {
