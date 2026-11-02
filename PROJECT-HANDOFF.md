@@ -743,3 +743,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - v2 workflow now asserts these cross-origin auth/session wiring requirements.
 - This is a source-level correction, not a live browser/Telegram verification. CI must pass after the final patch; actual Telegram WebView cookie behavior still requires runtime validation after a controlled deployment.
 - Keep PR #9 Draft and do not merge/deploy until CI passes and release checks are complete. Do not alter branch `main` or production branch `main-market` in this fix.
+
+
+### Cross-origin credential propagation follow-up — 2026-11-02
+
+- Candidate client now sends `credentials: "include"` on all three authenticated HTTP operations: POST `/api/auth`, GET `/api/state`, and POST `/api/control`. WebSocket now targets the canonical API host, so the API-host session cookie is sent on the socket handshake.
+- Candidate server returns `Access-Control-Allow-Credentials: true` only when the request Origin is in the exact allowlist (or is the API's own origin). The allowed list contains the verified static Mini App origin and canonical API origin. No wildcard origin is used.
+- v2 workflow now checks the explicit API origin, WebSocket target, exact static origin allowlist, credentialed CORS header, and at least three credentialed fetches.
+- GitHub Actions for app-code commit `548f60161d54cae426869b55399e13c737bd8d6b`: Main Market Checks run `41398658621` and Main Market v2 Rewrite Checks run `41398658722` both completed successfully. The later workflow-only assertion update `a04be1752557a8a1fff00613bdbc40973dd40a02` has not yet been independently confirmed by a returned Actions run; do not claim that additional grep assertion itself passed until its run is visible.
+- PR #9 remains Draft and unmerged. No Render deployment has been made for the candidate. Runtime cookie/CORS/WebSocket behavior in Telegram WebView is still unverified.
