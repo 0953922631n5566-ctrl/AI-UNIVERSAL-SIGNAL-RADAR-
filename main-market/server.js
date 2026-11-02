@@ -545,7 +545,7 @@ function cookieValue(header, name) {
 
 function sessionForRequest(req) {
   const authorization = String(req.headers.authorization || "");
-  const bearer = authorization.match(/^Bearer\\s+([a-f0-9]{64})$/i)?.[1] || "";
+  const bearer = authorization.match(/^Bearer\s+([a-f0-9]{64})$/i)?.[1] || "";
   const token = bearer || cookieValue(req.headers.cookie, "radar_session");
   const session = token ? sessions.get(token) : null;
   if (!session) return null;
