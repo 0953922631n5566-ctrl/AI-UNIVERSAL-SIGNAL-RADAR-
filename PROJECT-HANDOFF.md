@@ -202,3 +202,17 @@ At task completion, report:
 - Added root `index.html` in commit `a93331bd1f273809fc846e0d3525ab5cf868a68f`. This is a dependency-free launcher with working click/retry handlers and an automatic redirect to the canonical Main Market app at `https://ai-signal-radar-main-market.onrender.com/`. It avoids duplicating the Main Market client or falsely reporting API connectivity from a static page.
 - Canonical Main Market UI and its actual pair selector/start/stop/sound/vibration handlers remain served by the Node service from `main-market/public/`; the launcher does not overwrite Android/OCR source or the separate `main-market` branch.
 - Pending: Render static-site deploy and HTTP/device verification of the redirect in Telegram. This entry point only routes to the canonical app; it does not itself validate Twelve Data credentials, streaming entitlement, Telegram initData authentication, or physical device audio/haptics. Do not mark production-ready until those are independently verified and the API control endpoints are secured.
+
+
+## 2026-11-02 — Root-hosted Main Market Mini App (supersedes temporary launcher)
+
+- Render static site configuration verified: branch `main`, `rootDir=""`, `publishPath="."`, auto-deploy enabled. The root entry point is therefore required.
+- Replaced the temporary root launcher with the complete Main Market web client at repository root:
+  - `index.html` — full Thai Main Market UI, pair modal, scan controls, sound/vibration toggles and device-test buttons.
+  - `styles.css` — full responsive styles copied from the canonical Main Market UI.
+  - `app.js` — complete client with pair selector, scan start/stop, sound, Telegram/browser haptics, live state updates and reconnection; API and WebSocket requests target the canonical Node service `https://ai-signal-radar-main-market.onrender.com`.
+- Main-branch commits: `38914c14a62402cb6f7e501e1af4b5ce8f3119e4` (full root index), `2f757027721dee0d54d14c4d4eb8a97d03295522` (styles), `98d665c279566fc903c1bca48ce8cbb3c9e81e14` (client), `046f0e39d26326f3716ce924101c9b8b0df8c00a` (correct JavaScript newline), `2992603e3c366ce0dc4de1905b3a4910b40f3e10` (CI workflow).
+- Added `.github/workflows/root-mini-app.yml` to run `node --check app.js` and assert all required UI controls and API/WebSocket wiring exist.
+- The Main Market Node service now explicitly allows CORS from the root static-site origin for GET/POST/OPTIONS and Content-Type only. Server branch commit: `779f856e376134515142d89c2dbfb0980f6139f8`.
+- Important correction: the earlier root redirect-only entry point was replaced by this full root-hosted UI; the static site no longer needs a redirect to expose the pair selector and buttons.
+- Pending verification: latest root static-site deployment, latest Main Market Node deployment, GitHub root Mini App CI, live HTTP/CORS responses, Telegram WebView interaction and physical sound/vibration. The public Main Market API still lacks Telegram `initData` authentication; do not call this fully production-secure until that blocker is resolved.
