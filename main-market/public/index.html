@@ -3,94 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#080d0a">
-  <title>AI Universal Signal Radar · Main Market</title>
+  <meta name="theme-color" content="#07110d">
+  <title>UNIVERSAL RADAR · MAIN MARKET</title>
+  <link rel="stylesheet" href="/styles.css?v=20261102-v4">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="/styles.css?v=20261102-v2">
 </head>
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">◈</span>
-        <div><strong>UNIVERSAL RADAR</strong><small>MAIN MARKET · NON-OTC</small></div>
-      </div>
-      <span id="connection" class="pill offline">● SERVER OFFLINE</span>
+  <main class="shell">
+    <header class="header">
+      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>MAIN MARKET <i>·</i> NON-OTC</small></div></div>
+      <div id="connection" class="status offline"><span></span> OFFLINE</div>
     </header>
 
-    <section class="pair-row">
-      <button id="openPairModal" class="pair-select" type="button" aria-haspopup="dialog">
-        <span><small>คู่เงินที่เลือก · MANUAL</small><strong id="selectedPairLabel">EUR/USD</strong></span>
-        <span class="chevron">⌄</span>
-      </button>
-      <div class="timeframe"><small>TIMEFRAME</small><strong>M1 · 1 นาที</strong></div>
+    <section class="toolbar">
+      <label class="pair-field"><span>คู่เงิน · MANUAL</span>
+        <select id="pairSelect" disabled>
+          <option>AUD/USD</option><option selected>EUR/USD</option><option>EUR/GBP</option>
+          <option>GBP/JPY</option><option>EUR/JPY</option><option>GBP/USD</option>
+        </select>
+      </label>
+      <div class="time-field"><span>TIMEFRAME</span><b>M1 <small>· 1 นาที</small></b></div>
     </section>
 
-    <section id="feedStatus" class="feed-status">
-      <div><span class="live-dot"></span><b id="feedTitle">รอเริ่มสแกน</b></div>
-      <p id="apiMessage" role="status">เชื่อมต่อเซิร์ฟเวอร์เพื่อเริ่มตรวจข้อมูล Twelve Data</p>
+    <section class="feed">
+      <div class="feed-title"><span id="feedDot"></span><b id="feedTitle">กำลังตรวจสอบการเชื่อมต่อ</b></div>
+      <p id="apiMessage" role="status" aria-live="polite">กำลังยืนยัน Telegram และเตรียมข้อมูลตลาด</p>
+      <div class="feed-meta"><span id="restStatus">REST · —</span><span id="streamStatus">STREAM · —</span><span id="candleCount">CANDLES · 0/60</span></div>
     </section>
 
     <section class="signal-card">
-      <div class="signal-heading"><span>MARKET SIGNAL</span><span id="signalTime">—</span></div>
-      <div id="signalDisplay" class="signal-display standby" aria-live="polite">
-        <div class="signal-lamp" aria-hidden="true"><span></span></div>
-        <div class="signal-copy">
-          <small id="signalSub">รอข้อมูลตลาด</small>
-          <strong id="signalValue">STANDBY</strong>
-          <em id="signalAction">ยังไม่เข้าออเดอร์</em>
-        </div>
+      <div class="section-head"><span>MARKET SIGNAL</span><span id="signalTime">—</span></div>
+      <div id="signalPanel" class="signal-panel standby">
+        <div class="signal-light"><span></span></div>
+        <div class="signal-text"><small id="signalHint">รอข้อมูลตลาดจริง</small><strong id="signalValue">STANDBY</strong><em id="signalAction">ยังไม่เข้าออเดอร์</em></div>
       </div>
-      <div class="regime-line"><span>MARKET REGIME</span><strong id="regimeValue">ยังไม่ทราบ</strong></div>
-      <div class="reason-box"><small>✦ เหตุผลและหลักฐาน</small><p id="reasonText">กดเริ่มสแกนเพื่อรับข้อมูลตลาดจริง</p><ul id="evidenceList"></ul></div>
+      <div class="regime"><span>MARKET REGIME</span><b id="regimeValue">ยังไม่ทราบ</b></div>
+      <div class="reason"><b>✦ เหตุผลและหลักฐาน</b><p id="reasonText">กดเริ่มสแกนเพื่อโหลดข้อมูลจาก Twelve Data</p><ul id="evidenceList"></ul></div>
     </section>
 
-    <section class="metrics-grid">
-      <div class="metric"><small>LIVE PRICE</small><strong id="livePrice">—</strong></div>
-      <div class="metric"><small>CLOSED CLOSE</small><strong id="closePrice">—</strong></div>
-      <div class="metric"><small>RSI 14</small><strong id="rsiValue">—</strong></div>
-      <div class="metric"><small>EMA 9 / 21 / 50</small><strong id="emaValue">—</strong></div>
+    <section class="metrics">
+      <div class="metric"><span>LIVE PRICE</span><b id="livePrice">—</b></div>
+      <div class="metric"><span>CLOSED CLOSE</span><b id="closePrice">—</b></div>
+      <div class="metric"><span>RSI 14</span><b id="rsiValue">—</b></div>
+      <div class="metric"><span>EMA 9 / 21 / 50</span><b id="emaValue">—</b></div>
+      <div class="metric"><span>MACD HISTOGRAM</span><b id="macdValue">—</b></div>
+      <div class="metric"><span>DATA AGE</span><b id="dataAge">—</b></div>
     </section>
 
     <section class="timers">
-      <div><small>แท่ง M1 ถัดไป</small><strong id="candleCountdown">--:--</strong></div>
-      <div><small>สัญญาณหมดอายุ</small><strong id="signalExpiry">—</strong></div>
+      <div><span>แท่ง M1 ถัดไป</span><b id="candleCountdown">--:--</b></div>
+      <div><span>สัญญาณหมดอายุ</span><b id="signalExpiry">—</b></div>
     </section>
 
-    <section class="controls">
-      <button id="start" class="start-button" type="button">เริ่มสแกน</button>
-      <button id="stop" class="stop-button" type="button" disabled>หยุด</button>
+    <section class="actions">
+      <button id="start" class="primary" disabled>เริ่มสแกน</button>
+      <button id="stop" class="secondary" disabled>หยุด</button>
     </section>
 
-    <section class="settings">
+    <section class="preferences">
       <label><input id="sound" type="checkbox" checked><span>เสียงแจ้งเตือน</span></label>
       <label><input id="vibration" type="checkbox" checked><span>สั่นแจ้งเตือน</span></label>
     </section>
-    <section class="device-tests">
+    <section class="tests">
       <button id="testSound" type="button">ทดสอบเสียง</button>
       <button id="testVibration" type="button">ทดสอบสั่น</button>
     </section>
-    <p id="testStatus" class="test-status" role="status">แตะทดสอบเพื่อเช็กอุปกรณ์</p>
-    <footer><span>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</span><span id="dataAge">DATA AGE —</span></footer>
+    <p id="testStatus" class="test-status">แตะปุ่มทดสอบเพื่อตรวจอุปกรณ์</p>
+    <footer><b>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</b><span id="updatedAt">ยังไม่มีข้อมูล</span></footer>
   </main>
-
-  <div id="pairModal" class="modal-backdrop" aria-hidden="true">
-    <section class="pair-modal" role="dialog" aria-modal="true" aria-labelledby="pairModalTitle">
-      <header class="modal-header">
-        <div><small>MARKET SELECTOR</small><h2 id="pairModalTitle">เลือกคู่เงิน</h2></div>
-        <button id="closePairModal" class="modal-close" type="button" aria-label="ปิด">×</button>
-      </header>
-      <div class="pair-options">
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="AUD/USD"><b>AUD/USD</b><small>AU · US</small></label>
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/USD" checked><b>EUR/USD</b><small>EU · US</small></label>
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/GBP"><b>EUR/GBP</b><small>EU · UK</small></label>
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/JPY"><b>GBP/JPY</b><small>UK · JP</small></label>
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="EUR/JPY"><b>EUR/JPY</b><small>EU · JP</small></label>
-        <label class="pair-option"><input data-pair-select type="radio" name="pair-select" value="GBP/USD"><b>GBP/USD</b><small>UK · US</small></label>
-      </div>
-      <p class="modal-note">เลือกได้ครั้งละ 1 คู่ · EUR/USD เป็นค่าเริ่มต้น</p>
-    </section>
-  </div>
-  <script src="/app.js?v=20261102-v3"></script>
+  <script src="/app.js?v=20261102-v4"></script>
 </body>
 </html>
