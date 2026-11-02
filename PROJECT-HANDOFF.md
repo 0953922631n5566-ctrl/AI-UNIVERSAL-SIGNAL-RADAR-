@@ -727,3 +727,19 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render error-log query returned historical npm-test failures dated 2026-11-02 00:37–04:32 UTC; these precede the latest live deployment at 05:12 UTC. They are historical build/app errors, not proof that the current live deployment is failing. Request-log query returned no records in the queried range. Recheck latest app logs after any controlled runtime test.
 - Critical operational dependency: PR #9's candidate uses same-origin relative API paths and a Secure HttpOnly cookie. It must be served from the Main Market Render origin, not an unrelated static-site origin. Telegram Mini App URL configuration is external to this GitHub repository and has not been independently inspected.
 - No merge, production branch change, environment-variable mutation, or deployment of v2 was performed in this checkpoint.
+
+
+### Telegram Mini App URL discovery and cross-origin auth correction — 2026-11-02
+
+- Do not ask the user to provide the Mini App URL again. It was found in the connected GitHub repository and Render workspace.
+- Render Static Site service `AI-UNIVERSAL-SIGNAL-RADAR-` (`srv-dbjhmeutlv9c73d8m9q0`) is configured from repository branch `main`, rootDir empty, publishPath `.`, auto-deploy on commit; public UI URL: `https://ai-universal-signal-radar.onrender.com`.
+- Render Node Web Service `ai-signal-radar-main-market` (`srv-dbjls149v7es73ag0k4g`) is configured from branch `main-market`; canonical API/WebSocket origin: `https://ai-signal-radar-main-market.onrender.com`.
+- Root `index.html` and `app.js` on branch `main` contain the complete Main Market Mini App UI and explicitly call the canonical Node API over cross-origin HTTPS and WSS. The project handoff documents this as the current Main Market Mini App. This is the configured project UI origin, though the BotFather-side Telegram URL value itself is not exposed by GitHub/Render tools.
+- Previous v2 auth implementation incorrectly assumed same-origin paths/cookies. Corrected candidate branch `rewrite/main-market-v2` only:
+  - client uses explicit `API_ORIGIN=https://ai-signal-radar-main-market.onrender.com` for auth, state, and control requests;
+  - all credentialed fetches use `credentials: include`;
+  - WebSocket connects to the canonical API host, not the static-site host;
+  - server returns `Access-Control-Allow-Credentials: true` for exact allowlisted origins, including the static Mini App origin;
+  - v2 workflow now asserts these cross-origin auth/session wiring requirements.
+- This is a source-level correction, not a live browser/Telegram verification. CI must pass after the final patch; actual Telegram WebView cookie behavior still requires runtime validation after a controlled deployment.
+- Keep PR #9 Draft and do not merge/deploy until CI passes and release checks are complete. Do not alter branch `main` or production branch `main-market` in this fix.
