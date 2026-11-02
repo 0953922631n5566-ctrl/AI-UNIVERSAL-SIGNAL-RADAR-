@@ -18,7 +18,7 @@ function signedInitData({ authDate = Math.floor(Date.now() / 1000), userId = 424
     query_id: "AAE-test-query",
     user: JSON.stringify({ id: userId, first_name: "Test" })
   });
-  const check = [...params.entries()].sort(([a], [b]) => a.localeCompare(b))
+  const check = [...params.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
     .map(([key, value]) => `${key}=${value}`).join("\n");
   const secret = createHmac("sha256", "WebAppData").update(TEST_BOT_TOKEN).digest();
   const hash = createHmac("sha256", secret).update(check).digest("hex");
@@ -235,6 +235,13 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
       body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
     });
     assert.equal(deniedControl.status, 401);
+    const { default: WebSocketClient } = await import("ws");
+    const deniedSocketStatus = await new Promise(resolve => {
+      const deniedSocket = new WebSocketClient(`ws://127.0.0.1:${port}/live`);
+      deniedSocket.on("unexpected-response", (_request, response) => resolve(response.statusCode));
+      deniedSocket.on("error", () => resolve(0));
+    });
+    assert.equal(deniedSocketStatus, 401);
     const authResponse = await fetch(`http://127.0.0.1:${port}/api/auth`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ initData: signedInitData() })
@@ -244,6 +251,20 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     assert.ok(cookie);
     const authenticatedState = await fetch(`http://127.0.0.1:${port}/api/state`, { headers: { cookie } });
     assert.equal(authenticatedState.status, 200);
+    const liveSocket = new WebSocketClient(`ws://127.0.0.1:${port}/live`, { headers: { Cookie: cookie } });
+    const liveMessage = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("authenticated WebSocket timed out")), 1500);
+      liveSocket.once("message", data => {
+        clearTimeout(timeout);
+        resolve(JSON.parse(data.toString()));
+      });
+      liveSocket.once("error", error => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+    assert.equal(liveMessage.type, "market_state");
+    liveSocket.close();
     const start = await fetch(`http://127.0.0.1:${port}/api/control`, {
       method: "POST", headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
