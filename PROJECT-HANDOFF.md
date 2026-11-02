@@ -370,3 +370,12 @@ Render Free Web Service, Singapore, branch main-market; build: cd main-market &&
 - Files changed: `src/config.js`, `server.js`, `public/app.js`, `public/index.html`, `test/analyzer.test.js`.
 - Test now asserts six selectable symbols, only EUR/USD as the default, and 300-second REST refresh.
 - Pending validation: Render build/test/deploy and actual user-device switching between symbols. Do not call this change live until Render reports the latest deploy LIVE. Check that the selected pair alone is shown and receives fresh ticks after changing radio selection.
+
+
+### Deployment verification — single-pair scanner (2026-11-02)
+
+- Final server refinement commit: `3d7a2283075b39e17cea29c553c597dc364970e7`.
+- Render deployment `dep-dbjtnhdg1s2s738d4glg` finished `live` at 2026-11-02T00:40:06Z; deploy-ended event reports `succeeded`.
+- Build logs: 7 tests passed / 0 failed; configured `node --check` chain completed and build reported successful. New process log confirms `MAIN MARKET single-pair Radar listening on 10000`.
+- Runtime config: `REST_SYNC_SECONDS=300` on Render; one REST history refresh per selected pair every five minutes.
+- Verified by source/build/deploy only. Not yet device-verified: user must close/reopen Telegram Mini App, select another pair while running, confirm only one pair card appears and fresh live price is received. Do not claim all six pairs are provider-supported; only the currently selected pair is checked, and unsupported selection must remain STANDBY with a clear warning.
