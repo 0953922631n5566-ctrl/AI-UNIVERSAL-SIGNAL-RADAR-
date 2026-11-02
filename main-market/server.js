@@ -5,7 +5,7 @@ const APP_DIR=path.dirname(fileURLToPath(import.meta.url));
 const app=express(),server=http.createServer(app),wss=new WebSocketServer({server,path:"/live"});
 const PORT=Number(process.env.PORT||3000),INTERVAL=process.env.INTERVAL||"1min";
 const SYNC=Math.max(REST_SYNC_SECONDS,Number(process.env.REST_SYNC_SECONDS||REST_SYNC_SECONDS)),MAXAGE=Number(process.env.MAX_DATA_AGE_SECONDS||180);
-const feeds=new Map(SYMBOLS.map(symbol=>[symbol,{symbol,candles:[],tickAt:0,lastTick:null,lastRestSyncAt:0,restSyncPromise:null,restStatus:"NOT_CHECKED",restMessage:"ยังไม่ได้ตรวจสอบข้อมูล",streamStatus:"WAITING",streamMessage:"รอเริ่มเชื่อมต่อ",analysis:null,activeSignal:null,activeUntil:0,signalCandle:null,lastAlertId:null,dataLocked:false}]));
+const feeds=new Map(SYMBOLS.map(symbol=>[symbol,{symbol,candles:[],tickAt:0,lastTick:null,lastRestSyncAt:0,restSyncPromise:null,subscribeAt:0,restStatus:"NOT_CHECKED",restMessage:"ยังไม่ได้ตรวจสอบข้อมูล",streamStatus:"WAITING",streamMessage:"รอเริ่มเชื่อมต่อ",analysis:null,activeSignal:null,activeUntil:0,signalCandle:null,lastAlertId:null,dataLocked:false}]));
 let selectedSymbols=[...DEFAULT_SYMBOLS],upstream=null,restTimer=null,retryTimer=null,heartbeat=null,watchdog=null,monitoring=false,globalLockMessage=null;
 const standby=(reason,extra={})=>({signal:"STANDBY",regime:"UNKNOWN",reason,evidence:[],metrics:null,analyzedAt:new Date().toISOString(),...extra});
 function feedStatus(f){
@@ -16,13 +16,14 @@ function feedStatus(f){
  const age=f.tickAt?(Date.now()-f.tickAt)/1000:Infinity;
  if(age<=25)return"SUPPORTED";
  if(f.streamStatus==="ERROR")return"STREAM_ERROR";
+ if(f.streamStatus==="TIMEOUT")return"STREAM_TIMEOUT";
  if(f.tickAt)return"STALE";
  return"WAITING_PRICE";
 }
 function publicFeed(f){
  const status=feedStatus(f),age=f.tickAt?(Date.now()-f.tickAt)/1000:null;
  const x=f.analysis||standby(f.restMessage||"รอข้อมูล");
- return{...x,symbol:f.symbol,selected:selectedSymbols.includes(f.symbol),supportStatus:status,restStatus:f.restStatus,streamStatus:f.streamStatus,statusMessage:status==="UNSUPPORTED"?(f.restMessage||f.streamMessage):status==="LOCKED"?(globalLockMessage||f.restMessage):status==="DATA_ERROR"?f.restMessage:status==="STREAM_ERROR"?f.streamMessage:status==="STALE"?"ราคา Streaming ไม่อัปเดตเกิน 25 วินาที":status==="WAITING_PRICE"?"ข้อมูลย้อนหลังพร้อมแล้ว — รอราคา Streaming สด":status==="CHECKING"?"กำลังตรวจสอบคู่เงินกับ Twelve Data":status==="SUPPORTED"?"รองรับข้อมูลย้อนหลังและ Streaming สด":f.streamMessage,apiStatus:status==="SUPPORTED"?"ONLINE":status==="LOCKED"?"LOCKED":monitoring?"CONNECTING":"OFFLINE",tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:f.lastTick,candleCount:f.candles.length,closedCandleCount:f.candles.filter(c=>!c.live&&c.epoch<Math.floor(Date.now()/60000)*60).length,requiredCandles:MIN_CANDLES,nextCandleAt:f.candles.length?(f.candles.at(-1).epoch+60)*1000:null,signalExpiresAt:f.activeSignal?new Date(f.activeUntil).toISOString():null,alertId:f.lastAlertId,source:"Twelve Data REST history + shared live-price WebSocket"};
+ return{...x,symbol:f.symbol,selected:selectedSymbols.includes(f.symbol),supportStatus:status,restStatus:f.restStatus,streamStatus:f.streamStatus,statusMessage:status==="UNSUPPORTED"?(f.restMessage||f.streamMessage):status==="LOCKED"?(globalLockMessage||f.restMessage):status==="DATA_ERROR"?f.restMessage:status==="STREAM_ERROR"?f.streamMessage:status==="STREAM_TIMEOUT"?f.streamMessage:status==="STALE"?"ราคา Streaming ไม่อัปเดตเกิน 25 วินาที":status==="WAITING_PRICE"?"ข้อมูลย้อนหลังพร้อมแล้ว — รอราคา Streaming สด":status==="CHECKING"?"กำลังตรวจสอบคู่เงินกับ Twelve Data":status==="SUPPORTED"?"รองรับข้อมูลย้อนหลังและ Streaming สด":f.streamMessage,apiStatus:status==="SUPPORTED"?"ONLINE":status==="LOCKED"?"LOCKED":monitoring?"CONNECTING":"OFFLINE",tickAgeSeconds:age===null?null:Math.round(age),lastTickPrice:f.lastTick,candleCount:f.candles.length,closedCandleCount:f.candles.filter(c=>!c.live&&c.epoch<Math.floor(Date.now()/60000)*60).length,requiredCandles:MIN_CANDLES,nextCandleAt:f.candles.length?(f.candles.at(-1).epoch+60)*1000:null,signalExpiresAt:f.activeSignal?new Date(f.activeUntil).toISOString():null,alertId:f.lastAlertId,source:"Twelve Data REST history + shared live-price WebSocket"};
 }
 function snapshot(){
  const pairs={};for(const symbol of selectedSymbols)pairs[symbol]=publicFeed(feeds.get(symbol));
@@ -112,12 +113,13 @@ function startStream(){
   if(!monitoring)return;
   for(const symbol of selectedSymbols){const f=feeds.get(symbol);if(f.restStatus==="UNSUPPORTED"||f.streamStatus==="UNSUPPORTED")continue;
    if(f.tickAt&&Date.now()-f.tickAt>25000){f.dataLocked=true;f.activeSignal=null;f.activeUntil=0;f.analysis=standby("ราคา Streaming ของ "+symbol+" หยุดอัปเดตเกิน 25 วินาที");}
+   else if(!f.tickAt&&f.streamStatus==="SUBSCRIBING"&&f.subscribeAt&&Date.now()-f.subscribeAt>25000){f.streamStatus="TIMEOUT";f.streamMessage="ไม่พบราคา Streaming ภายใน 25 วินาที — ยังยืนยันไม่ได้ว่าคู่นี้รองรับหรือไม่";f.analysis=standby(f.streamMessage)}
   }publish();
  },5000);
  let ws;
  try{ws=new WebSocket("wss://ws.twelvedata.com/v1/quotes/price?apikey="+encodeURIComponent(process.env.TWELVE_DATA_API_KEY));upstream=ws}
  catch(e){markLocked("สร้างการเชื่อมต่อ Twelve Data Streaming ไม่สำเร็จ: "+e.message);retryTimer=setTimeout(startStream,8000);return}
- ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",subscribeSymbols);for(const symbol of subscribeSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:subscribeSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
+ ws.on("open",()=>{if(upstream!==ws)return;console.info("[market-feed] WebSocket OPEN; subscribing",subscribeSymbols);for(const symbol of subscribeSymbols){const f=feeds.get(symbol);if(f.streamStatus!=="UNSUPPORTED"){f.streamStatus="SUBSCRIBING";f.subscribeAt=Date.now();f.streamMessage="ส่งคำขอสมัครรับราคาแล้ว"}}ws.send(JSON.stringify({action:"subscribe",params:{symbols:subscribeSymbols.join(",")}}));heartbeat=setInterval(()=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({action:"heartbeat"}))},10000);publish()});
  ws.on("message",raw=>{
   if(upstream!==ws)return;let m;try{m=JSON.parse(raw.toString())}catch{return}
   if(m.event==="price"&&m.symbol){const f=feeds.get(SYMBOLS.find(s=>normalizeSymbol(s)===normalizeSymbol(m.symbol)));const p=Number(m.price),t=Number(m.timestamp);if(f&&selectedSymbols.includes(f.symbol)&&Number.isFinite(p)&&Number.isFinite(t)){if(!f.tickAt)console.info("[market-feed] First live price received",f.symbol);applyTick(f,p,t)}return}
@@ -154,7 +156,7 @@ wss.on("connection",ws=>{
    selectedSymbols=SYMBOLS.filter(s=>requested.includes(normalizeSymbol(s)));
    if(!selectedSymbols.length)selectedSymbols=[...DEFAULT_SYMBOLS];
    monitoring=true;globalLockMessage=null;startRest();
-   for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
+   for(const symbol of selectedSymbols){const f=feeds.get(symbol);f.tickAt=0;f.lastTick=null;f.subscribeAt=0;f.activeSignal=null;f.activeUntil=0;f.signalCandle=null;f.lastAlertId=null;f.dataLocked=false;if(f.restStatus==="NOT_CHECKED"||f.restStatus==="ERROR")f.restMessage="กำลังตรวจสอบ Twelve Data";if(f.streamStatus!=="UNSUPPORTED")f.streamStatus="WAITING";f.analysis=standby("กำลังเชื่อมต่อข้อมูล "+symbol)}
    publish();syncSelected().catch(e=>console.error("[market-feed] initial REST cycle failed",e.message));
   }
   if(m.action==="stop")stop();
