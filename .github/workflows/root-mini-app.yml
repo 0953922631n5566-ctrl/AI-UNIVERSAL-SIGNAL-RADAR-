@@ -37,3 +37,5 @@ jobs:
           grep -q 'API_ORIGIN+"/api/control"' app.js
           grep -q 'API_ORIGIN+"/api/state"' app.js
           grep -q 'wss://ai-signal-radar-main-market.onrender.com/live' app.js
+
+          grep -q 'const list=Array.isArray(values)?values:(values==null?\[\]:\[values\])' app.js
