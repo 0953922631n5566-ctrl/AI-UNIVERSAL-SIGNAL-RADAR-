@@ -9,7 +9,7 @@ import { validateTelegramInitData } from "./src/telegram-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import {
-  SYMBOLS, DEFAULT_SYMBOL, INTERVAL, HISTORY_CANDLES, MAX_CANDLES,
+  SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
   SIGNAL_HOLD_SECONDS, CLIENT_LEASE_SECONDS, resolveSymbol
 } from "./src/config.js";
@@ -97,7 +97,7 @@ function publicFeed(feed) {
     lastTickPrice: feed.lastTick,
     candleCount: feed.candles.length,
     closedCandleCount: feed.candles.filter(c => !c.live).length,
-    requiredCandles: 200,
+    requiredCandles: MIN_CLOSED_CANDLES,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
