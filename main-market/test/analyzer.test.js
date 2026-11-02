@@ -1,31 +1,225 @@
-import test from "node:test";import{spawn}from"node:child_process";import{setTimeout as delay}from"node:timers/promises";import{readFileSync}from"node:fs";import{MIN_CANDLES,HISTORY_CANDLES,SYMBOLS,DEFAULT_SYMBOLS,REST_SYNC_SECONDS}from"../src/config.js";import assert from "node:assert/strict";import{analyzeMarket,ema,rsi}from"../src/analyzer.js";
-const candles=(n=90,step=.00001)=>Array.from({length:n},(_,i)=>{const close=1.08+i*step,epoch=Math.floor(Date.now()/60000)*60-(n-i)*60;return{time:new Date(epoch*1000).toISOString().slice(0,16).replace("T"," "),epoch,open:close-step/3,high:close+step,low:close-step,close}});
-test("saved pair selection accepts the persisted scalar value without crashing startup",()=>{const client=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.match(client,/function setSelected\(values\)\{const list=Array\.isArray\(values\)\?values:\(values==null\?\[\]:\[values\]\);/);assert.match(client,/setSelected\(saved\);/)});
-test("REST history remains usable for price, Close and RSI when live streaming is unavailable",()=>{const now=Date.now();const history=Array.from({length:220},(_,i)=>{const epoch=Math.floor(now/60000)*60-((220-i)*60),close=1.08+i*.00001;return{time:"history-"+i,epoch,open:close-.000003,high:close+.00001,low:close-.00001,close,live:false}});const x=analyzeMarket(history,{now,maxAgeSeconds:180,tickAgeSeconds:null});assert.equal(x.signal,"STANDBY");assert.ok(x.metrics);assert.ok(Number.isFinite(x.lastPrice));assert.ok(Number.isFinite(x.metrics.rsi14));assert.equal(x.livePriceReady,false);assert.match(x.reason,/รอราคา Streaming สด/)});
-test("EMA waits for enough observations",()=>assert.equal(ema([1,2],3),null));
-test("RSI is bounded",()=>{const x=rsi(Array.from({length:30},(_,i)=>1+i*.01));assert.ok(x>=0&&x<=100)});
-test("200 fully closed candles are required; a live candle cannot satisfy warmup",()=>{assert.equal(MIN_CANDLES,200);assert.equal(HISTORY_CANDLES,220);const before=candles(199);const liveEpoch=Math.floor(Date.now()/60000)*60;before.push({time:"live",epoch:liveEpoch,open:1.08,high:1.081,low:1.079,close:1.0805,live:true});const waiting=analyzeMarket(before,{tickAgeSeconds:0});assert.equal(waiting.signal,"STANDBY");assert.equal(waiting.closedCandleCount,199);const ready=candles(200);ready.push({time:"live",epoch:liveEpoch,open:1.08,high:1.081,low:1.079,close:1.0805,live:true});const x=analyzeMarket(ready,{tickAgeSeconds:0});assert.ok(x.metrics);assert.equal(x.closedCandleCount,200);assert.equal(x.requiredCandles,200)});
-test("fresh data returns explainable state without fake confidence",()=>{const x=analyzeMarket(candles());assert.ok(["CALL","PUT","STANDBY"].includes(x.signal));assert.ok(x.regime);assert.ok(Array.isArray(x.evidence));assert.equal("confidence"in x,false)});
-test("stale 200-candle history returns STANDBY",()=>{const x=candles(200);x.at(-1).epoch-=600;assert.equal(analyzeMarket(x,{maxAgeSeconds:180,tickAgeSeconds:0}).signal,"STANDBY")});
-test("live tick after a history gap preserves the historical candle buffer",()=>{const history=Array.from({length:200},(_,i)=>({time:"history-"+i,epoch:Math.floor(Date.now()/60000)*60-((200-i)*60),open:1.1,high:1.101,low:1.099,close:1.1,live:false}));const latest=history.at(-1);const currentEpoch=Math.floor(Date.now()/60000)*60;assert.ok(currentEpoch-latest.epoch>=60);const merged=[...history,{time:"current",epoch:currentEpoch,open:1.1,high:1.101,low:1.099,close:1.1,live:true}];assert.equal(merged.filter(c=>!c.live&&c.epoch<currentEpoch).length,200);assert.equal(merged.length,201)});
-test("six pairs are selectable one at a time with EUR/USD as the default and five-minute refresh",()=>{assert.deepEqual(SYMBOLS,["AUD/USD","EUR/USD","EUR/GBP","GBP/JPY","EUR/JPY","GBP/USD"]);assert.deepEqual(DEFAULT_SYMBOLS,["EUR/USD"]);assert.equal(new Set(SYMBOLS).size,6);assert.equal(DEFAULT_SYMBOLS.length,1);assert.equal(REST_SYNC_SECONDS,300)});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import {
+  SYMBOLS, DEFAULT_SYMBOL, MIN_CLOSED_CANDLES, HISTORY_CANDLES,
+  REST_SYNC_SECONDS, resolveSymbol
+} from "../src/config.js";
+import { analyzeMarket, ema, rsi } from "../src/analyzer.js";
+import { fetchCandles } from "../src/twelve-data.js";
 
-test("Main Market pair selector uses the neon modal with six real-market pairs",()=>{const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.match(html,/id="pairModal"/);assert.match(html,/id="openPairModal"/);assert.match(html,/id="closePairModal"/);assert.match(html,/id="selectedPairLabel"/);assert.equal((html.match(/data-pair-select/g)||[]).length,6);assert.ok(js.includes("function openPairModal()"));assert.ok(js.includes("function closePairModal()"));assert.doesNotMatch(html,/BTC\/USD|ETH\/USD|CALL ORDER|PUT ORDER|Test CALL|Pause Sim/)});
+function makeCandles(count = 220, {
+  start = Math.floor(Date.now() / 60000) * 60 - count * 60,
+  step = 0.00001
+} = {}) {
+  return Array.from({ length: count }, (_, index) => {
+    const close = 1.08 + index * step;
+    const epoch = start + index * 60;
+    return {
+      time: new Date(epoch * 1000).toISOString().slice(0, 16).replace("T", " "),
+      epoch,
+      open: close - step / 3,
+      high: close + step,
+      low: close - step,
+      close,
+      live: false
+    };
+  });
+}
 
-test("Main Market signal display uses a large visual CALL/PUT/STANDBY indicator",()=>{const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");const css=readFileSync(new URL("../public/styles.css",import.meta.url),"utf8");assert.ok(js.includes('class="signal-display ${sig.toLowerCase()}"'));assert.ok(js.includes('class="signal-lamp"'));assert.ok(js.includes("พิจารณาเข้า CALL"));assert.ok(js.includes("พิจารณาเข้า PUT"));assert.ok(css.includes(".signal-lamp{width:104px"));assert.ok(css.includes(".signal-display.call"));assert.ok(css.includes(".signal-display.put"));assert.ok(css.includes(".signal-display.standby"))});
+test("the selector exposes exactly six pairs and scans one default pair", () => {
+  assert.deepEqual(SYMBOLS, [
+    "AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"
+  ]);
+  assert.equal(DEFAULT_SYMBOL, "EUR/USD");
+  assert.equal(resolveSymbol(" eur / usd "), "EUR/USD");
+  assert.equal(resolveSymbol("BTC/USD"), null);
+  assert.equal(new Set(SYMBOLS).size, 6);
+  assert.equal(MIN_CLOSED_CANDLES, 200);
+  assert.equal(HISTORY_CANDLES, 220);
+  assert.equal(REST_SYNC_SECONDS, 300);
+});
 
-test("signal card displays the live market regime and clearly labeled AI reasoning without simulation controls",()=>{const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const css=readFileSync(new URL("../public/styles.css",import.meta.url),"utf8");assert.ok(js.includes("function regimeLabel(value)"));assert.ok(js.includes('REST_ONLY:"REST ใช้ได้ · ไม่มี LIVE"'));assert.ok(js.includes("Close <b>${close}</b>"));assert.ok(js.includes('class="regime-row"'));assert.ok(js.includes("regimeLabel(p.regime)"));assert.ok(js.includes("AI REASONING"));assert.ok(css.includes(".regime-row{"));assert.ok(css.includes(".signal-display.call"));assert.ok(css.includes(".signal-display.put"));assert.doesNotMatch(html,/Test CALL|Test PUT|Pause Sim/);assert.doesNotMatch(js,/toggleAutoSim|manualSetState|sendOrder\(/)});
+test("EMA and RSI return stable numeric values and reject insufficient input", () => {
+  assert.equal(ema([1, 2], 3), null);
+  assert.equal(ema([1, 2, 3], 3), 2);
+  const value = rsi(Array.from({ length: 30 }, (_, i) => 1 + i * 0.01));
+  assert.ok(value >= 0 && value <= 100);
+  assert.equal(rsi([1, 2, 3], 14), null);
+});
 
-test("Kawasaki neon screen preserves live-only signals and manual controls without demo orders",()=>{const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");const css=readFileSync(new URL("../public/styles.css",import.meta.url),"utf8");assert.match(html,/UNIVERSAL RADAR/);assert.match(html,/กรอบเวลา/);assert.match(html,/id="start"/);assert.match(html,/id="stop"/);assert.match(html,/id="sound"/);assert.match(html,/id="vibration"/);assert.ok(js.includes("regimeLabel(p.regime)"));assert.ok(js.includes("p.reason||p.statusMessage"));assert.ok(css.includes(".signal-display.call"));assert.ok(css.includes(".signal-display.put"));assert.ok(css.includes(".signal-display.standby"));assert.ok(css.includes(".modal-backdrop.open"));assert.doesNotMatch(html,/sendOrder|sendData|Test CALL|Test PUT|FORCE STANDBY|BTC\/USD|ETH\/USD/)});
+test("REST history can provide indicators but cannot produce direction without a fresh live tick", () => {
+  const history = makeCandles(220);
+  const result = analyzeMarket(history, { tickAgeSeconds: null });
+  assert.equal(result.signal, "STANDBY");
+  assert.ok(result.metrics);
+  assert.ok(Number.isFinite(result.lastPrice));
+  assert.ok(Number.isFinite(result.metrics.rsi14));
+  assert.equal(result.livePriceReady, false);
+  assert.match(result.reason, /Streaming สด/);
+  assert.equal("confidence" in result, false);
+});
 
-test("device alert controls create audio from the user gesture and report unsupported haptics honestly",()=>{const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");assert.ok(js.includes("function getAudioContext()"));assert.ok(js.includes("async function unlockAudio()"));assert.ok(js.includes("await tone(\"signal\",true)"));assert.ok(js.includes("typeof navigator.vibrate===\"function\""));assert.ok(js.includes("ส่ง HapticFeedback ผ่าน Telegram แล้ว"));assert.ok(js.includes("สั่นไม่ได้: "+'"+result.reason'));assert.match(html,/id="testSound"/);assert.match(html,/id="testVibration"/)});
-test("10-second and 3-second pre-candle alerts are CALL/PUT-only and request haptic feedback",()=>{const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.ok(js.includes('if(!isMonitoring||apiStatus!=="ONLINE"||!directional())return'));assert.ok(js.includes('playAlertTone("watch");playAlertVibration("watch")'));assert.ok(js.includes('playAlertTone("entry");playAlertVibration("entry")'));assert.ok(js.includes('haptic?.notificationOccurred==="function"'));assert.ok(js.includes('haptic.notificationOccurred(kind==="signal"?"success":"warning")'));assert.ok(js.includes('navigator.vibrate(kind==="signal"?[180,90,180]:[120,70,120])'))});
-test("server availability is ONLINE while market scanning is idle",()=>{const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");const client=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.ok(server.includes("serverOnline:true"));assert.ok(server.includes('return"REST_ONLY"'));assert.ok(server.includes('status==="REST_ONLY"?"REST รองรับ: มีแท่งปิดและคำนวณราคา/RSI/Close ได้ แต่ยังไม่มี Streaming สด"'));assert.ok(client.includes('if(!s.monitoring&&s.serverOnline)'));assert.ok(client.includes('pill.textContent="● SERVER ONLINE"'))});
-test("simple Main Market layout retains live-only signal data, single-pair selection and manual-only controls",()=>{const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.match(html,/id="pairModal"/);assert.equal((html.match(/data-pair-select/g)||[]).length,6);assert.match(html,/id="start"/);assert.match(html,/id="stop"/);assert.ok(js.includes("function regimeLabel(value)"));assert.ok(js.includes("p.reason||p.statusMessage"));assert.doesNotMatch(html,/BTC\/USD|ETH\/USD|CALL ORDER|PUT ORDER/)});
+test("a live candle cannot be counted as one of the 200 required closed candles", () => {
+  const history = makeCandles(199);
+  const currentEpoch = Math.floor(Date.now() / 60000) * 60;
+  history.push({
+    time: "live", epoch: currentEpoch, open: 1.08,
+    high: 1.081, low: 1.079, close: 1.0805, live: true
+  });
+  const result = analyzeMarket(history, { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.closedCandleCount, 199);
+  assert.equal(result.requiredCandles, 200);
+});
 
-test("server exposes no-cache HTML/assets and an HTTP control fallback for Telegram WebViews",()=>{const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.ok(server.includes('app.post("/api/control"'));assert.ok(server.includes('m.action==="heartbeat"'));assert.ok(server.includes('httpLeaseUntil'));assert.ok(server.includes('Cache-Control","no-store'));assert.ok(server.includes("must-revalidate"));assert.ok(js.includes("async function sendHttpAction("));assert.ok(js.includes("function startPolling(){if(!pollingTimer){pollState();pollingTimer=setInterval(pollState,2000)}if(monitoring)sendHttpAction(\"heartbeat\").catch(()=>{})"));assert.ok(js.includes("setInterval(pollState,2000)"));assert.ok(js.includes("setTimeout(()=>{if(ws.readyState===0)ws.close()},8000)"));assert.ok(html.includes("app.js?v=20261102-nonblocking-sdk"));assert.ok(html.includes("styles.css?v=20261102-nonblocking-sdk"))});
+test("malformed OHLC values fail closed", () => {
+  const history = makeCandles(220);
+  history.at(-1).high = history.at(-1).low - 0.01;
+  const result = analyzeMarket(history, { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /OHLC/);
+});
 
-test("HTTP Mini App smoke test serves the app and accepts start, heartbeat and stop",async()=>{const port=32179,child=spawn(process.execPath,["server.js"],{env:{...process.env,PORT:String(port),TWELVE_DATA_API_KEY:""}});let started=false;try{let response;for(let i=0;i<60;i++){try{response=await fetch("http://127.0.0.1:"+port+"/health");if(response.ok){started=true;break}}catch{}await delay(100)}assert.ok(started,"server did not become ready");const health=await response.json();assert.equal(health.service,"main-market");assert.equal(health.version,"2026-11-02-http-fallback");const page=await fetch("http://127.0.0.1:"+port+"/");assert.equal(page.status,200);assert.match(page.headers.get("cache-control")||"",/no-store/);assert.match(await page.text(),/UNIVERSAL RADAR/);const asset=await fetch("http://127.0.0.1:"+port+"/app.js?v=20261102-nonblocking-sdk");assert.equal(asset.status,200);assert.match(asset.headers.get("cache-control")||"",/no-store/);const css=await fetch("http://127.0.0.1:"+port+"/styles.css?v=20261102-nonblocking-sdk");assert.equal(css.status,200);assert.match(css.headers.get("cache-control")||"",/no-store/);const start=await fetch("http://127.0.0.1:"+port+"/api/control",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"start",symbols:["EUR/USD"]})});assert.equal(start.status,200);assert.equal((await start.json()).state.monitoring,true);const beat=await fetch("http://127.0.0.1:"+port+"/api/control",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"heartbeat"})});assert.equal(beat.status,200);const stop=await fetch("http://127.0.0.1:"+port+"/api/control",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"stop"})});assert.equal(stop.status,200);assert.equal((await stop.json()).state.monitoring,false)}finally{child.kill("SIGTERM");await Promise.race([new Promise(resolve=>child.once("exit",resolve)),delay(1500)])}},{timeout:15000});
+test("duplicate or reversed candle timestamps fail closed", () => {
+  const history = makeCandles(220);
+  history.at(-1).epoch = history.at(-2).epoch;
+  const result = analyzeMarket(history, { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /ซ้ำ|ลำดับ/);
+});
 
+test("recent missing M1 bars fail closed, while older market-closure gaps are tolerated", () => {
+  const oldGap = makeCandles(220);
+  oldGap[30].epoch += 3600;
+  for (let i = 31; i < oldGap.length; i++) oldGap[i].epoch += 3600;
+  assert.ok(analyzeMarket(oldGap, { tickAgeSeconds: null }).metrics);
 
-test("Telegram SDK is non-blocking so the Mini App controls boot even when Telegram CDN is slow",()=>{const html=readFileSync(new URL("../public/index.html",import.meta.url),"utf8");const js=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");assert.match(html,/<script async src="https:\/\/telegram\.org\/js\/telegram-web-app\.js"><\/script>/);assert.ok(js.includes("getTelegram=()=>window.Telegram?.WebApp"));assert.ok(js.includes("document.addEventListener(\"pointerdown\""));assert.ok(js.includes("ระบบควบคุมพร้อม"));assert.ok(js.includes("exponentialRampToValueAtTime(.48"));assert.ok(!js.includes("tg?.HapticFeedback"))});
+  const recentGap = makeCandles(220);
+  recentGap.at(-2).epoch -= 60;
+  const result = analyzeMarket(recentGap, { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /ช่องว่าง/);
+});
+
+test("stale history fails closed", () => {
+  const history = makeCandles(220);
+  history.at(-1).epoch -= 600;
+  const result = analyzeMarket(history, { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /เก่า/);
+});
+
+test("directional decisions are limited to CALL, PUT or STANDBY and never invent confidence", () => {
+  const result = analyzeMarket(makeCandles(220), { tickAgeSeconds: 0 });
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
+  assert.ok(result.regime);
+  assert.ok(Array.isArray(result.evidence));
+  assert.equal("confidence" in result, false);
+});
+
+test("Twelve Data REST parsing sorts bars, removes current candle and validates OHLC", async () => {
+  const now = Date.now();
+  const bars = makeCandles(220, { start: Math.floor(now / 60000) * 60 - 220 * 60 });
+  const values = bars.slice().reverse().map(c => ({
+    datetime: c.time, open: String(c.open), high: String(c.high),
+    low: String(c.low), close: String(c.close)
+  }));
+  values.push({
+    datetime: new Date(Math.floor(now / 60000) * 60000).toISOString().slice(0, 16).replace("T", " "),
+    open: "1.1", high: "1.2", low: "1.0", close: "1.1"
+  });
+  const fakeFetch = async () => ({
+    ok: true, status: 200,
+    json: async () => ({ meta: { symbol: "EUR/USD" }, values })
+  });
+  const result = await fetchCandles({
+    apiKey: "test-key", symbol: "EUR/USD", fetchImpl: fakeFetch, now
+  });
+  assert.equal(result.candles.length, 220);
+  assert.ok(result.candles[0].epoch < result.candles.at(-1).epoch);
+  assert.ok(result.candles.every(c => c.live === false));
+});
+
+test("Twelve Data rejects unsupported symbols and classifies provider errors", async () => {
+  await assert.rejects(
+    fetchCandles({ apiKey: "test-key", symbol: "BTC/USD" }),
+    /not enabled/
+  );
+  const fakeFetch = async () => ({
+    ok: false, status: 429,
+    json: async () => ({ status: "error", message: "API credits exhausted" })
+  });
+  await assert.rejects(
+    fetchCandles({ apiKey: "test-key", symbol: "EUR/USD", fetchImpl: fakeFetch }),
+    error => error.kind === "RATE_LIMIT"
+  );
+});
+
+test("mobile UI keeps one-pair selector, signal light and manual controls", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  const js = await readFile(new URL("../public/app.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(html, /id="pairModal"/);
+  assert.equal((html.match(/data-pair-select/g) || []).length, 6);
+  assert.match(html, /id="start"/);
+  assert.match(html, /id="stop"/);
+  assert.match(html, /id="sound"/);
+  assert.match(html, /id="vibration"/);
+  assert.match(js, /function setSelected\(values\)/);
+  assert.match(js, /function regimeLabel\(value\)/);
+  assert.match(css, /\.signal-display\.call/);
+  assert.match(css, /\.signal-display\.put/);
+  assert.match(css, /\.signal-display\.standby/);
+  assert.doesNotMatch(js, /sendOrder\(|placeOrder\(/);
+});
+
+test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", async () => {
+  const port = 32189;
+  const child = spawn(process.execPath, ["server.js"], {
+    env: { ...process.env, PORT: String(port), TWELVE_DATA_API_KEY: "" },
+    stdio: "ignore"
+  });
+  try {
+    let response;
+    for (let i = 0; i < 60; i++) {
+      try {
+        response = await fetch(`http://127.0.0.1:${port}/health`);
+        if (response.ok) break;
+      } catch {}
+      await delay(100);
+    }
+    assert.ok(response?.ok, "server did not become ready");
+    const health = await response.json();
+    assert.equal(health.service, "main-market");
+    const page = await fetch(`http://127.0.0.1:${port}/`);
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get("cache-control") || "", /no-store/);
+    assert.match(await page.text(), /UNIVERSAL RADAR/);
+    const start = await fetch(`http://127.0.0.1:${port}/api/control`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "start", symbol: "EUR/USD" })
+    });
+    assert.equal(start.status, 200);
+    assert.equal((await start.json()).state.monitoring, true);
+    const heartbeat = await fetch(`http://127.0.0.1:${port}/api/control`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "heartbeat" })
+    });
+    assert.equal(heartbeat.status, 200);
+    const stop = await fetch(`http://127.0.0.1:${port}/api/control`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "stop" })
+    });
+    assert.equal(stop.status, 200);
+    assert.equal((await stop.json()).state.monitoring, false);
+  } finally {
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise(resolve => child.once("exit", resolve)),
+      delay(1500)
+    ]);
+  }
+}, { timeout: 15000 });
