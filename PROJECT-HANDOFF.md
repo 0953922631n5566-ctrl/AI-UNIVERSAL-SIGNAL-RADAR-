@@ -901,3 +901,21 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render auto-deploy started: dep-dbk3o5qvcj2c73fjm6f0, build_in_progress at 2026-11-02 07:30:32 UTC. Do not tell user to retest until deploy status becomes live/succeeded.
 - Still not yet verified: successful OPTIONS preflight from device, /api/auth success, cookie persistence inside Telegram WebView, authenticated /api/state, start command, Twelve Data REST/streaming, and Android haptics.
 - Next validation after deployment: user should fully close Telegram Mini App and reopen it (fresh initData), then verify API status changes from LOCKED to CONNECTING/ONLINE and Start is enabled. If still locked, inspect browser network/request logs and improve sanitized auth/CORS diagnostics without logging initData, user IDs, cookies, or tokens.
+
+
+## 2026-11-02 — Main Market Mini App v4 rebuild (HTTP-first client)
+
+- User reported the app authenticated but pressing Start did not load market data and requested a complete Mini App rebuild.
+- Replaced the Main Market frontend on branch `main-market` only:
+  - `main-market/public/index.html`: rebuilt compact dashboard, pair selector, feed diagnostics, signal panel, indicator cards, timers and device controls.
+  - `main-market/public/styles.css`: replaced visual system with a responsive mobile-first layout.
+  - `main-market/public/app.js`: removed the WebSocket-first client lifecycle and replaced it with authenticated HTTP control + 2-second state polling + 4-second lease heartbeat. This makes start failures and API errors visible in the UI and avoids the prior WebSocket/polling handoff complexity.
+  - Retained Telegram initData authentication, server-side session cookie, manual pair selection, Start/Stop, sound/vibration toggles, device tests, signal alerts, and 10s/3s pre-alert logic.
+  - Added explicit REST / STREAM / candle-count diagnostics and MACD histogram display.
+- Frontend commits:
+  - `0dd87e1b5b47b519700a8c21abc230023b15886e` — rebuilt index.
+  - `01558f0801e1371f22a27012ea7a2098e1bfcb37` — rebuilt styling.
+  - `ed89e43919d5a1d34fc9ece11e596162e1b68935` — replaced client runtime with HTTP polling.
+- Backend was intentionally not weakened or rewritten in this pass. Existing Twelve Data REST requires 60 closed M1 candles; directional signals still require a fresh Streaming tick. If REST fails, the UI should now show the actual returned error; if REST works but Streaming is not entitled, it should show REST_ONLY and remain STANDBY.
+- Current validation status at handoff update: GitHub files re-fetched from `main-market` and confirmed present with new content. Render auto-deploy, install-time tests / syntax checks, runtime REST fetch, and Android Telegram device test are pending. Do not tell the user the new Mini App is live or that market data is working until Render deploy is live and logs show `start requested` followed by `REST ready` (or a specific `REST error`).
+- Keep the Android/OCR branch and the `main` frontend untouched.
