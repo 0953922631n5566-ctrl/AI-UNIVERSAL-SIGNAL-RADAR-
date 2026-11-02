@@ -19,6 +19,14 @@ jobs:
           cache-dependency-path: main-market/package.json
       - name: Install and run tests
         run: cd main-market && npm install
+      - name: Verify Telegram Mini App cross-origin authentication wiring
+        run: |
+          cd main-market
+          grep -Fq 'const API_ORIGIN = "https://ai-signal-radar-main-market.onrender.com";' public/app.js
+          grep -Fq 'credentials: "include"' public/app.js
+          grep -Fq 'new URL(API_ORIGIN).host' public/app.js
+          grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
+          grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
       - name: Syntax-check application modules
         run: |
           cd main-market
