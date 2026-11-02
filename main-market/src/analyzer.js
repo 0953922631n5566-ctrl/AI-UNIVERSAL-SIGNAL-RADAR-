@@ -1,5 +1,6 @@
 import {
   MIN_CLOSED_CANDLES,
+  HISTORY_CANDLES,
   MAX_CANDLE_AGE_SECONDS,
   MAX_STREAM_AGE_SECONDS
 } from "./config.js";
@@ -76,7 +77,7 @@ function validateCandles(input, now) {
     };
   }
 
-  const ordered = closed.slice(-MIN_CLOSED_CANDLES);
+  const ordered = closed.slice(-HISTORY_CANDLES);
   for (let i = 0; i < ordered.length; i++) {
     const candle = ordered[i];
     if (![candle.open, candle.high, candle.low, candle.close].every(finite)) {
