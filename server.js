@@ -113,8 +113,16 @@ async function buildSignal() {
   }
 }
 
+app.get('/api/config', (_req, res) => res.json({
+  symbol: 'EUR/USD', market: 'NON-OTC', timeframe: 'M1',
+  regimes: ['TREND', 'SIDEWAY', 'BREAKOUT'],
+  preparationAlertSeconds: 10, finalAlertWindowSeconds: 5, signalHoldSeconds: 35,
+  manualOnly: true, automaticBrokerOrders: false
+}));
+
 app.get('/health', (_req, res) => res.json({
-  status: 'ok', historyCandles: candleStore.size,
+  status: 'ok', strategy: 'MULTI_REGIME_M1', finalAlertWindowSeconds: 5,
+  signalHoldSeconds: 35, historyCandles: candleStore.size,
   refreshIntervalSeconds: REFRESH_MS / 1000, pollingMode: 'M1_CANDLE_CLOSE',
   liveStream: liveEngine ? liveEngine.getStatus() : { status: 'starting' }
 }));
