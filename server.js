@@ -1,194 +1,156 @@
 const express = require('express');
-const fetch = require('node-fetch');
 const path = require('path');
-const { createLiveEngine } = require('./live-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const API_URL = 'https://api.twelvedata.com/time_series';
+const MAX_HISTORY = 300;
+const MAX_AGE_MS = 30000;
+const MIN_POINTS = 5;
+const REFRESH_SECONDS = 2;
 
-// One Twelve Data REST refresh immediately after each UTC M1 candle closes.
-const REFRESH_MS = 60000; // one history refresh per M1 candle (up to 1,440 calls/day)
-const HISTORY_SIZE = 200;
-const KEEP_CANDLES = 220;
-
-let candleStore = new Map();
-let hasWarmHistory = false;
-let cache = { at: 0, payload: null };
-let inFlight = null;
-let liveEngine = null;
-
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-function errorPayload(status, message, reason) {
-  return {
-    symbol: 'EUR/USD', signal: 'STANDBY', regime: status === 'quota_exhausted' ? 'API LIMIT' : 'API ERROR',
-    price: '—', rsi: null, apiStatus: status, apiMessage: message, reason,
-    candlesLoaded: candleStore.size, refreshIntervalSeconds: REFRESH_MS / 1000
+// OCR is the only market-price source. No provider API, generated price, or fallback feed.
+let priceHistory = [];
+let lastUploadAt = null;
+let lastUploadSource = null;
+let lastUploadTimestamp = null;
+let rejectedUploads = 0;
+
+function normalizePrice(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 && n < 1000000 ? n : null;
+}
+
+function getSignal() {
+  const now = Date.now();
+  const latest = priceHistory[priceHistory.length - 1];
+  const ageMs = latest ? now - latest.receivedAt : Infinity;
+  const fresh = !!latest && ageMs >= 0 && ageMs <= MAX_AGE_MS;
+  const prices = priceHistory.map(x => x.price);
+  const base = {
+    symbol: 'EUR/USD',
+    market: 'OCR',
+    timeframe: 'M1',
+    source: 'ANDROID_OCR',
+    apiStatus: fresh ? 'connected' : 'waiting',
+    feedStatus: fresh ? 'LIVE' : 'WAITING_FOR_OCR',
+    signal: 'STANDBY',
+    regime: 'WAITING FOR REAL OCR PRICES',
+    price: latest && fresh ? latest.price.toFixed(5) : '—',
+    priceTimestamp: latest ? new Date(latest.timestamp).toISOString() : null,
+    receivedAt: latest ? new Date(latest.receivedAt).toISOString() : null,
+    dataAgeSeconds: latest ? Math.max(0, Math.floor(ageMs / 1000)) : null,
+    readingsLoaded: priceHistory.length,
+    minimumReadings: MIN_POINTS,
+    refreshIntervalSeconds: REFRESH_SECONDS,
+    reason: 'รอราคาจริงจาก APK OCR เท่านั้น · ไม่มีการสร้างราคาแทน'
   };
+
+  if (!fresh) {
+    return { ...base, apiStatus: 'waiting', feedStatus: 'STALE_OR_MISSING', regime: 'NO FRESH OCR DATA',
+      reason: latest ? 'ราคาจาก APK เก่าเกิน 30 วินาที · หยุดออกสัญญาณ' : 'ยังไม่ได้รับราคาจาก APK OCR' };
+  }
+  if (prices.length < MIN_POINTS) {
+    return { ...base, regime: 'COLLECTING OCR READINGS',
+      reason: 'ได้รับราคาจริงแล้ว แต่ต้องสะสมอย่างน้อย 5 ค่าเพื่อประเมินทิศทาง' };
+  }
+
+  const recent = prices.slice(-MIN_POINTS);
+  const deltas = recent.slice(1).map((p, i) => p - recent[i]);
+  const ups = deltas.filter(x => x > 0).length;
+  const downs = deltas.filter(x => x < 0).length;
+  const net = recent[recent.length - 1] - recent[0];
+  const scale = Math.max(Math.abs(recent[0]) * 0.000001, 0.000001);
+  let signal = 'STANDBY';
+  let regime = 'MIXED MOMENTUM';
+  let reason = 'ทิศทางราคา OCR ยังไม่ชัดเจน · รอข้อมูลเพิ่ม';
+  if (net > scale && ups >= 3) {
+    signal = 'CALL'; regime = 'UPWARD MOMENTUM';
+    reason = 'ราคาจริงจาก OCR เคลื่อนขึ้นอย่างน้อย 3 ใน 4 ช่วงล่าสุด';
+  } else if (net < -scale && downs >= 3) {
+    signal = 'PUT'; regime = 'DOWNWARD MOMENTUM';
+    reason = 'ราคาจริงจาก OCR เคลื่อนลงอย่างน้อย 3 ใน 4 ช่วงล่าสุด';
+  }
+  return { ...base, signal, regime, reason, momentumReadings: recent.length,
+    risingSteps: ups, fallingSteps: downs, netChange: Number(net.toFixed(6)) };
 }
 
-async function buildSignal() {
-  const apiKey = process.env.TWELVE_DATA_API_KEY;
-  if (!apiKey) return errorPayload('error',
-    'กรุณากำหนด TWELVE_DATA_API_KEY ใน Render Environment', 'ยังไม่มี API key');
-
-  try {
-    const url = new URL(API_URL);
-    url.search = new URLSearchParams({
-      symbol: 'EUR/USD', interval: '1min', outputsize: String(hasWarmHistory ? 3 : HISTORY_SIZE),
-      timezone: 'UTC', apikey: apiKey
-    }).toString();
-
-    const response = await fetch(url.toString(), { timeout: 12000 });
-    const data = await response.json();
-
-    if (!response.ok || !data || !Array.isArray(data.values)) {
-      const message = (data && data.message) || 'Twelve Data returned invalid data';
-      const quota = response.status === 429 || /quota|credits|rate limit|api calls|api requests/i.test(message);
-      return errorPayload(quota ? 'quota_exhausted' : 'error', message,
-        'ไม่สามารถยืนยันข้อมูลตลาดได้ จึงหยุดการออกสัญญาณ');
-    }
-
-    // Only ingest completed M1 bars. Twelve Data timestamps each bar by OPEN time.
-    const nowMs = Date.now();
-    for (const candle of data.values) {
-      const close = Number(candle.close);
-      const open = Number(candle.open);
-      const high = Number(candle.high);
-      const low = Number(candle.low);
-      if (!candle.datetime || ![close, open, high, low].every(Number.isFinite)) continue;
-      const candleStartMs = new Date(String(candle.datetime).replace(' ', 'T') + 'Z').getTime();
-      if (!Number.isFinite(candleStartMs) || candleStartMs + 60000 > nowMs - 2000) continue;
-      candleStore.set(String(candle.datetime), {
-        datetime: String(candle.datetime), close, open, high, low
-      });
-    }
-    const candles = Array.from(candleStore.values())
-      .sort((a, b) => a.datetime.localeCompare(b.datetime))
-      .slice(-KEEP_CANDLES);
-    candleStore = new Map(candles.map(c => [c.datetime, c]));
-    if (candles.length >= HISTORY_SIZE) hasWarmHistory = true;
-
-    if (candles.length < 35) {
-      return errorPayload('error', 'ข้อมูลแท่งเทียนไม่ครบ',
-        'ต้องมีข้อมูลย้อนหลังอย่างน้อย 35 แท่งสำหรับพยากรณ์ M1 ถัดไป');
-    }
-
-    const last = candles[candles.length - 1];
-    const price = last.close;
-    const candleTime = new Date(String(last.datetime).replace(' ', 'T') + 'Z');
-    const candleClosedAtMs = candleTime.getTime() + 60000;
-    const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleClosedAtMs;
-
-    if (ageMs > 180000 || ageMs < -60000) {
-      return {
-        symbol: 'EUR/USD', signal: 'STANDBY', regime: 'STALE DATA',
-        price: price.toFixed(5), datetime: last.datetime,
-        candleClosedAt: new Date(candleClosedAtMs).toISOString(),
-        apiStatus: 'error', apiMessage: 'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง',
-        reason: 'ข้อมูล REST ไม่สด ระบบจึงงดการยืนยันผลพยากรณ์',
-        candlesLoaded: candles.length, refreshIntervalSeconds: REFRESH_MS / 1000
-      };
-    }
-
-    return {
-      symbol: 'EUR/USD', signal: 'DATA_ONLY', regime: 'MARKET DATA',
-      price: price.toFixed(5), datetime: last.datetime,
-      candleClosedAt: new Date(candleClosedAtMs).toISOString(),
-      dataAgeSeconds: Math.max(0, Math.floor(ageMs / 1000)),
-      rsi: null, ema5: null, ema20: null, apiStatus: 'connected',
-      apiMessage: 'เชื่อมต่อ Twelve Data แล้ว · REST ใช้เป็นข้อมูลแท่งย้อนหลังเท่านั้น',
-      apiUpdatedAt: new Date().toISOString(),
-      reason: 'REST HISTORY READY · DIRECTION IS DECIDED BY NEXT M1 FORECAST ONLY',
-      candlesLoaded: candles.length,
-      historyMode: hasWarmHistory ? 'rolling-update' : 'initial-history',
-      refreshIntervalSeconds: REFRESH_MS / 1000
-    };
-  } catch (err) {
-    console.error('Twelve Data error:', err.message);
-    return errorPayload('error', 'ข้อผิดพลาดในการเชื่อมต่อ Twelve Data',
-      'ระบบหยุดออกสัญญาณจนกว่าจะได้รับข้อมูลที่ยืนยันได้');
-  }
-}
-
-app.get('/api/settings', (_req, res) => res.json(liveEngine ? liveEngine.getPreferences() : { mode: 'auto', strictness: 55 }));
-
-app.post('/api/settings', (req, res) => {
-  const mode = req.body && req.body.mode;
-  const strictness = Number(req.body && req.body.strictness);
-  if (!['auto','uptrend','downtrend','sideway'].includes(mode) || !Number.isFinite(strictness) || strictness < 55 || strictness > 100) {
-    return res.status(400).json({ error: 'mode must be auto/uptrend/downtrend/sideway and strictness must be 55-100' });
-  }
-  const settings = liveEngine ? liveEngine.setPreferences({ mode, strictness }) : { mode, strictness: Math.round(strictness) };
-  return res.json({ ok: true, ...settings });
+app.get('/health', (_req, res) => {
+  const latest = priceHistory[priceHistory.length - 1];
+  const ageMs = latest ? Date.now() - latest.receivedAt : null;
+  res.json({
+    status: 'ok',
+    priceSource: 'ANDROID_OCR_ONLY',
+    externalMarketApis: false,
+    ocrConnected: !!latest && ageMs >= 0 && ageMs <= MAX_AGE_MS,
+    lastPriceReceivedAt: latest ? new Date(latest.receivedAt).toISOString() : null,
+    dataAgeSeconds: ageMs === null ? null : Math.max(0, Math.floor(ageMs / 1000)),
+    readingsLoaded: priceHistory.length,
+    rejectedUploads,
+    refreshIntervalSeconds: REFRESH_SECONDS
+  });
 });
+
+// APK contract: POST /api/upload-screen { detectedPrice, timestamp?, symbol?, source? }
+// Optional protection: set OCR_INGEST_TOKEN in Render and send it as x-ocr-token.
+app.post('/api/upload-screen', (req, res) => {
+  const expectedToken = process.env.OCR_INGEST_TOKEN;
+  if (expectedToken && req.get('x-ocr-token') !== expectedToken) {
+    rejectedUploads++;
+    return res.status(401).json({ status: 'error', message: 'Unauthorized OCR uploader' });
+  }
+  const symbol = String(req.body && req.body.symbol || 'EUR/USD').replace(/\s/g, '').toUpperCase();
+  if (symbol !== 'EUR/USD') {
+    rejectedUploads++;
+    return res.status(400).json({ status: 'error', message: 'Only EUR/USD is enabled' });
+  }
+  const price = normalizePrice(req.body && req.body.detectedPrice);
+  if (price === null) {
+    rejectedUploads++;
+    return res.status(400).json({ status: 'error', message: 'A real detectedPrice is required; no fallback price is generated' });
+  }
+  const suppliedTimestamp = req.body && req.body.timestamp;
+  const parsedTimestamp = suppliedTimestamp == null ? Date.now() :
+    (typeof suppliedTimestamp === 'number' ? suppliedTimestamp : Date.parse(suppliedTimestamp));
+  if (!Number.isFinite(parsedTimestamp) || parsedTimestamp > Date.now() + 10000 || Date.now() - parsedTimestamp > 60000) {
+    rejectedUploads++;
+    return res.status(400).json({ status: 'error', message: 'OCR timestamp is invalid or stale' });
+  }
+  const receivedAt = Date.now();
+  const item = {
+    price,
+    timestamp: parsedTimestamp,
+    receivedAt,
+    source: String(req.body && req.body.source || 'ANDROID_OCR').slice(0, 40)
+  };
+  const previous = priceHistory[priceHistory.length - 1];
+  // Drop exact duplicate frames; they must not manufacture momentum.
+  if (previous && previous.price === price && Math.abs(previous.timestamp - parsedTimestamp) < 1000) {
+    return res.json({ status: 'duplicate_ignored', price: price.toFixed(5), readingsLoaded: priceHistory.length });
+  }
+  priceHistory.push(item);
+  if (priceHistory.length > MAX_HISTORY) priceHistory = priceHistory.slice(-MAX_HISTORY);
+  lastUploadAt = receivedAt;
+  lastUploadTimestamp = parsedTimestamp;
+  lastUploadSource = item.source;
+  const result = getSignal();
+  return res.json({ status: 'success', price: price.toFixed(5), signal: result.signal,
+    readingsLoaded: priceHistory.length, receivedAt: new Date(receivedAt).toISOString() });
+});
+
+app.get('/api/signal', (_req, res) => res.json(getSignal()));
 
 app.get('/api/config', (_req, res) => res.json({
-  symbol: 'EUR/USD', market: 'NON-OTC', timeframe: 'M1',
-  regimes: ['TREND', 'SIDEWAY', 'BREAKOUT'],
-  preparationAlertSeconds: 10, finalAlertWindowSeconds: 5, signalHoldSeconds: 35,
-  manualOnly: true, automaticBrokerOrders: false
+  symbol: 'EUR/USD', market: 'OCR', timeframe: 'M1',
+  priceSource: 'ANDROID_OCR_ONLY', externalMarketApis: false,
+  manualOnly: true, automaticBrokerOrders: false,
+  staleAfterSeconds: MAX_AGE_MS / 1000,
+  minimumReadings: MIN_POINTS,
+  refreshIntervalSeconds: REFRESH_SECONDS
 }));
-
-app.get('/health', (_req, res) => res.json({
-  status: 'ok', strategy: 'MULTI_REGIME_M1', finalAlertWindowSeconds: 5,
-  signalHoldSeconds: 35, historyCandles: candleStore.size,
-  refreshIntervalSeconds: REFRESH_MS / 1000, pollingMode: 'M1_CANDLE_CLOSE',
-  liveStream: liveEngine ? liveEngine.getStatus() : { status: 'starting' }
-}));
-
-app.get('/api/live', (_req, res) => {
-  if (!liveEngine) return res.json({ symbol: 'EUR/USD', prediction: 'STANDBY', streamStatus: 'starting', price: '—', reason: 'กำลังเริ่มระบบราคาสด' });
-  res.json(liveEngine.prediction());
-});
-
-app.get('/api/signal', async (_req, res) => {
-  if (cache.payload && Date.now() - cache.at < REFRESH_MS) return res.json(cache.payload);
-  if (!inFlight) inFlight = buildSignal().finally(() => { inFlight = null; });
-  const payload = await inFlight;
-  // Cache quota/rate-limit failures too, so the browser cannot burn credits by retrying every few seconds.
-  const cacheFor = payload.apiStatus === 'quota_exhausted' ? REFRESH_MS :
-    payload.apiStatus === 'connected' ? REFRESH_MS : 30000;
-  cache = { at: Date.now() - (REFRESH_MS - cacheFor), payload };
-  res.status(200).json(payload);
-});
 
 app.listen(PORT, () => {
-  console.log('AI SIGNAL RADAR server listening on', PORT);
-  liveEngine = createLiveEngine(process.env.TWELVE_DATA_API_KEY, () =>
-    Array.from(candleStore.values()).sort((a, b) => a.datetime.localeCompare(b.datetime))
-  );
-
-  // Align one REST refresh just after every UTC M1 boundary.
-  // Each refresh ingests completed bars and recomputes only when a new candle closes.
-  function scheduleMinuteRefresh() {
-    const delay = 60000 - (Date.now() % 60000) + 2000;
-    setTimeout(async () => {
-      try {
-        const payload = await buildSignal();
-        cache = { at: Date.now(), payload };
-        console.log('M1 close refresh:', payload.apiStatus, 'candles:', payload.candlesLoaded || candleStore.size);
-      } catch (err) { console.error('M1 refresh failed:', err.message); }
-      scheduleMinuteRefresh();
-    }, delay);
-  }
-  scheduleMinuteRefresh();
-
-  if (process.env.TWELVE_DATA_API_KEY) {
-    if (!inFlight) {
-      inFlight = buildSignal()
-        .then(payload => {
-          cache = { at: Date.now(), payload };
-          console.log('Startup history warm-up:', payload.apiStatus,
-            'candles:', payload.candlesLoaded || candleStore.size);
-          return payload;
-        })
-        .catch(err => {
-          console.error('Startup history warm-up failed:', err.message);
-        })
-        .finally(() => { inFlight = null; });
-    }
-  }
+  console.log('AI Universal Signal Radar · OCR-only server listening on port', PORT);
 });
