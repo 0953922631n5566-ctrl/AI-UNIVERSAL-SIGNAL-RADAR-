@@ -5,7 +5,7 @@ Updated: 2026-11-03
 ## Main Market single-signal production correction
 
 - Production UI is one screen and one signal lamp only: CALL / PUT / STANDBY.
-- REST and WebSocket analysis remain internal confirmation inputs; no second live-signal panel is shown.
+- REST supplies completed candle history and freshness only; WebSocket live price plus the single NEXT M1 forecast supplies the only directional decision.
 - Final notification starts the single 35-second hold timer. The illuminated radar state is not cleared at the next candle boundary; it resets to gray STANDBY only when the 35 seconds elapse.
 - Final decision display is the only directional output. Before the final notification, the lamp stays STANDBY even if both engines have pre-confirmed a direction.
 - No parallel test system or second production service is introduced.
@@ -101,10 +101,11 @@ The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and 
 
 ## Main Market source and alert behavior
 
-- `server.js`: Twelve Data EUR/USD M1 REST feed; excludes a still-forming candle, keeps up to 220 closed candles, requires at least 20, calculates EMA(5/20) and Wilder-smoothed RSI(14), checks freshness, and caches REST results for 120 seconds. API errors/quota exhaustion return STANDBY.
-- `live-engine.js`: separate EUR/USD WebSocket subscription; requires authorization, a fresh tick (<=75 seconds), at least 20 closed candles, and two ticks with a usable 30–180 second gap before calculating momentum. Missing/stale stream or insufficient history returns STANDBY.
-- `public/index.html`: combines REST closed-candle direction and live WebSocket estimate internally; the Mini App has exactly one visible signal lamp and no separate live prediction panel. CALL/PUT is issued only when both engines agree. The final alert timestamp starts one authoritative 35-second hold; both the signal text and illuminated radar remain active across candle rollover, then reset to STANDBY.
-- The signal logic is rule-based, not a trained AI/ML or chart-vision model. WebSocket cadence is approximately one update per minute; the final 5-second alert is not a new tick-level price confirmation.
+- `server.js`: Twelve Data EUR/USD M1 REST feed; excludes a still-forming candle, keeps up to 220 closed candles, requires at least 35 for the forecast input, checks REST freshness, and caches history for 120 seconds. It no longer calculates a competing REST CALL/PUT direction.
+- `live-engine.js`: EUR/USD WebSocket subscription; requires authorization, a fresh tick (<=75 seconds), at least 35 closed candles, and two ticks with a usable 30–180 second gap before calculating momentum. Missing/stale stream or insufficient history returns STANDBY.
+- `forecast-engine.js`: only NEXT M1 forecast remains. It uses EMA(5/20), RSI(14), MACD(12/26/9), last closed candle body and live momentum; a direction requires at least 5 of 6 checks.
+- `public/index.html`: one forecast and one visible signal lamp. The final alert uses the NEXT M1 forecast directly when REST history and live quote freshness guards pass; no second directional engine must agree. The final alert timestamp starts one authoritative 35-second hold; the signal remains active across candle rollover, then resets to STANDBY.
+- The signal logic is rule-based, not a trained AI/ML or chart-vision model. WebSocket cadence is approximately one update per minute; the final 5-second alert is based on the latest available valid forecast, not a new tick-level price confirmation.
 - The current server code does not implement the earlier server-side “signal candle, skip one candle” rotation. Same-candle duplicate suppression is not equivalent to a verified one-candle cooldown.
 - `ALERT_CONFIGURATION.md` is mandatory for future alert work.
 
