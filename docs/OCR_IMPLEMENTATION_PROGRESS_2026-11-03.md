@@ -19,3 +19,17 @@ Branch: `feature/xiaomi11t-8xtrade-ocr-nonotc`
 
 ## Safe operating state
 All backend frame decisions remain STANDBY. The image OCR is a candidate-extraction step only. Do not use a price candidate as a live signal or enter a trade based on this build.
+
+
+## Test results — 2026-11-03
+- GitHub Actions Android APK build run `41648749029` completed SUCCESS. All 9 build steps passed, including Gradle assembleDebug, APK existence check, SHA-256 generation, and artifact upload.
+- APK artifact: `ai-universal-signal-radar-debug-apk`, artifact ID `13235639055`, size 820,863 bytes. Artifact expires 2026-11-17.
+- Extracted APK SHA-256: `c8bd924910fc333499996480441337e3e3fa5df655bbd5ccd32a6ca48abb8c5a`.
+- OCR was exercised locally against the user's supplied 1536x691 screenshot. Initial crop lost leading digits and read an incorrect value; crop margin was expanded and the same image then returned exactly `1.118315` from orange badge bbox `1233,310,117,32`. A separate orange contour at the bottom-right was rejected.
+- This is a single-image fixture test, not a live-feed accuracy or device test.
+
+## Current blockers before installing/connecting
+- APK BuildConfig still contains placeholder `https://REPLACE_WITH_BACKEND_HOST`; CaptureService intentionally refuses to start with this value.
+- OCR backend is not deployed and `RADAR_INGEST_TOKEN` is not configured.
+- The Android APK artifact was built before the OCR crop-only backend fix; Android sources did not change in that fix, so the APK binary itself is unaffected.
+- Do not install this APK as a working capture client until backend URL and secret are configured and a new APK is built. No live device test has occurred.
