@@ -10,9 +10,9 @@ android {
         applicationId = "com.aiuniversal.signalradar"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.0"
-        buildConfigField("String", "BACKEND_URL", "\"https://ai-universal-signal-radar-main.onrender.com\"")
+        versionCode = 3
+        versionName = "1.1.0"
+        buildConfigField("String", "BACKEND_URL", "\"https://REPLACE_WITH_TEST_SERVER_HOST\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {
