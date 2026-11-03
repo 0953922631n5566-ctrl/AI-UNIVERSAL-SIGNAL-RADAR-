@@ -17,6 +17,14 @@ Single-market signal dashboard for **EUR/USD, 1-minute candles**.
 - This is a rule-based estimate, not a trained machine-learning model or a chart-vision model. Validate the next candle after close and measure accuracy before relying on it.
 - Manual decision support only; no broker orders are placed.
 
+### Live price display and stale-data guard
+
+- The main price label uses the latest EUR/USD WebSocket quote from `/api/live`, not the REST candle close.
+- The UI shows the WebSocket quote timestamp and its live age. If the stream is not subscribed, the timestamp is missing/invalid, or the quote is older than 75 seconds, the live price is shown as STALE (no old REST value is substituted).
+- The REST `/api/signal` close remains visible separately as **LAST CLOSED M1** and continues to supply closed-candle analysis.
+- The client-side final-alert confirmation also checks the actual age of the WebSocket timestamp, so a quote that ages past 75 seconds cannot continue confirming CALL/PUT.
+- This separates display freshness from provider-to-broker price differences; it does not guarantee an exact match with a broker feed or improve predictive accuracy by itself.
+
 ### Fixed alert behavior
 
 Read [ALERT_CONFIGURATION.md](ALERT_CONFIGURATION.md) before changing alert code. It is the source of truth and must be preserved unless the user explicitly changes it.
