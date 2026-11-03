@@ -148,3 +148,18 @@ The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and 
 | End-to-end validation | Not validated |
 
 No secrets are stored in GitHub or APK. No automated broker execution is implemented or permitted.
+
+
+## Latest production implementation — closed-candle-only M1 (2026-11-03)
+
+- User authorized prioritizing reliable operation over the Twelve Data daily quota.
+- server.js now refreshes Twelve Data EUR/USD M1 history immediately after each UTC minute boundary. Expected ceiling: 1,440 REST calls/day. Browser polling is served from the server cache every 5 seconds.
+- forecast-engine.js accepts only the closed-candle array. Its function signature has no live price or momentum input. It calculates EMA5/20, MACD(12/26/9), RSI14, and candle body checks; direction requires at least 5/6 votes.
+- live-engine.js uses the latest closed candle key to calculate once per new candle. It returns STANDBY if the latest close is older than 90 seconds. The WebSocket quote remains available for live price display only; it is not used in direction.
+- Each forecast has validFor NEXT_M1_ONLY, lastClosedAt, and nextCandleAt. A new completed candle causes recomputation; no previous direction is carried forward as a second horizon.
+- Alert timing: preparation 10 seconds before boundary; final CALL/PUT/STANDBY published 5 seconds into the new minute (the next candle the signal applies to); hold for 35 seconds from notification. This alignment avoids announcing the decision from candle N as if it applied to candle N+2.
+- Production deploy: dep-dbkpqbh9dmos739lgd20, commit 2c11140154816429d7baf773fa80ad0b9ee2b958, status LIVE.
+- Live endpoint verification at 2026-11-03 08:37 UTC: /health status=ok, historyCandles=200, refreshIntervalSeconds=60, pollingMode=M1_CANDLE_CLOSE, WebSocket subscribed. /api/signal apiStatus=connected, REST history only, 200 closed candles. /api/live returned a single PUT forecast, 6/6 checks, with validFor NEXT_M1_ONLY; live price is separate.
+- CI: Node Forecast Tests run 41604493045 completed successfully.
+- Telegram Mini App URL: https://ai-universal-signal-radar-main.onrender.com/
+- No automatic trading. This is a rule-based signal tool, not a guarantee of outcomes. Actual Telegram bot menu/launch configuration and device sound/vibration are not verifiable from the Render service alone.
