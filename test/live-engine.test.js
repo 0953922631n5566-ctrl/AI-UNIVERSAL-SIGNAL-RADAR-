@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMinuteCandleAggregator } = require('../live-engine');
+const { createMinuteCandleAggregator, getLivePriceDirection } = require('../live-engine');
 
 const base = Date.UTC(2026, 0, 1, 0, 0, 0);
 
@@ -52,4 +52,18 @@ test('exposes the forming live candle direction without marking it complete',()=
   assert.equal(current.direction,'BULLISH');
   assert.equal(current.close,1.1004);
   assert.equal(a.getCompletedCandles().length,0);
+});
+
+test('live price fallback returns CALL when the current verified quote is higher',()=>{
+  assert.equal(getLivePriceDirection(1.1002,1.1001),'CALL');
+});
+
+test('live price fallback returns PUT when the current verified quote is lower',()=>{
+  assert.equal(getLivePriceDirection(1.1000,1.1001),'PUT');
+});
+
+test('live price fallback does not invent a direction for equal or invalid quotes',()=>{
+  assert.equal(getLivePriceDirection(1.1000,1.1000),'WAIT');
+  assert.equal(getLivePriceDirection(1.1000,null),'WAIT');
+  assert.equal(getLivePriceDirection(NaN,1.1000),'WAIT');
 });
