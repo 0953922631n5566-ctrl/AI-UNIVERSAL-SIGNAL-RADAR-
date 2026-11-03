@@ -19,3 +19,9 @@ test('Mini App client hold timer matches the 35-second alert contract', () => {
   assert.match(html, /FINAL 5 SECONDS/);
   assert.doesNotMatch(html, /FINAL 3 SECONDS|ช่วง 3 วินาทีสุดท้าย/);
 });
+
+test('Mini App accepts verified live-price fallback alerts when REST history is unavailable', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.match(html, /agreementVotes==='LIVE_PRICE_DIRECTION'/);
+  assert.match(html, /LIVE WS · FALLBACK/);
+});

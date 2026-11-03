@@ -1,6 +1,14 @@
 const WebSocket = require('ws');
 const { evaluateLiveFormula } = require('./forecast-engine');
 
+// Direction-only fallback for a verified live quote when REST candle history is unavailable.
+function getLivePriceDirection(currentPrice, previousPrice) {
+  if (!Number.isFinite(currentPrice) || currentPrice <= 0 ||
+      !Number.isFinite(previousPrice) || previousPrice <= 0 ||
+      currentPrice === previousPrice) return 'WAIT';
+  return currentPrice > previousPrice ? 'CALL' : 'PUT';
+}
+
 // Aggregate only real Twelve Data quotes. Missing minutes are never fabricated.
 function createMinuteCandleAggregator() {
   let current = null;
@@ -46,7 +54,7 @@ function createMinuteCandleAggregator() {
 function createLiveEngine(apiKey, getClosedCandles) {
   let socket = null, status = apiKey ? 'connecting' : 'unavailable';
   let message = apiKey ? 'กำลังเชื่อมต่อ Twelve Data WebSocket' : 'ยังไม่มี API key';
-  let tick = null, previousTickPrice = null, retryTimer = null, heartbeatTimer = null;
+  let tick = null, previousTickPrice = null, previousTickTimestamp = null, retryTimer = null, heartbeatTimer = null;
   let retryDelay = 5000, stopped = false;
   const tickCandles = createMinuteCandleAggregator();
   const signalState = { signal: 'WAIT', signalAt: null, expiresAt: 0, minuteKey: null };
@@ -72,7 +80,41 @@ function createLiveEngine(apiKey, getClosedCandles) {
       return;
     }
     const candles = mergedClosedCandles();
-    const analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
+    let analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
+
+    // If REST history is missing/too short, use only two consecutive verified live
+    // quotes as a direction fallback. This does not override a valid strategy WAIT.
+    if (!analysis.ready) {
+      const previousQuoteIsFresh = Number.isFinite(previousTickTimestamp) &&
+        now >= previousTickTimestamp && now - previousTickTimestamp <= 30000;
+      const fallbackDirection = getLivePriceDirection(
+        tick.price, previousQuoteIsFresh ? previousTickPrice : null
+      );
+      if (fallbackDirection === 'WAIT') {
+        latestAnalysis = analysis;
+        return;
+      }
+      const exactTimeLeft = 60 - ((new Date(now).getSeconds()) + new Date(now).getMilliseconds() / 1000);
+      analysis = {
+        ...analysis,
+        ready: true,
+        fallback: true,
+        candidate: fallbackDirection,
+        regime: 'LIVE PRICE DIRECTION FALLBACK',
+        confidence: null,
+        rsi: null,
+        trend: fallbackDirection === 'CALL' ? 'BULLISH' : 'BEARISH',
+        trendLabel: fallbackDirection === 'CALL' ? 'ราคาสดขยับขึ้น' : 'ราคาสดขยับลง',
+        statusText: 'CAUTION',
+        statusColor: 'yellow',
+        exactTimeLeft,
+        currentPrice: tick.price,
+        previousPrice: previousTickPrice,
+        reason: fallbackDirection + ' · REST history unavailable · current live quote ' +
+          tick.price.toFixed(5) + (fallbackDirection === 'CALL' ? ' > ' : ' < ') +
+          previousTickPrice.toFixed(5) + ' previous live quote · price-direction only'
+      };
+    }
     latestAnalysis = analysis;
     if (!analysis.ready || (analysis.isSideway && analysis.candidate === 'WAIT')) return;
     const minuteKey = Math.floor(now / 60000);
@@ -111,6 +153,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
         const price = Number(event.price), timestamp = Number(event.timestamp) * 1000, now = Date.now();
         if (Number.isFinite(price) && price > 0 && Number.isFinite(timestamp) && timestamp <= now + 10000 && now - timestamp <= 30000) {
           previousTickPrice = tick ? tick.price : null;
+          previousTickTimestamp = tick ? tick.timestamp : null;
           tick = { price, timestamp };
           tickCandles.ingest(price, timestamp);
           status = 'subscribed'; message = 'รับราคาสด EUR/USD';
@@ -141,13 +184,13 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const forecast = {
       signal: visibleSignal, displayState: analysis.regime || (analysis.isSideway ? 'SIDEWAY' : visibleSignal),
       confidence: analysis.confidence, agreementScore: Number(analysis.confidence),
-      agreementVotes: analysis.ready ? 'FORMULA' : 'WAIT',
+      agreementVotes: analysis.fallback ? 'LIVE_PRICE_DIRECTION' : analysis.ready ? 'FORMULA' : 'WAIT',
       horizon: 0, validFor: 'CURRENT_M1_FINAL_5_SECONDS',
       signalAt: signalState.signalAt, signalMinuteKey: signalState.minuteKey,
       holdSeconds: remaining, trend: analysis.trend, trendLabel: analysis.trendLabel, regime: analysis.regime,
       candleDirection: tickCandles.getCurrentCandle()?.direction || 'NEUTRAL',
       candleLabel: tickCandles.getCurrentCandle()?.direction || 'NEUTRAL',
-      indicators: { ema5: analysis.ema5, ema20: analysis.ema20, rsi14: analysis.rsi, bollingerBandwidth: analysis.bandwidth },
+      indicators: { ema5: analysis.ema5 ?? null, ema20: analysis.ema20 ?? null, rsi14: analysis.rsi ?? null, bollingerBandwidth: analysis.bandwidth ?? null },
       statusText: analysis.statusText, statusColor: analysis.statusColor,
       reason: active ? 'สัญญาณ ' + visibleSignal + ' · ล็อก 35 วินาที'
         : analysis.reason
@@ -175,4 +218,4 @@ function createLiveEngine(apiKey, getClosedCandles) {
   };
 }
 
-module.exports = { createLiveEngine, createMinuteCandleAggregator };
+module.exports = { createLiveEngine, createMinuteCandleAggregator, getLivePriceDirection };

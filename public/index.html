@@ -94,9 +94,9 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
-  const ok=status==='connected';
+  const ok=status==='connected'||status==='live_fallback';
   $('apiBadge').classList.toggle('off',!ok);
-  $('apiText').textContent=ok?'API LIVE · LINKED':status==='connecting'?'API CONNECTING':status==='quota_exhausted'?'API LIMIT':'API OFFLINE';
+  $('apiText').textContent=status==='live_fallback'?'LIVE WS · FALLBACK':ok?'API LIVE · LINKED':status==='connecting'?'API CONNECTING':status==='quota_exhausted'?'API LIMIT':'API OFFLINE';
  }
  function show(signal,msg){
   $('signal').textContent=signal;
@@ -158,6 +158,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    const response=await fetch('/api/live',{cache:'no-store'});
    if(!response.ok)throw new Error('HTTP '+response.status);
    currentLiveData=await response.json();renderForecast();renderPrice();
+   if(currentData&&currentData.apiStatus!=='connected'&&currentLiveData.streamStatus==='subscribed'&&liveQuoteAgeSeconds()<=30)setApi('live_fallback');
    const liveBar=currentLiveData.liveCandle;
    $('candleTrend').textContent=liveBar&&liveBar.ticks>1
     ?(liveBar.direction==='BULLISH'?'แท่งสด · ขึ้น':liveBar.direction==='BEARISH'?'แท่งสด · ลง':'แท่งสด · กลาง')
@@ -215,9 +216,11 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='PREP 10S · RESULT LAST 5S · HOLD 35S'}
  }
  function confirmedSignalForAlert(){
-  if(!running||!currentData||!currentLiveData||!currentLiveData.forecast)return null;
-  if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
-  const forecast=currentLiveData.forecast, direction=forecast.signal;
+  if(!running||!currentLiveData||!currentLiveData.forecast)return null;
+  const forecast=currentLiveData.forecast;
+  const livePriceFallback=forecast.agreementVotes==='LIVE_PRICE_DIRECTION';
+  if(!livePriceFallback&&(!currentData||currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS))return null;
+  const direction=forecast.signal;
   if(direction!=='CALL'&&direction!=='PUT')return null;
   if(currentLiveData.streamStatus!=='subscribed'||liveQuoteAgeSeconds()>30)return null;
   const minuteKey=Math.floor(Date.now()/60000);
