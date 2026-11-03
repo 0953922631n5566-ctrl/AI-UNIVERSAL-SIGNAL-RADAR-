@@ -1,6 +1,7 @@
 const express = require('express');
 const fetch = require('node-fetch');
 const path = require('path');
+const { createLiveEngine } = require('./live-engine');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,6 +48,7 @@ let cache = { at: 0, payload: null };
 let inFlight = null;
 let candleStore = new Map();
 let hasWarmHistory = false;
+let liveEngine = null;
 
 function errorPayload(status, message, reason) {
   return {
@@ -156,8 +158,14 @@ async function buildSignal() {
 
 app.get('/health', (_req, res) => res.json({
   status: 'ok', historyCandles: candleStore.size,
-  refreshIntervalSeconds: REFRESH_MS / 1000
+  refreshIntervalSeconds: REFRESH_MS / 1000,
+  liveStream: liveEngine ? liveEngine.getStatus() : { status: 'starting' }
 }));
+
+app.get('/api/live', (_req, res) => {
+  if (!liveEngine) return res.json({ symbol: 'EUR/USD', prediction: 'STANDBY', streamStatus: 'starting', price: '—', reason: 'กำลังเริ่มระบบราคาสด' });
+  res.json(liveEngine.prediction());
+});
 
 app.get('/api/signal', async (_req, res) => {
   if (cache.payload && Date.now() - cache.at < REFRESH_MS) return res.json(cache.payload);
@@ -170,4 +178,9 @@ app.get('/api/signal', async (_req, res) => {
   res.status(200).json(payload);
 });
 
-app.listen(PORT, () => console.log('AI SIGNAL RADAR server listening on', PORT));
+app.listen(PORT, () => {
+  console.log('AI SIGNAL RADAR server listening on', PORT);
+  liveEngine = createLiveEngine(process.env.TWELVE_DATA_API_KEY, () =>
+    Array.from(candleStore.values()).sort((a, b) => a.datetime.localeCompare(b.datetime))
+  );
+});

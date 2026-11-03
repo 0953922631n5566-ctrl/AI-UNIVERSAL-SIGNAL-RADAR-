@@ -52,6 +52,14 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 @keyframes numberPulse{to{transform:scale(1.16)}}
 @media(max-height:740px){.app{gap:7px;padding:11px}.radar{min-height:220px;padding:10px}.ring{width:150px;height:150px}.stats .stat{padding:9px}.timing{padding:10px}.note{padding:9px}}
+.livepanel{padding:12px 13px;border:1px solid #24604f;border-radius:15px;background:linear-gradient(145deg,#102b2a,#101b2b)}
+.livehead{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#9ed8c8;font-size:9px;font-weight:900;letter-spacing:1px}
+.livebody{display:flex;align-items:center;justify-content:space-between;margin:7px 0 5px}
+.livebody b{font-size:25px;font-weight:1000;color:#b9c9dc}
+.livebody b.CALL{color:var(--green)}.livebody b.PUT{color:var(--red)}
+.livebody span{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
+.livepanel p{font-size:10px;line-height:1.45;color:#c5d8e8;min-height:15px}
+.livehead .liveok{color:#63f0b7}.livehead .livebad{color:#ff9db3}
 </style>
 </head>
 <body>
@@ -76,6 +84,11 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="stat"><small>MARKET TREND</small><b id="regime">—</b></div>
  <div class="stat"><small>RSI 14</small><b id="rsi">—</b></div>
 </section>
+<section class="livepanel">
+ <div class="livehead"><span>LIVE PREDICTION · NEXT M1</span><span id="liveStatus">WAITING STREAM</span></div>
+ <div class="livebody"><b id="liveSignal">STANDBY</b><span id="livePrice">—</span></div>
+ <p id="liveReason">กำลังรอข้อมูลราคาสดจาก Twelve Data WebSocket</p>
+</section>
 <section class="timing">
  <div class="timerow"><div class="phase" id="phase">READY TO SCAN</div><div class="clock" id="clock">00:60</div></div>
  <div class="bar"><div class="barfill" id="barfill"></div></div>
@@ -89,7 +102,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  const $=id=>document.getElementById(id), app=$('app');
  const tg=window.Telegram&&window.Telegram.WebApp;
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
- let running=false,poll=null,audio=null,busy=false,currentData=null;
+ let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null;
  let lockUntil=0,lockedSignal='',lastSignalCandle='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
@@ -124,6 +137,25 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     Date.parse(String(data.datetime).replace(' ','T')+'Z')+60000;
   if(!Number.isFinite(receivedAt)||!Number.isFinite(candleClosedAt))return Infinity;
   return Math.max(Date.now()-receivedAt,Date.now()-candleClosedAt);
+ }
+ async function scanLive(){
+  if(!running||busyLive)return;busyLive=true;
+  try{
+   const response=await fetch('/api/live',{cache:'no-store'});
+   if(!response.ok)throw new Error('HTTP '+response.status);
+   const data=await response.json();
+   const status=$('liveStatus'),signal=$('liveSignal');
+   status.textContent=data.streamStatus==='subscribed'?'LIVE STREAM':String(data.streamStatus||'OFFLINE').toUpperCase();
+   status.className=data.streamStatus==='subscribed'?'liveok':'livebad';
+   signal.textContent=data.prediction||'STANDBY';
+   signal.className=(data.prediction==='CALL'||data.prediction==='PUT')?data.prediction:'';
+   $('livePrice').textContent=data.price||'—';
+   $('liveReason').textContent=data.reason||'รอข้อมูลราคาสด';
+  }catch(e){
+   $('liveStatus').textContent='OFFLINE';$('liveStatus').className='livebad';
+   $('liveSignal').textContent='STANDBY';$('liveSignal').className='';
+   $('liveReason').textContent='ไม่สามารถอ่านข้อมูล Live ได้ · '+(e.message||'API error');
+  }finally{busyLive=false}
  }
  async function scan(){
   if(!running||busy)return;busy=true;
@@ -165,8 +197,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function startStop(){
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
-  if(running){setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();poll=setInterval(scan,CLIENT_POLL_MS);$('phase').textContent='LIVE MONITORING'}
-  else{clearInterval(poll);poll=null;currentData=null;lockUntil=0;lockedSignal='';lastSignalCandle='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  if(running){setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function tick(){
   const now=new Date(),sec=now.getSeconds(),remain=60-sec;
