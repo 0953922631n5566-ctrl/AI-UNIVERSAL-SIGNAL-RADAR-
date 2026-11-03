@@ -34,7 +34,8 @@ def read_orange_price(payload: bytes) -> tuple[str | None, float, str]:
         candidates.append((area, x, y, cw, ch))
     candidates.sort(reverse=True)
     for _, x, y, cw, ch in candidates[:8]:
-        pad_x, pad_y = max(5, int(cw * 0.08)), max(3, int(ch * 0.18))
+        # Include a margin: orange contour may omit leading dark digits and decimal.
+        pad_x, pad_y = max(12, int(cw * 0.20)), max(6, int(ch * 0.30))
         crop = image[max(0, y-pad_y):min(h, y+ch+pad_y), max(0, x-pad_x):min(w, x+cw+pad_x)]
         gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
