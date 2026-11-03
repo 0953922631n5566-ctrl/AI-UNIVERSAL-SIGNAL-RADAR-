@@ -10,6 +10,7 @@ from typing import Deque
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel
+from vision_ocr import read_orange_price
 
 app = FastAPI(title="AI Universal Signal Radar", version="0.1.0")
 TOKEN = os.getenv("RADAR_INGEST_TOKEN", "")
@@ -39,6 +40,8 @@ class Decision(BaseModel):
     asset: str | None = None
     timeframe: str | None = None
     evidence: list[str] = []
+    price_candidate: str | None = None
+    price_confidence: float = 0.0
 
 
 def authorize(authorization: str | None) -> None:
@@ -102,14 +105,16 @@ async def ingest_frame(
     state.frames_seen += 1
     state.hashes.append(digest)
 
-    # Intentionally no fabricated OCR, candles, indicators, confidence or direction.
-    # A validated vision adapter must be implemented before any directional output.
+    # OCR extracts a candidate only; market type and directional logic remain unverified.
+    price, confidence, detail = read_orange_price(payload)
     return Decision(
         signal="STANDBY",
-        status="VISION_ADAPTER_NOT_CONFIGURED",
-        reason="Frame received, but chart perception and validated decision model are not configured.",
+        status="PRICE_CANDIDATE_ONLY" if price else "ORANGE_BADGE_NOT_FOUND",
+        reason="Price OCR candidate only. NON-OTC market type and candle history are not verified; signals remain disabled.",
         session_id=session_id,
         sequence=sequence,
         observed_at=captured_at_ms / 1000.0,
-        evidence=[f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"],
+        evidence=[f"frame_sha256:{digest[:16]}", detail, "market_type_unverified", "directional_signal_suppressed"],
+        price_candidate=price,
+        price_confidence=confidence,
     )
