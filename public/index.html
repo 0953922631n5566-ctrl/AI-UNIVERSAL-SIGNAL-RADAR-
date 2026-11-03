@@ -239,7 +239,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('message').textContent='เตรียมดูผลประเมินแท่ง M1 รอบถัดไป · อีกประมาณ 10 วินาที';
    beep(880,180,2);vibrate([180,90,180]);
   }
-  // The server calculates only in the final 3 seconds. Fall back to STANDBY at the minute edge if no valid signal arrived.
+  // The server calculates only in the final 5 seconds. Fall back to STANDBY at the minute edge if no valid signal arrived.
   if(running&&finalAlert5Key!==minuteKey){
    const decision=confirmed?confirmed.direction:(remainMs<=500?'STANDBY':null);
    if(decision){
@@ -247,7 +247,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     finalDecision=decision;
     finalDecisionUntil=Date.now()+HOLD_MS;
     show(finalDecision,finalDecision==='STANDBY'
-     ?'ผลสุดท้าย: STANDBY · เงื่อนไข EMA/BB/RSI หรือข้อมูลราคาสดไม่ครบในช่วง 3 วินาทีสุดท้าย · งดเข้าออเดอร์'
+     ?'ผลสุดท้าย: STANDBY · เงื่อนไข EMA/BB/RSI หรือข้อมูลราคาสดไม่ครบในช่วง 5 วินาทีสุดท้าย · งดเข้าออเดอร์'
      :'ผลสุดท้าย: '+finalDecision+' · สูตร EMA5/EMA20 + Bollinger + RSI ยืนยันตามเทรนด์ · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
     $('phase').textContent='FINAL RESULT · '+finalDecision;
     $('radarHead').textContent='NEXT M1 · '+finalDecision;
@@ -275,7 +275,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('phase').textContent='PREPARE · 10 SEC';
    $('radarHead').textContent='WAITING FINAL RESULT';
   } else if(confirmed){
-   $('phase').textContent='FINAL 3 SECONDS · '+confirmed.direction;
+   $('phase').textContent='FINAL 5 SECONDS · '+confirmed.direction;
    $('radarHead').textContent='LIVE FORMULA CONFIRMED';
   } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>10000){
    $('phase').textContent='CLOSED M1 · EVERY 60 SEC';
