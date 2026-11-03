@@ -1,42 +1,11 @@
 const WebSocket = require('ws');
 const { evaluateNextCandle } = require('./forecast-engine');
 
-function calculateEMA(values, period) {
-  if (!Array.isArray(values) || values.length < period) return null;
-  const k = 2 / (period + 1);
-  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  for (let i = period; i < values.length; i++) ema = values[i] * k + ema * (1 - k);
-  return ema;
-}
-
-function calculateRSI(values, period) {
-  if (!Array.isArray(values) || values.length < period + 1) return null;
-  let gains = 0, losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const d = values[i] - values[i - 1];
-    if (d > 0) gains += d; else losses -= d;
-  }
-  let avgGain = gains / period, avgLoss = losses / period;
-  for (let i = period + 1; i < values.length; i++) {
-    const d = values[i] - values[i - 1];
-    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
-  }
-  if (avgLoss === 0) return avgGain === 0 ? 50 : 100;
-  if (avgGain === 0) return 0;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-}
-
 function createLiveEngine(apiKey, getClosedCandles) {
-  let socket = null;
-  let status = apiKey ? 'connecting' : 'unavailable';
+  let socket = null, status = apiKey ? 'connecting' : 'unavailable';
   let message = apiKey ? 'กำลังเชื่อมต่อ Twelve Data WebSocket' : 'ยังไม่มี API key';
-  let ticks = [];
-  let retryTimer = null;
-  let heartbeatTimer = null;
-  let retryDelay = 5000;
-  let stopped = false;
+  let tick = null, retryTimer = null, heartbeatTimer = null, retryDelay = 5000, stopped = false;
+  let evaluatedCandleKey = null, cachedForecast = null;
 
   function connect() {
     if (stopped || !apiKey || (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING))) return;
@@ -44,125 +13,67 @@ function createLiveEngine(apiKey, getClosedCandles) {
     status = 'connecting';
     const ws = new WebSocket('wss://ws.twelvedata.com/v1/quotes/price?apikey=' + encodeURIComponent(apiKey));
     socket = ws;
-
     ws.on('open', () => {
-      status = 'authorizing';
-      message = 'เชื่อมต่อแล้ว กำลังขอสิทธิ์สตรีม EUR/USD';
+      status = 'authorizing'; message = 'เชื่อมต่อแล้ว กำลังขอราคาสด EUR/USD';
       ws.send(JSON.stringify({ action: 'subscribe', params: { symbols: 'EUR/USD' } }));
       clearInterval(heartbeatTimer);
-      heartbeatTimer = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: 'heartbeat' }));
-      }, 10000);
+      heartbeatTimer = setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ action: 'heartbeat' })); }, 10000);
     });
-
     ws.on('message', raw => {
-      let event;
-      try { event = JSON.parse(raw.toString()); } catch (_) { return; }
+      let event; try { event = JSON.parse(raw.toString()); } catch (_) { return; }
       if (event.event === 'subscribe-status') {
         const ok = event.status === 'ok' && Array.isArray(event.success) &&
-          event.success.some(x => String(x.symbol || '').replace(/\s/g, '').toUpperCase() === 'EUR/USD');
-        if (ok) {
-          status = 'subscribed';
-          message = 'ได้รับสิทธิ์สตรีม EUR/USD แล้ว';
-          retryDelay = 5000;
-        } else {
-          const fail = Array.isArray(event.fails) ? event.fails[0] : null;
-          status = 'unavailable';
-          message = (fail && (fail.message || fail.code)) || event.message ||
-            'แพ็กเกจหรือสิทธิ์ API ยังไม่อนุญาตสตรีม EUR/USD';
+          event.success.some(x => String(x.symbol || '').replace(/\s/g,'').toUpperCase() === 'EUR/USD');
+        status = ok ? 'subscribed' : 'unavailable';
+        message = ok ? 'ได้รับสิทธิ์ราคาสด EUR/USD แล้ว' : ((event.fails && event.fails[0] && event.fails[0].message) || event.message || 'แพ็กเกจไม่อนุญาต WebSocket');
+        if (ok) retryDelay = 5000;
+      }
+      if (event.event === 'price' && String(event.symbol || '').replace(/\s/g,'').toUpperCase() === 'EUR/USD') {
+        const price = Number(event.price), timestamp = Number(event.timestamp) * 1000, now = Date.now();
+        if (Number.isFinite(price) && price > 0 && Number.isFinite(timestamp) && timestamp <= now + 10000 && now - timestamp <= 30000) {
+          tick = { price, timestamp }; status = 'subscribed'; message = 'รับราคาสด EUR/USD';
         }
-        return;
       }
-      if (event.event === 'price' && String(event.symbol || '').replace(/\s/g, '').toUpperCase() === 'EUR/USD') {
-        const price = Number(event.price);
-        const timestamp = Number(event.timestamp) * 1000;
-        const now = Date.now();
-        if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(timestamp) ||
-            timestamp > now + 10000 || now - timestamp > 30000) return;
-        ticks.push({ price, timestamp });
-        if (ticks.length > 120) ticks = ticks.slice(-120);
-        status = 'subscribed';
-        message = 'รับราคาสด EUR/USD';
-      }
-      if (event.event === 'error' || event.status === 'error') {
-        status = 'unavailable';
-        message = event.message || 'Twelve Data ปฏิเสธการเชื่อมต่อราคาสด';
-      }
+      if (event.event === 'error' || event.status === 'error') { status = 'unavailable'; message = event.message || 'Twelve Data ปฏิเสธการเชื่อมต่อ'; }
     });
-
-    ws.on('error', () => {
-      status = 'error';
-      message = 'เชื่อมต่อ WebSocket ไม่สำเร็จ';
-    });
+    ws.on('error', () => { status = 'error'; message = 'เชื่อมต่อ WebSocket ไม่สำเร็จ'; });
     ws.on('close', () => {
-      clearInterval(heartbeatTimer);
-      if (socket === ws) socket = null;
+      clearInterval(heartbeatTimer); if (socket === ws) socket = null;
       if (!stopped && status !== 'unavailable') {
-        status = 'reconnecting';
-        message = 'WebSocket หลุด กำลังเชื่อมต่อใหม่';
-        const wait = retryDelay;
-        retryDelay = Math.min(retryDelay * 2, 60000);
-        retryTimer = setTimeout(connect, wait);
+        status = 'reconnecting'; message = 'WebSocket หลุด กำลังเชื่อมต่อใหม่';
+        const wait = retryDelay; retryDelay = Math.min(retryDelay * 2, 60000); retryTimer = setTimeout(connect, wait);
       }
     });
   }
 
   function prediction() {
-    const now = Date.now();
-    const tick = ticks[ticks.length - 1];
-    const age = tick ? now - tick.timestamp : Infinity;
-    const base = {
-      symbol: 'EUR/USD', prediction: 'STANDBY', streamStatus: status,
-      price: tick ? tick.price.toFixed(5) : '—',
-      dataAgeSeconds: Number.isFinite(age) ? Math.max(0, Math.floor(age / 1000)) : null,
-      timestamp: tick ? new Date(tick.timestamp).toISOString() : null,
-      ema5: null, ema20: null, rsi: null, momentum: null,
-      forecast: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 1, reason: 'รอข้อมูลราคาสด' }
+    const candles = getClosedCandles().slice(-220);
+    const last = candles.at(-1);
+    const key = last && last.datetime;
+    if (key && key !== evaluatedCandleKey) {
+      evaluatedCandleKey = key;
+      cachedForecast = evaluateNextCandle(candles);
+    }
+    const closedAt = last ? Date.parse(String(last.datetime).replace(' ','T') + 'Z') + 60000 : NaN;
+    const age = Number.isFinite(closedAt) ? Date.now() - closedAt : Infinity;
+    let forecast = cachedForecast || { signal:'STANDBY', agreementVotes:'0/6', agreementScore:0, horizon:1, reason:'รอแท่ง M1 ปิดครบ 35 แท่ง' };
+    if (!last || age < -10000 || age > 90000) forecast = {
+      signal:'STANDBY', agreementVotes:'0/6', agreementScore:0, horizon:1,
+      reason:'แท่ง M1 ล่าสุดเก่าหรือยังไม่ยืนยัน · งดสัญญาณ'
     };
-    if (status !== 'subscribed' || !tick || age > 75000 || age < -10000) {
-      base.reason = message + ' · ไม่มี Tick สดจึงงดออกสัญญาณ';
-      return base;
-    }
-
-    const closed = getClosedCandles().slice(-220);
-    if (closed.length < 35) {
-      base.reason = 'รอประวัติแท่งปิดอย่างน้อย 35 แท่งเพื่อพยากรณ์ M1 ถัดไป';
-      return base;
-    }
-    const prices = closed.map(c => c.close).concat(tick.price);
-    const ema5 = calculateEMA(prices, 5);
-    const ema20 = calculateEMA(prices, 20);
-    const rsi = calculateRSI(prices, 14);
-    const oldTick = ticks.length >= 2 ? ticks[ticks.length - 2] : null;
-    const tickGap = oldTick ? tick.timestamp - oldTick.timestamp : 0;
-    const momentum = oldTick && tickGap >= 30000 && tickGap <= 180000
-      ? tick.price - oldTick.price : null;
-    base.ema5 = ema5.toFixed(5);
-    base.ema20 = ema20.toFixed(5);
-    base.rsi = rsi.toFixed(1);
-    base.momentum = momentum === null ? null : Number(momentum.toFixed(6));
-
-    const forecast = evaluateNextCandle(closed, tick.price, momentum);
-    base.forecast = forecast;
-    base.prediction = forecast.signal;
-    base.reason = forecast.reason;
-    if (momentum === null && base.prediction === 'STANDBY') {
-      base.reason += ' · รอราคาสดอย่างน้อย 2 รอบเพื่อวัด Momentum';
-    }
-    return base;
+    const tickAge = tick ? Date.now() - tick.timestamp : Infinity;
+    return {
+      symbol:'EUR/USD', prediction:forecast.signal, forecast, streamStatus:status,
+      price:tick && tickAge <= 75000 ? tick.price.toFixed(5) : '—',
+      dataAgeSeconds:Number.isFinite(tickAge) ? Math.max(0,Math.floor(tickAge/1000)) : null,
+      timestamp:tick ? new Date(tick.timestamp).toISOString() : null,
+      lastClosedCandle:key || null, closedCandleAgeSeconds:Number.isFinite(age) ? Math.max(0,Math.floor(age/1000)) : null,
+      reason:forecast.reason, ema5:forecast.indicators && forecast.indicators.ema5,
+      ema20:forecast.indicators && forecast.indicators.ema20,
+      rsi:forecast.indicators && forecast.indicators.rsi14
+    };
   }
-
   connect();
-  return {
-    prediction,
-    getStatus: () => ({ status, message }),
-    stop: () => {
-      stopped = true;
-      clearTimeout(retryTimer);
-      clearInterval(heartbeatTimer);
-      if (socket) socket.close();
-    }
-  };
+  return { prediction, getStatus:()=>({status,message}), stop:()=>{stopped=true;clearTimeout(retryTimer);clearInterval(heartbeatTimer);if(socket)socket.close();} };
 }
-
 module.exports = { createLiveEngine };
