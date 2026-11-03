@@ -1,40 +1,42 @@
-# AI Universal Signal Radar · OCR-only
+# AI SIGNAL RADAR OCR CLEAN · Server Price Extraction
 
-The server accepts real EUR/USD prices sent by the Android OCR capture app. It does not call Twelve Data, another market-data API, or generate synthetic prices.
+The Android app captures the full visible screen, runs OCR, and sends the raw recognized text to the server. The server alone extracts a price and builds M1 candles. There is no Twelve Data integration, other external market-price API, synthetic price, random fallback, or automatic broker order.
 
 ## Runtime
 - Node.js 18.x
-- Build: `npm install`
-- Start: `npm start`
-- Render serves the Telegram Mini App from `public/index.html`.
+- `npm install`
+- `npm test`
+- `npm start`
 
-## OCR ingestion contract
-The APK must send an HTTPS POST to `/api/upload-screen`:
+## Android → server contract
+The APK sends `POST /api/ocr/price` with JSON:
 
 ```json
 {
-  "detectedPrice": 1.105045,
-  "timestamp": 1793700000000,
   "symbol": "EUR/USD",
-  "source": "ANDROID_OCR"
+  "market": "OTC",
+  "rawText": "EUR/USD\n1.08456",
+  "timestamp": 1793700000000
 }
 ```
 
-- `detectedPrice` is required and must be a real positive number read from the screen.
-- `timestamp` is optional; if present it must be a current Unix timestamp in milliseconds or an ISO timestamp.
-- `symbol` defaults to EUR/USD; other symbols are rejected.
-- Optional authentication: set `OCR_INGEST_TOKEN` in Render and send the same value in the `x-ocr-token` header. Never embed reusable secrets in public source code.
-- Duplicate same-price frames within one second are ignored.
-- No fallback/random price is generated.
-- A price older than 30 seconds causes STANDBY.
-- At least five distinct OCR readings are required before directional momentum is assessed. This is a simple short-term momentum heuristic, not a probability or proven trading strategy.
-- Manual decision support only; no broker orders are placed.
+The APK must not extract a price, crop a presumed price badge, or send `detectedPrice`. Server extraction rejects ambiguous/missing price candidates rather than guessing. Configure `OCR_API_TOKEN` on the test server and provide the same token in the APK's token field. The token is sent as `X-API-Token`.
+
+## Analysis rules
+- M1 candles are aggregated only from timestamped OCR observations.
+- A candle is marked closed only when an observation from the immediately following minute arrives.
+- A missing M1 minute resets the candle history; no candles are fabricated.
+- At least 6 consecutive completed M1 candles are required.
+- Indicators: EMA(3/5), RSI(5), MACD(3/5/2).
+- Missing/ambiguous/stale/duplicate/out-of-order/stuck data returns STANDBY.
+- A flat quote that does not change for 20 seconds is treated as stuck and blocks signals.
+- CALL/PUT are emitted only when all configured indicator conditions align; otherwise STANDBY.
 
 ## Endpoints
-- `GET /health`: service and OCR freshness status.
-- `GET /api/signal`: current OCR-derived state; does not fetch market data.
-- `POST /api/upload-screen`: accepts APK OCR price readings.
-- `GET /api/config`: server configuration.
+- `GET /health`: server mode, counters, and token configuration.
+- `GET /api/config`: extraction and indicator configuration.
+- `GET /api/signal?symbol=EUR/USD&market=OTC`: current server-side state.
+- `POST /api/ocr/price`: raw OCR ingestion.
 
-## APK integration status
-This server deployment does not itself update the Android APK. The APK must POST OCR results to `/api/upload-screen`. Until that APK change is built and installed, the Mini App correctly remains WAITING APK / STANDBY.
+## Test/deployment safety
+The Android `BACKEND_URL` is intentionally set to `https://REPLACE_WITH_TEST_SERVER_HOST`. Replace it only with a controlled test server after configuring its token. Do not point the APK at the Render production URL yet. No Render deployment is part of this branch; first run automated tests, build/install the APK, and verify real device request/response logs.
