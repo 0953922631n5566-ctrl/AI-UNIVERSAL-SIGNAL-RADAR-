@@ -77,7 +77,7 @@ class CaptureService : Service() {
                 try {
                     val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
                     if (token.isBlank()) throw IllegalStateException("กรุณาบันทึก OCR Token ในแอปก่อนเริ่ม")
-                    if (BuildConfig.BACKEND_URL.contains("REPLACE_WITH_BACKEND_HOST")) {
+                    if (BuildConfig.BACKEND_URL.contains("REPLACE_WITH_TEST_SERVER_HOST") || BuildConfig.BACKEND_URL.contains("REPLACE_WITH_BACKEND_HOST")) {
                         throw IllegalStateException("ยังไม่ได้กำหนด Server URL ในตัวแอป")
                     }
                     createNotificationChannel()
@@ -102,7 +102,7 @@ class CaptureService : Service() {
                     startCapture(resultCode, resultData)
                     sendStatus(ACTION_READY)
                     getSystemService(NotificationManager::class.java)
-                        .notify(NOTIFICATION_ID, notification("กำลังอ่านป้ายราคา EUR/USD และส่งข้อมูลจริง"))
+                        .notify(NOTIFICATION_ID, notification("กำลังอ่าน OCR ทั้งหน้าจอและส่ง rawText"))
                 } catch (e: Exception) {
                     val reason = "${e.javaClass.simpleName}: ${e.message ?: "ไม่มีรายละเอียด"}"
                     getSharedPreferences("radar_state", MODE_PRIVATE).edit()
@@ -208,7 +208,7 @@ class CaptureService : Service() {
             } finally { connection?.disconnect(); uploadInProgress.set(false) }
         }
     }
-    private fun sendPriceStatus(price: Double, signal: String, message: String) {
+    private fun sendPriceStatus(price: String, signal: String, message: String) {
         val intent = Intent(ACTION_PRICE).setPackage(packageName)
             .putExtra(EXTRA_PRICE, price.toString())
             .putExtra(EXTRA_SIGNAL, signal)
