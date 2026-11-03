@@ -90,3 +90,21 @@ The strategy now calculates from the latest fully closed candle and applies the 
 - The forecast still uses EMA5/EMA20, RSI14, MACD12/26/9, and the latest fully closed candle. A CALL requires UPTREND plus a bullish latest closed candle; a PUT requires DOWNTREND plus a bearish latest closed candle. If the candle body opposes the EMA trend, force STANDBY even if the 5/6 vote threshold is otherwise met.
 - The UI displays the EMA trend and latest completed candle direction separately. The forming candle is not treated as confirmed before it closes.
 - CALL/PUT/STANDBY sound, vibration, 35-second hold, one-alert-per-minute, and manual-only behavior remain in force.
+
+
+## User-authorized formula replacement — 2026-11-03
+
+The user explicitly replaced the prior signal formula and changed the final timing/hold. This section supersedes the earlier 5-second final alert and 35-second hold settings above.
+
+- Preparation reminder remains **10 seconds before M1 rollover**.
+- Formula evaluation is continuous from real market data, but CALL/PUT can be created only when **0.0–3.0 seconds remain** in the current M1 candle.
+- Final CALL/PUT/STANDBY is notified in that last-three-second window; if no valid directional signal is available at the minute edge, notify STANDBY.
+- Hold every final result for **30 seconds** from notification, then reset the lamp to STANDBY.
+- Strategy: EMA5/EMA20 trend following; CALL only if EMA5 > EMA20 and live price >= EMA5; PUT only if EMA5 < EMA20 and live price <= EMA5.
+- Bollinger Bands(20, 2): bandwidth <0.04% is SIDEWAY/DANGER and blocks directional signals.
+- RSI(14) is calculated and displayed as a supporting indicator; it does not override the supplied trend rule.
+- Confidence begins at 65, adds 20 when trend alignment exists, adds 10 when the live price differs from the previous tick, and is capped at 96.
+- No MACD, six-vote scoring, old closed-candle candle-body guard, or synthetic random prices are used.
+- Input data is real Twelve Data EUR/USD closed M1 history plus the current live WebSocket quote. If live data is stale or fewer than 20 closed candles exist, remain STANDBY.
+- Manual entry only; no broker orders.
+
