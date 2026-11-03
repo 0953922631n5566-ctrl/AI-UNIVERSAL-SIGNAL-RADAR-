@@ -78,3 +78,15 @@ The strategy now calculates from the latest fully closed candle and applies the 
 - The final CALL/PUT/STANDBY result is published 5 seconds after the new minute begins, using the just-closed candle's decision for the candle now underway.
 - The final result is held for 35 seconds from the notification timestamp.
 - One final alert per minute; STANDBY still sounds/vibrates.
+
+
+## Candle-aligned early alert and trend guard — 2026-11-03
+
+- Keep the 10-second preparation reminder and 35-second result hold.
+- The final result is no longer tied to a fixed +5-second window. It is emitted as soon as a fresh forecast arrives whose `nextCandleAt` exactly matches the currently opening M1 minute.
+- The browser checks the local cached live endpoint every 500 ms. The Twelve Data REST history refresh remains one request after each minute boundary; actual notification latency therefore still depends on provider response/network time and is not guaranteed to be zero.
+- If no matching, fresh, aligned result arrives within 12 seconds of the boundary, emit STANDBY once for that minute. Do not publish a late CALL/PUT for an already-missed entry window.
+- Starting the Mini App mid-minute does not generate a fake result for a candle already in progress; it waits for the next M1 boundary.
+- The forecast still uses EMA5/EMA20, RSI14, MACD12/26/9, and the latest fully closed candle. A CALL requires UPTREND plus a bullish latest closed candle; a PUT requires DOWNTREND plus a bearish latest closed candle. If the candle body opposes the EMA trend, force STANDBY even if the 5/6 vote threshold is otherwise met.
+- The UI displays the EMA trend and latest completed candle direction separately. The forming candle is not treated as confirmed before it closes.
+- CALL/PUT/STANDBY sound, vibration, 35-second hold, one-alert-per-minute, and manual-only behavior remain in force.
