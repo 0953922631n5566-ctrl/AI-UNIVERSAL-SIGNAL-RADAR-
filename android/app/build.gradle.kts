@@ -12,7 +12,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "BACKEND_URL", "\"https://REPLACE_WITH_BACKEND_HOST\"")
+        buildConfigField("String", "BACKEND_URL", "\"https://ai-signal-radar-ocr-capture.onrender.com\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {
