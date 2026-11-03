@@ -9,8 +9,9 @@ function candlesFrom(closes, spread = 0) {
   }));
 }
 
-test('EMA uses recursive smoothing', () => {
-  assert.ok(Math.abs(calculateEMA([1, 2, 3, 4, 5], 5) - 3.3950617283950617) < 1e-12);
+test('EMA uses an SMA seed followed by recursive smoothing', () => {
+  assert.equal(calculateEMA([1, 2, 3, 4, 5], 5), 3);
+  assert.equal(calculateEMA([1, 2, 3, 4, 5, 6], 5), 4);
 });
 
 test('Bollinger Bandwidth is calculated from the last 20 prices', () => {
@@ -18,8 +19,10 @@ test('Bollinger Bandwidth is calculated from the last 20 prices', () => {
   assert.ok(calculateBB(Array.from({length:20},(_,i)=>1.1+i*0.0001)).bandwidth > 0);
 });
 
-test('RSI returns 100 when gains have no losses', () => {
-  assert.equal(calculateRSI(Array.from({length:16},(_,i)=>1+i*0.001)), 100);
+test('Wilder RSI returns 100 on uninterrupted gains, 0 on losses, and 50 when flat', () => {
+  assert.equal(calculateRSI(Array.from({length:30},(_,i)=>1+i*0.001)), 100);
+  assert.equal(calculateRSI(Array.from({length:30},(_,i)=>1-i*0.001)), 0);
+  assert.equal(calculateRSI(Array(30).fill(1.1)), 50);
 });
 
 test('less than 20 real closed candles never produces a directional signal', () => {
@@ -28,19 +31,21 @@ test('less than 20 real closed candles never produces a directional signal', () 
   assert.equal(result.candidate, 'WAIT');
 });
 
-test('strong rising market creates a CALL candidate in the final five-second window', () => {
+test('strong rising market creates a CALL candidate only with aligned EMA and RSI', () => {
   const closes = Array.from({length:80},(_,i)=>1.08+i*0.0002);
   const result = evaluateLiveFormula(candlesFrom(closes), closes.at(-1)+0.0001, closes.at(-1), Date.UTC(2026,0,1,0,0,55,500));
   assert.equal(result.candidate, 'CALL');
   assert.equal(result.breakoutUp, true);
+  assert.equal(result.rsiBullish, true);
   assert.equal(result.exactTimeLeft, 4.5);
 });
 
-test('strong falling market creates a PUT candidate in the final five-second window', () => {
+test('strong falling market creates a PUT candidate only with aligned EMA and RSI', () => {
   const closes = Array.from({length:80},(_,i)=>1.2-i*0.0002);
   const result = evaluateLiveFormula(candlesFrom(closes), closes.at(-1)-0.0001, closes.at(-1), Date.UTC(2026,0,1,0,0,56,0));
   assert.equal(result.candidate, 'PUT');
   assert.equal(result.breakoutDown, true);
+  assert.equal(result.rsiBearish, true);
   assert.equal(result.exactTimeLeft, 4);
 });
 
@@ -57,15 +62,14 @@ test('trend-following entry does not take a counter-trend price', () => {
   assert.notEqual(result.candidate, 'CALL');
 });
 
-test('a low-bandwidth range can produce a CALL only at confirmed support with RSI', () => {
+test('a narrow range does not signal until RSI confirms a range-edge rejection', () => {
   const closes = Array.from({length:80},(_,i)=>1.1 + (i%8===0 ? 0.00001 : 0));
-  const candles = candlesFrom(closes, 0.00001);
-  const result = evaluateLiveFormula(candles, 1.1, 1.1, Date.UTC(2026,0,1,0,0,56,0));
+  const result = evaluateLiveFormula(candlesFrom(closes, 0.00001), 1.1, 1.1, Date.UTC(2026,0,1,0,0,56,0));
   assert.equal(result.isSideway, true);
-  assert.equal(result.candidate, 'WAIT'); // neutral RSI is not sufficient confirmation
+  assert.equal(result.candidate, 'WAIT');
 });
 
-test('sideway support bounce needs a low RSI confirmation', () => {
+test('sideway support bounce remains a limited, RSI-confirmed exception', () => {
   const candles = candlesFrom(Array(80).fill(1.1), 0.00001);
   const result = evaluateLiveFormula(candles, 1.09999, 1.1, Date.UTC(2026,0,1,0,0,56,0));
   assert.equal(result.isSideway, true);
