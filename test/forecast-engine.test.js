@@ -1,14 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { evaluateTwoHorizons } = require('../forecast-engine');
+const { evaluateNextCandle } = require('../forecast-engine');
 
-test('insufficient history safely returns STANDBY for both horizons', () => {
-  const result = evaluateTwoHorizons([], 1.1, null);
-  assert.equal(result.nextCandle.signal, 'STANDBY');
-  assert.equal(result.followingCandle.signal, 'STANDBY');
+test('insufficient history safely returns STANDBY for the next candle only', () => {
+  const result = evaluateNextCandle([], 1.1, null);
+  assert.equal(result.signal, 'STANDBY');
+  assert.equal(result.horizon, 1);
 });
 
-test('both forecasts return independent, bounded rule-agreement scores', () => {
+test('next-candle forecast returns a bounded rule-agreement score', () => {
   const candles = [];
   for (let i = 0; i < 80; i++) {
     const close = 1.08 + i * 0.000012 + Math.sin(i / 2) * 0.000035;
@@ -39,7 +39,6 @@ test('missing live price cannot generate a directional forecast', () => {
     low: 1.0998 + i * 0.00001,
     close: 1.1 + i * 0.00001
   }));
-  const result = evaluateTwoHorizons(candles, NaN, null);
-  assert.equal(result.nextCandle.signal, 'STANDBY');
-  assert.equal(result.followingCandle.signal, 'STANDBY');
+  const result = evaluateNextCandle(candles, NaN, null);
+  assert.equal(result.signal, 'STANDBY');
 });
