@@ -208,7 +208,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function startStop(){
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
-  if(running){setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'}
+  if(running){
+   try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
+   setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'
+  }
   else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';preAlert10Key='';finalAlert3Key='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function confirmedSignalForAlert(){
