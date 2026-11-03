@@ -238,7 +238,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       if (nextPreferences.mode !== preferences.mode || nextPreferences.strictness !== preferences.strictness) {
         preferences = nextPreferences;
         signalState.signal = 'WAIT'; signalState.signalAt = null; signalState.expiresAt = 0;
-        signalState.minuteKey = null; latestAnalysis = null;
+        signalState.minuteKey = Math.floor(Date.now() / 60000); latestAnalysis = null;
       }
       processSignal();
       return { ...preferences };
