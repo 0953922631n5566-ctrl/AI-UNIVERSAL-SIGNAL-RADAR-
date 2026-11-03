@@ -183,4 +183,22 @@ app.listen(PORT, () => {
   liveEngine = createLiveEngine(process.env.TWELVE_DATA_API_KEY, () =>
     Array.from(candleStore.values()).sort((a, b) => a.datetime.localeCompare(b.datetime))
   );
+
+  // Warm the historical candle store automatically at server startup.
+  // The live engine needs this REST history; users must not wait for new M1 bars.
+  if (process.env.TWELVE_DATA_API_KEY) {
+    if (!inFlight) {
+      inFlight = buildSignal()
+        .then(payload => {
+          cache = { at: Date.now(), payload };
+          console.log('Startup history warm-up:', payload.apiStatus,
+            'candles:', payload.candlesLoaded || candleStore.size);
+          return payload;
+        })
+        .catch(err => {
+          console.error('Startup history warm-up failed:', err.message);
+        })
+        .finally(() => { inFlight = null; });
+    }
+  }
 });
