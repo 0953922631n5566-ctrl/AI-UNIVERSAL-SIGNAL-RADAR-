@@ -79,6 +79,15 @@ The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and 
 - It deliberately returns `STANDBY` with `VISION_ADAPTER_NOT_CONFIGURED`. There is no perception model, decision model, model configuration, evaluation set, or inference test.
 - The FastAPI service is not deployed in Render. Existing Render services are Node/Static Site services for the Main Market web app, not this frame-ingestion API.
 
+## Main Market live-price display correction — 2026-11-03
+
+- Production UI now displays the latest WebSocket EUR/USD quote as the main **LIVE PRICE**.
+- It displays the quote timestamp and calculated age beside the price. Missing, invalid, unsubscribed, or older-than-75-second quotes display **LIVE PRICE · STALE** and a dash; the UI does not silently fall back to the REST close.
+- REST `/api/signal` price remains separately labelled **LAST CLOSED M1** and continues to be used for closed-candle analysis.
+- Final CALL/PUT confirmation checks the timestamp-derived live quote age on each client tick; once older than 75 seconds, it cannot confirm a directional alert.
+- Signal formulas, two-candle forecast rules, 10-second preparation alert, final 5-second result, 35-second hold, and manual-only/no-auto-trade behavior were not intentionally changed.
+- This corrects stale/mislabelled price display and stale quote confirmation; it does not guarantee broker-feed equality or higher signal accuracy.
+
 ## Main Market source and alert behavior
 
 - `server.js`: Twelve Data EUR/USD M1 REST feed; excludes a still-forming candle, keeps up to 220 closed candles, requires at least 20, calculates EMA(5/20) and Wilder-smoothed RSI(14), checks freshness, and caches REST results for 120 seconds. API errors/quota exhaustion return STANDBY.
