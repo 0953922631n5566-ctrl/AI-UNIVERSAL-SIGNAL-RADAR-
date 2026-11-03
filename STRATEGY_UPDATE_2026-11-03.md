@@ -4,7 +4,7 @@ Date: 2026-11-03
 Project: AI Universal Signal Radar — Main Market / NON-OTC
 Repository: 0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-
 Pull request: #17 (merged)
-Merge commit: bb f1f1b394d1800a89b446e26551ad4ed3f162eb
+Merge commit: bbf1f1b394d1800a89b446e26551ad4ed3f162eb
 
 ## User-approved change
 The user approved applying the supplied EMA5/EMA20 and RSI14 concepts to the existing multi-regime engine. This is an additive strategy refinement, not a clean-slate replacement.
@@ -37,7 +37,7 @@ The user approved applying the supplied EMA5/EMA20 and RSI14 concepts to the exi
 
 ## Production deployment verification
 - PR #17 merged successfully.
-- Merge/deploy commit: bb f1f1b394d1800a89b446e26551ad4ed3f162eb
+- Merge/deploy commit: bbf1f1b394d1800a89b446e26551ad4ed3f162eb
 - Render service: ai-universal-signal-radar-main (srv-dbkaoo0473hc7384tmog).
 - Render deploy: dep-dbkskvflk1mc73e8jjn0 — status LIVE.
 - /health: status ok; strategy MULTI_REGIME_M1; finalAlertWindowSeconds=5; signalHoldSeconds=35; historyCandles=200; liveStream=subscribed.
@@ -53,4 +53,4 @@ The user approved applying the supplied EMA5/EMA20 and RSI14 concepts to the exi
 - A passing CI run and LIVE Render deploy do not establish profitability or guarantee signal accuracy.
 
 ## Rollback
-If this strategy refinement causes unexpected behavior, revert merge commit bb f1f1b394d1800a89b446e26551ad4ed3f162eb.
+If this strategy refinement causes unexpected behavior, revert merge commit bbf1f1b394d1800a89b446e26551ad4ed3f162eb.
