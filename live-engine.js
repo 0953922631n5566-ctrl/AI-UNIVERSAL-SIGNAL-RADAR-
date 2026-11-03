@@ -117,7 +117,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       timestamp: tick ? new Date(tick.timestamp).toISOString() : null,
       ema5: null, ema20: null, rsi: null, momentum: null
     };
-    if (status !== 'subscribed' || !tick || age > 15000 || age < -10000) {
+    if (status !== 'subscribed' || !tick || age > 75000 || age < -10000) {
       base.reason = message + ' · ไม่มี Tick สดจึงงดออกสัญญาณ';
       return base;
     }
@@ -131,8 +131,9 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const ema5 = calculateEMA(prices, 5);
     const ema20 = calculateEMA(prices, 20);
     const rsi = calculateRSI(prices, 14);
-    const oldTick = ticks.find(t => t.timestamp <= now - 5000) || ticks[0];
-    const momentum = oldTick && tick.timestamp - oldTick.timestamp >= 2000
+    const oldTick = ticks.length >= 2 ? ticks[ticks.length - 2] : null;
+    const tickGap = oldTick ? tick.timestamp - oldTick.timestamp : 0;
+    const momentum = oldTick && tickGap >= 30000 && tickGap <= 180000
       ? tick.price - oldTick.price : null;
     base.ema5 = ema5.toFixed(5);
     base.ema20 = ema20.toFixed(5);
@@ -147,7 +148,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       base.reason = 'ราคาสดใต้ EMA5/EMA20 และ Momentum เป็นลบ · ประเมินแท่งถัดไป';
     } else {
       base.reason = momentum === null
-        ? 'รอ Tick ต่อเนื่องอย่างน้อย 2 วินาทีเพื่อวัด Momentum'
+        ? 'รอราคาสดอย่างน้อย 2 รอบ (ห่างกันประมาณ 1 นาที) เพื่อวัด Momentum'
         : 'แรงราคาและแนวโน้มยังไม่สอดคล้องกัน · STANDBY';
     }
     return base;
