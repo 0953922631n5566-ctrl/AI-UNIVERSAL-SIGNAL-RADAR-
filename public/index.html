@@ -1,254 +1,239 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0b0e14">
-<title>AI Universal Signal Radar - EUR/USD</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-:root{--green:#10b981;--red:#ef4444;--muted:#64748b}
-body{background:#0b0e14;color:#fff;min-height:100svh;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:20px 18px 18px;overflow:hidden}
-.app{width:min(100%,440px);min-height:calc(100svh - 38px);display:flex;flex-direction:column;justify-content:space-between;align-items:center;gap:12px}
-.header{text-align:center;width:100%;padding-top:3px}
-.title{font-size:14px;letter-spacing:1.5px;color:#8a9ba8;font-weight:600;margin-bottom:4px}
-.subtitle{font-size:18px;font-weight:800;color:#e2e8f0}
-.price-badge{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:8px 16px;border-radius:20px;font-size:clamp(20px,5vw,25px);font-weight:800;margin-top:10px;display:inline-block;letter-spacing:1px;font-variant-numeric:tabular-nums;min-width:150px}
-.api-status{display:flex;align-items:center;justify-content:center;gap:8px;margin:11px auto 0;padding:7px 13px;border-radius:20px;width:max-content;max-width:100%;font-size:12px;font-weight:700;letter-spacing:.3px;background:#151c28;border:1px solid #344154;color:#b7c4d4}
-.api-dot{width:9px;height:9px;border-radius:50%;background:#94a3b8;flex:none}
-.api-status.connected{color:#86efac;border-color:#087b50;background:#06251c}
-.api-status.connected .api-dot{background:#10f58a;box-shadow:0 0 10px #10f58a;animation:api-blink 1s infinite}
-.api-status.quota{color:#fda4af;border-color:#9f2638;background:#310d16}
-.api-status.quota .api-dot{background:#fb334f;box-shadow:0 0 9px #fb334f}
-.api-status.error{color:#fcd28a;border-color:#8b5b1c;background:#2b1c08}
-.api-status.error .api-dot{background:#fbbf24;box-shadow:0 0 9px #fbbf24}
-@keyframes api-blink{50%{opacity:.25;box-shadow:0 0 2px #10f58a}}
-.radar-container{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;width:100%;min-height:210px}
-.signal-light{width:min(48vw,190px);height:min(48vw,190px);max-width:190px;max-height:190px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 0 40px #0008;transition:all .4s ease;position:relative}
-.signal-light.standby{background:linear-gradient(135deg,#475569,#334155);border:4px solid #64748b;box-shadow:0 0 30px #64748b4d}
-.signal-light.call{background:linear-gradient(135deg,#059669,#10b981);border:4px solid #34d399;box-shadow:0 0 50px #10b98199;animation:pulse-green 2s infinite}
-.signal-light.put{background:linear-gradient(135deg,#dc2626,#ef4444);border:4px solid #f87171;box-shadow:0 0 50px #ef444499;animation:pulse-red 2s infinite}
-@keyframes pulse-green{0%{box-shadow:0 0 0 0 #10b98199}70%{box-shadow:0 0 0 25px #10b98100}100%{box-shadow:0 0 0 0 #10b98100}}
-@keyframes pulse-red{0%{box-shadow:0 0 0 0 #ef444499}70%{box-shadow:0 0 0 25px #ef444400}100%{box-shadow:0 0 0 0 #ef444400}}
-.signal-text{font-size:clamp(26px,7vw,30px);font-weight:950;letter-spacing:2px;color:#fff}
-.signal-subtext{font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-top:5px;opacity:.85}
-.timers-container{width:100%;display:flex;gap:12px;margin-bottom:8px}
-.timer-box{flex:1;min-width:0;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:13px 8px;text-align:center}
-.timer-label{font-size:11px;color:#94a3b8;text-transform:uppercase;margin-bottom:5px}
-.timer-value{font-size:clamp(21px,6vw,26px);font-weight:800;font-variant-numeric:tabular-nums}
-.timer-track{height:4px;border-radius:5px;background:#273244;margin:8px 5px 0;overflow:hidden}
-.timer-progress{height:100%;width:100%;background:#34d399;border-radius:5px;transition:width .2s linear}
-#expiry-progress{background:#60a5fa}
-.reason{min-height:28px;max-width:100%;font-size:11px;line-height:1.45;color:#8492a6;text-align:center;padding:0 8px;overflow-wrap:anywhere}
-.footer{display:flex;justify-content:center;align-items:center;padding:5px 0 8px}
-.power{width:72px;height:72px;border-radius:50%;border:2px solid #1e8b68;background:radial-gradient(circle at 50% 35%,#174638,#07100f 72%);display:grid;place-items:center;color:#34d399;box-shadow:0 0 0 6px #10b98118,0 0 22px #10b98140;cursor:pointer;touch-action:manipulation}
-.power svg{width:35px;height:35px}
-.power.off{color:#839194;border-color:#3c4b4e;box-shadow:0 0 0 6px #8b999912;background:#121820}
-.power:focus-visible{outline:3px solid #38bdf8;outline-offset:5px}
-@media(max-height:680px){body{padding:12px}.app{min-height:calc(100svh - 24px);gap:7px}.radar-container{min-height:160px}.signal-light{width:150px;height:150px}.footer{padding:0}.power{width:62px;height:62px}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#090c10">
+  <title>AI UNIVERSAL SIGNAL RADAR - PRECISION 1M</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;min-height:100%;background:#090c10;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,monospace}
+    body{min-height:100svh;display:flex;justify-content:center;align-items:center;padding:0;overflow:hidden}
+    .radar-card{width:100%;max-width:390px;height:100svh;max-height:650px;min-height:500px;background:#0d1117;border:1px solid #30363d;border-radius:16px;padding:18px;display:flex;flex-direction:column;justify-content:space-between;align-items:center;box-shadow:0 16px 36px #000d}
+    .top-bar{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .brand-title{font-size:13px;font-weight:800;color:#58a6ff;letter-spacing:1px}
+    .power-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:20px;font-size:11px;font-weight:800;cursor:pointer;border:1px solid #ff7b72;background:#f8514926;color:#ff7b72}
+    .power-btn.active{border-color:#3fb950;background:#2ea04326;color:#3fb950}
+    .api-monitor{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:#161b22;padding:9px 12px;border-radius:10px;border:1px solid #21262d;margin-top:6px}
+    .api-info{font-size:11px;color:#8b949e;font-weight:700}
+    .api-status-badge{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:#ff7b72}
+    .api-status-badge.online{color:#3fb950}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:#ff7b72;flex:none}
+    .status-dot.online{background:#3fb950;box-shadow:0 0 10px #3fb950;animation:blink 1s infinite alternate}
+    @keyframes blink{to{opacity:.35}}
+    .radar-center-view{position:relative;width:170px;height:170px;display:flex;justify-content:center;align-items:center}
+    .radar-ring-svg{width:100%;height:100%;transform:rotate(-90deg)}
+    .ring-bg{fill:none;stroke:#161b22;stroke-width:6}
+    .ring-pulse{fill:none;stroke:#ff7b72;stroke-width:6;stroke-dasharray:50 170;stroke-linecap:round;opacity:.5}
+    .ring-pulse.active{stroke:#3fb950;opacity:1;animation:spin 1.4s linear infinite}
+    @keyframes spin{to{stroke-dashoffset:-220}}
+    .center-status-text{position:absolute;text-align:center;width:80%;font-size:12px;font-weight:800;color:#ff7b72;text-transform:uppercase;overflow-wrap:anywhere}
+    .center-status-text.active{color:#58a6ff}
+    .order-signal-box{width:100%;background:#161b22;border:1px solid #30363d;border-radius:14px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .signal-direction{display:flex;flex-direction:column;align-items:flex-start}
+    .signal-label,.timer-label{font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase}
+    .signal-val{font-size:24px;font-weight:900;letter-spacing:2px;color:#ff7b72}
+    .signal-val.call{color:#3fb950;text-shadow:0 0 12px #3fb95066}
+    .signal-val.put{color:#ff7b72;text-shadow:0 0 12px #ff7b7266}
+    .timer-side{display:flex;flex-direction:column;align-items:flex-end}
+    .timer-clock{font-size:20px;font-weight:800;color:#f0f6fc;font-family:monospace}
+    .footer-note{font-size:10px;color:#687385;text-align:center;font-weight:600;line-height:1.5;max-width:100%}
+    @media(max-height:560px){.radar-card{min-height:0;padding:12px}.radar-center-view{width:135px;height:135px}.order-signal-box{padding:11px}}
+  </style>
 </head>
 <body>
-<main class="app">
-<header class="header">
-  <div class="title">AI UNIVERSAL SIGNAL RADAR</div>
-  <div class="subtitle">EUR/USD · MAIN MARKET</div>
-  <div class="price-badge" id="live-price">—.———</div>
-  <div class="api-status" id="api-status"><i class="api-dot"></i><span id="api-label">กำลังเชื่อมต่อ API</span></div>
-</header>
-
-<section class="radar-container">
-  <div class="signal-light standby" id="signal-badge" aria-live="polite">
-    <div class="signal-text" id="signal-title">STANDBY</div>
-    <div class="signal-subtext" id="signal-desc">Analyzing Market</div>
-  </div>
-</section>
-
-<section class="timers-container">
-  <div class="timer-box">
-    <div class="timer-label">Candle Close (1M)</div>
-    <div class="timer-value" id="candle-timer">00:60</div>
-    <div class="timer-track"><div class="timer-progress" id="candle-progress"></div></div>
-  </div>
-  <div class="timer-box">
-    <div class="timer-label">Signal Expiry</div>
-    <div class="timer-value" id="expiry-timer">—</div>
-    <div class="timer-track"><div class="timer-progress" id="expiry-progress"></div></div>
-  </div>
-</section>
-
-<div class="reason" id="reason">รอเชื่อมต่อข้อมูลตลาด</div>
-
-<footer class="footer">
-  <button class="power" id="power-button" type="button" aria-label="เปิดหรือปิดการสแกน" aria-pressed="true">
-    <svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><path d="M24 4v20" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><path d="M13 11.5a19 19 0 1 0 22 0" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>
-  </button>
-</footer>
-</main>
+  <main class="radar-card">
+    <div class="top-bar">
+      <div class="brand-title">● PRECISION RADAR 1M</div>
+      <button class="power-btn" id="powerBtn" type="button" aria-pressed="false">
+        <span id="powerIcon">⭕</span><span id="powerTxt">SYSTEM OFF</span>
+      </button>
+    </div>
+    <div class="api-monitor">
+      <div class="api-info">PAIR: EUR/USD (M1)</div>
+      <div class="api-status-badge" id="apiBadge"><span class="status-dot" id="apiDot"></span><span id="apiStatusTxt">DISCONNECTED</span></div>
+    </div>
+    <div class="radar-center-view">
+      <svg class="radar-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="ring-bg" cx="50" cy="50" r="38"></circle>
+        <circle class="ring-pulse" id="radarRing" cx="50" cy="50" r="38"></circle>
+      </svg>
+      <div class="center-status-text" id="centerMsg">กดเริ่มเพื่อเชื่อมต่อ API</div>
+    </div>
+    <div class="order-signal-box">
+      <div class="signal-direction">
+        <div class="signal-label">1-CANDLE SIGNAL</div>
+        <div class="signal-val" id="signalVal">STANDBY</div>
+      </div>
+      <div class="timer-side">
+        <div class="timer-label">M1 COUNTDOWN</div>
+        <div class="timer-clock" id="timerClock">01:00</div>
+      </div>
+    </div>
+    <div class="footer-note" id="footerNote">Twelve Data · EUR/USD · Manual decision support only</div>
+  </main>
 <script>
-const SIGNAL_HOLD_SECONDS = 40;
-const POLL_MS = 5000;
-let scanning = true;
-let pollTimer = null;
-let audioContext = null;
-let previousSignal = 'STANDBY';
-let previousCandle = '';
-let signalStartedAt = 0;
-let activeSignal = 'STANDBY';
-let expiredForCandle = false;
-let lastTenAlert = '';
-let lastThreeAlert = '';
+(() => {
+  'use strict';
+  const POLL_MS = 5000;
+  const SIGNAL_HOLD_SECONDS = 40;
+  let isPowerOn = false;
+  let pollTimer = null;
+  let audioCtx = null;
+  let activeSignal = 'STANDBY';
+  let signalStartedAt = 0;
+  let lastAlertKey = '';
+  let lastTenAlert = '';
+  let lastThreeAlert = '';
+  let lastCandle = '';
+  const $ = id => document.getElementById(id);
 
-const $ = id => document.getElementById(id);
-function startAudio() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (Ctx) {
-      if (!audioContext) audioContext = new Ctx();
-      if (audioContext.state === 'suspended') audioContext.resume();
-    }
-  } catch (_) {}
-}
-function beep(freq, duration) {
-  if (!audioContext) return;
-  try {
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.frequency.value = freq;
-    gain.gain.value = 0.075;
-    oscillator.connect(gain); gain.connect(audioContext.destination);
-    oscillator.start();
-    setTimeout(() => oscillator.stop(), duration);
-  } catch (_) {}
-}
-function vibrate(pattern) {
-  if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (_) {} }
-}
-function setApiStatus(status, message) {
-  const el = $('api-status');
-  el.className = 'api-status';
-  if (status === 'connected') {
-    el.classList.add('connected');
-    $('api-label').textContent = 'API CONNECTED · LIVE';
-  } else if (status === 'quota_exhausted') {
-    el.classList.add('quota');
-    $('api-label').textContent = 'โควต้าหมด';
-  } else if (status === 'error') {
-    el.classList.add('error');
-    $('api-label').textContent = 'API ขัดข้อง';
-  } else if (status === 'off') {
-    $('api-label').textContent = 'หยุดการสแกน';
-  } else {
-    $('api-label').textContent = 'กำลังเชื่อมต่อ API';
+  function setApi(status, message) {
+    $('apiBadge').classList.toggle('online', status === 'connected');
+    $('apiDot').classList.toggle('online', status === 'connected');
+    const labels = {
+      connected: 'LIVE API · CONNECTED',
+      connecting: 'CONNECTING',
+      quota_exhausted: 'API QUOTA EXHAUSTED',
+      error: 'API ERROR',
+      off: 'DISCONNECTED'
+    };
+    $('apiStatusTxt').textContent = labels[status] || 'DISCONNECTED';
+    $('apiBadge').title = message || '';
   }
-  el.title = message || '';
-}
-function renderSignal(signal, description) {
-  const safeSignal = ['CALL','PUT','STANDBY'].includes(signal) ? signal : 'STANDBY';
-  $('signal-badge').className = 'signal-light ' + safeSignal.toLowerCase();
-  $('signal-title').textContent = safeSignal;
-  $('signal-desc').textContent = description || (safeSignal === 'CALL' ? 'Bullish Evidence Confirmed' : safeSignal === 'PUT' ? 'Bearish Evidence Confirmed' : 'Analyzing Market');
-}
-async function fetchSignal() {
-  if (!scanning) return;
-  try {
-    const response = await fetch('/api/signal', {cache:'no-store'});
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    const data = await response.json();
-    const apiStatus = data.apiStatus || 'error';
-    setApiStatus(apiStatus, data.apiMessage || '');
-    if (data.price !== undefined && data.price !== null) $('live-price').textContent = data.price;
-    const candleId = data.datetime || '';
-    if (candleId && candleId !== previousCandle) {
-      previousCandle = candleId;
-      expiredForCandle = false;
+  function renderSignal(signal, detail) {
+    const valid = ['CALL','PUT','STANDBY'].includes(signal) ? signal : 'STANDBY';
+    $('signalVal').textContent = valid;
+    $('signalVal').className = 'signal-val' + (valid === 'STANDBY' ? '' : ' ' + valid.toLowerCase());
+    $('centerMsg').textContent = detail || (valid === 'STANDBY' ? 'WAITING FOR MARKET DATA' : 'SIGNAL CONFIRMED');
+    $('centerMsg').classList.toggle('active', isPowerOn);
+  }
+  function startAudio() {
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      if (!audioCtx) audioCtx = new AudioContextClass();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (_) {}
+  }
+  function beep(freq, duration) {
+    if (!audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.frequency.value = freq;
+      gain.gain.value = 0.08;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration / 1000);
+    } catch (_) {}
+  }
+  function alertSignal(signal, candle) {
+    const key = candle + ':' + signal;
+    if (key === lastAlertKey) return;
+    lastAlertKey = key;
+    beep(signal === 'CALL' ? 587.33 : 220, 220);
+    if (navigator.vibrate) { try { navigator.vibrate([180,80,180]); } catch (_) {} }
+  }
+  async function fetchSignal() {
+    if (!isPowerOn) return;
+    try {
+      const response = await fetch('/api/signal', { cache: 'no-store' });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const data = await response.json();
+      const apiStatus = data.apiStatus || 'error';
+      setApi(apiStatus, data.apiMessage || data.reason || '');
+      if (data.price !== undefined && data.price !== null) $('footerNote').textContent = 'EUR/USD: ' + data.price + ' · ' + (data.datetime || 'LIVE DATA');
+      if (apiStatus !== 'connected') {
+        activeSignal = 'STANDBY';
+        signalStartedAt = 0;
+        renderSignal('STANDBY', data.apiMessage || 'API UNAVAILABLE');
+        return;
+      }
+      const candle = String(data.datetime || '');
+      if (!candle) {
+        activeSignal = 'STANDBY';
+        renderSignal('STANDBY', 'CANDLE TIMESTAMP MISSING');
+        return;
+      }
+      if (candle !== lastCandle) {
+        lastCandle = candle;
+        activeSignal = 'STANDBY';
+        signalStartedAt = 0;
+      }
+      const incoming = ['CALL','PUT','STANDBY'].includes(data.signal) ? data.signal : 'STANDBY';
+      if (incoming === 'CALL' || incoming === 'PUT') {
+        if (activeSignal !== incoming) {
+          activeSignal = incoming;
+          signalStartedAt = Date.now();
+          alertSignal(incoming, candle);
+        }
+        renderSignal(incoming, incoming === 'CALL' ? 'BULLISH · API CONFIRMED' : 'BEARISH · API CONFIRMED');
+      } else {
+        activeSignal = 'STANDBY';
+        signalStartedAt = 0;
+        renderSignal('STANDBY', 'WAITING FOR CLEAR SIGNAL');
+      }
+      $('footerNote').textContent = (data.reason || 'Twelve Data · EUR/USD') + ' · Manual only';
+    } catch (error) {
+      setApi('error', error.message);
       activeSignal = 'STANDBY';
       signalStartedAt = 0;
+      renderSignal('STANDBY', 'API CONNECTION ERROR');
+      $('footerNote').textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ · กำลังลองใหม่';
     }
-    const incoming = ['CALL','PUT','STANDBY'].includes(data.signal) ? data.signal : 'STANDBY';
-    if (apiStatus !== 'connected') {
-      activeSignal = 'STANDBY';
-      renderSignal('STANDBY', apiStatus === 'quota_exhausted' ? 'API quota exhausted' : 'API unavailable');
-    } else if (!expiredForCandle && incoming !== 'STANDBY') {
-      if (incoming !== activeSignal) {
-        activeSignal = incoming;
-        signalStartedAt = Date.now();
-        beep(880, 280);
-        vibrate([220,100,220]);
-      }
-      renderSignal(activeSignal, incoming === 'CALL' ? 'Bullish Evidence Confirmed' : 'Bearish Evidence Confirmed');
+  }
+  function toggleSystemPower() {
+    isPowerOn = !isPowerOn;
+    $('powerBtn').classList.toggle('active', isPowerOn);
+    $('powerBtn').setAttribute('aria-pressed', String(isPowerOn));
+    $('powerTxt').textContent = isPowerOn ? 'SYSTEM ON' : 'SYSTEM OFF';
+    $('powerIcon').textContent = isPowerOn ? '⚡' : '⭕';
+    $('radarRing').classList.toggle('active', isPowerOn);
+    if (isPowerOn) {
+      startAudio();
+      setApi('connecting');
+      renderSignal('STANDBY', 'CONNECTING TO MARKET API');
+      $('footerNote').textContent = 'กำลังขอข้อมูล EUR/USD จากเซิร์ฟเวอร์';
+      fetchSignal();
+      pollTimer = setInterval(fetchSignal, POLL_MS);
     } else {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      setApi('off');
       activeSignal = 'STANDBY';
-      renderSignal('STANDBY', 'Waiting for Clear Context');
+      signalStartedAt = 0;
+      renderSignal('STANDBY', 'SCANNER STOPPED');
+      $('footerNote').textContent = 'หยุดสแกนแล้ว · Manual decision support only';
     }
-    $('reason').textContent = data.reason || 'กำลังวิเคราะห์ตลาด';
-    previousSignal = incoming;
-  } catch (error) {
-    setApiStatus('error', error.message);
-    activeSignal = 'STANDBY';
-    renderSignal('STANDBY', 'API Connection Error');
-    $('reason').textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ · กำลังลองใหม่';
   }
-}
-function togglePower() {
-  scanning = !scanning;
-  const button = $('power-button');
-  button.classList.toggle('off', !scanning);
-  button.setAttribute('aria-pressed', String(scanning));
-  if (scanning) {
-    startAudio();
-    setApiStatus('connecting');
-    $('reason').textContent = 'กำลังเริ่มสแกนตลาด';
-    fetchSignal();
-    pollTimer = setInterval(fetchSignal, POLL_MS);
-  } else {
-    clearInterval(pollTimer);
-    pollTimer = null;
-    setApiStatus('off');
-    activeSignal = 'STANDBY';
-    signalStartedAt = 0;
-    renderSignal('STANDBY', 'Scanner Paused');
-    $('reason').textContent = 'หยุดการสแกนแล้ว';
-    $('expiry-timer').textContent = '—';
-    $('expiry-progress').style.width = '0%';
-  }
-}
-$('power-button').addEventListener('click', togglePower);
-
-function updateTimers() {
-  const now = new Date();
-  const seconds = now.getSeconds();
-  const remaining = 60 - seconds;
-  const candleKey = now.getHours() + ':' + now.getMinutes();
-  $('candle-timer').textContent = '00:' + String(remaining).padStart(2,'0');
-  $('candle-progress').style.width = (remaining / 60 * 100) + '%';
-
-  if (scanning && remaining === 10 && lastTenAlert !== candleKey) {
-    beep(440,150); lastTenAlert = candleKey;
-  }
-  if (scanning && remaining <= 3 && remaining > 0 && lastThreeAlert !== candleKey + ':' + remaining) {
-    beep(660,110); vibrate(100); lastThreeAlert = candleKey + ':' + remaining;
-  }
-
-  if (scanning && activeSignal !== 'STANDBY' && signalStartedAt) {
-    const elapsed = (Date.now() - signalStartedAt) / 1000;
-    const left = Math.max(0, Math.ceil(SIGNAL_HOLD_SECONDS - elapsed));
-    $('expiry-timer').textContent = left + 's';
-    $('expiry-progress').style.width = (left / SIGNAL_HOLD_SECONDS * 100) + '%';
-    if (left === 0) {
-      activeSignal = 'STANDBY';
-      expiredForCandle = true;
-      renderSignal('STANDBY', 'Signal Expired · Waiting');
+  function updateTimer() {
+    const now = new Date();
+    const remaining = 60 - now.getSeconds();
+    $('timerClock').textContent = '00:' + String(remaining).padStart(2,'0');
+    if (!isPowerOn) return;
+    const candleKey = now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate() + '-' + now.getHours() + '-' + now.getMinutes();
+    if (remaining === 10 && lastTenAlert !== candleKey) {
+      beep(440, 130); lastTenAlert = candleKey;
     }
-  } else if (scanning && activeSignal === 'STANDBY') {
-    $('expiry-timer').textContent = '—';
-    $('expiry-progress').style.width = '0%';
+    if (remaining <= 3 && remaining > 0 && lastThreeAlert !== candleKey + ':' + remaining) {
+      beep(660, 100); lastThreeAlert = candleKey + ':' + remaining;
+    }
+    if (activeSignal !== 'STANDBY' && signalStartedAt) {
+      const left = Math.max(0, Math.ceil(SIGNAL_HOLD_SECONDS - (Date.now() - signalStartedAt) / 1000));
+      if (left === 0) {
+        activeSignal = 'STANDBY';
+        signalStartedAt = 0;
+        renderSignal('STANDBY', 'SIGNAL EXPIRED · WAITING');
+      }
+    }
   }
-}
-setInterval(updateTimers,250);
-updateTimers();
-fetchSignal();
-pollTimer = setInterval(fetchSignal,POLL_MS);
+  $('powerBtn').addEventListener('click', toggleSystemPower);
+  setApi('off');
+  renderSignal('STANDBY', 'กดเริ่มเพื่อเชื่อมต่อ API');
+  updateTimer();
+  setInterval(updateTimer, 250);
+})();
 </script>
 </body>
 </html>
