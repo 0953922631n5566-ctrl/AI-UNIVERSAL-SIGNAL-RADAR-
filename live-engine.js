@@ -89,6 +89,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       return;
     }
     const candles = mergedClosedCandles();
+    const historyUnavailable = !hasFreshClosedHistory(candles, now);
     let analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
 
     // If REST history is missing/too short, use only two consecutive verified live
