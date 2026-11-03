@@ -1,5 +1,5 @@
 const WebSocket = require('ws');
-const { evaluateTwoHorizons } = require('./forecast-engine');
+const { evaluateNextCandle } = require('./forecast-engine');
 
 function calculateEMA(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
@@ -117,10 +117,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       dataAgeSeconds: Number.isFinite(age) ? Math.max(0, Math.floor(age / 1000)) : null,
       timestamp: tick ? new Date(tick.timestamp).toISOString() : null,
       ema5: null, ema20: null, rsi: null, momentum: null,
-      forecastHorizons: {
-        nextCandle: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 1, reason: 'รอข้อมูลราคาสด' },
-        followingCandle: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 2, reason: 'รอข้อมูลราคาสด' }
-      }
+      forecast: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 1, reason: 'รอข้อมูลราคาสด' }
     };
     if (status !== 'subscribed' || !tick || age > 75000 || age < -10000) {
       base.reason = message + ' · ไม่มี Tick สดจึงงดออกสัญญาณ';
@@ -129,7 +126,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
 
     const closed = getClosedCandles().slice(-220);
     if (closed.length < 35) {
-      base.reason = 'รอประวัติแท่งปิดอย่างน้อย 35 แท่งเพื่อใช้พยากรณ์สองระยะ';
+      base.reason = 'รอประวัติแท่งปิดอย่างน้อย 35 แท่งเพื่อพยากรณ์ M1 ถัดไป';
       return base;
     }
     const prices = closed.map(c => c.close).concat(tick.price);
@@ -145,10 +142,10 @@ function createLiveEngine(apiKey, getClosedCandles) {
     base.rsi = rsi.toFixed(1);
     base.momentum = momentum === null ? null : Number(momentum.toFixed(6));
 
-    const forecasts = evaluateTwoHorizons(closed, tick.price, momentum);
-    base.forecastHorizons = forecasts;
-    base.prediction = forecasts.nextCandle.signal;
-    base.reason = forecasts.nextCandle.reason;
+    const forecast = evaluateNextCandle(closed, tick.price, momentum);
+    base.forecast = forecast;
+    base.prediction = forecast.signal;
+    base.reason = forecast.reason;
     if (momentum === null && base.prediction === 'STANDBY') {
       base.reason += ' · รอราคาสดอย่างน้อย 2 รอบเพื่อวัด Momentum';
     }
