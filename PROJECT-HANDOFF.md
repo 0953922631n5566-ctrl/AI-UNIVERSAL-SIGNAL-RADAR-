@@ -245,3 +245,21 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Post-deploy `/api/live` after fresh quote: WebSocket subscribed, live EUR/USD quote received, data age 2 seconds; EMA/BB/RSI output present. The observed sample had Bollinger bandwidth 0.03666%, so the correct result was SIDEWAY/DANGER/STANDBY. No CALL/PUT was observed in that sample; this is not a failed deployment.
 - Production homepage fetch confirmed the new EMA/Bollinger/RSI formula labels. A real Telegram Mini App tap-through and physical Xiaomi 11T sound/vibration test have not been performed. A live CALL/PUT at the final-three-second boundary has not yet been observed end-to-end; pure logic is covered by passing automated tests.
 - Current production URL remains `https://ai-universal-signal-radar-main.onrender.com/`.
+
+
+## Multi-regime M1 signal and 5s/35s alert update — 2026-11-03
+
+- User requested replacing the prior narrow signal behavior with Trend, Sideway, and Breakout market regimes, a 10-second preparation alert, final entry alert in the last 5 seconds, and a 35-second visible signal hold.
+- Implemented on branch `feat/multi-regime-five-second-alert`; production `main` is unchanged until PR merge.
+- `forecast-engine.js` now analyses real closed M1 candles plus the current live quote:
+  - TREND: EMA5/EMA20 alignment with live price confirmation.
+  - BREAKOUT: live price above the previous 20-candle high (CALL) or below the previous 20-candle low (PUT).
+  - SIDEWAY: Bollinger bandwidth <0.04%; only a support bounce with RSI <=45 or resistance rejection with RSI >=55 can produce a direction. Otherwise it remains STANDBY.
+  - RSI14 and Bollinger Bandwidth are supporting indicators; no synthetic/random prices or unconditional fallback signals.
+- `live-engine.js` creates a directional signal only during the final 5 seconds of the current M1 candle. It holds the server-side signal for 35 seconds.
+- `public/index.html` retains the existing Telegram Mini App and real-data endpoints, updates the final-signal freshness tolerance for the 5-second window, and changes the display/hold labels to 35 seconds. The 10-second preparation reminder remains.
+- `server.js` retains the Twelve Data REST history and WebSocket architecture, adds `/api/config` with the selected regimes and alert timings, and exposes strategy/timing in `/health`. This intentionally does not replace real market data with fixed demo prices or CALL fallbacks.
+- The supplied sample server code was not copied literally because it uses axios although axios is not installed, calls REST every 15 seconds, and returns CALL with a fabricated price on missing API key/API errors. That behavior could falsely signal a real trade.
+- Tests were updated for the multi-regime analyzer and existing live-candle aggregator API. Run GitHub Actions before merging; Render deployment and live endpoint verification remain pending until PR merge.
+- Required acceptance: health endpoint reports 5-second/35-second settings; /api/live shows correct regime and STANDBY on stale data; 10s preparation alert; one final result per M1 minute in the last 5s; CALL/PUT/STANDBY held 35s; no automatic broker orders.
+- Telegram bot menu URL and physical Xiaomi 11T sound/vibration have not been changed or verified by this branch.
