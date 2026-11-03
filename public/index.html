@@ -81,7 +81,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="bar"><div class="barfill" id="barfill"></div></div>
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
-<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p><p class="forecastLine" id="forecast">NEXT M1: STANDBY · FOLLOWING M1: STANDBY</p></section>
+<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p><p class="forecastLine" id="forecast">NEXT M1: STANDBY · CLOSED CANDLE ONLY</p></section>
 <footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + FINAL 5S · HOLD 35S</span></footer>
 </main>
 <script>
@@ -204,17 +204,15 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 60 SEC'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData)return null;
   if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
   const direction=currentLiveData.prediction;
-  const liveAge=liveQuoteAgeSeconds();
-  if((direction!=='CALL'&&direction!=='PUT')||
-     currentLiveData.streamStatus!=='subscribed'||
-     !Number.isFinite(liveAge)||liveAge>75)return null;
-  return {direction,key:String(currentLiveData.timestamp||'')+':'+direction};
+  if(direction!=='CALL'&&direction!=='PUT')return null;
+  if(!currentLiveData.lastClosedCandle||currentLiveData.forecast.validFor!=='NEXT_M1_ONLY')return null;
+  return {direction,key:String(currentLiveData.lastClosedCandle)+':'+direction};
  }
  function tick(){
   renderPrice();
@@ -229,8 +227,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('message').textContent='เตรียมดูผลประเมินแท่ง M1 รอบถัดไป · อีกประมาณ 10 วินาที';
    beep(880,180,2);vibrate([180,90,180]);
   }
-  // Final 5-second result: CALL/PUT only on dual confirmation; otherwise explicitly STANDBY.
-  if(running&&remainMs<=5000&&remainMs>0&&finalAlert5Key!==minuteKey){
+  // Closed-candle result is published 5 seconds into the new M1 candle, so it applies to that candle only.
+  if(running&&sec>=5&&sec<6&&finalAlert5Key!==minuteKey){
    finalAlert5Key=minuteKey;
    finalDecision=confirmed?confirmed.direction:'STANDBY';
    finalDecisionUntil=Date.now()+HOLD_MS;
@@ -261,7 +259,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   } else if(running&&remainMs<=10000&&remainMs>5000){
    $('phase').textContent='PREPARE · 10 SEC';
    $('radarHead').textContent='WAITING FINAL RESULT';
-  } else if(confirmed&&remainMs<=5000){
+  } else if(confirmed&&sec<6){
    $('phase').textContent='FINAL 5 SEC · '+confirmed.direction;
    $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
   } else if(confirmed&&remainMs<=10000){
@@ -271,7 +269,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('phase').textContent='NEXT M1 SIGNAL · WAITING ENTRY WINDOW';
    $('radarHead').textContent='NEXT M1 FORECAST';
   } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>10000){
-   $('phase').textContent='API CHECK · EVERY 120 SEC';
+   $('phase').textContent='CLOSED M1 · EVERY 60 SEC';
    $('radarHead').textContent='SIGNAL RADAR · MONITORING';
   } else if(!running) {
    $('phase').textContent='READY TO SCAN';
