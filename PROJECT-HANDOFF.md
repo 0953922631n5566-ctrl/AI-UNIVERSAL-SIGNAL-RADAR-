@@ -188,3 +188,17 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The forecast cache key now includes OHLC values, so a REST replacement of a tick-derived bar causes recalculation.
 - Tests cover multi-tick aggregation, single-tick boundary close, missing-minute gaps, and out-of-order ticks. CI status must be checked before merge.
 - The existing strict alert alignment remains: only publish when the forecast targets the current M1 boundary and the quote is fresh; otherwise STANDBY. No late direction or automatic orders.
+
+
+## Production verification — 2026-11-03 (latest)
+
+- PR #12 merged: commit `2b41308e0895e2798e48daef86b8c4f273275579` — early result publication and EMA/candle trend alignment.
+- PR #13 merged: commit `bbfbb8d7194a06731ac7f70bbeafb8022984aa31` — live quote M1 candle aggregation and forming-candle data.
+- Render service: `ai-universal-signal-radar-main`, service ID `srv-dbkaoo0473hc7384tmog`, production URL `https://ai-universal-signal-radar-main.onrender.com`.
+- Latest Render deploy: `dep-dbkqd3p7lnhs73864oqg`; Render event reported deploy ended successfully at 2026-11-03T09:17:41Z.
+- GitHub Actions Node Forecast Tests run `41609709293` completed successfully; `npm test` passed. Inline Mini App JavaScript and live-engine syntax were also checked.
+- Post-deploy `/health` returned `status=ok`, 200 history candles, and WebSocket status `subscribed`. The `/api/live` sample showed a 6/6 PUT only when both EMA trend and latest closed candle were bearish; the previous conflicting bullish-candle/downtrend sample returned STANDBY.
+- The process had just restarted during the last API sample: WebSocket was subscribed but no fresh post-restart tick had arrived yet, so live price and `liveCandle` were temporarily null. Recheck after the next fresh quote; do not mark tick aggregation end-to-end verified until `liveCandle` becomes populated and a completed tick candle is observed.
+- The Mini App HTML is served at the existing URL and now has a LIVE M1 CANDLE display. Telegram bot menu/launch configuration was not changed or independently tested in Telegram. Actual phone sound/vibration also remains untested.
+- Live tick candle rules: aggregate only fresh quotes; finalize a minute only on the immediately following minute's tick; if a minute had one tick, use the next boundary quote as its close; if there is a gap, do not invent missing bars. REST OHLC remains authoritative when present. This is a quote-derived fallback, not a substitute for the broker's exact OHLC feed.
+- Signal operation remains EUR/USD NON-OTC M1, manual-only, no broker order placement. Keep STANDBY whenever fresh aligned data is unavailable.
