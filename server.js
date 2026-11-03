@@ -6,6 +6,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_URL = 'https://api.twelvedata.com/time_series';
 
+// Free-tier protection: at most one Twelve Data refresh every 120 seconds.
+// 24/7 continuous scanning is therefore capped at about 720 refreshes/day.
+const REFRESH_MS = 120000;
+const HISTORY_SIZE = 200;
+const KEEP_CANDLES = 220;
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -39,42 +45,65 @@ function calculateRSI(closes, period = 14) {
 
 let cache = { at: 0, payload: null };
 let inFlight = null;
+let candleStore = new Map();
+let hasWarmHistory = false;
+
+function errorPayload(status, message, reason) {
+  return {
+    symbol: 'EUR/USD', signal: 'STANDBY', regime: status === 'quota_exhausted' ? 'API LIMIT' : 'API ERROR',
+    price: '—', rsi: null, apiStatus: status, apiMessage: message, reason,
+    candlesLoaded: candleStore.size, refreshIntervalSeconds: REFRESH_MS / 1000
+  };
+}
 
 async function buildSignal() {
   const apiKey = process.env.TWELVE_DATA_API_KEY;
-  if (!apiKey) {
-    return { symbol:'EUR/USD', signal:'STANDBY', regime:'NO API KEY', price:'—', rsi:null,
-      apiStatus:'error', apiMessage:'กรุณากำหนด TWELVE_DATA_API_KEY ใน Render Environment',
-      reason:'ยังไม่มี API key' };
-  }
+  if (!apiKey) return errorPayload('error',
+    'กรุณากำหนด TWELVE_DATA_API_KEY ใน Render Environment', 'ยังไม่มี API key');
 
   try {
+    const outputsize = hasWarmHistory ? 2 : HISTORY_SIZE;
     const url = new URL(API_URL);
     url.search = new URLSearchParams({
-      symbol:'EUR/USD', interval:'1min', outputsize:'30', timezone:'UTC', apikey:apiKey
+      symbol: 'EUR/USD', interval: '1min', outputsize: String(outputsize),
+      timezone: 'UTC', apikey: apiKey
     }).toString();
 
-    const response = await fetch(url.toString(), { timeout:12000 });
+    const response = await fetch(url.toString(), { timeout: 12000 });
     const data = await response.json();
 
     if (!response.ok || !data || !Array.isArray(data.values)) {
       const message = (data && data.message) || 'Twelve Data returned invalid data';
       const quota = response.status === 429 || /quota|credits|rate limit|api calls|api requests/i.test(message);
-      return { symbol:'EUR/USD', signal:'STANDBY', regime:quota?'API LIMIT':'API ERROR',
-        price:'—', rsi:null, apiStatus:quota?'quota_exhausted':'error',
-        apiMessage:message, reason:'ไม่สามารถยืนยันข้อมูลตลาดได้ จึงหยุดการออกสัญญาณ' };
+      return errorPayload(quota ? 'quota_exhausted' : 'error', message,
+        'ไม่สามารถยืนยันข้อมูลตลาดได้ จึงหยุดการออกสัญญาณ');
     }
 
-    const candles = data.values.slice().reverse();
-    const closes = candles.map(c => Number(c.close));
-    if (closes.length < 20 || closes.some(v => !Number.isFinite(v))) {
-      return { symbol:'EUR/USD', signal:'STANDBY', regime:'INVALID DATA', price:'—',
-        rsi:null, apiStatus:'error', apiMessage:'ข้อมูลแท่งเทียนไม่ครบ',
-        reason:'ต้องมีข้อมูลแท่งเทียนอย่างน้อย 20 แท่ง' };
+    // Merge the latest API candles into the rolling in-memory history.
+    for (const candle of data.values) {
+      const close = Number(candle.close);
+      const open = Number(candle.open);
+      const high = Number(candle.high);
+      const low = Number(candle.low);
+      if (!candle.datetime || ![close, open, high, low].every(Number.isFinite)) continue;
+      candleStore.set(String(candle.datetime), {
+        datetime: String(candle.datetime), close, open, high, low
+      });
+    }
+    const candles = Array.from(candleStore.values())
+      .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      .slice(-KEEP_CANDLES);
+    candleStore = new Map(candles.map(c => [c.datetime, c]));
+    if (candles.length >= HISTORY_SIZE) hasWarmHistory = true;
+
+    const closes = candles.map(c => c.close);
+    if (closes.length < 20) {
+      return errorPayload('error', 'ข้อมูลแท่งเทียนไม่ครบ',
+        'ต้องมีข้อมูลย้อนหลังอย่างน้อย 20 แท่งเพื่อคำนวณ EMA20');
     }
 
     const last = candles[candles.length - 1];
-    const price = closes[closes.length - 1];
+    const price = last.close;
     const ema5 = calculateEMA(closes, 5);
     const ema20 = calculateEMA(closes, 20);
     const rsi = calculateRSI(closes, 14);
@@ -82,41 +111,53 @@ async function buildSignal() {
     const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleTime.getTime();
 
     if (ageMs > 180000 || ageMs < -60000) {
-      return { symbol:'EUR/USD', signal:'STANDBY', regime:'STALE DATA',
-        price:price.toFixed(5), datetime:last.datetime, rsi:rsi.toFixed(1),
-        ema5:ema5.toFixed(5), ema20:ema20.toFixed(5), apiStatus:'error',
-        apiMessage:'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง',
-        reason:'ข้อมูลไม่สดใหม่ ระบบจึงบังคับ STANDBY' };
+      return {
+        symbol: 'EUR/USD', signal: 'STANDBY', regime: 'STALE DATA',
+        price: price.toFixed(5), datetime: last.datetime, rsi: rsi.toFixed(1),
+        ema5: ema5.toFixed(5), ema20: ema20.toFixed(5), apiStatus: 'error',
+        apiMessage: 'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง',
+        reason: 'ข้อมูลไม่สดใหม่ ระบบจึงบังคับ STANDBY',
+        candlesLoaded: candles.length, refreshIntervalSeconds: REFRESH_MS / 1000
+      };
     }
 
     let signal = 'STANDBY';
     let regime = 'CONSOLIDATION';
     if (ema5 > ema20 && rsi >= 50 && rsi <= 75) {
-      signal = 'CALL';
-      regime = 'STRONG UPTREND';
+      signal = 'CALL'; regime = 'UPTREND';
     } else if (ema5 < ema20 && rsi >= 25 && rsi <= 50) {
-      signal = 'PUT';
-      regime = 'STRONG DOWNTREND';
+      signal = 'PUT'; regime = 'DOWNTREND';
     }
 
-    return { symbol:'EUR/USD', signal, regime, price:price.toFixed(5),
-      datetime:last.datetime, rsi:rsi.toFixed(1), ema5:ema5.toFixed(5),
-      ema20:ema20.toFixed(5), apiStatus:'connected', apiMessage:'เชื่อมต่อ API แล้ว',
-      reason:`EMA5: ${ema5.toFixed(5)} · EMA20: ${ema20.toFixed(5)} · RSI14: ${rsi.toFixed(1)} · ${regime}` };
+    return {
+      symbol: 'EUR/USD', signal, regime, price: price.toFixed(5),
+      datetime: last.datetime, rsi: rsi.toFixed(1), ema5: ema5.toFixed(5),
+      ema20: ema20.toFixed(5), apiStatus: 'connected',
+      apiMessage: 'เชื่อมต่อ Twelve Data แล้ว',
+      apiUpdatedAt: new Date().toISOString(),
+      reason: 'EMA5 ' + ema5.toFixed(5) + ' / EMA20 ' + ema20.toFixed(5) +
+        ' / RSI14 ' + rsi.toFixed(1) + ' / ' + regime,
+      candlesLoaded: candles.length,
+      historyMode: hasWarmHistory ? 'rolling-update' : 'initial-history',
+      refreshIntervalSeconds: REFRESH_MS / 1000
+    };
   } catch (err) {
     console.error('Twelve Data error:', err.message);
-    return { symbol:'EUR/USD', signal:'STANDBY', regime:'API ERROR', price:'—',
-      rsi:null, apiStatus:'error', apiMessage:'ข้อผิดพลาดในการเชื่อมต่อ Twelve Data',
-      reason:'ระบบหยุดออกสัญญาณจนกว่าจะได้รับข้อมูลที่ยืนยันได้' };
+    return errorPayload('error', 'ข้อผิดพลาดในการเชื่อมต่อ Twelve Data',
+      'ระบบหยุดออกสัญญาณจนกว่าจะได้รับข้อมูลที่ยืนยันได้');
   }
 }
 
-app.get('/health', (_req, res) => res.json({ status:'ok' }));
+app.get('/health', (_req, res) => res.json({
+  status: 'ok', historyCandles: candleStore.size,
+  refreshIntervalSeconds: REFRESH_MS / 1000
+}));
+
 app.get('/api/signal', async (_req, res) => {
-  if (cache.payload && Date.now() - cache.at < 12000) return res.json(cache.payload);
+  if (cache.payload && Date.now() - cache.at < REFRESH_MS) return res.json(cache.payload);
   if (!inFlight) inFlight = buildSignal().finally(() => { inFlight = null; });
   const payload = await inFlight;
-  if (payload.apiStatus === 'connected') cache = { at:Date.now(), payload };
+  if (payload.apiStatus === 'connected') cache = { at: Date.now(), payload };
   res.status(200).json(payload);
 });
 
