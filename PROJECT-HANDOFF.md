@@ -228,3 +228,20 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Automated Node tests were rewritten for the exact supplied formula. CI, Render deployment, live endpoint and Telegram/device behavior must still be checked before calling this production-ready.
 - No automated trading.
 
+
+
+## Production formula replacement verified — 2026-11-03
+
+- PR #15 merged to `main`; production commit: `c063a8d5bffa4c40afbac8fa6bc080e72f05da96`.
+- Render service: `ai-universal-signal-radar-main`, service ID `srv-dbkaoo0473hc7384tmog`.
+- Render deploy: `dep-dbkrilgae00c73ft47bg`; status `live`; finished 2026-11-03T10:37:50Z.
+- GitHub Actions Node Forecast Tests run `41620717508` completed successfully. Includes the supplied formula tests and Mini App inline-JavaScript syntax validation.
+- `forecast-engine.js` now contains only the requested EMA5/EMA20, Bollinger Bands(20,2), and RSI14 calculation. The former MACD, six-vote score, old trend/candle guard and prior NEXT-M1 forecast analyzer are removed.
+- `live-engine.js` consumes Twelve Data EUR/USD closed M1 candles plus real live WebSocket quote ticks. No random seed prices or Math.random simulation is used.
+- Final CALL/PUT candidate is evaluated only when 0–3 seconds remain in the current M1 candle. CALL requires EMA5 > EMA20 and live price >= EMA5; PUT requires EMA5 < EMA20 and live price <= EMA5. Bollinger bandwidth <0.04% forces SIDEWAY/DANGER and blocks direction. Signal state is held for 30 seconds.
+- Mini App: 10-second preparation alert retained; final result is emitted in the last 3 seconds (STANDBY fallback at the minute edge); all final results are held 30 seconds, then reset to STANDBY. Manual-only; no broker order execution.
+- Post-deploy `/health`: status=ok, 200 history candles, WebSocket subscribed.
+- Post-deploy `/api/signal`: apiStatus=connected, signal=DATA_ONLY, 200 real closed candles.
+- Post-deploy `/api/live` after fresh quote: WebSocket subscribed, live EUR/USD quote received, data age 2 seconds; EMA/BB/RSI output present. The observed sample had Bollinger bandwidth 0.03666%, so the correct result was SIDEWAY/DANGER/STANDBY. No CALL/PUT was observed in that sample; this is not a failed deployment.
+- Production homepage fetch confirmed the new EMA/Bollinger/RSI formula labels. A real Telegram Mini App tap-through and physical Xiaomi 11T sound/vibration test have not been performed. A live CALL/PUT at the final-three-second boundary has not yet been observed end-to-end; pure logic is covered by passing automated tests.
+- Current production URL remains `https://ai-universal-signal-radar-main.onrender.com/`.
