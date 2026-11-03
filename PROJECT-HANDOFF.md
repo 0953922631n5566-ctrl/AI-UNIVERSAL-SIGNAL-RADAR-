@@ -263,3 +263,12 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Tests were updated for the multi-regime analyzer and existing live-candle aggregator API. Run GitHub Actions before merging; Render deployment and live endpoint verification remain pending until PR merge.
 - Required acceptance: health endpoint reports 5-second/35-second settings; /api/live shows correct regime and STANDBY on stale data; 10s preparation alert; one final result per M1 minute in the last 5s; CALL/PUT/STANDBY held 35s; no automatic broker orders.
 - Telegram bot menu URL and physical Xiaomi 11T sound/vibration have not been changed or verified by this branch.
+
+
+## 35-second client hold consistency fix — 2026-11-03
+
+- Post-merge review found the browser UI hold constant was still 30,000 ms even though the live engine and UI labels had been updated to 35 seconds.
+- Corrected `public/index.html` to `HOLD_MS=35000` so the browser lamp and backend hold now agree.
+- Added a regression assertion in `test/ui-script.test.js` for the 35-second client timer and five-second result label.
+- First multi-regime deploy `dep-dbkru115efls73etq36g` reached LIVE on commit `d08c5fdc8c8fff72f366361e1483d68a7c070989`; a follow-up auto-deploy is running for the client timer correction and test.
+- Do not report the final client timer fix as live until the follow-up deploy reaches LIVE and endpoints are checked.
