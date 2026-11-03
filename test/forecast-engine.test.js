@@ -82,3 +82,37 @@ test('sideway support bounce remains a limited, RSI-confirmed exception', () => 
   assert.equal(result.sidewaySupportBounce, true);
   assert.equal(result.candidate, 'CALL');
 });
+
+
+test('manual UPTREND mode follows rising trend but refuses the opposite trend', () => {
+  const rising = Array.from({length:80},(_,i)=>1.08+i*0.0002);
+  const risingResult = evaluateLiveFormula(candlesFrom(rising), rising.at(-1)+0.0001, rising.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'uptrend', strictness:55 });
+  assert.equal(risingResult.mode, 'uptrend');
+  assert.equal(risingResult.candidate, 'CALL');
+  const falling = Array.from({length:80},(_,i)=>1.2-i*0.0002);
+  const fallingResult = evaluateLiveFormula(candlesFrom(falling), falling.at(-1)-0.0001, falling.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'uptrend', strictness:55 });
+  assert.equal(fallingResult.candidate, 'WAIT');
+});
+
+test('manual DOWNTREND mode refuses an upward trend', () => {
+  const rising = Array.from({length:80},(_,i)=>1.08+i*0.0002);
+  const result = evaluateLiveFormula(candlesFrom(rising), rising.at(-1)+0.0001, rising.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'downtrend', strictness:55 });
+  assert.equal(result.candidate, 'WAIT');
+});
+
+test('manual SIDEWAY mode does not trade a trending market', () => {
+  const rising = Array.from({length:80},(_,i)=>1.08+i*0.0002);
+  const result = evaluateLiveFormula(candlesFrom(rising), rising.at(-1)+0.0001, rising.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'sideway', strictness:55 });
+  assert.equal(result.candidate, 'WAIT');
+  assert.match(result.regime, /SIDEWAY MODE/);
+});
+
+test('strictness is clamped to 55-100 and raises RSI confirmation', () => {
+  const prices = Array.from({length:80},(_,i)=>1.08+i*0.0002);
+  const low = evaluateLiveFormula(candlesFrom(prices), prices.at(-1)+0.0001, prices.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'auto', strictness:55 });
+  const high = evaluateLiveFormula(candlesFrom(prices), prices.at(-1)+0.0001, prices.at(-1), Date.UTC(2026,0,1,0,0,55,500), { mode:'auto', strictness:100 });
+  assert.equal(low.strictness, 55);
+  assert.equal(low.rsiConfirmationLevel, 50);
+  assert.equal(high.strictness, 100);
+  assert.equal(high.rsiConfirmationLevel, 56.75);
+});
