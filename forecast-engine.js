@@ -100,8 +100,8 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
 
   return {
     ready: true, signal: 'WAIT', candidate, regime,
-    statusText: isSideway ? 'DANGER' : candidate === 'WAIT' ? 'CAUTION' : 'SAFE',
-    statusColor: isSideway ? 'red' : candidate === 'WAIT' ? 'yellow' : 'green',
+    statusText: isSideway && candidate === 'WAIT' ? 'DANGER' : candidate === 'WAIT' ? 'CAUTION' : 'SAFE',
+    statusColor: isSideway && candidate === 'WAIT' ? 'red' : candidate === 'WAIT' ? 'yellow' : 'green',
     confidence, rsi: Number(rsi.toFixed(1)), ema5, ema20,
     bandwidth: bb.bandwidth, rangeHigh, rangeLow, breakoutUp, breakoutDown, sidewaySupportBounce, sidewayResistanceDrop,
     trend, trendLabel: trend === 'BULLISH' ? 'ขาขึ้น' : trend === 'BEARISH' ? 'ขาลง' : 'เป็นกลาง',
