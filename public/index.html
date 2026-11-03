@@ -82,8 +82,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="bar"><div class="barfill" id="barfill"></div></div>
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
-<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบใช้ EMA5 / EMA20, Bollinger Bands และ RSI14 จากราคาตลาดจริง</p><p class="forecastLine" id="forecast">LIVE FORMULA: STANDBY · WAITING FOR REAL TICKS</p></section>
-<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">PREP 10S · RESULT LAST 3S · HOLD 30S</span></footer>
+<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบใช้ EMA5 / EMA20, Bollinger Bands และ RSI14 จากราคาตลาดจริง</p><p class="forecastLine" id="forecast">LIVE FORMULA: STANDBY · TREND / SIDEWAY / BREAKOUT · REAL TICKS</p></section>
+<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">PREP 10S · RESULT LAST 5S · HOLD 35S</span></footer>
 </main>
 <script>
 (()=>{
@@ -185,7 +185,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
-    $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
+    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
    } else if(data.apiStatus!=='connected'||apiAge(data)>MAX_SIGNAL_AGE_MS){
     show('STANDBY',data.apiMessage||'ข้อมูลแท่ง M1 ไม่สด · งดสัญญาณ');
    } else {
@@ -198,7 +198,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
-    $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
+    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
    }else{
     show('STANDBY','API connection error · signal disabled');
    }
@@ -212,7 +212,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,500);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='PREP 10S · RESULT LAST 3S · HOLD 30S'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='PREP 10S · RESULT LAST 5S · HOLD 35S'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData||!currentLiveData.forecast)return null;
@@ -223,7 +223,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   const minuteKey=Math.floor(Date.now()/60000);
   const signalAt=Number(forecast.signalAt);
   const signalMinute=Number(forecast.signalMinuteKey);
-  if(!Number.isFinite(signalAt)||!Number.isFinite(signalMinute)||Math.abs(minuteKey-signalMinute)>1||Date.now()-signalAt>3500||Date.now()<signalAt)return null;
+  if(!Number.isFinite(signalAt)||!Number.isFinite(signalMinute)||Math.abs(minuteKey-signalMinute)>1||Date.now()-signalAt>5500||Date.now()<signalAt)return null;
   return {direction,key:String(minuteKey)};
  }
  function tick(){
@@ -263,14 +263,14 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(finalDecisionUntil&&Date.now()>=finalDecisionUntil){
    finalDecisionUntil=0;finalDecision='';
    app.classList.remove('final-three');
-   show('STANDBY','ครบเวลาถือผลแจ้งเตือน 30 วินาทีแล้ว · รอรอบประเมินถัดไป');
+   show('STANDBY','ครบเวลาถือผลแจ้งเตือน 35 วินาทีแล้ว · รอรอบประเมินถัดไป');
    $('phase').textContent='STANDBY · ALERT HOLD COMPLETE';
    $('radarHead').textContent='WAITING NEXT CYCLE';
   }
   $('coreLabel').textContent='CURRENT SIGNAL';
   if(finalDecisionUntil>Date.now()){
    $('phase').textContent='FINAL RESULT HOLD · '+Math.ceil((finalDecisionUntil-Date.now())/1000)+' SEC';
-   $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
+   $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
   } else if(running&&remainMs<=10000&&remainMs>5000){
    $('phase').textContent='PREPARE · 10 SEC';
    $('radarHead').textContent='WAITING FINAL RESULT';
