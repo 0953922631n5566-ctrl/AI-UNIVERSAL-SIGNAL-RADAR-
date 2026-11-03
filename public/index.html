@@ -250,7 +250,13 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   }
   if(lockUntil&&Date.now()>=lockUntil){lockUntil=0;lockedSignal='';}
   $('coreLabel').textContent='CURRENT SIGNAL';
-  if(confirmed&&remainMs>10000){
+  if(confirmed&&remainMs<=3000){
+   $('phase').textContent='ENTRY WINDOW · 3 SEC';
+   $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
+  } else if(confirmed&&remainMs<=10000){
+   $('phase').textContent='PREPARE ORDER · 10 SEC';
+   $('radarHead').textContent='DUAL SIGNAL CONFIRMED';
+  } else if(confirmed){
    $('phase').textContent='DUAL SIGNAL · WAITING ENTRY WINDOW';
    $('radarHead').textContent='DUAL CONFIRMATION';
   } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>3000){
