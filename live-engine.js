@@ -54,7 +54,7 @@ function createMinuteCandleAggregator() {
 function createLiveEngine(apiKey, getClosedCandles) {
   let socket = null, status = apiKey ? 'connecting' : 'unavailable';
   let message = apiKey ? 'กำลังเชื่อมต่อ Twelve Data WebSocket' : 'ยังไม่มี API key';
-  let tick = null, previousTickPrice = null, retryTimer = null, heartbeatTimer = null;
+  let tick = null, previousTickPrice = null, previousTickTimestamp = null, retryTimer = null, heartbeatTimer = null;
   let retryDelay = 5000, stopped = false;
   const tickCandles = createMinuteCandleAggregator();
   const signalState = { signal: 'WAIT', signalAt: null, expiresAt: 0, minuteKey: null };
@@ -85,7 +85,11 @@ function createLiveEngine(apiKey, getClosedCandles) {
     // If REST history is missing/too short, use only two consecutive verified live
     // quotes as a direction fallback. This does not override a valid strategy WAIT.
     if (!analysis.ready) {
-      const fallbackDirection = getLivePriceDirection(tick.price, previousTickPrice);
+      const previousQuoteIsFresh = Number.isFinite(previousTickTimestamp) &&
+        now >= previousTickTimestamp && now - previousTickTimestamp <= 30000;
+      const fallbackDirection = getLivePriceDirection(
+        tick.price, previousQuoteIsFresh ? previousTickPrice : null
+      );
       if (fallbackDirection === 'WAIT') {
         latestAnalysis = analysis;
         return;
@@ -149,6 +153,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
         const price = Number(event.price), timestamp = Number(event.timestamp) * 1000, now = Date.now();
         if (Number.isFinite(price) && price > 0 && Number.isFinite(timestamp) && timestamp <= now + 10000 && now - timestamp <= 30000) {
           previousTickPrice = tick ? tick.price : null;
+          previousTickTimestamp = tick ? tick.timestamp : null;
           tick = { price, timestamp };
           tickCandles.ingest(price, timestamp);
           status = 'subscribed'; message = 'รับราคาสด EUR/USD';
