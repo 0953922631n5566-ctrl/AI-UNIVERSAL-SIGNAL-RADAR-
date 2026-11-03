@@ -144,11 +144,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   $('restPrice').textContent='LAST CLOSED M1 · '+(currentData&&currentData.price?currentData.price:'—');
  }
  function renderForecast(){
-  const forecasts=currentLiveData&&currentLiveData.forecastHorizons;
-  if(!forecasts){$('forecast').textContent='NEXT M1: STANDBY · FOLLOWING M1: STANDBY · WAITING FOR LIVE DATA';return}
-  const first=forecasts.nextCandle||{},second=forecasts.followingCandle||{};
-  const fmt=x=>(x.signal||'STANDBY')+' ('+(x.agreementVotes||'0/6')+')';
-  $('forecast').textContent='NEXT M1: '+fmt(first)+'  |  FOLLOWING M1: '+fmt(second)+' · AGREEMENT, NOT WIN PROBABILITY';
+  const forecast=currentLiveData&&currentLiveData.forecast;
+  if(!forecast){$('forecast').textContent='NEXT M1: STANDBY · WAITING FOR LIVE DATA';return}
+  $('forecast').textContent='NEXT M1: '+(forecast.signal||'STANDBY')+
+   ' ('+(forecast.agreementVotes||'0/6')+') · '+(forecast.reason||'');
  }
  async function scanLive(){
   if(!running||busyLive)return;busyLive=true;
@@ -168,37 +167,22 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    const data=await response.json();currentData=data;
    setApi(data.apiStatus||'error');
    renderPrice();
-   $('regime').textContent=data.regime||'—';
-   $('rsi').textContent=data.rsi==null?'—':data.rsi;
-   $('reason').textContent=data.reason||data.apiMessage||'—';
-   $('updated').textContent=data.apiUpdatedAt?'UPDATED '+new Date(data.apiUpdatedAt).toLocaleTimeString('th-TH'):'API REFRESH · 120 SEC';
-   const age=apiAge(data);
+   $('regime').textContent='NEXT M1 FORECAST';
+   $('rsi').textContent=currentLiveData&&currentLiveData.rsi!=null?currentLiveData.rsi:'—';
+   $('reason').textContent=data.apiStatus==='connected'
+    ?(currentLiveData&&currentLiveData.reason||'รอผลวิเคราะห์แท่ง M1 ถัดไป')
+    :(data.apiMessage||'API unavailable · งดสัญญาณ');
+   $('updated').textContent=data.apiUpdatedAt?'DATA CHECK '+new Date(data.apiUpdatedAt).toLocaleTimeString('th-TH'):'API DATA CHECK';
    if(finalDecisionUntil>Date.now()){
     const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
     $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
-    return;
-   }
-   if(data.apiStatus!=='connected') {
-    show('STANDBY',data.apiMessage||'API unavailable · no signal');
-   } else if(age>MAX_SIGNAL_AGE_MS) {
-    show('STANDBY','ข้อมูลแท่งปิดแล้วเก่าเกิน 180 วินาที · งดสัญญาณ');
-   } else if(data.signal==='CALL'||data.signal==='PUT') {
-    const liveConfirmed = currentLiveData && currentLiveData.streamStatus==='subscribed' &&
-      currentLiveData.prediction===data.signal && Number.isFinite(currentLiveData.dataAgeSeconds) &&
-      currentLiveData.dataAgeSeconds<=75;
-    if(!liveConfirmed) {
-     show('STANDBY','รอการยืนยันสองทาง: แท่ง M1 ปิดแล้ว + ราคาสดต้องไปทิศเดียวกัน');
-     $('phase').textContent='WAITING FOR DUAL CONFIRMATION';
-     $('radarHead').textContent='WAITING LIVE CONFIRMATION';
-    } else {
-     show('STANDBY','ยืนยันข้อมูลสองทางแล้ว · รอแจ้งผลสุดท้ายก่อนเปลี่ยนแท่ง');
-     $('phase').textContent='DUAL CONFIRMED · WAIT FINAL ALERT';
-     $('radarHead').textContent='DUAL CONFIRMATION READY';
-    }
+   } else if(data.apiStatus!=='connected'||apiAge(data)>MAX_SIGNAL_AGE_MS){
+    show('STANDBY',data.apiMessage||'ข้อมูลแท่ง M1 ไม่สด · งดสัญญาณ');
    } else {
-    show('STANDBY','ยังไม่มีเงื่อนไข CALL/PUT ที่ผ่านเกณฑ์');
+    const forecast=currentLiveData&&currentLiveData.forecast;
+    show('STANDBY',forecast&&forecast.reason||'รอการวิเคราะห์แท่ง M1 ถัดไป');
    }
   }catch(e){
    currentData=null;setApi('error');
@@ -225,12 +209,12 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData)return null;
   if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
-  const direction=currentData.signal;
-  if(direction!=='CALL'&&direction!=='PUT')return null;
+  const direction=currentLiveData.prediction;
   const liveAge=liveQuoteAgeSeconds();
-  if(currentLiveData.streamStatus!=='subscribed'||currentLiveData.prediction!==direction||
+  if((direction!=='CALL'&&direction!=='PUT')||
+     currentLiveData.streamStatus!=='subscribed'||
      !Number.isFinite(liveAge)||liveAge>75)return null;
-  return {direction,key:String(currentData.datetime||'')+':'+direction};
+  return {direction,key:String(currentLiveData.timestamp||'')+':'+direction};
  }
  function tick(){
   renderPrice();
@@ -251,8 +235,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    finalDecision=confirmed?confirmed.direction:'STANDBY';
    finalDecisionUntil=Date.now()+HOLD_MS;
    show(finalDecision,finalDecision==='STANDBY'
-    ?'ผลสุดท้าย: STANDBY · สัญญาณสองทางยังไม่ยืนยันตรงกัน · งดเข้าออเดอร์'
-    :'ผลสุดท้าย: '+finalDecision+' · ผ่านการยืนยันสองทาง · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
+    ?'ผลสุดท้าย: STANDBY · ผลวิเคราะห์แท่ง M1 ถัดไปยังไม่ผ่านเกณฑ์หรือข้อมูลไม่สด · งดเข้าออเดอร์'
+    :'ผลสุดท้าย: '+finalDecision+' · ผ่านเกณฑ์วิเคราะห์แท่ง M1 ถัดไป · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
    $('phase').textContent='FINAL 5 SEC · '+finalDecision;
    $('radarHead').textContent='NEXT M1 · '+finalDecision;
    app.classList.add('final-three');
