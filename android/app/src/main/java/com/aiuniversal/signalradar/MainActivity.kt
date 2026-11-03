@@ -28,14 +28,14 @@ class MainActivity : Activity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 CaptureService.ACTION_READY -> {
-                    status.text = "กำลังจับภาพและอ่านป้ายราคา EUR/USD"
+                    status.text = "กำลังจับภาพทั้งหน้าจอและส่ง rawText ให้ Server"
                     startButton.isEnabled = false
                     stopButton.isEnabled = true
                 }
                 CaptureService.ACTION_PRICE -> {
                     val price = intent.getStringExtra(CaptureService.EXTRA_PRICE) ?: "—"
                     val signal = intent.getStringExtra(CaptureService.EXTRA_SIGNAL) ?: "STANDBY"
-                    status.text = "ส่งราคา $price สำเร็จ · สัญญาณ $signal"
+                    status.text = "Server: $signal · $price · ${intent.getStringExtra(CaptureService.EXTRA_ERROR) ?: ""}"
                 }
                 CaptureService.ACTION_FAILED -> {
                     val reason = intent.getStringExtra(CaptureService.EXTRA_ERROR) ?: "ไม่ทราบสาเหตุ"
@@ -63,7 +63,7 @@ class MainActivity : Activity() {
             textSize = 22f
         }
         val explanation = TextView(this).apply {
-            text = "อ่านตัวเลขราคาบริเวณขอบขวาของกราฟ แล้วส่งราคา EUR/USD จริงเข้า Mini App"
+            text = "อ่าน OCR ทั้งหน้าจอและส่ง rawText ให้ Server สกัดราคาเอง (ไม่ล็อกพิกัดบนมือถือ)"
             textSize = 14f
         }
         tokenInput = EditText(this).apply {
