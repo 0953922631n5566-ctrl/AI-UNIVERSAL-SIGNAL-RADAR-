@@ -90,8 +90,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  const tg=window.Telegram&&window.Telegram.WebApp;
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,audio=null,busy=false,currentData=null;
- let lockUntil=0,lockedSignal='',lastSignalCandle='',lastPreAlertMinute='',lastEntryMinute='';
- const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=75000;
+ let lockUntil=0,lockedSignal='',lastSignalCandle='';
+ const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
   const ok=status==='connected';
   $('apiBadge').classList.toggle('off',!ok);
@@ -120,10 +120,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function apiAge(data){
   if(!data||!data.apiUpdatedAt||!data.datetime)return Infinity;
   const receivedAt=Date.parse(data.apiUpdatedAt);
-  const candleAt=Date.parse(String(data.datetime).replace(' ','T')+'Z');
-  if(!Number.isFinite(receivedAt)||!Number.isFinite(candleAt))return Infinity;
-  // Require both a recent API refresh and a recent market candle before any entry alert.
-  return Math.max(Date.now()-receivedAt,Date.now()-candleAt);
+  const candleClosedAt=data.candleClosedAt?Date.parse(data.candleClosedAt):
+    Date.parse(String(data.datetime).replace(' ','T')+'Z')+60000;
+  if(!Number.isFinite(receivedAt)||!Number.isFinite(candleClosedAt))return Infinity;
+  return Math.max(Date.now()-receivedAt,Date.now()-candleClosedAt);
  }
  async function scan(){
   if(!running||busy)return;busy=true;
@@ -137,9 +137,27 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('rsi').textContent=data.rsi==null?'—':data.rsi;
    $('reason').textContent=data.reason||data.apiMessage||'—';
    $('updated').textContent=data.apiUpdatedAt?'UPDATED '+new Date(data.apiUpdatedAt).toLocaleTimeString('th-TH'):'API REFRESH · 120 SEC';
-   if(data.apiStatus!=='connected')show('STANDBY',data.apiMessage||'API unavailable · no signal');
-   else if(lockUntil>Date.now())show(lockedSignal,'SIGNAL LOCK · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
-   else show('STANDBY','API linked · waiting for next M1 decision window');
+   const age=apiAge(data);
+   if(data.apiStatus!=='connected') {
+    show('STANDBY',data.apiMessage||'API unavailable · no signal');
+   } else if(age>MAX_SIGNAL_AGE_MS) {
+    show('STANDBY','ข้อมูลแท่งปิดแล้วเก่าเกิน 180 วินาที · งดสัญญาณ');
+   } else if(data.signal==='CALL'||data.signal==='PUT') {
+    const signalKey=String(data.datetime||'')+':'+data.signal;
+    if(signalKey!==lastSignalCandle) {
+     lastSignalCandle=signalKey;lockedSignal=data.signal;lockUntil=Date.now()+HOLD_MS;
+     show(data.signal,'✦ '+data.signal+' · แท่ง M1 ปิดแล้ว · ข้อมูลอายุ '+Math.max(0,Math.floor(age/1000))+' วินาที · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
+     $('phase').textContent='✦ SIGNAL RECEIVED · 35 SEC HOLD';
+     $('radarHead').textContent='SIGNAL ACTIVATED';
+     beep(data.signal==='CALL'?1040:260,260,3);vibrate([250,80,250,80,500]);
+    } else if(lockUntil>Date.now()) {
+     show(lockedSignal,'⚡ '+lockedSignal+' · MANUAL ONLY · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
+    } else {
+     show(data.signal,'แท่ง M1 ล่าสุดให้สัญญาณ '+data.signal+' · อายุข้อมูล '+Math.max(0,Math.floor(age/1000))+' วินาที');
+    }
+   } else {
+    show('STANDBY','ยังไม่มีเงื่อนไข CALL/PUT ที่ผ่านเกณฑ์');
+   }
   }catch(e){
    currentData=null;setApi('error');show('STANDBY','API connection error · signal disabled');$('reason').textContent=e.message||'API error';
   }finally{busy=false}
@@ -148,56 +166,27 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
   if(running){setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();poll=setInterval(scan,CLIENT_POLL_MS);$('phase').textContent='LIVE MONITORING'}
-  else{clearInterval(poll);poll=null;currentData=null;lockUntil=0;lockedSignal='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);poll=null;currentData=null;lockUntil=0;lockedSignal='';lastSignalCandle='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function tick(){
   const now=new Date(),sec=now.getSeconds(),remain=60-sec;
-  const key=[now.getFullYear(),now.getMonth(),now.getDate(),now.getHours(),now.getMinutes()].join('-');
   $('clock').textContent='00:'+String(remain).padStart(2,'0');
   $('barfill').style.width=(sec/60*100)+'%';
   $('progress').style.strokeDashoffset=251-(sec/60*251);
-  const finalMode=running&&remain<=3&&remain>=1;
-  app.classList.toggle('final-three',finalMode);
+  app.classList.remove('final-three');
   if(lockUntil>Date.now()){
-   $('phase').textContent='SIGNAL LOCK · 35 SEC';
-   if(running)show(lockedSignal,'⚡ '+lockedSignal+' · MANUAL DECISION · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
+   $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
+   if(running)show(lockedSignal,'⚡ '+lockedSignal+' · MANUAL ONLY · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
    return;
   }
-  if(lockUntil&&Date.now()>=lockUntil){lockUntil=0;lockedSignal='';if(running)show('STANDBY','Signal hold complete · waiting for next setup')}
-  if(!running){$('phase').textContent='READY TO SCAN';return}
-  if(remain>10){$('phase').textContent='LIVE MONITORING';$('radarHead').textContent='SIGNAL RADAR · MONITORING'}
-  if(remain===10&&lastPreAlertMinute!==key){
-   lastPreAlertMinute=key;$('phase').textContent='⚠ PRE-ALERT · 10 SECONDS';
-   $('radarHead').textContent='PREPARE · WATCH THE MARKET';
-   show('STANDBY','10 seconds · monitoring the upcoming M1 decision');
-   beep(520,160);vibrate([90,60,90]);
+  if(lockUntil&&Date.now()>=lockUntil){lockUntil=0;lockedSignal='';}
+  $('coreLabel').textContent='CURRENT SIGNAL';
+  if(running&&currentData&&currentData.apiStatus==='connected'){
+   $('phase').textContent='API CHECK · EVERY 120 SEC';
+   $('radarHead').textContent='SIGNAL RADAR · MONITORING';
+  } else if(!running) {
+   $('phase').textContent='READY TO SCAN';
   }
-  if(remain<=3&&remain>=1){
-   $('phase').textContent='⚡ FINAL ENTRY WINDOW';
-   $('radarHead').textContent='FINAL 3 SECONDS · DECISION';
-   $('coreLabel').textContent='ENTRY COUNTDOWN';
-  }else{$('coreLabel').textContent='CURRENT SIGNAL'}
-  if(remain===3&&lastEntryMinute!==key){
-   lastEntryMinute=key;
-   const data=currentData,age=apiAge(data);
-   if(!data||data.apiStatus!=='connected'||age>MAX_SIGNAL_AGE_MS){
-    show('STANDBY','API data is not fresh enough · NO ENTRY');
-    $('reason').textContent='งดแจ้งเข้าออเดอร์: ข้อมูล API ล่าสุดเกิน 75 วินาทีหรือไม่พร้อม';
-    beep(250,100);return;
-   }
-   const signal=data.signal,signalKey=String(data.datetime||'')+':'+signal;
-   if((signal==='CALL'||signal==='PUT')&&signalKey!==lastSignalCandle){
-    lastSignalCandle=signalKey;lockedSignal=signal;lockUntil=Date.now()+HOLD_MS;
-    show(signal,'✦ '+signal+' · SIGNAL ALERT · MANUAL ENTRY ONLY');
-    $('phase').textContent='✦ SIGNAL CONFIRMED · 35 SEC HOLD';
-    $('radarHead').textContent='SIGNAL ACTIVATED';
-    beep(signal==='CALL'?1040:260,260,3);vibrate([250,80,250,80,500]);
-   }else{
-    show('STANDBY','No confirmed setup · stay out');
-    beep(330,100);
-   }
-  }
-  if(remain===1&&$('coreLabel').textContent==='ENTRY COUNTDOWN')$('coreLabel').textContent='DECISION WINDOW';
  }
  $('start').addEventListener('click',startStop);
  $('sound').addEventListener('click',()=>{beep(880,220,2);vibrate(100);$('sound').textContent='🔔';$('sound').title='Sound enabled'});
