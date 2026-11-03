@@ -213,3 +213,18 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The Mini App LIVE M1 CANDLE card shows the forming candle direction. The forecast text still separately reports the last closed candle direction.
 - GitHub Actions run `41610183584` completed successfully, including `npm test`. Inline Mini App and live-engine JavaScript syntax checks passed.
 - Merge and Render deployment pending at time this handoff was written.
+
+
+## Complete analysis formula replacement — 2026-11-03
+
+- User supplied a complete replacement Node.js Forex formula and explicitly instructed that the old analyzer be removed.
+- Branch: `replace-analysis-with-user-formula` (not yet merged at the time of this handoff update).
+- `forecast-engine.js` has been replaced: EMA5, EMA20, Bollinger Bands(20,2), RSI14, exact 0–3 second final-M1 trigger window, supplied SAFE/DANGER and confidence calculation. Old MACD, 5-of-6 scoring, old candle-body trend confirmation and previous forecast rules are removed.
+- `live-engine.js` now evaluates the formula against real Twelve Data closed M1 candle history and the latest real WebSocket EUR/USD tick. The supplied random-seed and Math.random price generator are deliberately not used.
+- CALL only when EMA5 > EMA20 and current live price >= EMA5; PUT only when EMA5 < EMA20 and current live price <= EMA5. Bollinger bandwidth <0.04% blocks direction as SIDEWAY/DANGER.
+- Direction is locked for 30 seconds after it is generated. A new direction can be generated only in the final 3 seconds of an M1 minute. Stale/missing live ticks or fewer than 20 closed candles return STANDBY.
+- Mini App preparation reminder remains 10 seconds before rollover; final result is issued in the last 3 seconds, with STANDBY fallback at the minute edge; CALL/PUT/STANDBY are held 30 seconds and then reset.
+- This explicitly supersedes the previous 5-second final notification and 35-second hold in the earlier alert configuration.
+- Automated Node tests were rewritten for the exact supplied formula. CI, Render deployment, live endpoint and Telegram/device behavior must still be checked before calling this production-ready.
+- No automated trading.
+
