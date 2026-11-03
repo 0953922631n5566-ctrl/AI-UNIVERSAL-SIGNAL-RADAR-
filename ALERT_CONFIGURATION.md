@@ -69,3 +69,12 @@ Repeat the following cycle every minute while the Mini App is open and scanning 
 - REST is history/freshness input only; it no longer calculates a competing CALL/PUT direction.
 - The NEXT M1 forecast alone supplies the final directional decision when the data-health guards pass.
 - Keep all existing alert timing and 35-second hold requirements unchanged.
+
+
+## Candle-close-only signal timing correction — 2026-11-03
+
+The strategy now calculates from the latest fully closed candle and applies the result to the immediately following M1 candle. To keep that candle alignment correct:
+- Preparation alert remains 10 seconds before the minute boundary.
+- The final CALL/PUT/STANDBY result is published 5 seconds after the new minute begins, using the just-closed candle's decision for the candle now underway.
+- The final result is held for 35 seconds from the notification timestamp.
+- One final alert per minute; STANDBY still sounds/vibrates.
