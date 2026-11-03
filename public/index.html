@@ -95,7 +95,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
 <section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p></section>
-<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + 3S · DUAL CHECK</span></footer>
+<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + FINAL 5S · HOLD 35S</span></footer>
 </main>
 <script>
 (()=>{
@@ -180,9 +180,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     return;
    }
    if(finalDecisionUntil>Date.now()){
-    show(finalDecision,'ผลประเมินช่วง 5 วินาทีสุดท้าย · '+(finalDecision==='STANDBY'?'ข้อมูลยืนยันสองทางยังไม่ครบ':'ยืนยันสองทางแล้ว'));
-    $('phase').textContent='FINAL RESULT · '+finalDecision;
-    $('radarHead').textContent='NEXT M1 · FINAL RESULT';
+    const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
+    show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
+    $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
+    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
     return;
    }
    if(data.apiStatus!=='connected') {
@@ -260,7 +261,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(running&&remainMs<=5000&&remainMs>0&&finalAlert5Key!==minuteKey){
    finalAlert5Key=minuteKey;
    finalDecision=confirmed?confirmed.direction:'STANDBY';
-   finalDecisionUntil=Math.ceil(Date.now()/60000)*60000+1000;
+   finalDecisionUntil=Date.now()+HOLD_MS;
    show(finalDecision,finalDecision==='STANDBY'
     ?'ผลสุดท้าย: STANDBY · สัญญาณสองทางยังไม่ยืนยันตรงกัน · งดเข้าออเดอร์'
     :'ผลสุดท้าย: '+finalDecision+' · ผ่านการยืนยันสองทาง · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
@@ -285,6 +286,11 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    show('STANDBY','ครบเวลาถือสัญญาณ 35 วินาทีแล้ว · รอสัญญาณรอบใหม่');
    $('phase').textContent='STANDBY · HOLD COMPLETE';
    $('radarHead').textContent='WAITING NEXT SIGNAL';
+  } else if(finalDecisionUntil&&Date.now()>=finalDecisionUntil){
+   finalDecisionUntil=0;finalDecision='';
+   show('STANDBY','ครบเวลาถือผลแจ้งเตือน 35 วินาทีแล้ว · รอรอบประเมินถัดไป');
+   $('phase').textContent='STANDBY · ALERT HOLD COMPLETE';
+   $('radarHead').textContent='WAITING NEXT CYCLE';
   } else if(lockUntil>Date.now()){
    const left=Math.ceil((lockUntil-Date.now())/1000);
    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
@@ -293,8 +299,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(lockUntil>Date.now()){
    $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
   } else if(finalDecisionUntil>Date.now()){
-   $('phase').textContent='FINAL 5 SEC · '+finalDecision;
-   $('radarHead').textContent='NEXT M1 · '+finalDecision;
+   $('phase').textContent='FINAL RESULT HOLD · '+Math.ceil((finalDecisionUntil-Date.now())/1000)+' SEC';
+   $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
   } else if(running&&remainMs<=10000&&remainMs>5000){
    $('phase').textContent='PREPARE · 10 SEC';
    $('radarHead').textContent='WAITING FINAL RESULT';
