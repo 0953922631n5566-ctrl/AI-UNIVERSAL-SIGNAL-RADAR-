@@ -82,8 +82,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="bar"><div class="barfill" id="barfill"></div></div>
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
-<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p><p class="forecastLine" id="forecast">NEXT M1: STANDBY · CLOSED CANDLE ONLY</p></section>
-<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">PREP 10S · RESULT WHEN READY · HOLD 35S</span></footer>
+<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบใช้ EMA5 / EMA20, Bollinger Bands และ RSI14 จากราคาตลาดจริง</p><p class="forecastLine" id="forecast">LIVE FORMULA: STANDBY · WAITING FOR REAL TICKS</p></section>
+<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">PREP 10S · RESULT LAST 3S · HOLD 30S</span></footer>
 </main>
 <script>
 (()=>{
@@ -92,7 +92,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
  let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
- const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
+ const HOLD_MS=30000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
   const ok=status==='connected';
   $('apiBadge').classList.toggle('off',!ok);
@@ -147,9 +147,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function renderForecast(){
   const forecast=currentLiveData&&currentLiveData.forecast;
   if(!forecast){$('forecast').textContent='NEXT M1: STANDBY · WAITING FOR LIVE DATA';return}
-  $('forecast').textContent='NEXT M1: '+(forecast.signal||'STANDBY')+
-   ' · '+(forecast.trendLabel||'แนวโน้มไม่ชัด')+' · '+(forecast.candleLabel||'รอแท่งปิด')+
-   ' · '+(forecast.agreementVotes||'0/6')+' · '+(forecast.reason||'');
+  $('forecast').textContent='LIVE FORMULA: '+(forecast.displayState||forecast.signal||'STANDBY')+
+   ' · '+(forecast.trendLabel||'แนวโน้มไม่ชัด')+' · CONF '+(forecast.confidence||'50.0')+
+   ' · RSI '+(forecast.indicators&&forecast.indicators.rsi14!=null?forecast.indicators.rsi14:'—')+
+   ' · BB '+(forecast.indicators&&forecast.indicators.bollingerBandwidth!=null?Number(forecast.indicators.bollingerBandwidth).toFixed(4)+'%':'—')+' · '+(forecast.reason||'');
  }
  async function scanLive(){
   if(!running||busyLive)return;busyLive=true;
@@ -184,7 +185,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
-    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
+    $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
    } else if(data.apiStatus!=='connected'||apiAge(data)>MAX_SIGNAL_AGE_MS){
     show('STANDBY',data.apiMessage||'ข้อมูลแท่ง M1 ไม่สด · งดสัญญาณ');
    } else {
@@ -197,7 +198,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     const left=Math.ceil((finalDecisionUntil-Date.now())/1000);
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
-    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
+    $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
    }else{
     show('STANDBY','API connection error · signal disabled');
    }
@@ -208,31 +209,21 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
   if(running){
-   // Starting mid-candle must not create a fake late result for a candle that is already underway.
-   finalAlert5Key=Math.floor(Date.now()/60000);
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,500);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='PREP 10S · RESULT ON DATA · HOLD 35S'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='PREP 10S · RESULT LAST 3S · HOLD 30S'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData||!currentLiveData.forecast)return null;
   if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
   const forecast=currentLiveData.forecast, direction=forecast.signal;
   if(direction!=='CALL'&&direction!=='PUT')return null;
-  if(currentLiveData.streamStatus!=='subscribed'||liveQuoteAgeSeconds()>75)return null;
-  const liveBar=currentLiveData.liveCandle;
-  if(!liveBar||liveBar.ticks<2)return null;
-  if((direction==='CALL'&&liveBar.direction!=='BULLISH')||(direction==='PUT'&&liveBar.direction!=='BEARISH'))return null;
-  if(forecast.validFor!=='NEXT_M1_ONLY'||!forecast.lastClosedAt||!forecast.nextCandleAt)return null;
-  const nextStart=Date.parse(forecast.nextCandleAt);
-  const currentStart=Math.floor(Date.now()/60000)*60000;
-  const age=Date.now()-nextStart;
-  // The forecast must explicitly target the M1 candle that is opening now; never reuse a late/old result.
-  if(!Number.isFinite(nextStart)||nextStart!==currentStart||age<0||age>12000)return null;
-  if((direction==='CALL'&&forecast.trend!=='UPTREND')||(direction==='PUT'&&forecast.trend!=='DOWNTREND'))return null;
-  if((direction==='CALL'&&forecast.candleDirection!=='BULLISH')||(direction==='PUT'&&forecast.candleDirection!=='BEARISH'))return null;
-  return {direction,key:String(forecast.lastClosedAt)+':'+direction};
+  if(currentLiveData.streamStatus!=='subscribed'||liveQuoteAgeSeconds()>30)return null;
+  const minuteKey=Math.floor(Date.now()/60000);
+  const signalAt=Number(forecast.signalAt);
+  if(!Number.isFinite(signalAt)||forecast.signalMinuteKey!==minuteKey||Date.now()-signalAt>4000||Date.now()<signalAt)return null;
+  return {direction,key:String(minuteKey)};
  }
  function tick(){
   renderPrice();
@@ -247,17 +238,16 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('message').textContent='เตรียมดูผลประเมินแท่ง M1 รอบถัดไป · อีกประมาณ 10 วินาที';
    beep(880,180,2);vibrate([180,90,180]);
   }
-  // Publish as soon as the server has a fresh closed-candle decision explicitly keyed to this new M1.
-  // If no valid aligned decision arrives within 12 seconds, announce STANDBY once rather than a late signal.
+  // The server calculates only in the final 3 seconds. Fall back to STANDBY at the minute edge if no valid signal arrived.
   if(running&&finalAlert5Key!==minuteKey){
-   const decision=confirmed?confirmed.direction:(sec>=12?'STANDBY':null);
+   const decision=confirmed?confirmed.direction:(remainMs<=100?'STANDBY':null);
    if(decision){
     finalAlert5Key=minuteKey;
     finalDecision=decision;
     finalDecisionUntil=Date.now()+HOLD_MS;
     show(finalDecision,finalDecision==='STANDBY'
-     ?'ผลสุดท้าย: STANDBY · ยังไม่มีข้อมูลแท่งปิดและราคาสดที่ยืนยันตรงกับรอบนี้ภายใน 12 วินาที · งดเข้าออเดอร์'
-     :'ผลสุดท้าย: '+finalDecision+' · สัญญาณตรงกับแท่ง M1 ที่กำลังเปิดและแนวโน้มแท่งปิดล่าสุด · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
+     ?'ผลสุดท้าย: STANDBY · เงื่อนไข EMA/BB/RSI หรือข้อมูลราคาสดไม่ครบในช่วง 3 วินาทีสุดท้าย · งดเข้าออเดอร์'
+     :'ผลสุดท้าย: '+finalDecision+' · สูตร EMA5/EMA20 + Bollinger + RSI ยืนยันตามเทรนด์ · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
     $('phase').textContent='FINAL RESULT · '+finalDecision;
     $('radarHead').textContent='NEXT M1 · '+finalDecision;
     app.classList.add('final-three');
@@ -272,26 +262,20 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(finalDecisionUntil&&Date.now()>=finalDecisionUntil){
    finalDecisionUntil=0;finalDecision='';
    app.classList.remove('final-three');
-   show('STANDBY','ครบเวลาถือผลแจ้งเตือน 35 วินาทีแล้ว · รอรอบประเมินถัดไป');
+   show('STANDBY','ครบเวลาถือผลแจ้งเตือน 30 วินาทีแล้ว · รอรอบประเมินถัดไป');
    $('phase').textContent='STANDBY · ALERT HOLD COMPLETE';
    $('radarHead').textContent='WAITING NEXT CYCLE';
   }
   $('coreLabel').textContent='CURRENT SIGNAL';
   if(finalDecisionUntil>Date.now()){
    $('phase').textContent='FINAL RESULT HOLD · '+Math.ceil((finalDecisionUntil-Date.now())/1000)+' SEC';
-   $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
+   $('radarHead').textContent='FINAL RESULT · HOLD 30 SEC';
   } else if(running&&remainMs<=10000&&remainMs>5000){
    $('phase').textContent='PREPARE · 10 SEC';
    $('radarHead').textContent='WAITING FINAL RESULT';
-  } else if(confirmed&&sec<12){
-   $('phase').textContent='NEXT M1 READY · '+confirmed.direction;
-   $('radarHead').textContent='ALIGNED CANDLE RESULT';
-  } else if(confirmed&&remainMs<=10000){
-   $('phase').textContent='PREPARE ORDER · 10 SEC';
-   $('radarHead').textContent='NEXT M1 FORECAST READY';
   } else if(confirmed){
-   $('phase').textContent='NEXT M1 SIGNAL · WAITING ENTRY WINDOW';
-   $('radarHead').textContent='NEXT M1 FORECAST';
+   $('phase').textContent='FINAL 3 SECONDS · '+confirmed.direction;
+   $('radarHead').textContent='LIVE FORMULA CONFIRMED';
   } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>10000){
    $('phase').textContent='CLOSED M1 · EVERY 60 SEC';
    $('radarHead').textContent='SIGNAL RADAR · MONITORING';
