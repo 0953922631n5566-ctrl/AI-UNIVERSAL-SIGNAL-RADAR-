@@ -157,7 +157,10 @@ app.get('/api/signal', async (_req, res) => {
   if (cache.payload && Date.now() - cache.at < REFRESH_MS) return res.json(cache.payload);
   if (!inFlight) inFlight = buildSignal().finally(() => { inFlight = null; });
   const payload = await inFlight;
-  if (payload.apiStatus === 'connected') cache = { at: Date.now(), payload };
+  // Cache quota/rate-limit failures too, so the browser cannot burn credits by retrying every few seconds.
+  const cacheFor = payload.apiStatus === 'quota_exhausted' ? REFRESH_MS :
+    payload.apiStatus === 'connected' ? REFRESH_MS : 30000;
+  cache = { at: Date.now() - (REFRESH_MS - cacheFor), payload };
   res.status(200).json(payload);
 });
 
