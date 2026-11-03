@@ -92,7 +92,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
  let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
- const HOLD_MS=30000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
+ const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
   const ok=status==='connected';
   $('apiBadge').classList.toggle('off',!ok);
