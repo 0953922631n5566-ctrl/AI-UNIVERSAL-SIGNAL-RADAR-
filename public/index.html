@@ -52,14 +52,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 @keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
 @keyframes numberPulse{to{transform:scale(1.16)}}
 @media(max-height:740px){.app{gap:7px;padding:11px}.radar{min-height:220px;padding:10px}.ring{width:150px;height:150px}.stats .stat{padding:9px}.timing{padding:10px}.note{padding:9px}}
-.livepanel{padding:12px 13px;border:1px solid #24604f;border-radius:15px;background:linear-gradient(145deg,#102b2a,#101b2b)}
-.livehead{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#9ed8c8;font-size:9px;font-weight:900;letter-spacing:1px}
-.livebody{display:flex;align-items:center;justify-content:space-between;margin:7px 0 5px}
-.livebody b{font-size:25px;font-weight:1000;color:#b9c9dc}
-.livebody b.CALL{color:var(--green)}.livebody b.PUT{color:var(--red)}
-.livebody span{font-size:14px;font-weight:900;font-variant-numeric:tabular-nums}
-.livepanel p{font-size:10px;line-height:1.45;color:#c5d8e8;min-height:15px}
-.livehead .liveok{color:#63f0b7}.livehead .livebad{color:#ff9db3}
 </style>
 </head>
 <body>
@@ -84,11 +76,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="stat"><small>MARKET TREND</small><b id="regime">—</b></div>
  <div class="stat"><small>RSI 14</small><b id="rsi">—</b></div>
 </section>
-<section class="livepanel">
- <div class="livehead"><span>LIVE PRICE · NEXT M1 · APPROX. 1-MIN FEED</span><span id="liveStatus">WAITING STREAM</span></div>
- <div class="livebody"><b id="liveSignal">STANDBY</b><span id="livePrice">—</span></div>
- <p id="liveReason">กำลังรอข้อมูลราคาสดจาก Twelve Data WebSocket</p>
-</section>
 <section class="timing">
  <div class="timerow"><div class="phase" id="phase">READY TO SCAN</div><div class="clock" id="clock">00:60</div></div>
  <div class="bar"><div class="barfill" id="barfill"></div></div>
@@ -103,7 +90,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  const tg=window.Telegram&&window.Telegram.WebApp;
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
- let lockUntil=0,lockedSignal='',lastSignalCandle='';
  let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
@@ -144,19 +130,9 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   try{
    const response=await fetch('/api/live',{cache:'no-store'});
    if(!response.ok)throw new Error('HTTP '+response.status);
-   const data=await response.json();currentLiveData=data;
-   const status=$('liveStatus'),signal=$('liveSignal');
-   status.textContent=data.streamStatus==='subscribed'?'LIVE STREAM':String(data.streamStatus||'OFFLINE').toUpperCase();
-   status.className=data.streamStatus==='subscribed'?'liveok':'livebad';
-   signal.textContent=data.prediction||'STANDBY';
-   signal.className=(data.prediction==='CALL'||data.prediction==='PUT')?data.prediction:'';
-   $('livePrice').textContent=data.price||'—';
-   $('liveReason').textContent=(data.reason||'รอข้อมูลราคาสด')+(data.dataAgeSeconds==null?'':' · ราคาอายุ '+data.dataAgeSeconds+' วินาที');
+   currentLiveData=await response.json();
   }catch(e){
    currentLiveData=null;
-   $('liveStatus').textContent='OFFLINE';$('liveStatus').className='livebad';
-   $('liveSignal').textContent='STANDBY';$('liveSignal').className='';
-   $('liveReason').textContent='ไม่สามารถอ่านข้อมูล Live ได้ · '+(e.message||'API error');
   }finally{busyLive=false}
  }
  async function scan(){
@@ -179,13 +155,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
     return;
    }
-   if(lockUntil>Date.now()){
-    const left=Math.ceil((lockUntil-Date.now())/1000);
-    show(lockedSignal,'⚡ '+lockedSignal+' · คงสัญญาณตามเวลาถือ 35 วินาที · '+left+' SEC');
-    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
-    $('radarHead').textContent='SIGNAL CONFIRMED · HOLD';
-    return;
-   }
    if(data.apiStatus!=='connected') {
     show('STANDBY',data.apiMessage||'API unavailable · no signal');
    } else if(age>MAX_SIGNAL_AGE_MS) {
@@ -199,18 +168,9 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
      $('phase').textContent='WAITING FOR DUAL CONFIRMATION';
      $('radarHead').textContent='WAITING LIVE CONFIRMATION';
     } else {
-     const signalKey=String(data.datetime||'')+':'+data.signal;
-     if(signalKey!==lastSignalCandle) {
-      lastSignalCandle=signalKey;lockedSignal=data.signal;lockUntil=Date.now()+HOLD_MS;
-      show(data.signal,'✦ '+data.signal+' · ยืนยันแท่งปิดและราคาสดตรงกัน · MANUAL ONLY');
-      $('phase').textContent='✦ DUAL SIGNAL · 35 SEC HOLD';
-      $('radarHead').textContent='DUAL CONFIRMATION';
-      beep(data.signal==='CALL'?1040:260,260,3);vibrate([250,80,250,80,500]);
-     } else {
-      show('STANDBY','ครบเวลาถือสัญญาณ 35 วินาทีแล้ว · รอสัญญาณรอบใหม่');
-      $('phase').textContent='STANDBY · HOLD COMPLETE';
-      $('radarHead').textContent='WAITING NEXT SIGNAL';
-     }
+     show('STANDBY','ยืนยันข้อมูลสองทางแล้ว · รอแจ้งผลสุดท้ายก่อนเปลี่ยนแท่ง');
+     $('phase').textContent='DUAL CONFIRMED · WAIT FINAL ALERT';
+     $('radarHead').textContent='DUAL CONFIRMATION READY';
     }
    } else {
     show('STANDBY','ยังไม่มีเงื่อนไข CALL/PUT ที่ผ่านเกณฑ์');
@@ -222,10 +182,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     show(finalDecision,'ผลสุดท้าย '+finalDecision+' · ค้างอีก '+left+' วินาทีแล้วจะกลับ STANDBY');
     $('phase').textContent='FINAL RESULT HOLD · '+left+' SEC';
     $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
-   }else if(lockUntil>Date.now()){
-    const left=Math.ceil((lockUntil-Date.now())/1000);
-    show(lockedSignal,'⚡ '+lockedSignal+' · คงสัญญาณระหว่างรอครบ 35 วินาที · '+left+' SEC');
-    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
    }else{
     show('STANDBY','API connection error · signal disabled');
    }
@@ -239,7 +195,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData)return null;
@@ -280,31 +236,15 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   $('clock').textContent='00:'+String(remain).padStart(2,'0');
   $('barfill').style.width=(sec/60*100)+'%';
   $('progress').style.strokeDashoffset=251-(sec/60*251);
-  if(remainMs>5000)app.classList.remove('final-three');
-  if(lockUntil>Date.now()){
-   if(!confirmed||!confirmed.key.startsWith(String(currentData.datetime||''))) {
-    $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
-   }
-  }
   if(finalDecisionUntil&&Date.now()>=finalDecisionUntil){
    finalDecisionUntil=0;finalDecision='';
-   lockUntil=0;lockedSignal='';
+   app.classList.remove('final-three');
    show('STANDBY','ครบเวลาถือผลแจ้งเตือน 35 วินาทีแล้ว · รอรอบประเมินถัดไป');
    $('phase').textContent='STANDBY · ALERT HOLD COMPLETE';
    $('radarHead').textContent='WAITING NEXT CYCLE';
-  } else if(lockUntil&&Date.now()>=lockUntil){
-   lockUntil=0;lockedSignal='';
-   show('STANDBY','ครบเวลาถือสัญญาณ 35 วินาทีแล้ว · รอสัญญาณรอบใหม่');
-   $('phase').textContent='STANDBY · HOLD COMPLETE';
-   $('radarHead').textContent='WAITING NEXT SIGNAL';
-  } else if(lockUntil>Date.now()){
-   const left=Math.ceil((lockUntil-Date.now())/1000);
-   $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
   }
   $('coreLabel').textContent='CURRENT SIGNAL';
-  if(lockUntil>Date.now()){
-   $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
-  } else if(finalDecisionUntil>Date.now()){
+  if(finalDecisionUntil>Date.now()){
    $('phase').textContent='FINAL RESULT HOLD · '+Math.ceil((finalDecisionUntil-Date.now())/1000)+' SEC';
    $('radarHead').textContent='FINAL RESULT · HOLD 35 SEC';
   } else if(running&&remainMs<=10000&&remainMs>5000){

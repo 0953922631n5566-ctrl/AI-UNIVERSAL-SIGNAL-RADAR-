@@ -23,6 +23,13 @@ Repeat the following cycle every minute while the Mini App is open and scanning 
 5. After those 35 seconds, clear the held result and return the display to **STANDBY**, then wait for the next scheduled cycle.
 6. Repeat every M1 cycle. Prevent duplicate alerts within the same minute, but do not let duplicate-prevention logic suppress the next minute's alerts.
 
+## Single unified signal display
+- The Mini App must show exactly one visible signal lamp: CALL, PUT, or STANDBY.
+- REST closed-candle analysis and live WebSocket analysis are internal confirmation inputs only; never display a second live prediction panel or a second competing signal.
+- Before the final notification, keep the sole lamp at STANDBY. The final notification is the single point that publishes the directional result.
+- Start the 35-second hold at the exact final notification timestamp. Candle rollover must not clear the signal text, lamp illumination, or hold countdown.
+- Only when 35 seconds have elapsed from that notification may the sole lamp return to gray STANDBY.
+
 ## Sound, vibration, and display
 - The 10-second preparation alert must be perceptible.
 - The final 5-second CALL/PUT/STANDBY result must trigger the configured sound and vibration, including when the result is STANDBY.

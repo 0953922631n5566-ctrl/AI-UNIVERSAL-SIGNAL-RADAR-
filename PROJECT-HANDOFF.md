@@ -2,6 +2,14 @@
 
 Updated: 2026-11-03
 
+## Main Market single-signal production correction
+
+- Production UI is one screen and one signal lamp only: CALL / PUT / STANDBY.
+- REST and WebSocket analysis remain internal confirmation inputs; no second live-signal panel is shown.
+- Final notification starts the single 35-second hold timer. The illuminated radar state is not cleared at the next candle boundary; it resets to gray STANDBY only when the 35 seconds elapse.
+- Final decision display is the only directional output. Before the final notification, the lamp stays STANDBY even if both engines have pre-confirmed a direction.
+- No parallel test system or second production service is introduced.
+
 ## Project tracks and preservation rules
 
 1. **Main Market web app:** EUR/USD M1 Node/Express Mini App remains deployed and must not be removed or replaced while Android work continues.
@@ -75,7 +83,7 @@ The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and 
 
 - `server.js`: Twelve Data EUR/USD M1 REST feed; excludes a still-forming candle, keeps up to 220 closed candles, requires at least 20, calculates EMA(5/20) and Wilder-smoothed RSI(14), checks freshness, and caches REST results for 120 seconds. API errors/quota exhaustion return STANDBY.
 - `live-engine.js`: separate EUR/USD WebSocket subscription; requires authorization, a fresh tick (<=75 seconds), at least 20 closed candles, and two ticks with a usable 30–180 second gap before calculating momentum. Missing/stale stream or insufficient history returns STANDBY.
-- `public/index.html`: requires REST closed-candle direction and live WebSocket estimate to agree before CALL/PUT. It prevents duplicate alerts for the same candle/direction and holds the final result for 35 seconds.
+- `public/index.html`: combines REST closed-candle direction and live WebSocket estimate internally; the Mini App has exactly one visible signal lamp and no separate live prediction panel. CALL/PUT is issued only when both engines agree. The final alert timestamp starts one authoritative 35-second hold; both the signal text and illuminated radar remain active across candle rollover, then reset to STANDBY.
 - The signal logic is rule-based, not a trained AI/ML or chart-vision model. WebSocket cadence is approximately one update per minute; the final 5-second alert is not a new tick-level price confirmation.
 - The current server code does not implement the earlier server-side “signal candle, skip one candle” rotation. Same-candle duplicate suppression is not equivalent to a verified one-candle cooldown.
 - `ALERT_CONFIGURATION.md` is mandatory for future alert work.

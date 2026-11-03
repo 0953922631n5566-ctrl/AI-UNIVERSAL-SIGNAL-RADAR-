@@ -9,9 +9,9 @@ Single-market signal dashboard for **EUR/USD, 1-minute candles**.
 ### Two independent analysis engines
 
 - **Closed-candle confirmation:** Twelve Data REST `/time_series`, completed M1 bars only, EMA(5/20), Wilder-smoothed RSI(14). Historical refresh remains capped at 120 seconds to protect the REST API quota.
-- **Live next-candle estimate:** One server-side Twelve Data `/quotes/price` WebSocket subscription for EUR/USD. The engine combines the latest WebSocket price with completed-bar history and compares consecutive price updates. It is displayed separately and never overwrites the closed-candle result.
+- **Live next-candle estimate:** One server-side Twelve Data `/quotes/price` WebSocket subscription for EUR/USD. The engine combines the latest WebSocket price with completed-bar history and compares consecutive price updates. It is used internally for confirmation and is never shown as a second signal screen.
 - Live output is forced to STANDBY if the subscription is not authorized, no fresh price update arrives within 75 seconds, or the history baseline is incomplete.
-- **Entry alert gate:** the main CALL/PUT lamp and sound require both engines to agree on the same direction: a fresh closed-candle result and a fresh WebSocket estimate (quote age <= 75 seconds). A mismatch or stale quote remains STANDBY.
+- **Single unified output:** the REST closed-candle engine and live WebSocket estimate are combined internally. The Mini App shows only one CALL/PUT/STANDBY lamp; it does not display a separate live prediction panel. CALL/PUT final alerts require both engines to agree (quote age <= 75 seconds). A mismatch or stale quote remains STANDBY.
 - This is a rule-based estimate, not a trained machine-learning model or a chart-vision model. Validate the next candle after close and measure accuracy before relying on it.
 - Manual decision support only; no broker orders are placed.
 
@@ -21,7 +21,7 @@ Read [ALERT_CONFIGURATION.md](ALERT_CONFIGURATION.md) before changing alert code
 
 - 10 seconds before each M1 boundary: preparation sound/vibration alert, even if the current decision is STANDBY.
 - 5 seconds before each M1 boundary: final result must announce exactly CALL, PUT, or STANDBY; STANDBY also triggers the configured alert.
-- Every final result remains visible for 35 seconds, then the display resets to STANDBY.
+- Every final result and its illuminated radar state remain visible for exactly 35 seconds from the final notification timestamp, independent of the M1 candle boundary; then the display resets to STANDBY.
 - This is client-side notification/display behavior, not a 5-second market-data confirmation. The WebSocket cadence is approximately one update per minute.
 - Basic/Grow plans may not authorize EUR/USD WebSocket access; the live panel must report unavailable rather than fabricate a quote.
 
