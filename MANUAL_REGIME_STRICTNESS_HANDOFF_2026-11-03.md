@@ -1,3 +1,5 @@
+> **DEPRECATED — HISTORICAL NOTES ONLY:** This document describes an older architecture and is not the active system specification. The current branch uses Android full-screen raw OCR → `POST /api/ocr/price` → server-side price extraction, M1 6 closed candles, EMA(3/5), RSI(5), MACD(3/5/2). No Twelve Data, external market-price API, synthetic prices, or Render deployment is permitted before real device log verification.
+
 # Manual Market Regime & Signal Strictness Handoff — 2026-11-03
 
 ## Scope
