@@ -118,8 +118,12 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  }
  function vibrate(pattern){try{if(navigator.vibrate)navigator.vibrate(pattern);if(tg&&tg.HapticFeedback)tg.HapticFeedback.impactOccurred('heavy')}catch(e){}}
  function apiAge(data){
-  if(!data||!data.apiUpdatedAt)return Infinity;
-  const t=Date.parse(data.apiUpdatedAt);return Number.isFinite(t)?Date.now()-t:Infinity;
+  if(!data||!data.apiUpdatedAt||!data.datetime)return Infinity;
+  const receivedAt=Date.parse(data.apiUpdatedAt);
+  const candleAt=Date.parse(String(data.datetime).replace(' ','T')+'Z');
+  if(!Number.isFinite(receivedAt)||!Number.isFinite(candleAt))return Infinity;
+  // Require both a recent API refresh and a recent market candle before any entry alert.
+  return Math.max(Date.now()-receivedAt,Date.now()-candleAt);
  }
  async function scan(){
   if(!running||busy)return;busy=true;
