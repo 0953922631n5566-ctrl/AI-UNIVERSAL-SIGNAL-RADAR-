@@ -25,7 +25,7 @@ Repeat the following cycle every minute while the Mini App is open and scanning 
 
 ## Single unified signal display
 - The Mini App must show exactly one visible signal lamp: CALL, PUT, or STANDBY.
-- REST closed-candle analysis and live WebSocket analysis are internal confirmation inputs only; never display a second live prediction panel or a second competing signal.
+- REST supplies completed candle history and freshness only. The single NEXT M1 forecast is the only directional decision source; never add a second competing REST direction or a second forecast horizon.
 - Before the final notification, keep the sole lamp at STANDBY. The final notification is the single point that publishes the directional result.
 - Start the 35-second hold at the exact final notification timestamp. Candle rollover must not clear the signal text, lamp illumination, or hold countdown.
 - Only when 35 seconds have elapsed from that notification may the sole lamp return to gray STANDBY.
@@ -38,7 +38,7 @@ Repeat the following cycle every minute while the Mini App is open and scanning 
 - Browser/Android sound and vibration permissions and user-device behavior must be tested on the actual Xiaomi 11T. A successful server deployment alone does not prove that physical sound/vibration works.
 
 ## Signal integrity and safety
-- CALL/PUT is allowed only when the project's required confirmation logic validates it.
+- CALL/PUT is allowed only when the single NEXT M1 forecast passes its configured rules and both the REST history and WebSocket quote are fresh. REST must not produce a competing direction or act as a second directional vote.
 - If confirmation is missing or data is not fresh, announce STANDBY instead of inventing a direction.
 - This is a manual signal/decision aid only. Never place broker orders automatically.
 - Do not promise guaranteed predictions or profits.
@@ -61,3 +61,11 @@ Repeat the following cycle every minute while the Mini App is open and scanning 
 - [ ] No automatic broker order execution is introduced.
 
 **Instruction to the next room:** Treat this file as the source of truth for alert behavior. Read it before editing alert code. Preserve every item exactly unless the user explicitly requests a change.
+
+
+## Single-horizon update — 2026-11-03
+- User authorized removing the second forecast horizon and the legacy REST directional engine.
+- The only forecast horizon is NEXT M1 (the immediately upcoming 1-minute candle).
+- REST is history/freshness input only; it no longer calculates a competing CALL/PUT direction.
+- The NEXT M1 forecast alone supplies the final directional decision when the data-health guards pass.
+- Keep all existing alert timing and 35-second hold requirements unchanged.
