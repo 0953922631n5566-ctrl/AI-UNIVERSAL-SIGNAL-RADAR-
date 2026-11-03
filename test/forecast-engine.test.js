@@ -31,3 +31,44 @@ test('changing the latest closed candle changes the candle key used for a new de
   const second=evaluateNextCandle(candles);
   assert.notEqual(first.lastClosedAt,second.lastClosedAt);
 });
+
+test('directional results must agree with both EMA trend and latest closed candle body',()=>{
+  const candles=sampleCandles();
+  const r=evaluateNextCandle(candles);
+  if(r.signal==='CALL'){
+    assert.equal(r.trend,'UPTREND');
+    assert.equal(r.candleDirection,'BULLISH');
+  }
+  if(r.signal==='PUT'){
+    assert.equal(r.trend,'DOWNTREND');
+    assert.equal(r.candleDirection,'BEARISH');
+  }
+});
+test('a bullish latest candle during a downtrend must not produce PUT',()=>{
+  const candles=Array.from({length:80},(_,i)=>{
+    const close=1.2-i*0.00002;
+    const open=close+0.00001;
+    return {datetime:new Date(Date.UTC(2026,0,1,0,i)).toISOString().slice(0,19).replace('T',' '),
+      open,high:Math.max(open,close)+0.00001,low:Math.min(open,close)-0.00001,close};
+  });
+  const last=candles.at(-1);
+  last.open=last.close-0.00001; // latest completed candle is bullish against the broader downtrend
+  const r=evaluateNextCandle(candles);
+  assert.equal(r.trend,'DOWNTREND');
+  assert.equal(r.candleDirection,'BULLISH');
+  assert.equal(r.signal,'STANDBY');
+});
+test('a bearish latest candle during an uptrend must not produce CALL',()=>{
+  const candles=Array.from({length:80},(_,i)=>{
+    const close=1.08+i*0.00002;
+    const open=close-0.00001;
+    return {datetime:new Date(Date.UTC(2026,0,1,0,i)).toISOString().slice(0,19).replace('T',' '),
+      open,high:Math.max(open,close)+0.00001,low:Math.min(open,close)-0.00001,close};
+  });
+  const last=candles.at(-1);
+  last.open=last.close+0.00001; // latest completed candle is bearish against the broader uptrend
+  const r=evaluateNextCandle(candles);
+  assert.equal(r.trend,'UPTREND');
+  assert.equal(r.candleDirection,'BEARISH');
+  assert.equal(r.signal,'STANDBY');
+});
