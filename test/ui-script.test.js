@@ -16,4 +16,6 @@ test('Mini App client hold timer matches the 35-second alert contract', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
   assert.match(html, /const HOLD_MS=35000/);
   assert.match(html, /RESULT LAST 5S/);
+  assert.match(html, /FINAL 5 SECONDS/);
+  assert.doesNotMatch(html, /FINAL 3 SECONDS|ช่วง 3 วินาทีสุดท้าย/);
 });
