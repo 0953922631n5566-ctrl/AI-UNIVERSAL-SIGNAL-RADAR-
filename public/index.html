@@ -22,7 +22,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 @keyframes apiPulse{0%,100%{opacity:1;box-shadow:0 0 5px #35f0b0}50%{opacity:.35;box-shadow:0 0 17px #35f0b0}}
 .market{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:#101b2b}
 .eyebrow{font-size:9px;letter-spacing:1.5px;color:var(--muted);font-weight:800}.pair{font-size:21px;font-weight:900;letter-spacing:.5px;margin-top:4px}.marketTag{color:#81dfff;font-size:9px;font-weight:900;letter-spacing:1px;margin-top:3px}
-.pricebox{text-align:right}.pricebox small{display:block;color:var(--muted);font-size:9px}.pricebox b{display:block;font-size:15px;margin-top:5px;font-variant-numeric:tabular-nums}
+.pricebox{text-align:right;min-width:118px}.pricebox small{display:block;color:var(--muted);font-size:9px;line-height:1.35}.pricebox b{display:block;font-size:15px;margin:4px 0;font-variant-numeric:tabular-nums}.pricebox small.stale{color:var(--red)}.pricebox small.live{color:var(--green)}
 .radar{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:265px;padding:17px 12px 14px;border:1px solid #29435f;border-radius:20px;background:radial-gradient(circle at 50% 42%,#18304d 0%,#101b2d 48%,#0d1524 100%);overflow:hidden;transition:all .25s}
 .radar:before{content:"";position:absolute;width:250px;height:250px;border:1px solid #65dfff12;border-radius:50%;box-shadow:0 0 0 22px #65dfff08,0 0 0 48px #65dfff05}
 .radarHead{position:relative;z-index:1;font-size:10px;letter-spacing:2px;color:#a9bfd7;font-weight:900}
@@ -62,7 +62,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 </header>
 <section class="market">
  <div><div class="eyebrow">LIVE MARKET</div><div class="pair">EUR / USD</div><div class="marketTag">NON-OTC · 1 MINUTE</div></div>
- <div class="pricebox"><small>LAST API PRICE</small><b id="price">—</b></div>
+ <div class="pricebox"><small id="priceLabel">LIVE PRICE · WAITING</small><b id="price">—</b><small id="priceMeta">รอราคาสดจาก WebSocket</small><small id="restPrice">LAST CLOSED M1 · —</small></div>
 </section>
 <section class="radar">
  <div class="radarHead" id="radarHead">SIGNAL RADAR · STANDBY</div>
@@ -125,6 +125,24 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(!Number.isFinite(receivedAt)||!Number.isFinite(candleClosedAt))return Infinity;
   return Math.max(Date.now()-receivedAt,Date.now()-candleClosedAt);
  }
+ function liveQuoteAgeSeconds(){
+  if(!currentLiveData||!currentLiveData.timestamp)return Infinity;
+  const ts=Date.parse(currentLiveData.timestamp);
+  if(!Number.isFinite(ts))return Infinity;
+  return Math.max(0,(Date.now()-ts)/1000);
+ }
+ function renderPrice(){
+  const age=liveQuoteAgeSeconds();
+  const liveOk=currentLiveData&&currentLiveData.streamStatus==='subscribed'&&
+   Number.isFinite(age)&&age<=75&&currentLiveData.price&&currentLiveData.price!=='—';
+  $('priceLabel').textContent=liveOk?'LIVE WEBSOCKET PRICE':'LIVE PRICE · STALE';
+  $('price').textContent=liveOk?currentLiveData.price:'—';
+  $('priceMeta').textContent=liveOk
+   ?'อัปเดต '+new Date(currentLiveData.timestamp).toLocaleTimeString('th-TH')+' · '+Math.floor(age)+'s'
+   :'ไม่มี Tick สดที่ยืนยันได้ · งดใช้ราคานี้';
+  $('priceMeta').className=liveOk?'live':'stale';
+  $('restPrice').textContent='LAST CLOSED M1 · '+(currentData&&currentData.price?currentData.price:'—');
+ }
  function renderForecast(){
   const forecasts=currentLiveData&&currentLiveData.forecastHorizons;
   if(!forecasts){$('forecast').textContent='NEXT M1: STANDBY · FOLLOWING M1: STANDBY · WAITING FOR LIVE DATA';return}
@@ -137,9 +155,9 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   try{
    const response=await fetch('/api/live',{cache:'no-store'});
    if(!response.ok)throw new Error('HTTP '+response.status);
-   currentLiveData=await response.json();renderForecast();
+   currentLiveData=await response.json();renderForecast();renderPrice();
   }catch(e){
-   currentLiveData=null;renderForecast();
+   currentLiveData=null;renderForecast();renderPrice();
   }finally{busyLive=false}
  }
  async function scan(){
@@ -149,7 +167,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    if(!response.ok)throw new Error('HTTP '+response.status);
    const data=await response.json();currentData=data;
    setApi(data.apiStatus||'error');
-   $('price').textContent=data.price&&data.price!=='—'?data.price:'—';
+   renderPrice();
    $('regime').textContent=data.regime||'—';
    $('rsi').textContent=data.rsi==null?'—':data.rsi;
    $('reason').textContent=data.reason||data.apiMessage||'—';
@@ -209,11 +227,13 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
   const direction=currentData.signal;
   if(direction!=='CALL'&&direction!=='PUT')return null;
+  const liveAge=liveQuoteAgeSeconds();
   if(currentLiveData.streamStatus!=='subscribed'||currentLiveData.prediction!==direction||
-     !Number.isFinite(currentLiveData.dataAgeSeconds)||currentLiveData.dataAgeSeconds>75)return null;
+     !Number.isFinite(liveAge)||liveAge>75)return null;
   return {direction,key:String(currentData.datetime||'')+':'+direction};
  }
  function tick(){
+  renderPrice();
   const now=new Date(),sec=now.getSeconds(),remain=60-sec;
   const remainMs=60000-(Date.now()%60000);
   const minuteKey=Math.floor(Date.now()/60000);
