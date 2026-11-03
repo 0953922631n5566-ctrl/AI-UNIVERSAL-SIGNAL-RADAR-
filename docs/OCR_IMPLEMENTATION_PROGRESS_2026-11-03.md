@@ -33,3 +33,19 @@ All backend frame decisions remain STANDBY. The image OCR is a candidate-extract
 - OCR backend is not deployed and `RADAR_INGEST_TOKEN` is not configured.
 - The Android APK artifact was built before the OCR crop-only backend fix; Android sources did not change in that fix, so the APK binary itself is unaffected.
 - Do not install this APK as a working capture client until backend URL and secret are configured and a new APK is built. No live device test has occurred.
+
+
+## Render deployment and APK test — 2026-11-03 (later update)
+- Dedicated Render web service created: `ai-signal-radar-ocr-api`, service ID `srv-dbkul22jnfac73a0pm8g`, Singapore region, Free plan, branch `feature/xiaomi11t-8xtrade-ocr-nonotc`.
+- Backend URL: `https://ai-signal-radar-ocr-api.onrender.com`.
+- Runtime secret `RADAR_INGEST_TOKEN` was configured in Render environment variables (secret value intentionally not stored in Git/docs).
+- Render deployment for commit `e510945175f88aa1b79a7952b9cedebb7c1f3f0f` reached LIVE, deploy ID `dep-dbkul5k830cc73f7tb50`.
+- Public health endpoint verified successfully: `/health` returned `{"ok":true,"service":"ai-universal-signal-radar","analysis":"standby-only"}`.
+- Android workflow run `41650575416` completed SUCCESS with all build steps passing. APK artifact ID `13236633464`, size 820,885 bytes in ZIP; built APK size 827,677 bytes. Extracted APK SHA-256: `539d64b63f6ff8066298ab69525ec33d672fe13c2a19900d88a52f602f1e3947`.
+- Screenshot OCR fixture re-run on the uploaded 1536x691 image using OpenCV/Tesseract 5.5.0 returned `1.118315` for the orange badge (bbox `1233,310,117,32`); a separate orange contour at the lower-right was rejected.
+- The earlier service `ai-signal-radar-ocr-capture` was a failed setup attempt caused by Docker context/Dockerfile path mismatch; it is not the active endpoint. Use only `ai-signal-radar-ocr-api`.
+
+## Still requires user-device validation
+- No physical Xiaomi 11T screen-capture/upload test has yet occurred. User must install this APK, enter the private backend token, grant screen-capture permission, and run it while 8xTrade EUR/USD is visible.
+- Backend currently returns PRICE_CANDIDATE_ONLY or ORANGE_BADGE_NOT_FOUND and ALWAYS STANDBY. It does not classify NON-OTC, build candles, calculate EMA/RSI/MACD, or emit CALL/PUT.
+- Do not trade from this APK. It is a capture/OCR connectivity test build only.
