@@ -9,7 +9,7 @@ const API_URL = 'https://api.twelvedata.com/time_series';
 
 // Free-tier protection: at most one Twelve Data refresh every 120 seconds.
 // 24/7 continuous scanning is therefore capped at about 720 refreshes/day.
-const REFRESH_MS = 120000;
+const REFRESH_MS = 60000; // one history refresh per M1 candle (up to 1,440 calls/day)
 const HISTORY_SIZE = 200;
 const KEEP_CANDLES = 220;
 
@@ -33,7 +33,7 @@ async function buildSignal() {
     const outputsize = hasWarmHistory ? 2 : HISTORY_SIZE;
     const url = new URL(API_URL);
     url.search = new URLSearchParams({
-      symbol: 'EUR/USD', interval: '1min', outputsize: String(outputsize),
+      symbol: 'EUR/USD', interval: '1min', outputsize: String(hasWarmHistory ? 3 : HISTORY_SIZE),
       timezone: 'UTC', apikey: apiKey
     }).toString();
 
@@ -111,7 +111,7 @@ async function buildSignal() {
 
 app.get('/health', (_req, res) => res.json({
   status: 'ok', historyCandles: candleStore.size,
-  refreshIntervalSeconds: REFRESH_MS / 1000,
+  refreshIntervalSeconds: REFRESH_MS / 1000, pollingMode: 'M1_CANDLE_CLOSE',
   liveStream: liveEngine ? liveEngine.getStatus() : { status: 'starting' }
 }));
 
@@ -137,8 +137,21 @@ app.listen(PORT, () => {
     Array.from(candleStore.values()).sort((a, b) => a.datetime.localeCompare(b.datetime))
   );
 
-  // Warm the historical candle store automatically at server startup.
-  // The live engine needs this REST history; users must not wait for new M1 bars.
+  // Align one REST refresh just after every UTC M1 boundary.
+  // Each refresh ingests completed bars and recomputes only when a new candle closes.
+  function scheduleMinuteRefresh() {
+    const delay = 60000 - (Date.now() % 60000) + 2000;
+    setTimeout(async () => {
+      try {
+        const payload = await buildSignal();
+        cache = { at: Date.now(), payload };
+        console.log('M1 close refresh:', payload.apiStatus, 'candles:', payload.candlesLoaded || candleStore.size);
+      } catch (err) { console.error('M1 refresh failed:', err.message); }
+      scheduleMinuteRefresh();
+    }, delay);
+  }
+  scheduleMinuteRefresh();
+
   if (process.env.TWELVE_DATA_API_KEY) {
     if (!inFlight) {
       inFlight = buildSignal()
