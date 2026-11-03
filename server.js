@@ -7,11 +7,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_URL = 'https://api.twelvedata.com/time_series';
 
-// Free-tier protection: at most one Twelve Data refresh every 120 seconds.
-// 24/7 continuous scanning is therefore capped at about 720 refreshes/day.
+// One Twelve Data REST refresh immediately after each UTC M1 candle closes.
 const REFRESH_MS = 60000; // one history refresh per M1 candle (up to 1,440 calls/day)
 const HISTORY_SIZE = 200;
 const KEEP_CANDLES = 220;
+
+let candleStore = new Map();
+let hasWarmHistory = false;
+let cache = { at: 0, payload: null };
+let inFlight = null;
+let liveEngine = null;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -30,7 +35,6 @@ async function buildSignal() {
     'กรุณากำหนด TWELVE_DATA_API_KEY ใน Render Environment', 'ยังไม่มี API key');
 
   try {
-    const outputsize = hasWarmHistory ? 2 : HISTORY_SIZE;
     const url = new URL(API_URL);
     url.search = new URLSearchParams({
       symbol: 'EUR/USD', interval: '1min', outputsize: String(hasWarmHistory ? 3 : HISTORY_SIZE),
