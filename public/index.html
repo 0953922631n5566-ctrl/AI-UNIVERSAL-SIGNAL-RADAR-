@@ -95,7 +95,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
 <section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p></section>
-<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">DUAL CHECK · REST 120S + LIVE</span></footer>
+<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + 3S · DUAL CHECK</span></footer>
 </main>
 <script>
 (()=>{
@@ -104,6 +104,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
  let lockUntil=0,lockedSignal='',lastSignalCandle='';
+ let preAlert10Key='',finalAlert3Key='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
   const ok=status==='connected';
@@ -208,22 +209,51 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
   if(running){setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'}
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';preAlert10Key='';finalAlert3Key='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+ }
+ function confirmedSignalForAlert(){
+  if(!running||!currentData||!currentLiveData)return null;
+  if(currentData.apiStatus!=='connected'||apiAge(currentData)>MAX_SIGNAL_AGE_MS)return null;
+  const direction=currentData.signal;
+  if(direction!=='CALL'&&direction!=='PUT')return null;
+  if(currentLiveData.streamStatus!=='subscribed'||currentLiveData.prediction!==direction||
+     !Number.isFinite(currentLiveData.dataAgeSeconds)||currentLiveData.dataAgeSeconds>75)return null;
+  return {direction,key:String(currentData.datetime||'')+':'+direction};
  }
  function tick(){
   const now=new Date(),sec=now.getSeconds(),remain=60-sec;
+  const remainMs=60000-(Date.now()%60000);
+  const confirmed=confirmedSignalForAlert();
+  if(confirmed){
+   if(remainMs<=10000&&remainMs>3000&&preAlert10Key!==confirmed.key){
+    preAlert10Key=confirmed.key;
+    $('phase').textContent='PREPARE ORDER · 10 SEC';
+    $('message').textContent='เตรียมตรวจราคาโบรกเกอร์ · '+confirmed.direction+' · เหลือประมาณ 10 วินาที';
+    beep(880,180,2);vibrate([180,90,180]);
+   }
+   if(remainMs<=3000&&remainMs>0&&finalAlert3Key!==confirmed.key){
+    finalAlert3Key=confirmed.key;
+    $('phase').textContent='ENTRY WINDOW · 3 SEC';
+    $('message').textContent='สัญญาณ '+confirmed.direction+' ยังผ่านสองทาง · ตรวจราคาโบรกเกอร์ก่อนกด Order';
+    app.classList.add('final-three');
+    beep(1320,150,3);vibrate([250,70,250,70,400]);
+   }
+  }
   $('clock').textContent='00:'+String(remain).padStart(2,'0');
   $('barfill').style.width=(sec/60*100)+'%';
   $('progress').style.strokeDashoffset=251-(sec/60*251);
-  app.classList.remove('final-three');
+  if(remainMs>3000)app.classList.remove('final-three');
   if(lockUntil>Date.now()){
-   $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
-   if(running)show(lockedSignal,'⚡ '+lockedSignal+' · MANUAL ONLY · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
-   return;
+   if(!confirmed||!confirmed.key.startsWith(String(currentData.datetime||''))) {
+    $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
+   }
   }
   if(lockUntil&&Date.now()>=lockUntil){lockUntil=0;lockedSignal='';}
   $('coreLabel').textContent='CURRENT SIGNAL';
-  if(running&&currentData&&currentData.apiStatus==='connected'){
+  if(confirmed&&remainMs>10000){
+   $('phase').textContent='DUAL SIGNAL · WAITING ENTRY WINDOW';
+   $('radarHead').textContent='DUAL CONFIRMATION';
+  } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>3000){
    $('phase').textContent='API CHECK · EVERY 120 SEC';
    $('radarHead').textContent='SIGNAL RADAR · MONITORING';
   } else if(!running) {
