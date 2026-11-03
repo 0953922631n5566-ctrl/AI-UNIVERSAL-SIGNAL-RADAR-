@@ -266,10 +266,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
   } else if(confirmed&&remainMs<=10000){
    $('phase').textContent='PREPARE ORDER · 10 SEC';
-   $('radarHead').textContent='DUAL SIGNAL CONFIRMED';
+   $('radarHead').textContent='NEXT M1 FORECAST READY';
   } else if(confirmed){
-   $('phase').textContent='DUAL SIGNAL · WAITING ENTRY WINDOW';
-   $('radarHead').textContent='DUAL CONFIRMATION';
+   $('phase').textContent='NEXT M1 SIGNAL · WAITING ENTRY WINDOW';
+   $('radarHead').textContent='NEXT M1 FORECAST';
   } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>10000){
    $('phase').textContent='API CHECK · EVERY 120 SEC';
    $('radarHead').textContent='SIGNAL RADAR · MONITORING';
