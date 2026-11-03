@@ -74,7 +74,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const candles = mergedClosedCandles();
     const analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
     latestAnalysis = analysis;
-    if (!analysis.ready || analysis.isSideway) return;
+    if (!analysis.ready || (analysis.isSideway && analysis.candidate === 'WAIT')) return;
     const minuteKey = Math.floor(now / 60000);
     if (signalState.signal === 'WAIT' && signalState.minuteKey !== minuteKey &&
         analysis.exactTimeLeft <= 5.0 && analysis.exactTimeLeft >= 0) {
