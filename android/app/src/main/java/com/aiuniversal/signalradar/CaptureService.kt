@@ -43,7 +43,7 @@ class CaptureService : Service() {
         private const val CHANNEL_ID = "radar_capture"
         private const val NOTIFICATION_ID = 73
         private const val OCR_INTERVAL_MS = 1000L
-        private const val UPLOAD_URL = BuildConfig.BACKEND_URL + "/api/upload-screen"
+        private const val UPLOAD_URL = BuildConfig.BACKEND_URL + "/api/ocr/price"
     }
 
     private var projection: MediaProjection? = null
@@ -160,6 +160,7 @@ class CaptureService : Service() {
         ) ?: throw IllegalStateException("สร้าง VirtualDisplay ไม่สำเร็จ")
     }
 
+    // OCR the entire visible screen; price parsing belongs to the server.
     private fun processFrame(image: Image) {
         val width = image.width
         val height = image.height
@@ -167,72 +168,46 @@ class CaptureService : Service() {
         val pixelStride = plane.pixelStride
         val rowPadding = plane.rowStride - pixelStride * width
         val paddedWidth = width + rowPadding / pixelStride
-        val full = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
-        full.copyPixelsFromBuffer(plane.buffer)
+        val padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+        padded.copyPixelsFromBuffer(plane.buffer)
         image.close()
-
-        val cropLeft = (width * 0.80f).toInt().coerceAtMost(width - 1)
-        val cropTop = (height * 0.12f).toInt()
-        val cropWidth = (width - cropLeft).coerceAtLeast(1)
-        val cropHeight = (height * 0.78f).toInt().coerceAtMost(height - cropTop).coerceAtLeast(1)
-        val badgeCrop = Bitmap.createBitmap(full, cropLeft, cropTop, cropWidth, cropHeight)
-        full.recycle()
-        val enlarged = Bitmap.createScaledBitmap(badgeCrop, badgeCrop.width * 2, badgeCrop.height * 2, true)
-        badgeCrop.recycle()
-
-        recognizer.process(InputImage.fromBitmap(enlarged, 0))
+        val fullScreen = Bitmap.createBitmap(padded, 0, 0, width, height)
+        padded.recycle()
+        recognizer.process(InputImage.fromBitmap(fullScreen, 0))
             .addOnSuccessListener { result ->
-                val matches = Regex("""(?<!\d)([01]\.\d{4,6})(?!\d)""")
-                    .findAll(result.text)
-                    .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
-                    .filter { it in 0.5..2.0 }
-                    .toList()
-                val detected = matches.firstOrNull()
-                if (detected != null) uploadPrice(detected)
+                if (result.text.isNotBlank()) uploadRawText(result.text)
             }
-            .addOnFailureListener { /* Keep scanning; next fresh frame will retry. */ }
-            .addOnCompleteListener { enlarged.recycle() }
+            .addOnFailureListener { sendStatus(ACTION_FAILED, "OCR failed; retrying next frame") }
+            .addOnCompleteListener { fullScreen.recycle() }
     }
 
-    private fun uploadPrice(price: Double) {
+    private fun uploadRawText(rawText: String) {
         if (!uploadInProgress.compareAndSet(false, true)) return
         val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
         network.execute {
             var connection: HttpURLConnection? = null
             try {
                 connection = (URL(UPLOAD_URL).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 7000
-                    readTimeout = 7000
-                    doOutput = true
+                    requestMethod = "POST"; connectTimeout = 7000; readTimeout = 7000; doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    setRequestProperty("x-ocr-token", token)
+                    setRequestProperty("X-API-Token", token)
                 }
-                val body = JSONObject()
-                    .put("detectedPrice", price)
-                    .put("timestamp", System.currentTimeMillis())
-                    .put("symbol", "EUR/USD")
-                    .put("source", "ANDROID_OCR_ML_KIT")
-                    .toString()
+                val body = JSONObject().put("symbol", "EUR/USD").put("market", "OTC")
+                    .put("rawText", rawText).put("timestamp", System.currentTimeMillis()).toString()
                 connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
                 val code = connection.responseCode
                 val stream = if (code in 200..299) connection.inputStream else connection.errorStream
                 val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val json = try { JSONObject(response) } catch (_: Exception) { JSONObject() }
                 if (code in 200..299) {
-                    val json = JSONObject(response)
-                    sendPriceStatus(price, json.optString("signal", "STANDBY"), "ส่งราคาเข้า Server แล้ว")
-                } else {
-                    sendStatus(ACTION_FAILED, "Server ตอบ HTTP $code — ตรวจ Token หรือการเชื่อมต่อ")
-                }
+                    sendPriceStatus(json.optString("currentPrice", "OCR received"),
+                        json.optString("status", "STANDBY"), json.optString("reason", "rawText received"))
+                } else sendStatus(ACTION_FAILED, "Server HTTP $code: ${json.optString("reason", "check token/OCR")}")
             } catch (e: Exception) {
-                sendStatus(ACTION_FAILED, "ส่งราคาไม่สำเร็จ: ${e.javaClass.simpleName}")
-            } finally {
-                connection?.disconnect()
-                uploadInProgress.set(false)
-            }
+                sendStatus(ACTION_FAILED, "rawText upload failed: ${e.javaClass.simpleName}")
+            } finally { connection?.disconnect(); uploadInProgress.set(false) }
         }
     }
-
     private fun sendPriceStatus(price: Double, signal: String, message: String) {
         val intent = Intent(ACTION_PRICE).setPackage(packageName)
             .putExtra(EXTRA_PRICE, price.toString())
