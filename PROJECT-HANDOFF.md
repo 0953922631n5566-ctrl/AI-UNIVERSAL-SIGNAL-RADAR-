@@ -79,6 +79,17 @@ The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and 
 - It deliberately returns `STANDBY` with `VISION_ADAPTER_NOT_CONFIGURED`. There is no perception model, decision model, model configuration, evaluation set, or inference test.
 - The FastAPI service is not deployed in Render. Existing Render services are Node/Static Site services for the Main Market web app, not this frame-ingestion API.
 
+## Main Market single-horizon forecast simplification — 2026-11-03
+
+- User explicitly requested removal of the additional analysis layers and retention of only one next-candle M1 forecast.
+- `forecast-engine.js` now exports `evaluateNextCandle` only; FOLLOWING M1 was removed.
+- `live-engine.js` exposes one `forecast` object and uses it as the sole directional forecast.
+- `server.js` now uses REST only for closed-candle history and freshness checks. The former REST EMA5/EMA20/RSI direction output was removed.
+- `public/index.html` displays only NEXT M1 and the final alert uses that forecast directly. The former requirement that REST CALL/PUT and WebSocket CALL/PUT agree was removed.
+- Existing NEXT M1 six checks and 5-of-6 threshold were retained; freshness requirements remain (REST candle age <=180s, live quote <=75s, WebSocket subscribed, >=35 closed candles, momentum from two ticks 30–180s apart).
+- Alert schedule and behavior remain: preparation at 10s, final result at 5s, CALL/PUT/STANDBY all held 35s, manual-only/no-auto-trade.
+- Do not describe this as guaranteed accuracy. Device-side sound/vibration still needs Xiaomi 11T verification.
+
 ## Main Market live-price display correction — 2026-11-03
 
 - Production UI now displays the latest WebSocket EUR/USD quote as the main **LIVE PRICE**.
