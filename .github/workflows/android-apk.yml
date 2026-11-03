@@ -3,7 +3,7 @@ name: Android APK Build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/xiaomi11t-8xtrade-ocr-nonotc]
     paths:
       - "android/**"
       - ".github/workflows/android-apk.yml"
