@@ -41,16 +41,23 @@ function macd(values) {
     previousHistogram: valid.at(-2) - prevSignal
   };
 }
-function standby(reason, lastClosedAt = null, nextCandleAt = null) {
-  return { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6',
-    horizon: 1, lastClosedAt, nextCandleAt, validFor: 'NEXT_M1_ONLY', reason };
+function standby(reason, lastClosedAt = null, nextCandleAt = null, trend = 'SIDEWAYS', candleDirection = 'NEUTRAL') {
+  return {
+    signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6',
+    horizon: 1, lastClosedAt, nextCandleAt, validFor: 'NEXT_M1_ONLY',
+    trend, trendLabel: trend === 'UPTREND' ? 'ขาขึ้น' : trend === 'DOWNTREND' ? 'ขาลง' : 'ไซด์เวย์',
+    candleDirection, candleLabel: candleDirection === 'BULLISH' ? 'แท่งเขียว · ขึ้น'
+      : candleDirection === 'BEARISH' ? 'แท่งแดง · ลง' : 'แท่งกลาง · ไม่ชัด',
+    reason
+  };
 }
 function evaluateNextCandle(closedCandles) {
   const candles = Array.isArray(closedCandles) ? closedCandles.slice(-220) : [];
   if (candles.length < 35) return standby('ต้องมีแท่ง M1 ที่ปิดแล้วอย่างน้อย 35 แท่ง');
   const closes = candles.map(c => Number(c.close));
-  const last = candles.at(-1);
-  if (!closes.every(Number.isFinite) || ![Number(last.open), Number(last.close)].every(Number.isFinite))
+  const last = candles.at(-1), previous = candles.at(-2);
+  if (!closes.every(Number.isFinite) ||
+      ![Number(last.open), Number(last.close), Number(previous.close)].every(Number.isFinite))
     return standby('ข้อมูลแท่งปิดไม่สมบูรณ์');
   const e5 = ema(closes, 5), e20 = ema(closes, 20);
   const e5Prev = ema(closes.slice(0, -1), 5), e20Prev = ema(closes.slice(0, -1), 20);
@@ -62,6 +69,10 @@ function evaluateNextCandle(closedCandles) {
   const nextCandleAt = lastClosedAt;
   const bodyUp = Number(last.close) > Number(last.open);
   const bodyDown = Number(last.close) < Number(last.open);
+  const candleDirection = bodyUp ? 'BULLISH' : bodyDown ? 'BEARISH' : 'NEUTRAL';
+  // Trend is deliberately stricter than a single candle colour: EMA order and both EMA slopes must agree.
+  const trend = e5 > e20 && e5 > e5Prev && e20 >= e20Prev ? 'UPTREND'
+    : e5 < e20 && e5 < e5Prev && e20 <= e20Prev ? 'DOWNTREND' : 'SIDEWAYS';
   const votesUp = [e5 > e20, e5 > e5Prev && e20 > e20Prev,
     m.histogram > 0, m.histogram > m.previousHistogram,
     strength >= 52 && strength <= 70, bodyUp];
@@ -69,17 +80,30 @@ function evaluateNextCandle(closedCandles) {
     m.histogram < 0, m.histogram < m.previousHistogram,
     strength >= 30 && strength <= 48, bodyDown];
   const up = votesUp.filter(Boolean).length, down = votesDown.filter(Boolean).length;
-  let signal = 'STANDBY', votes = 0;
-  if (up >= 5 && up - down >= 3) { signal = 'CALL'; votes = up; }
-  else if (down >= 5 && down - up >= 3) { signal = 'PUT'; votes = down; }
-  else votes = Math.max(up, down);
+  let signal = 'STANDBY', votes = Math.max(up, down);
+  // Never publish a counter-trend signal: the EMA trend AND the latest closed candle body must align.
+  if (up >= 5 && up - down >= 3 && trend === 'UPTREND' && candleDirection === 'BULLISH') {
+    signal = 'CALL'; votes = up;
+  } else if (down >= 5 && down - up >= 3 && trend === 'DOWNTREND' && candleDirection === 'BEARISH') {
+    signal = 'PUT'; votes = down;
+  }
+  const trendLabel = trend === 'UPTREND' ? 'ขาขึ้น' : trend === 'DOWNTREND' ? 'ขาลง' : 'ไซด์เวย์';
+  const candleLabel = candleDirection === 'BULLISH' ? 'แท่งเขียว · ขึ้น'
+    : candleDirection === 'BEARISH' ? 'แท่งแดง · ลง' : 'แท่งกลาง · ไม่ชัด';
+  let reason;
+  if (signal === 'STANDBY' && trend !== 'SIDEWAYS' && candleDirection !== (trend === 'UPTREND' ? 'BULLISH' : 'BEARISH'))
+    reason = 'ทิศทางแท่งปิดล่าสุดสวนกับแนวโน้มหลัก · งดสวนเทรนด์ · STANDBY';
+  else if (signal === 'STANDBY')
+    reason = 'แนวโน้ม ' + trendLabel + ' · ' + candleLabel + ' · เงื่อนไขยังไม่ครบ 5/6 · STANDBY';
+  else
+    reason = 'ตามแนวโน้ม ' + trendLabel + ' · ' + candleLabel + ' · ผ่าน ' + votes + '/6 · ' + signal + ' สำหรับแท่ง M1 ถัดไป';
   return {
     signal, agreementScore: Math.round(votes / 6 * 100), agreementVotes: votes + '/6',
     horizon: 1, lastClosedAt, nextCandleAt, validFor: 'NEXT_M1_ONLY',
-    indicators: { ema5: Number(e5.toFixed(5)), ema20: Number(e20.toFixed(5)), rsi14: Number(strength.toFixed(1)),
-      macdHistogram: Number(m.histogram.toFixed(8)) },
-    reason: signal === 'STANDBY' ? 'แท่งปิดล่าสุดยังไม่ผ่านเกณฑ์ 5 ใน 6 ข้อ · STANDBY'
-      : 'วิเคราะห์จากแท่ง M1 ที่ปิดแล้วเท่านั้น · ' + signal + ' สำหรับแท่ง M1 ถัดไป · ผ่าน ' + votes + '/6'
+    trend, trendLabel, candleDirection, candleLabel,
+    indicators: { ema5: Number(e5.toFixed(5)), ema20: Number(e20.toFixed(5)),
+      rsi14: Number(strength.toFixed(1)), macdHistogram: Number(m.histogram.toFixed(8)) },
+    reason
   };
 }
 module.exports = { evaluateNextCandle };
