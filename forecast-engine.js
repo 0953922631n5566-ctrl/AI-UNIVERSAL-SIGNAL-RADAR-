@@ -1,4 +1,5 @@
-// Two-horizon EUR/USD M1 forecast. Scores are rule-agreement scores, NOT probabilities.
+// Closed-candle-only EUR/USD M1 decision engine.
+// A decision is calculated from completed candles and is valid for the immediately following M1 candle.
 function ema(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
   const k = 2 / (period + 1);
@@ -6,7 +7,6 @@ function ema(values, period) {
   for (let i = period; i < values.length; i++) value = values[i] * k + value * (1 - k);
   return value;
 }
-
 function rsi(values, period = 14) {
   if (!Array.isArray(values) || values.length < period + 1) return null;
   let gain = 0, loss = 0;
@@ -24,7 +24,6 @@ function rsi(values, period = 14) {
   if (avgGain === 0) return 0;
   return 100 - 100 / (1 + avgGain / avgLoss);
 }
-
 function macd(values) {
   if (values.length < 35) return null;
   const line = [];
@@ -36,72 +35,51 @@ function macd(values) {
   const valid = line.filter(Number.isFinite);
   if (valid.length < 10) return null;
   const signal = ema(valid, 9);
-  const previousSignal = ema(valid.slice(0, -1), 9);
-  const histogram = valid[valid.length - 1] - signal;
-  const previousHistogram = valid.length > 1 && previousSignal !== null
-    ? valid[valid.length - 2] - previousSignal : null;
-  return { histogram, previousHistogram };
-}
-
-function result(votes, direction, horizon, reason) {
-  const agree = votes.filter(Boolean).length;
-  const oppose = votes.filter(v => v === false).length;
-  const signal = agree >= 5 && agree - oppose >= 3 ? direction : 'STANDBY';
+  const prevSignal = ema(valid.slice(0, -1), 9);
   return {
-    signal,
-    agreementScore: Math.round((agree / votes.length) * 100),
-    agreementVotes: agree + '/' + votes.length,
-    horizon,
-    reason: signal === 'STANDBY'
-      ? reason + ' · เกณฑ์ผ่านอย่างน้อย 5 ใน 6 ข้อ'
-      : reason + ' · ผ่าน ' + agree + '/6 ตัวกรอง'
+    histogram: valid.at(-1) - signal,
+    previousHistogram: valid.at(-2) - prevSignal
   };
 }
-
-function evaluateNextCandle(closedCandles, livePrice, momentum) {
+function standby(reason, lastClosedAt = null, nextCandleAt = null) {
+  return { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6',
+    horizon: 1, lastClosedAt, nextCandleAt, validFor: 'NEXT_M1_ONLY', reason };
+}
+function evaluateNextCandle(closedCandles) {
   const candles = Array.isArray(closedCandles) ? closedCandles.slice(-220) : [];
-  const closes = candles.map(c => Number(c.close)).filter(Number.isFinite);
-  const last = candles[candles.length - 1];
-  const values = closes.concat(Number(livePrice));
-  const standby = reason => ({
-    signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6',
-    horizon: 1, reason
-  });
-  if (candles.length < 35 || !Number.isFinite(Number(livePrice)) || !last) {
-    return standby('ข้อมูลย้อนหลังไม่ครบ 35 แท่ง');
-  }
-
-  const ema5 = ema(values, 5), ema20 = ema(values, 20);
-  const ema5Prev = ema(values.slice(0, -1), 5);
-  const ema20Prev = ema(values.slice(0, -1), 20);
-  const strength = rsi(values, 14);
-  const m = macd(values);
-  if (![ema5, ema20, ema5Prev, ema20Prev, strength].every(Number.isFinite) || !m) {
-    return standby('คำนวณอินดิเคเตอร์ไม่ครบ');
-  }
-
-  const bullish = ema5 > ema20;
-  const bearish = ema5 < ema20;
-  const fastUp = ema5 > ema5Prev && ema20 > ema20Prev;
-  const fastDown = ema5 < ema5Prev && ema20 < ema20Prev;
-  const macdUp = m.histogram > 0 && (m.previousHistogram === null || m.histogram >= m.previousHistogram);
-  const macdDown = m.histogram < 0 && (m.previousHistogram === null || m.histogram <= m.previousHistogram);
-  const rsiUp = strength >= 52 && strength <= 70;
-  const rsiDown = strength >= 30 && strength <= 48;
+  if (candles.length < 35) return standby('ต้องมีแท่ง M1 ที่ปิดแล้วอย่างน้อย 35 แท่ง');
+  const closes = candles.map(c => Number(c.close));
+  const last = candles.at(-1);
+  if (!closes.every(Number.isFinite) || ![Number(last.open), Number(last.close)].every(Number.isFinite))
+    return standby('ข้อมูลแท่งปิดไม่สมบูรณ์');
+  const e5 = ema(closes, 5), e20 = ema(closes, 20);
+  const e5Prev = ema(closes.slice(0, -1), 5), e20Prev = ema(closes.slice(0, -1), 20);
+  const strength = rsi(closes, 14), m = macd(closes);
+  if (![e5,e20,e5Prev,e20Prev,strength].every(Number.isFinite) || !m)
+    return standby('คำนวณข้อมูลจากแท่งปิดไม่ครบ');
+  const lastStart = Date.parse(String(last.datetime).replace(' ', 'T') + 'Z');
+  const lastClosedAt = Number.isFinite(lastStart) ? new Date(lastStart + 60000).toISOString() : null;
+  const nextCandleAt = lastClosedAt;
   const bodyUp = Number(last.close) > Number(last.open);
   const bodyDown = Number(last.close) < Number(last.open);
-  const momentumUp = Number.isFinite(momentum) && momentum > 0.000005;
-  const momentumDown = Number.isFinite(momentum) && momentum < -0.000005;
-
-  if (bullish) return result(
-    [bullish, fastUp, macdUp, rsiUp, bodyUp, momentumUp],
-    'CALL', 1, 'แท่ง M1 ถัดไป: EMA5/20, MACD, RSI, แท่งปิด และ Momentum'
-  );
-  if (bearish) return result(
-    [bearish, fastDown, macdDown, rsiDown, bodyDown, momentumDown],
-    'PUT', 1, 'แท่ง M1 ถัดไป: EMA5/20, MACD, RSI, แท่งปิด และ Momentum'
-  );
-  return standby('EMA5/EMA20 ยังไม่แยกทิศทาง');
+  const votesUp = [e5 > e20, e5 > e5Prev && e20 > e20Prev,
+    m.histogram > 0, m.histogram > m.previousHistogram,
+    strength >= 52 && strength <= 70, bodyUp];
+  const votesDown = [e5 < e20, e5 < e5Prev && e20 < e20Prev,
+    m.histogram < 0, m.histogram < m.previousHistogram,
+    strength >= 30 && strength <= 48, bodyDown];
+  const up = votesUp.filter(Boolean).length, down = votesDown.filter(Boolean).length;
+  let signal = 'STANDBY', votes = 0;
+  if (up >= 5 && up - down >= 3) { signal = 'CALL'; votes = up; }
+  else if (down >= 5 && down - up >= 3) { signal = 'PUT'; votes = down; }
+  else votes = Math.max(up, down);
+  return {
+    signal, agreementScore: Math.round(votes / 6 * 100), agreementVotes: votes + '/6',
+    horizon: 1, lastClosedAt, nextCandleAt, validFor: 'NEXT_M1_ONLY',
+    indicators: { ema5: Number(e5.toFixed(5)), ema20: Number(e20.toFixed(5)), rsi14: Number(strength.toFixed(1)),
+      macdHistogram: Number(m.histogram.toFixed(8)) },
+    reason: signal === 'STANDBY' ? 'แท่งปิดล่าสุดยังไม่ผ่านเกณฑ์ 5 ใน 6 ข้อ · STANDBY'
+      : 'วิเคราะห์จากแท่ง M1 ที่ปิดแล้วเท่านั้น · ' + signal + ' สำหรับแท่ง M1 ถัดไป · ผ่าน ' + votes + '/6'
+  };
 }
-
 module.exports = { evaluateNextCandle };
