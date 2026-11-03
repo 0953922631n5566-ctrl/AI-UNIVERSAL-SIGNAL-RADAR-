@@ -100,8 +100,8 @@ function evaluateTwoHorizons(closedCandles, livePrice, momentum) {
   const bodyUp = Number(last.close) > Number(last.open);
   const bodyDown = Number(last.close) < Number(last.open);
   const threeBarMove = closes.length >= 4 ? closes[closes.length - 1] - closes[closes.length - 4] : 0;
-  const momentumUp = Number.isFinite(momentum) && momentum > 0;
-  const momentumDown = Number.isFinite(momentum) && momentum < 0;
+  const momentumUp = Number.isFinite(momentum) && momentum > 0.000005;
+  const momentumDown = Number.isFinite(momentum) && momentum < -0.000005;
 
   const nextCandle = bullish
     ? result([bullish, fastUp, macdUp, rsiUp, bodyUp, momentumUp], 'CALL', 1,
