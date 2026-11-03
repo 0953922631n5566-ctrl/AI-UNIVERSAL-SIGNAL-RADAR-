@@ -221,6 +221,9 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   const forecast=currentLiveData.forecast, direction=forecast.signal;
   if(direction!=='CALL'&&direction!=='PUT')return null;
   if(currentLiveData.streamStatus!=='subscribed'||liveQuoteAgeSeconds()>75)return null;
+  const liveBar=currentLiveData.liveCandle;
+  if(!liveBar||liveBar.ticks<2)return null;
+  if((direction==='CALL'&&liveBar.direction!=='BULLISH')||(direction==='PUT'&&liveBar.direction!=='BEARISH'))return null;
   if(forecast.validFor!=='NEXT_M1_ONLY'||!forecast.lastClosedAt||!forecast.nextCandleAt)return null;
   const nextStart=Date.parse(forecast.nextCandleAt);
   const currentStart=Math.floor(Date.now()/60000)*60000;

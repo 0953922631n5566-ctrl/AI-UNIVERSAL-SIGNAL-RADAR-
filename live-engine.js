@@ -65,6 +65,30 @@ function createMinuteCandleAggregator() {
   };
 }
 
+function gateForecastWithLiveCandle(forecast, liveCandle, now = Date.now()) {
+  if (!forecast || (forecast.signal !== 'CALL' && forecast.signal !== 'PUT')) return forecast;
+  const currentMinute = Math.floor(now / 60000) * 60000;
+  const nextMinute = Date.parse(forecast.nextCandleAt || '');
+  const decisionAge = now - currentMinute;
+  if (!Number.isFinite(nextMinute) || nextMinute !== currentMinute || decisionAge < 0 || decisionAge > 12000) {
+    return { ...forecast, signal:'STANDBY', reason:'สัญญาณไม่ตรงกับแท่ง M1 ที่กำลังเปิดหรือมาช้าเกินไป · STANDBY' };
+  }
+  if (!liveCandle || liveCandle.ticks < 2) {
+    return { ...forecast, signal:'STANDBY', reason:'รอ tick สดอย่างน้อย 2 จุดเพื่อยืนยันทิศทางแท่ง M1 ปัจจุบัน · STANDBY' };
+  }
+  const liveStart = Date.parse(String(liveCandle.datetime || '').replace(' ','T') + 'Z');
+  if (!Number.isFinite(liveStart) || liveStart !== currentMinute) {
+    return { ...forecast, signal:'STANDBY', reason:'แท่งสดไม่ตรงกับนาทีปัจจุบัน · STANDBY' };
+  }
+  const aligned = forecast.signal === 'CALL'
+    ? liveCandle.direction === 'BULLISH'
+    : liveCandle.direction === 'BEARISH';
+  if (!aligned) {
+    return { ...forecast, signal:'STANDBY', reason:'ทิศทางแท่ง M1 สดสวนกับสัญญาณ · งดเข้าออเดอร์ · STANDBY' };
+  }
+  return forecast;
+}
+
 function createLiveEngine(apiKey, getClosedCandles) {
   let socket = null, status = apiKey ? 'connecting' : 'unavailable';
   let message = apiKey ? 'กำลังเชื่อมต่อ Twelve Data WebSocket' : 'ยังไม่มี API key';
@@ -140,6 +164,8 @@ function createLiveEngine(apiKey, getClosedCandles) {
       signal:'STANDBY', agreementVotes:'0/6', agreementScore:0, horizon:1,
       reason:'แท่ง M1 ล่าสุดเก่าหรือยังไม่ยืนยัน · งดสัญญาณ'
     };
+    const liveCandle = tickCandles.getCurrentCandle();
+    forecast = gateForecastWithLiveCandle(forecast, liveCandle, Date.now());
     const tickAge = tick ? Date.now() - tick.timestamp : Infinity;
     return {
       symbol:'EUR/USD', prediction:forecast.signal, forecast, streamStatus:status,
@@ -148,7 +174,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       timestamp:tick ? new Date(tick.timestamp).toISOString() : null,
       lastClosedCandle:last ? last.datetime : null,
       closedCandleAgeSeconds:Number.isFinite(age) ? Math.max(0,Math.floor(age/1000)) : null,
-      liveCandle:tickCandles.getCurrentCandle(),
+      liveCandle,
       reason:forecast.reason, ema5:forecast.indicators && forecast.indicators.ema5,
       ema20:forecast.indicators && forecast.indicators.ema20,
       rsi:forecast.indicators && forecast.indicators.rsi14
@@ -160,4 +186,4 @@ function createLiveEngine(apiKey, getClosedCandles) {
     stop:()=>{stopped=true;clearTimeout(retryTimer);clearInterval(heartbeatTimer);if(socket)socket.close();}
   };
 }
-module.exports = { createLiveEngine, createMinuteCandleAggregator };
+module.exports = { createLiveEngine, createMinuteCandleAggregator, gateForecastWithLiveCandle };
