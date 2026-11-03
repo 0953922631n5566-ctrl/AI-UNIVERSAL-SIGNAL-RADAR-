@@ -20,16 +20,13 @@ test('next-candle forecast returns a bounded rule-agreement score', () => {
       close
     });
   }
-  const result = evaluateTwoHorizons(candles, candles.at(-1).close + 0.00001, 0.00002);
-  for (const horizon of [result.nextCandle, result.followingCandle]) {
-    assert.ok(['CALL', 'PUT', 'STANDBY'].includes(horizon.signal));
-    assert.ok(Number.isInteger(horizon.agreementScore));
-    assert.ok(horizon.agreementScore >= 0 && horizon.agreementScore <= 100);
-    assert.match(horizon.agreementVotes, /^\d+\/6$/);
-    assert.ok(horizon.reason.length > 0);
-  }
-  assert.equal(result.nextCandle.horizon, 1);
-  assert.equal(result.followingCandle.horizon, 2);
+  const result = evaluateNextCandle(candles, candles.at(-1).close + 0.00001, 0.00002);
+  assert.ok(['CALL', 'PUT', 'STANDBY'].includes(result.signal));
+  assert.ok(Number.isInteger(result.agreementScore));
+  assert.ok(result.agreementScore >= 0 && result.agreementScore <= 100);
+  assert.match(result.agreementVotes, /^\d+\/6$/);
+  assert.equal(result.horizon, 1);
+  assert.ok(result.reason.length > 0);
 });
 
 test('missing live price cannot generate a directional forecast', () => {
