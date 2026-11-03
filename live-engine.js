@@ -142,7 +142,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
       signal: visibleSignal, displayState: analysis.regime || (analysis.isSideway ? 'SIDEWAY' : visibleSignal),
       confidence: analysis.confidence, agreementScore: Number(analysis.confidence),
       agreementVotes: analysis.ready ? 'FORMULA' : 'WAIT',
-      horizon: 0, validFor: 'CURRENT_M1_FINAL_3_SECONDS',
+      horizon: 0, validFor: 'CURRENT_M1_FINAL_5_SECONDS',
       signalAt: signalState.signalAt, signalMinuteKey: signalState.minuteKey,
       holdSeconds: remaining, trend: analysis.trend, trendLabel: analysis.trendLabel, regime: analysis.regime,
       candleDirection: tickCandles.getCurrentCandle()?.direction || 'NEUTRAL',
