@@ -9,6 +9,15 @@ function getLivePriceDirection(currentPrice, previousPrice) {
   return currentPrice > previousPrice ? 'CALL' : 'PUT';
 }
 
+function hasFreshClosedHistory(candles, now = Date.now(), maxAgeMs = 180000) {
+  if (!Array.isArray(candles) || candles.length < 20) return false;
+  const last = candles[candles.length - 1];
+  const openedAt = last && Date.parse(String(last.datetime || '').replace(' ', 'T') + 'Z');
+  if (!Number.isFinite(openedAt)) return false;
+  const closedAt = openedAt + 60000;
+  return now >= closedAt - 60000 && now - closedAt <= maxAgeMs;
+}
+
 // Aggregate only real Twelve Data quotes. Missing minutes are never fabricated.
 function createMinuteCandleAggregator() {
   let current = null;
@@ -84,7 +93,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
 
     // If REST history is missing/too short, use only two consecutive verified live
     // quotes as a direction fallback. This does not override a valid strategy WAIT.
-    if (!analysis.ready) {
+    if (!analysis.ready || historyUnavailable) {
       const previousQuoteIsFresh = Number.isFinite(previousTickTimestamp) &&
         now >= previousTickTimestamp && now - previousTickTimestamp <= 30000;
       const fallbackDirection = getLivePriceDirection(
@@ -110,7 +119,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
         exactTimeLeft,
         currentPrice: tick.price,
         previousPrice: previousTickPrice,
-        reason: fallbackDirection + ' · REST history unavailable · current live quote ' +
+        reason: fallbackDirection + ' · REST history unavailable/stale · current live quote ' +
           tick.price.toFixed(5) + (fallbackDirection === 'CALL' ? ' > ' : ' < ') +
           previousTickPrice.toFixed(5) + ' previous live quote · price-direction only'
       };
@@ -218,4 +227,4 @@ function createLiveEngine(apiKey, getClosedCandles) {
   };
 }
 
-module.exports = { createLiveEngine, createMinuteCandleAggregator, getLivePriceDirection };
+module.exports = { createLiveEngine, createMinuteCandleAggregator, getLivePriceDirection, hasFreshClosedHistory };
