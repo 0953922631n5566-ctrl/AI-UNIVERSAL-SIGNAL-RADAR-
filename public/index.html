@@ -1,131 +1,39 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#07090e">
-<title>AI SIGNAL RADAR - PRECISION MARKET SYSTEM</title>
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#07090e"><title>AI UNIVERSAL SIGNAL RADAR - TELEGRAM MINI APP</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;min-height:100%;background:#07090e;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,monospace;overflow-x:hidden}
-body{min-height:100svh;display:flex;justify-content:center;align-items:center;padding:12px}
-.app-container{width:100%;max-width:420px;min-height:min(900px,calc(100svh - 24px));background:#0b0f17;border:1px solid #1f293d;border-radius:18px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:9px;box-shadow:0 0 40px #000c}
-.top-bar{display:flex;justify-content:space-between;align-items:center;background:#111827;border:1px solid #1f293d;border-radius:12px;padding:12px 14px}
-.brand-group{display:flex;align-items:center;gap:10px}.icon-box{width:32px;height:32px;background:#3b82f626;border:1px solid #3b82f6;border-radius:8px;display:grid;place-items:center;color:#60a5fa;font-size:16px}
-.brand-title{font-size:13px;font-weight:800;color:#f3f4f6;letter-spacing:.5px}.brand-subtitle{font-size:9px;color:#9ca3af;font-weight:600;letter-spacing:.5px;margin-top:2px}
-.status-badge{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:10px;font-weight:700;background:#1f2937;color:#9ca3af;border:1px solid #374151}
-.status-badge.online{background:#10b98126;color:#34d399;border-color:#10b98166}.status-dot{width:6px;height:6px;border-radius:50%;background:#9ca3af}.status-badge.online .status-dot{background:#34d399;box-shadow:0 0 8px #34d399}
-.market-card{background:#111827;border:1px solid #1f293d;border-radius:12px;padding:13px 14px}.market-header{display:flex;justify-content:space-between;font-size:10px;color:#9ca3af;font-weight:700;margin-bottom:6px}.market-body{display:flex;justify-content:space-between;align-items:baseline}.market-pair{font-size:18px;font-weight:900;color:#fff;letter-spacing:1px}.market-sub{font-size:10px;color:#60a5fa;font-weight:700;margin-top:3px}.market-note{font-size:10px;color:#9ca3af;text-align:right}
-.radar-section{background:#111827;border:1px solid #1f293d;border-radius:16px;padding:15px 14px;display:flex;flex-direction:column;align-items:center;margin:0}
-.section-title{font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:1px;margin-bottom:8px}
-.radar-circle-wrap{position:relative;width:170px;height:170px;display:flex;justify-content:center;align-items:center}
-.radar-svg{width:100%;height:100%;transform:rotate(-90deg)}.ring-bg{fill:none;stroke:#1f293d;stroke-width:5}.ring-active{fill:none;stroke:#3b82f6;stroke-width:5;stroke-dasharray:60 180;stroke-linecap:round;opacity:.8}.ring-active.scanning{animation:spinRing 1.5s linear infinite}
-@keyframes spinRing{0%{stroke-dashoffset:240}100%{stroke-dashoffset:0}}
-.radar-inner-content{position:absolute;text-align:center;display:flex;flex-direction:column;align-items:center}.inner-label{font-size:9px;color:#9ca3af;font-weight:700;letter-spacing:1px}.inner-signal{font-size:22px;font-weight:900;letter-spacing:2px;color:#60a5fa;margin-top:3px}.inner-signal.call{color:#34d399;text-shadow:0 0 12px #34d39966}.inner-signal.put{color:#f87171;text-shadow:0 0 12px #f8717166}.radar-footer-text{font-size:10px;color:#9ca3af;text-align:center;margin-top:8px;font-weight:600;min-height:14px}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.info-box{background:#111827;border:1px solid #1f293d;border-radius:12px;padding:11px 12px}.info-label{font-size:9px;color:#9ca3af;font-weight:700;margin-bottom:4px}.info-val{font-size:13px;font-weight:800;color:#f3f4f6;overflow-wrap:anywhere}.info-desc{font-size:9px;color:#6b7280;margin-top:2px}
-.control-card{background:#111827;border:1px solid #1f293d;border-radius:14px;padding:13px}.timer-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.timer-title{font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:.5px}.timer-clock{font-size:18px;font-weight:800;color:#fff;font-family:monospace}.progress-bar-bg{width:100%;height:4px;background:#1f293d;border-radius:2px;overflow:hidden;margin-bottom:11px}.progress-bar-fill{height:100%;background:#3b82f6;transition:width .25s linear}
-.action-row{display:flex;gap:8px}.scan-btn{flex:1;background:linear-gradient(135deg,#2563eb,#1d4ed8);border:0;border-radius:10px;padding:12px;color:#fff;font-size:12px;font-weight:800;letter-spacing:1px;cursor:pointer}.scan-btn:active,.audio-btn:active{transform:scale(.98)}.scan-btn.active{background:linear-gradient(135deg,#059669,#047857)}.audio-btn{width:44px;height:44px;background:#1f2937;border:1px solid #374151;border-radius:10px;display:grid;place-items:center;color:#9ca3af;cursor:pointer;font-size:16px}.audio-btn.muted{opacity:.5}
-.analysis-box{background:#111827;border:1px solid #1f293d;border-radius:12px;padding:11px 12px}.analysis-title{font-size:9px;color:#9ca3af;font-weight:800;letter-spacing:1px;margin-bottom:5px}.analysis-text{font-size:10px;color:#c2cad5;line-height:1.45;font-weight:600;overflow-wrap:anywhere}
-.footer-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:9px;color:#6b7280;font-weight:600;margin-top:1px}.footer-bar span:last-child{text-align:right}
-@media(max-height:760px){body{align-items:flex-start;padding:8px}.app-container{min-height:0;padding:12px;gap:7px}.radar-section{padding:10px}.radar-circle-wrap{width:145px;height:145px}.market-card{padding:10px 12px}.info-box{padding:9px 10px}.control-card{padding:10px}.analysis-box{padding:9px 10px}}
-</style>
-</head>
-<body>
-<main class="app-container">
-<header class="top-bar"><div class="brand-group"><div class="icon-box">⚡</div><div><div class="brand-title">AI SIGNAL RADAR</div><div class="brand-subtitle">PRECISION MARKET SYSTEM</div></div></div><div class="status-badge" id="systemStatusBadge"><span class="status-dot"></span><span id="statusText">OFFLINE</span></div></header>
-<section class="market-card"><div class="market-header"><span>ACTIVE MARKET</span><span>LIVE · EUR/USD</span></div><div class="market-body"><div><div class="market-pair">EUR / USD</div><div class="market-sub">NON-OTC • M1</div></div><div class="market-note" id="marketNote">รอข้อมูลราคา</div></div></section>
-<section class="radar-section"><div class="section-title">LIVE SIGNAL ANALYSIS</div><div class="radar-circle-wrap"><svg class="radar-svg" viewBox="0 0 100 100" aria-hidden="true"><circle class="ring-bg" cx="50" cy="50" r="40"></circle><circle class="ring-active" id="radarRing" cx="50" cy="50" r="40"></circle></svg><div class="radar-inner-content"><div class="inner-label">CURRENT SIGNAL</div><div class="inner-signal" id="signalVal">STANDBY</div></div></div><div class="radar-footer-text" id="radarFooterMsg">เริ่มระบบเพื่อดึงข้อมูลตลาดจริงและวิเคราะห์สัญญาณ</div></section>
-<section class="info-grid"><div class="info-box"><div class="info-label">MARKET REGIME</div><div class="info-val" id="marketRegime">—</div><div class="info-desc">สภาวะตลาด</div></div><div class="info-box"><div class="info-label">TIMEFRAME</div><div class="info-val">1 MINUTE</div><div class="info-desc">แท่งเทียน 1 นาที</div></div></section>
-<section class="control-card"><div class="timer-row"><span class="timer-title">NEXT CANDLE IN</span><span class="timer-clock" id="timerClock">00:60</span></div><div class="progress-bar-bg"><div class="progress-bar-fill" id="timerProgress" style="width:0%"></div></div><div class="action-row"><button class="scan-btn" id="scanBtn" type="button"><span id="btnText">▶ &nbsp; START SCANNER</span></button><button class="audio-btn" id="audioBtn" type="button" title="ทดสอบเสียง" aria-label="ทดสอบเสียง">🔔</button></div></section>
-<section class="analysis-box"><div class="analysis-title">ENGINE ANALYSIS</div><div class="analysis-text" id="analysisLog">ระบบจะแสดงเหตุผลจากข้อมูลที่เซิร์ฟเวอร์วิเคราะห์ได้ที่นี่</div></section>
-<footer class="footer-bar"><span>MANUAL ONLY • ไม่มีการส่งคำสั่งซื้อขาย</span><span id="footerState">รอเริ่มสแกน</span></footer>
+*{box-sizing:border-box;margin:0;padding:0}html,body{min-height:100%;background:#07090e;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,monospace}body{display:flex;justify-content:center;padding:10px}.app{width:100%;max-width:410px;min-height:calc(100svh - 20px);background:#0b0f17;border:1px solid #1f293d;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:9px;box-shadow:0 0 40px #000b}.top,.market,.radar,.info>div,.control,.analysis{background:#111827;border:1px solid #1f293d;border-radius:12px}.top{display:flex;justify-content:space-between;align-items:center;padding:12px}.brand{display:flex;gap:9px;align-items:center}.logo{width:32px;height:32px;display:grid;place-items:center;border:1px solid #3b82f6;border-radius:8px;color:#60a5fa;background:#3b82f622}.brand b{font-size:13px}.brand small{display:block;color:#9ca3af;font-size:9px;margin-top:3px}.badge{font-size:10px;padding:6px 9px;border:1px solid #374151;border-radius:20px;color:#9ca3af}.badge.online{color:#34d399;border-color:#059669;background:#05966922}.market{padding:12px}.muted{color:#9ca3af;font-size:10px}.marketrow{display:flex;justify-content:space-between;align-items:end;margin-top:6px}.pair{font-size:19px;font-weight:900}.blue{color:#60a5fa;font-size:10px;font-weight:700;margin-top:3px}.price{text-align:right;font-size:11px;color:#cbd5e1}.radar{padding:14px;display:flex;align-items:center;flex-direction:column}.sect{font-size:10px;color:#9ca3af;letter-spacing:1px;font-weight:800}.circle{width:164px;height:164px;position:relative;margin:8px 0}.circle svg{width:100%;height:100%;transform:rotate(-90deg)}.bg{fill:none;stroke:#263247;stroke-width:5}.arc{fill:none;stroke:#3b82f6;stroke-width:5;stroke-dasharray:60 180;stroke-linecap:round}.arc.spin{animation:spin 1.5s linear infinite}@keyframes spin{to{stroke-dashoffset:-240}}.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}.center small{font-size:9px;color:#9ca3af}.signal{font-size:24px;font-weight:900;color:#60a5fa;margin-top:4px}.signal.CALL{color:#34d399;text-shadow:0 0 14px #34d39988}.signal.PUT{color:#f87171;text-shadow:0 0 14px #f8717188}.msg{font-size:10px;color:#9ca3af;text-align:center;min-height:14px}.info{display:grid;grid-template-columns:1fr 1fr;gap:9px}.info>div{padding:11px}.info small{display:block;color:#9ca3af;font-size:9px;margin-bottom:5px}.info b{font-size:13px}.control{padding:12px}.timer{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.timer small{color:#9ca3af;font-size:10px}.timer b{font-size:18px}.track{height:4px;background:#263247;border-radius:5px;overflow:hidden;margin-bottom:11px}.fill{height:100%;width:0;background:#3b82f6;transition:width .2s}.buttons{display:flex;gap:8px}.start{flex:1;border:0;border-radius:10px;padding:13px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:white;font-weight:900}.start.active{background:linear-gradient(135deg,#059669,#047857)}.sound{width:46px;border:1px solid #374151;border-radius:10px;background:#1f2937;color:white;font-size:17px}.analysis{padding:11px}.analysis small{display:block;color:#9ca3af;font-size:9px;font-weight:800;margin-bottom:5px}.analysis p{font-size:10px;line-height:1.5;color:#d1d5db}.foot{display:flex;justify-content:space-between;color:#6b7280;font-size:9px;gap:8px}.foot span:last-child{text-align:right}
+</style></head><body><main class="app">
+<header class="top"><div class="brand"><div class="logo">⚡</div><div><b>AI SIGNAL RADAR</b><small>TELEGRAM MINI APP · MANUAL ONLY</small></div></div><div class="badge" id="status">OFFLINE</div></header>
+<section class="market"><div class="muted">MARKET ANALYSIS · EMA 5/20 + RSI 14</div><div class="marketrow"><div><div class="pair">EUR / USD</div><div class="blue">NON-OTC · M1</div></div><div class="price" id="price">รอข้อมูลราคา</div></div></section>
+<section class="radar"><div class="sect">LIVE SIGNAL ANALYSIS</div><div class="circle"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="40"/><circle class="arc" id="arc" cx="50" cy="50" r="40"/></svg><div class="center"><small>CURRENT SIGNAL</small><div class="signal" id="signal">STANDBY</div></div></div><div class="msg" id="msg">กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูลตลาดจริง</div></section>
+<section class="info"><div><small>MARKET REGIME</small><b id="regime">—</b></div><div><small>RSI (14)</small><b id="rsi">—</b></div></section>
+<section class="control"><div class="timer"><small id="timerTitle">NEXT CANDLE IN</small><b id="clock">00:60</b></div><div class="track"><div class="fill" id="fill"></div></div><div class="buttons"><button class="start" id="start">▶ เริ่มเฝ้าระวัง</button><button class="sound" id="sound" aria-label="ทดสอบเสียง">🔔</button></div></section>
+<section class="analysis"><small>ENGINE ANALYSIS</small><p id="reason">ระบบจะแสดงผลการคำนวณและเหตุผลจากข้อมูลจริงที่นี่</p></section>
+<footer class="foot"><span>MANUAL ONLY · NO AUTO TRADE</span><span id="foot">พร้อมใช้งาน</span></footer>
 </main>
 <script>
-(() => {
-  const $=id=>document.getElementById(id);
-  const POLL_MS=5000, SIGNAL_HOLD_MS=40000;
-  let running=false, pollTimer=null, clockTimer=null, busy=false, audioContext=null, soundEnabled=true;
-  let displayedSignal='STANDBY', signalStartedAt=0, lastAlertKey='';
-  function setConnection(state){
-    const badge=$('systemStatusBadge'), label=$('statusText');
-    badge.classList.toggle('online',state==='connected');
-    label.textContent=state==='connected'?'ONLINE':state==='connecting'?'CONNECTING':state==='quota_exhausted'?'API LIMIT':state==='error'?'API ERROR':'OFFLINE';
-  }
-  function setSignal(signal,message){
-    const safe=['CALL','PUT','STANDBY'].includes(signal)?signal:'STANDBY';
-    const el=$('signalVal');el.textContent=safe;el.className='inner-signal'+(safe==='STANDBY'?'':' '+safe.toLowerCase());
-    displayedSignal=safe;$('radarFooterMsg').textContent=message||'รอการยืนยันจากข้อมูลตลาด';
-  }
-  function tone(freq,duration=220){
-    if(!soundEnabled)return;
-    try{
-      const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
-      if(!audioContext)audioContext=new AC();
-      if(audioContext.state==='suspended')audioContext.resume();
-      const osc=audioContext.createOscillator(),gain=audioContext.createGain();
-      osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(.0001,audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(.10,audioContext.currentTime+.02);
-      gain.gain.exponentialRampToValueAtTime(.0001,audioContext.currentTime+duration/1000);
-      osc.connect(gain);gain.connect(audioContext.destination);osc.start();osc.stop(audioContext.currentTime+duration/1000+.02);
-    }catch(e){console.warn('Audio unavailable',e)}
-  }
-  function alertSignal(signal,candle){
-    const key=String(candle||'unknown')+':'+signal;
-    if(key===lastAlertKey)return;lastAlertKey=key;
-    tone(signal==='CALL'?587.33:220,260);
-    if(navigator.vibrate){try{navigator.vibrate([180,80,180])}catch(e){}}
-  }
-  async function fetchSignalData(){
-    if(!running||busy)return;busy=true;
-    try{
-      const response=await fetch('/api/signal',{cache:'no-store',headers:{Accept:'application/json'}});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      const data=await response.json();
-      const apiStatus=data&&data.apiStatus?data.apiStatus:'error';
-      setConnection(apiStatus);
-      $('footerState').textContent='ตรวจข้อมูล '+new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-      if(data.price!==undefined&&data.price!==null)$('marketNote').textContent='Price: '+data.price;
-      if(data.regime)$('marketRegime').textContent=String(data.regime).replaceAll('_',' ');
-      if(data.reason)$('analysisLog').textContent=data.reason;
-      if(apiStatus!=='connected'){
-        signalStartedAt=0;setSignal('STANDBY',data.apiMessage||data.reason||'API ยังไม่พร้อม · คงสถานะ STANDBY');return;
-      }
-      const signal=['CALL','PUT','STANDBY'].includes(data.signal)?data.signal:'STANDBY';
-      if(signal==='CALL'||signal==='PUT'){
-        if(displayedSignal!==signal){signalStartedAt=Date.now();alertSignal(signal,data.datetime);}
-        setSignal(signal,signal==='CALL'?'ยืนยันสัญญาณ CALL จากเซิร์ฟเวอร์':'ยืนยันสัญญาณ PUT จากเซิร์ฟเวอร์');
-      }else{signalStartedAt=0;setSignal('STANDBY','รอเงื่อนไขตลาดยืนยันสัญญาณ');}
-    }catch(error){
-      setConnection('error');signalStartedAt=0;setSignal('STANDBY','เชื่อมต่อ API ไม่สำเร็จ · กำลังลองใหม่');
-      $('analysisLog').textContent='Server/API error: '+error.message;
-    }finally{busy=false}
-  }
-  function toggleScanner(){
-    running=!running;
-    $('scanBtn').classList.toggle('active',running);
-    $('btnText').textContent=running?'■  STOP SCANNER':'▶  START SCANNER';
-    $('radarRing').classList.toggle('scanning',running);
-    if(running){
-      setConnection('connecting');setSignal('STANDBY','กำลังเชื่อมต่อ Twelve Data API...');
-      $('footerState').textContent='กำลังเชื่อมต่อ';fetchSignalData();pollTimer=setInterval(fetchSignalData,POLL_MS);
-    }else{
-      clearInterval(pollTimer);pollTimer=null;setConnection('off');setSignal('STANDBY','ระบบหยุดทำงาน');
-      $('footerState').textContent='รอเริ่มสแกน';$('marketRegime').textContent='—';$('marketNote').textContent='รอข้อมูลราคา';signalStartedAt=0;
-    }
-  }
-  function updateClock(){
-    const now=new Date(),seconds=now.getSeconds(),remaining=60-seconds;
-    $('timerClock').textContent='00:'+String(remaining).padStart(2,'0');
-    $('timerProgress').style.width=(seconds/60*100)+'%';
-    if(running&&displayedSignal!=='STANDBY'&&signalStartedAt&&Date.now()-signalStartedAt>=SIGNAL_HOLD_MS){
-      signalStartedAt=0;setSignal('STANDBY','สัญญาณหมดเวลาถือ 40 วินาที · รอรอบถัดไป');
-    }
-  }
-  $('scanBtn').addEventListener('click',toggleScanner);
-  $('audioBtn').addEventListener('click',()=>{soundEnabled=true;tone(587.33,220);$('audioBtn').textContent='🔔';$('audioBtn').classList.remove('muted')});
-  setConnection('off');setSignal('STANDBY','เริ่มระบบเพื่อดึงข้อมูลตลาดจริงและวิเคราะห์สัญญาณ');
-  updateClock();clockTimer=setInterval(updateClock,250);
+(()=> {
+ const $=id=>document.getElementById(id), tg=window.Telegram&&window.Telegram.WebApp;
+ if(tg){try{tg.ready();tg.expand()}catch(e){}}
+ let running=false,poll=null,lockUntil=0,lockedSignal='',lastAlert='',audio=null,soundOn=true,busy=false;
+ const holdMs=35000;
+ function status(s){$('status').textContent=s==='connected'?'API LIVE':s==='connecting'?'CONNECTING':s==='quota_exhausted'?'API LIMIT':s==='error'?'API ERROR':'OFFLINE';$('status').classList.toggle('online',s==='connected')}
+ function show(sig,msg){$('signal').textContent=sig;$('signal').className='signal '+(sig==='STANDBY'?'':sig);$('msg').textContent=msg||''}
+ function beep(freq,duration){if(!soundOn)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;if(!audio)audio=new AC();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.frequency.value=freq;o.connect(g);g.connect(audio.destination);g.gain.setValueAtTime(.0001,audio.currentTime);g.gain.exponentialRampToValueAtTime(.18,audio.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+duration/1000);o.start();o.stop(audio.currentTime+duration/1000+.02)}catch(e){console.warn(e)}}
+ function vibrate(pattern){try{if(navigator.vibrate)navigator.vibrate(pattern);if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success')}catch(e){}}
+ function alert(sig,key){if(key===lastAlert)return;lastAlert=key;beep(sig==='CALL'?880:220,300);vibrate([300,100,300,100,500])}
+ async function scan(){if(!running||busy)return;busy=true;try{const r=await fetch('/api/signal',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();status(d.apiStatus||'error');$('price').textContent=d.price&&d.price!=='—'?'Price: '+d.price:'รอข้อมูลราคา';$('regime').textContent=d.regime||'—';$('rsi').textContent=d.rsi==null?'—':'RSI: '+d.rsi;$('reason').textContent=d.reason||d.apiMessage||'—';if(d.apiStatus!=='connected'){lockUntil=0;lockedSignal='';show('STANDBY',d.apiMessage||'API ไม่พร้อม · หยุดการออกสัญญาณ');return}
+ const sig=['CALL','PUT'].includes(d.signal)?d.signal:'STANDBY',now=Date.now();
+ if(lockUntil>now){show(lockedSignal,'ล็อกสัญญาณ '+Math.ceil((lockUntil-now)/1000)+' วินาที');return}
+ if(lockUntil&&now>=lockUntil){lockUntil=0;lockedSignal='';show('STANDBY','ครบเวลาล็อก 35 วินาที · รอการยืนยันรอบใหม่')}
+ if(sig!=='STANDBY'){const key=String(d.datetime||'')+':'+sig;if(key!==lastAlert){alert(sig,key);lockedSignal=sig;lockUntil=now+holdMs}show(sig,sig+' · ยืนยันจากข้อมูลตลาดจริง')}else show('STANDBY','ยังไม่มีเงื่อนไขเข้า · รอสัญญาณที่ชัดเจน');
+ $('foot').textContent='อัปเดต '+new Date().toLocaleTimeString('th-TH');
+ }catch(e){status('error');lockUntil=0;lockedSignal='';show('STANDBY','เชื่อมต่อไม่ได้ · ระบบหยุดสัญญาณ');$('reason').textContent=e.message}finally{busy=false}}
+ function startStop(){running=!running;$('start').classList.toggle('active',running);$('start').textContent=running?'■ หยุดสแกน':'▶ เริ่มเฝ้าระวัง';$('arc').classList.toggle('spin',running);if(running){status('connecting');show('STANDBY','กำลังเชื่อมต่อ Twelve Data...');scan();poll=setInterval(scan,15000)}else{clearInterval(poll);poll=null;status('off');lockUntil=0;lockedSignal='';show('STANDBY','หยุดการสแกนแล้ว');$('foot').textContent='หยุดทำงาน'}}
+ $('start').addEventListener('click',startStop);
+ $('sound').addEventListener('click',()=>{soundOn=true;beep(880,250);vibrate(80);$('sound').textContent='🔔'});
+ setInterval(()=>{const s=new Date().getSeconds(),remain=60-s;$('clock').textContent='00:'+String(remain).padStart(2,'0');$('fill').style.width=(s/60*100)+'%';if(lockUntil>Date.now()){$('timerTitle').textContent='SIGNAL LOCK · 35 SEC';}else{$('timerTitle').textContent='NEXT CANDLE IN';}},250);
+ status('off');
 })();
-</script>
-</body>
-</html>
+</script></body></html>
