@@ -74,14 +74,14 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const candles = mergedClosedCandles();
     const analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
     latestAnalysis = analysis;
-    if (!analysis.ready || analysis.isSideway) return;
+    if (!analysis.ready || (analysis.isSideway && analysis.candidate === 'WAIT')) return;
     const minuteKey = Math.floor(now / 60000);
     if (signalState.signal === 'WAIT' && signalState.minuteKey !== minuteKey &&
-        analysis.exactTimeLeft <= 3.0 && analysis.exactTimeLeft >= 0) {
+        analysis.exactTimeLeft <= 5.0 && analysis.exactTimeLeft >= 0) {
       if (analysis.candidate === 'CALL' || analysis.candidate === 'PUT') {
         signalState.signal = analysis.candidate;
         signalState.signalAt = now;
-        signalState.expiresAt = now + 30000;
+        signalState.expiresAt = now + 35000;
         signalState.minuteKey = minuteKey;
       }
     }
@@ -139,17 +139,17 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const analysis = latestAnalysis || { confidence:'50.0', rsi:50, trend:'NEUTRAL', trendLabel:'รอข้อมูล', statusText:'DANGER', reason:'รอข้อมูลจริง' };
     const remaining = active ? Math.max(0, Math.ceil((signalState.expiresAt - Date.now()) / 1000)) : 0;
     const forecast = {
-      signal: visibleSignal, displayState: analysis.isSideway ? 'SIDEWAY' : visibleSignal,
+      signal: visibleSignal, displayState: analysis.regime || (analysis.isSideway ? 'SIDEWAY' : visibleSignal),
       confidence: analysis.confidence, agreementScore: Number(analysis.confidence),
       agreementVotes: analysis.ready ? 'FORMULA' : 'WAIT',
       horizon: 0, validFor: 'CURRENT_M1_FINAL_3_SECONDS',
       signalAt: signalState.signalAt, signalMinuteKey: signalState.minuteKey,
-      holdSeconds: remaining, trend: analysis.trend, trendLabel: analysis.trendLabel,
+      holdSeconds: remaining, trend: analysis.trend, trendLabel: analysis.trendLabel, regime: analysis.regime,
       candleDirection: tickCandles.getCurrentCandle()?.direction || 'NEUTRAL',
       candleLabel: tickCandles.getCurrentCandle()?.direction || 'NEUTRAL',
       indicators: { ema5: analysis.ema5, ema20: analysis.ema20, rsi14: analysis.rsi, bollingerBandwidth: analysis.bandwidth },
       statusText: analysis.statusText, statusColor: analysis.statusColor,
-      reason: active ? 'สัญญาณ ' + visibleSignal + ' · ล็อก 30 วินาที'
+      reason: active ? 'สัญญาณ ' + visibleSignal + ' · ล็อก 35 วินาที'
         : analysis.reason
     };
     return {

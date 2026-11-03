@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMinuteCandleAggregator, gateForecastWithLiveCandle } = require('../live-engine');
+const { createMinuteCandleAggregator } = require('../live-engine');
 
 const base = Date.UTC(2026, 0, 1, 0, 0, 0);
 

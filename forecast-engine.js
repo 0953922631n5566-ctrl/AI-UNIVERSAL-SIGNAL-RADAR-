@@ -1,8 +1,7 @@
-// User-approved Forex formula: EMA(5/20), Bollinger Bandwidth(20,2), RSI(14).
-// This module consumes real closed M1 candles plus the latest live WebSocket quote.
-// It contains no synthetic prices, MACD, six-vote scoring, or legacy trend filters.
+// Real-data multi-regime M1 analysis: trend following, range breakout, and sideway protection.
+// No synthetic prices and no forced CALL/PUT fallback.
 function calculateEMA(prices, period) {
-  if (!Array.isArray(prices) || prices.length < period) return prices?.[prices.length - 1] || 0;
+  if (!Array.isArray(prices) || prices.length < period) return null;
   const k = 2 / (period + 1);
   let ema = prices[0];
   for (let i = 1; i < prices.length; i++) ema = prices[i] * k + ema * (1 - k);
@@ -10,66 +9,104 @@ function calculateEMA(prices, period) {
 }
 
 function calculateBB(prices, period = 20, mult = 2) {
-  if (!Array.isArray(prices) || prices.length < period) return { bandwidth: 1 };
-  const slice = prices.slice(-period);
-  const sma = slice.reduce((a, b) => a + b, 0) / period;
-  const variance = slice.reduce((a, b) => a + Math.pow(b - sma, 2), 0) / period;
-  const stdDev = Math.sqrt(variance);
-  const upper = sma + mult * stdDev;
-  const lower = sma - mult * stdDev;
-  return { upper, middle: sma, lower, bandwidth: sma ? ((upper - lower) / sma) * 100 : 1 };
+  if (!Array.isArray(prices) || prices.length < period) return { bandwidth: null };
+  const values = prices.slice(-period);
+  const middle = values.reduce((sum, value) => sum + value, 0) / period;
+  const variance = values.reduce((sum, value) => sum + (value - middle) ** 2, 0) / period;
+  const deviation = Math.sqrt(variance);
+  const upper = middle + mult * deviation;
+  const lower = middle - mult * deviation;
+  return { upper, middle, lower, bandwidth: middle ? ((upper - lower) / middle) * 100 : null };
 }
 
 function calculateRSI(prices, period = 14) {
-  if (!Array.isArray(prices) || prices.length < period + 1) return 50;
+  if (!Array.isArray(prices) || prices.length < period + 1) return null;
   let gains = 0, losses = 0;
-  for (let i = prices.length - period; i < prices.length - 1; i++) {
-    const diff = prices[i + 1] - prices[i];
-    if (diff >= 0) gains += diff;
-    else losses -= diff;
+  for (let i = prices.length - period; i < prices.length; i++) {
+    const change = prices[i] - prices[i - 1];
+    if (change > 0) gains += change;
+    else losses -= change;
   }
-  if (losses === 0) return 100;
+  if (losses === 0) return gains === 0 ? 50 : 100;
   const rs = (gains / period) / (losses / period);
   return 100 - (100 / (1 + rs));
 }
 
 function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = Date.now()) {
-  const closes = (Array.isArray(closedCandles) ? closedCandles : [])
-    .map(c => Number(c.close)).filter(Number.isFinite).slice(-119);
+  const candles = (Array.isArray(closedCandles) ? closedCandles : [])
+    .filter(c => c && Number.isFinite(Number(c.close)))
+    .slice(-120);
+  const closes = candles.map(c => Number(c.close));
   if (closes.length < 20 || !Number.isFinite(currentPrice) || currentPrice <= 0) {
-    return { ready: false, signal: 'WAIT', statusText: 'WAIT', statusColor: 'green',
-      confidence: 50, rsi: 50, trend: 'NEUTRAL', reason: 'รอแท่ง M1 จริงอย่างน้อย 20 แท่ง' };
+    return {
+      ready: false, signal: 'WAIT', candidate: 'WAIT', regime: 'WAITING FOR DATA',
+      statusText: 'DANGER', statusColor: 'red', confidence: '50.0', rsi: null,
+      trend: 'NEUTRAL', trendLabel: 'รอข้อมูล', reason: 'ต้องมีแท่ง M1 จริงอย่างน้อย 20 แท่งและราคาสด'
+    };
   }
+
   const prices = closes.concat(currentPrice);
-  const prevPrice = Number.isFinite(previousPrice) ? previousPrice : closes.at(-1);
-  const rsi = Number(calculateRSI(prices).toFixed(1));
+  const prevPrice = Number.isFinite(previousPrice) ? previousPrice : closes[closes.length - 1];
   const ema5 = calculateEMA(prices, 5);
   const ema20 = calculateEMA(prices, 20);
-  const bb = calculateBB(prices);
-  const isBullishTrend = ema5 > ema20 && currentPrice >= ema5;
-  const isBearishTrend = ema5 < ema20 && currentPrice <= ema5;
-  const isSideway = bb.bandwidth < 0.04;
+  const rsi = calculateRSI(prices, 14);
+  const bb = calculateBB(prices, 20, 2);
+  const recent = candles.slice(-20);
+  const rangeHigh = Math.max(...recent.map(c => Number(c.high ?? c.close)));
+  const rangeLow = Math.min(...recent.map(c => Number(c.low ?? c.close)));
+  const breakoutUp = currentPrice > rangeHigh;
+  const breakoutDown = currentPrice < rangeLow;
+  const bullishTrend = ema5 > ema20 && currentPrice >= ema5;
+  const bearishTrend = ema5 < ema20 && currentPrice <= ema5;
+  const isSideway = Number.isFinite(bb.bandwidth) && bb.bandwidth < 0.04 && !breakoutUp && !breakoutDown;
+  const rangeWidth = Math.max(0, rangeHigh - rangeLow);
+  const edgeTolerance = Math.max(rangeWidth * 0.18, currentPrice * 0.00005);
+  const sidewaySupportBounce = isSideway && currentPrice <= rangeLow + edgeTolerance && rsi <= 45;
+  const sidewayResistanceDrop = isSideway && currentPrice >= rangeHigh - edgeTolerance && rsi >= 55;
+
+  let candidate = 'WAIT';
+  let regime = 'CONSOLIDATION';
+  let reason = 'แนวโน้มยังไม่ชัด · รอข้อมูลยืนยัน · STANDBY';
+  if (breakoutUp) {
+    candidate = 'CALL'; regime = 'BREAKOUT UP';
+    reason = 'ราคาทะลุกรอบสูงสุด 20 แท่ง M1 · รอจังหวะยืนยันขาขึ้น';
+  } else if (breakoutDown) {
+    candidate = 'PUT'; regime = 'BREAKOUT DOWN';
+    reason = 'ราคาหลุดกรอบต่ำสุด 20 แท่ง M1 · รอจังหวะยืนยันขาลง';
+  } else if (sidewaySupportBounce) {
+    candidate = 'CALL'; regime = 'SIDEWAY SUPPORT BOUNCE';
+    reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวรับและ RSI ยืนยันแรงเด้ง · CALL';
+  } else if (sidewayResistanceDrop) {
+    candidate = 'PUT'; regime = 'SIDEWAY RESISTANCE DROP';
+    reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวต้านและ RSI ยืนยันแรงอ่อน · PUT';
+  } else if (isSideway) {
+    regime = 'SIDEWAY / WAIT';
+    reason = 'ตลาดแกว่งแคบแต่ยังไม่ยืนยันการเด้งจากขอบกรอบ · STANDBY';
+  } else if (bullishTrend) {
+    candidate = 'CALL'; regime = 'UPTREND / MOMENTUM';
+    reason = 'EMA5 เหนือ EMA20 และราคายืนเหนือ EMA5 · ตามเทรนด์ขาขึ้น';
+  } else if (bearishTrend) {
+    candidate = 'PUT'; regime = 'DOWNTREND / MOMENTUM';
+    reason = 'EMA5 ใต้ EMA20 และราคาอยู่ใต้ EMA5 · ตามเทรนด์ขาลง';
+  }
+
   let score = 65;
-  if (isBullishTrend || isBearishTrend) score += 20;
+  if (bullishTrend || bearishTrend || breakoutUp || breakoutDown) score += 20;
   if (currentPrice !== prevPrice) score += 10;
   const confidence = Math.min(score, 96).toFixed(1);
-  const d = new Date(now);
-  const exactTimeLeft = 60 - (d.getSeconds() + d.getMilliseconds() / 1000);
-  const trend = isBullishTrend ? 'BULLISH' : isBearishTrend ? 'BEARISH' : 'NEUTRAL';
+  const date = new Date(now);
+  const exactTimeLeft = 60 - (date.getSeconds() + date.getMilliseconds() / 1000);
+  const trend = bullishTrend || breakoutUp || sidewaySupportBounce ? 'BULLISH' : bearishTrend || breakoutDown || sidewayResistanceDrop ? 'BEARISH' : 'NEUTRAL';
+
   return {
-    ready: true, signal: 'WAIT',
-    candidate: isBullishTrend && score >= 58 ? 'CALL'
-      : isBearishTrend && score >= 58 ? 'PUT' : 'WAIT',
-    statusText: isSideway ? 'DANGER' : 'SAFE',
-    statusColor: isSideway ? 'red' : 'green',
-    confidence, rsi, ema5, ema20, bandwidth: bb.bandwidth,
-    trend, trendLabel: isBullishTrend ? 'ขาขึ้น' : isBearishTrend ? 'ขาลง' : 'เป็นกลาง',
-    isBullishTrend, isBearishTrend, isSideway, exactTimeLeft,
-    currentPrice, previousPrice: prevPrice,
-    reason: isSideway ? 'Bollinger Bandwidth ต่ำกว่า 0.04% · SIDEWAY · STANDBY'
-      : isBullishTrend ? 'EMA5 อยู่เหนือ EMA20 และราคายืนเหนือ EMA5 · ตามเทรนด์ขาขึ้น'
-      : isBearishTrend ? 'EMA5 อยู่ใต้ EMA20 และราคาอยู่ใต้ EMA5 · ตามเทรนด์ขาลง'
-      : 'แนวโน้มยังไม่ชัด · รอองค์ประกอบครบ · STANDBY'
+    ready: true, signal: 'WAIT', candidate, regime,
+    statusText: isSideway && candidate === 'WAIT' ? 'DANGER' : candidate === 'WAIT' ? 'CAUTION' : 'SAFE',
+    statusColor: isSideway && candidate === 'WAIT' ? 'red' : candidate === 'WAIT' ? 'yellow' : 'green',
+    confidence, rsi: Number(rsi.toFixed(1)), ema5, ema20,
+    bandwidth: bb.bandwidth, rangeHigh, rangeLow, breakoutUp, breakoutDown, sidewaySupportBounce, sidewayResistanceDrop,
+    trend, trendLabel: trend === 'BULLISH' ? 'ขาขึ้น' : trend === 'BEARISH' ? 'ขาลง' : 'เป็นกลาง',
+    isBullishTrend: bullishTrend, isBearishTrend: bearishTrend, isSideway,
+    exactTimeLeft, currentPrice, previousPrice: prevPrice, reason
   };
 }
 
