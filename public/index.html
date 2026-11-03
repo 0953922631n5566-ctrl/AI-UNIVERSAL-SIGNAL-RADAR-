@@ -20,7 +20,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 .dot{width:8px;height:8px;border-radius:50%;background:#35f0b0;box-shadow:0 0 9px #35f0b0;animation:apiPulse 1.1s infinite}
 .api.off{border-color:#573044;background:#291522;color:#ff9db3}.api.off .dot{background:#ff547b;box-shadow:0 0 9px #ff547b;animation:none}
 @keyframes apiPulse{0%,100%{opacity:1;box-shadow:0 0 5px #35f0b0}50%{opacity:.35;box-shadow:0 0 17px #35f0b0}}
-.market{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:#101b2b}
+.controls{padding:12px;border:1px solid #2a3d59;border-radius:15px;background:#101b2b;display:grid;gap:10px}.controlHead{display:flex;justify-content:space-between;align-items:center;gap:8px}.controlHead b{font-size:11px;letter-spacing:.7px}.controlHead small{font-size:10px;color:var(--muted)}.controlGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.controlField{display:grid;gap:5px}.controlField label{font-size:9px;color:var(--muted);font-weight:900;letter-spacing:.8px}.controlField select{width:100%;min-width:0;border:1px solid #38506c;border-radius:9px;background:#17273b;color:#f3f7ff;padding:10px 8px;font-size:11px;font-weight:800}.rangeRow{display:flex;align-items:center;gap:9px}.rangeRow input{width:100%;accent-color:#53d8ff}.rangeValue{font-size:14px;font-weight:1000;color:#83eaff;min-width:42px;text-align:right}.modeHint{font-size:9px;line-height:1.4;color:#9fb3cb}.market{display:flex;align-items:center;justify-content:space-between;padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:#101b2b}
 .eyebrow{font-size:9px;letter-spacing:1.5px;color:var(--muted);font-weight:800}.pair{font-size:21px;font-weight:900;letter-spacing:.5px;margin-top:4px}.marketTag{color:#81dfff;font-size:9px;font-weight:900;letter-spacing:1px;margin-top:3px}
 .pricebox{text-align:right;min-width:118px}.pricebox small{display:block;color:var(--muted);font-size:9px;line-height:1.35}.pricebox b{display:block;font-size:15px;margin:4px 0;font-variant-numeric:tabular-nums}.pricebox small.stale{color:var(--red)}.pricebox small.live{color:var(--green)}
 .radar{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:265px;padding:17px 12px 14px;border:1px solid #29435f;border-radius:20px;background:radial-gradient(circle at 50% 42%,#18304d 0%,#101b2d 48%,#0d1524 100%);overflow:hidden;transition:all .25s}
@@ -64,6 +64,14 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div><div class="eyebrow">LIVE MARKET</div><div class="pair">EUR / USD</div><div class="marketTag">NON-OTC · 1 MINUTE</div></div>
  <div class="pricebox"><small id="priceLabel">LIVE PRICE · WAITING</small><b id="price">—</b><small id="priceMeta">รอราคาสดจาก WebSocket</small><small id="restPrice">LAST CLOSED M1 · —</small></div>
 </section>
+<section class="controls">
+ <div class="controlHead"><b>MARKET ANALYSIS CONTROL</b><small id="settingsStatus">กำลังโหลดการตั้งค่า…</small></div>
+ <div class="controlGrid">
+  <div class="controlField"><label for="modeSelect">ANALYSIS MODE</label><select id="modeSelect"><option value="auto">AUTO · ตรวจจับอัตโนมัติ</option><option value="uptrend">UPTREND · ขาขึ้น</option><option value="downtrend">DOWNTREND · ขาลง</option><option value="sideway">SIDEWAY · ออกข้าง</option></select></div>
+  <div class="controlField"><label for="strictnessRange">SIGNAL STRICTNESS</label><div class="rangeRow"><input id="strictnessRange" type="range" min="55" max="100" step="1" value="55"><output class="rangeValue" id="strictnessValue">55%</output></div></div>
+ </div>
+ <p class="modeHint" id="modeHint">AUTO: ระบบตรวจจับขาขึ้น ขาลง และ Sideway ให้เอง</p>
+</section>
 <section class="radar">
  <div class="radarHead" id="radarHead">SIGNAL RADAR · STANDBY</div>
  <div class="ring">
@@ -91,6 +99,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  const tg=window.Telegram&&window.Telegram.WebApp;
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
+ const modeHints={auto:'AUTO: ระบบตรวจจับขาขึ้น ขาลง และ Sideway ให้เอง',uptrend:'UPTREND: เน้น CALL ตามเทรนด์ขาขึ้น หากไม่ตรงเงื่อนไขจะ STANDBY',downtrend:'DOWNTREND: เน้น PUT ตามเทรนด์ขาลง หากไม่ตรงเงื่อนไขจะ STANDBY',sideway:'SIDEWAY: ใช้แนวรับ–แนวต้านและ RSI เมื่อยืนยันกรอบเท่านั้น หากไม่ใช่ Sideway จะ STANDBY'};
+ let preferences={mode:'auto',strictness:55};
  let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
@@ -150,7 +160,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   $('forecast').textContent='LIVE FORMULA: '+(forecast.displayState||forecast.signal||'STANDBY')+
    ' · '+(forecast.trendLabel||'แนวโน้มไม่ชัด')+' · CONF '+(forecast.confidence||'50.0')+
    ' · RSI '+(forecast.indicators&&forecast.indicators.rsi14!=null?forecast.indicators.rsi14:'—')+
-   ' · BB '+(forecast.indicators&&forecast.indicators.bollingerBandwidth!=null?Number(forecast.indicators.bollingerBandwidth).toFixed(4)+'%':'—')+' · '+(forecast.reason||'');
+   ' · BB '+(forecast.indicators&&forecast.indicators.bollingerBandwidth!=null?Number(forecast.indicators.bollingerBandwidth).toFixed(4)+'%':'—')+' · '+(forecast.modeLabel||'AUTO')+' · STRICT '+(forecast.strictness??preferences.strictness)+'% · '+(forecast.reason||'');
  }
  async function scanLive(){
   if(!running||busyLive)return;busyLive=true;
@@ -287,9 +297,29 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('phase').textContent='READY TO SCAN';
   }
  }
+ async function savePreferences(){
+  const mode=$('modeSelect').value,strictness=Number($('strictnessRange').value);
+  preferences={mode,strictness};
+  finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');
+  $('strictnessValue').textContent=strictness+'%';$('modeHint').textContent=modeHints[mode];
+  try{localStorage.setItem('airadar.preferences',JSON.stringify(preferences));}catch(e){}
+  $('settingsStatus').textContent='กำลังบันทึก…';
+  try{const response=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(preferences)});if(!response.ok)throw new Error('HTTP '+response.status);const saved=await response.json();preferences={mode:saved.mode,strictness:saved.strictness};$('settingsStatus').textContent='บันทึกแล้ว';scanLive();}
+  catch(e){$('settingsStatus').textContent='บันทึกไม่สำเร็จ';}
+ }
+ async function loadPreferences(){
+  let saved=null;try{const raw=localStorage.getItem('airadar.preferences');if(raw)saved=JSON.parse(raw);}catch(e){}
+  try{if(!saved){const response=await fetch('/api/settings',{cache:'no-store'});if(response.ok)saved=await response.json();}}catch(e){}
+  if(saved&&['auto','uptrend','downtrend','sideway'].includes(saved.mode)){preferences.mode=saved.mode;preferences.strictness=Math.max(55,Math.min(100,Number(saved.strictness)||55));}
+  $('modeSelect').value=preferences.mode;$('strictnessRange').value=preferences.strictness;$('strictnessValue').textContent=preferences.strictness+'%';$('modeHint').textContent=modeHints[preferences.mode];
+  if(running)savePreferences();else fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(preferences)}).then(()=>{$('settingsStatus').textContent='พร้อมใช้งาน';}).catch(()=>{$('settingsStatus').textContent='รอเชื่อมต่อ';});
+ }
+ $('modeSelect').addEventListener('change',savePreferences);
+ $('strictnessRange').addEventListener('input',()=>{$('strictnessValue').textContent=$('strictnessRange').value+'%';});
+ $('strictnessRange').addEventListener('change',savePreferences);
  $('start').addEventListener('click',startStop);
  $('sound').addEventListener('click',()=>{beep(880,220,2);vibrate(100);$('sound').textContent='🔔';$('sound').title='Sound enabled'});
- setApi('off');setInterval(tick,150);tick();
+ setApi('off');loadPreferences();setInterval(tick,150);tick();
 })();
 </script>
 </body>

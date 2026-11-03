@@ -113,6 +113,18 @@ async function buildSignal() {
   }
 }
 
+app.get('/api/settings', (_req, res) => res.json(liveEngine ? liveEngine.getPreferences() : { mode: 'auto', strictness: 55 }));
+
+app.post('/api/settings', (req, res) => {
+  const mode = req.body && req.body.mode;
+  const strictness = Number(req.body && req.body.strictness);
+  if (!['auto','uptrend','downtrend','sideway'].includes(mode) || !Number.isFinite(strictness) || strictness < 55 || strictness > 100) {
+    return res.status(400).json({ error: 'mode must be auto/uptrend/downtrend/sideway and strictness must be 55-100' });
+  }
+  const settings = liveEngine ? liveEngine.setPreferences({ mode, strictness }) : { mode, strictness: Math.round(strictness) };
+  return res.json({ ok: true, ...settings });
+});
+
 app.get('/api/config', (_req, res) => res.json({
   symbol: 'EUR/USD', market: 'NON-OTC', timeframe: 'M1',
   regimes: ['TREND', 'SIDEWAY', 'BREAKOUT'],

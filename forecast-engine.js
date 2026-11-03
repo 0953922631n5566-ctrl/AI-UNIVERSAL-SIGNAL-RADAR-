@@ -53,7 +53,11 @@ function calculateRSI(prices, period = 14) {
   return 100 - (100 / (1 + rs));
 }
 
-function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = Date.now()) {
+function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = Date.now(), options = {}) {
+  const requestedMode = ['auto','uptrend','downtrend','sideway'].includes(options.mode) ? options.mode : 'auto';
+  const rawLevel = Number(options.strictness ?? SIGNAL_STRICTNESS);
+  const strictness = Number.isFinite(rawLevel) ? Math.max(55, Math.min(100, rawLevel)) : 55;
+  const rsiConfirmationLevel = Math.max(50, Math.min(56.75, 50 + (strictness - 55) * 0.15));
   const candles = (Array.isArray(closedCandles) ? closedCandles : [])
     .filter(c => c && Number.isFinite(Number(c.close)))
     .slice(-120);
@@ -62,7 +66,7 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
     return {
       ready: false, signal: 'WAIT', candidate: 'WAIT', regime: 'WAITING FOR DATA',
       statusText: 'DANGER', statusColor: 'red', confidence: '50.0', rsi: null,
-      trend: 'NEUTRAL', trendLabel: 'รอข้อมูล', strictness: SIGNAL_STRICTNESS, rsiConfirmationLevel: RSI_CONFIRMATION_LEVEL, reason: 'ต้องมีแท่ง M1 จริงอย่างน้อย 20 แท่งและราคาสด'
+      trend: 'NEUTRAL', trendLabel: 'รอข้อมูล', strictness, rsiConfirmationLevel, mode: requestedMode, reason: 'ต้องมีแท่ง M1 จริงอย่างน้อย 20 แท่งและราคาสด'
     };
   }
 
@@ -75,12 +79,12 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   const recent = candles.slice(-20);
   const rangeHigh = Math.max(...recent.map(c => Number(c.high ?? c.close)));
   const rangeLow = Math.min(...recent.map(c => Number(c.low ?? c.close)));
-  const breakoutUp = currentPrice > rangeHigh;
-  const breakoutDown = currentPrice < rangeLow;
+  const breakoutUp = requestedMode !== 'sideway' && currentPrice > rangeHigh;
+  const breakoutDown = requestedMode !== 'sideway' && currentPrice < rangeLow;
   const bullishTrend = ema5 > ema20 && currentPrice >= ema5;
   const bearishTrend = ema5 < ema20 && currentPrice <= ema5;
-  const rsiBullish = rsi >= RSI_CONFIRMATION_LEVEL;
-  const rsiBearish = rsi <= (100 - RSI_CONFIRMATION_LEVEL);
+  const rsiBullish = rsi >= rsiConfirmationLevel;
+  const rsiBearish = rsi <= (100 - rsiConfirmationLevel);
   const isSideway = Number.isFinite(bb.bandwidth) && bb.bandwidth < 0.04 && !breakoutUp && !breakoutDown;
   const rangeWidth = Math.max(0, rangeHigh - rangeLow);
   const edgeTolerance = Math.max(rangeWidth * 0.18, currentPrice * 0.00005);
@@ -92,33 +96,36 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   let reason = 'แนวโน้มยังไม่ชัด · รอข้อมูลยืนยัน · STANDBY';
 
   // Breakouts must agree with EMA direction and RSI momentum; otherwise wait.
-  if (breakoutUp && bullishTrend && rsiBullish) {
+  if ((requestedMode === 'auto' || requestedMode === 'uptrend') && breakoutUp && bullishTrend && rsiBullish) {
     candidate = 'CALL'; regime = 'BREAKOUT UP';
-    reason = 'ทะลุกรอบสูงสุด 20 แท่ง พร้อม EMA5 > EMA20 และ RSI14 >= ' + RSI_CONFIRMATION_LEVEL.toFixed(1) + ' · ตามแรงขาขึ้น';
-  } else if (breakoutDown && bearishTrend && rsiBearish) {
+    reason = 'ทะลุกรอบสูงสุด 20 แท่ง พร้อม EMA5 > EMA20 และ RSI14 >= ' + rsiConfirmationLevel.toFixed(1) + ' · ตามแรงขาขึ้น';
+  } else if ((requestedMode === 'auto' || requestedMode === 'downtrend') && breakoutDown && bearishTrend && rsiBearish) {
     candidate = 'PUT'; regime = 'BREAKOUT DOWN';
-    reason = 'หลุดกรอบต่ำสุด 20 แท่ง พร้อม EMA5 < EMA20 และ RSI14 <= ' + (100 - RSI_CONFIRMATION_LEVEL).toFixed(1) + ' · ตามแรงขาลง';
-  } else if (breakoutUp || breakoutDown) {
+    reason = 'หลุดกรอบต่ำสุด 20 แท่ง พร้อม EMA5 < EMA20 และ RSI14 <= ' + (100 - rsiConfirmationLevel).toFixed(1) + ' · ตามแรงขาลง';
+  } else if ((requestedMode === 'auto' || requestedMode === 'uptrend' || requestedMode === 'downtrend') && (breakoutUp || breakoutDown)) {
     regime = 'BREAKOUT · TREND FILTER';
     reason = 'ราคาทะลุกรอบแต่ EMA/RSI ยังไม่ยืนยันไปทางเดียวกัน · STANDBY เพื่อไม่สวนเทรนด์';
-  } else if (sidewaySupportBounce) {
+  } else if ((requestedMode === 'auto' || requestedMode === 'sideway') && sidewaySupportBounce) {
     candidate = 'CALL'; regime = 'SIDEWAY SUPPORT BOUNCE';
     reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวรับและ RSI14 <= 45 ยืนยันแรงเด้ง · CALL';
-  } else if (sidewayResistanceDrop) {
+  } else if ((requestedMode === 'auto' || requestedMode === 'sideway') && sidewayResistanceDrop) {
     candidate = 'PUT'; regime = 'SIDEWAY RESISTANCE DROP';
     reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวต้านและ RSI14 >= 55 ยืนยันแรงอ่อน · PUT';
-  } else if (isSideway) {
+  } else if (requestedMode === 'sideway' && !isSideway) {
+    regime = 'SIDEWAY MODE · MARKET NOT RANGE';
+    reason = 'เลือกโหมด SIDEWAY แต่ข้อมูลปัจจุบันยังไม่ยืนยันตลาดออกข้าง · STANDBY';
+  } else if ((requestedMode === 'auto' || requestedMode === 'sideway') && isSideway) {
     regime = 'SIDEWAY / WAIT';
     reason = 'ตลาดแกว่งแคบแต่ยังไม่ยืนยันการเด้งจากขอบกรอบ · STANDBY';
-  } else if (bullishTrend && rsiBullish) {
+  } else if ((requestedMode === 'auto' || requestedMode === 'uptrend') && bullishTrend && rsiBullish) {
     candidate = 'CALL'; regime = 'UPTREND / MOMENTUM';
-    reason = 'EMA5 > EMA20, ราคายืนเหนือ EMA5 และ RSI14 >= ' + RSI_CONFIRMATION_LEVEL.toFixed(1) + ' · ตามเทรนด์ขาขึ้น';
-  } else if (bearishTrend && rsiBearish) {
+    reason = 'EMA5 > EMA20, ราคายืนเหนือ EMA5 และ RSI14 >= ' + rsiConfirmationLevel.toFixed(1) + ' · ตามเทรนด์ขาขึ้น';
+  } else if ((requestedMode === 'auto' || requestedMode === 'downtrend') && bearishTrend && rsiBearish) {
     candidate = 'PUT'; regime = 'DOWNTREND / MOMENTUM';
-    reason = 'EMA5 < EMA20, ราคาอยู่ใต้ EMA5 และ RSI14 <= ' + (100 - RSI_CONFIRMATION_LEVEL).toFixed(1) + ' · ตามเทรนด์ขาลง';
-  } else if (bullishTrend || bearishTrend) {
+    reason = 'EMA5 < EMA20, ราคาอยู่ใต้ EMA5 และ RSI14 <= ' + (100 - rsiConfirmationLevel).toFixed(1) + ' · ตามเทรนด์ขาลง';
+  } else if ((requestedMode === 'auto' || (requestedMode === 'uptrend' && bullishTrend) || (requestedMode === 'downtrend' && bearishTrend)) && (bullishTrend || bearishTrend)) {
     regime = 'TREND · RSI FILTER';
-    reason = 'EMA แสดงแนวโน้มแต่ RSI14 ยังไม่ยืนยันระดับ ' + (bullishTrend ? RSI_CONFIRMATION_LEVEL : (100 - RSI_CONFIRMATION_LEVEL)).toFixed(1) + ' · STANDBY';
+    reason = 'EMA แสดงแนวโน้มแต่ RSI14 ยังไม่ยืนยันระดับ ' + (bullishTrend ? rsiConfirmationLevel : (100 - rsiConfirmationLevel)).toFixed(1) + ' · STANDBY';
   }
 
   let score = 65;
@@ -136,7 +143,7 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
     ready: true, signal: 'WAIT', candidate, regime,
     statusText: isSideway && candidate === 'WAIT' ? 'DANGER' : candidate === 'WAIT' ? 'CAUTION' : 'SAFE',
     statusColor: isSideway && candidate === 'WAIT' ? 'red' : candidate === 'WAIT' ? 'yellow' : 'green',
-    confidence, strictness: SIGNAL_STRICTNESS, rsiConfirmationLevel: RSI_CONFIRMATION_LEVEL, rsi: Number(rsi.toFixed(1)), ema5, ema20,
+    confidence, strictness, rsiConfirmationLevel, mode: requestedMode, rsi: Number(rsi.toFixed(1)), ema5, ema20,
     bandwidth: bb.bandwidth, rangeHigh, rangeLow, breakoutUp, breakoutDown,
     rsiBullish, rsiBearish, sidewaySupportBounce, sidewayResistanceDrop,
     trend, trendLabel: trend === 'BULLISH' ? 'ขาขึ้น' : trend === 'BEARISH' ? 'ขาลง' : 'เป็นกลาง',

@@ -68,6 +68,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
   const tickCandles = createMinuteCandleAggregator();
   const signalState = { signal: 'WAIT', signalAt: null, expiresAt: 0, minuteKey: null };
   let latestAnalysis = null;
+  let preferences = { mode: 'auto', strictness: 55 };
 
   function mergedClosedCandles() {
     const merged = new Map();
@@ -90,10 +91,14 @@ function createLiveEngine(apiKey, getClosedCandles) {
     }
     const candles = mergedClosedCandles();
     const historyUnavailable = !hasFreshClosedHistory(candles, now);
-    let analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now);
+    let analysis = evaluateLiveFormula(candles, tick.price, previousTickPrice, now, preferences);
 
     // If REST history is missing/too short, use only two consecutive verified live
     // quotes as a direction fallback. This does not override a valid strategy WAIT.
+    if (preferences.mode !== 'auto' && (!analysis.ready || historyUnavailable)) {
+      latestAnalysis = { ...analysis, candidate: 'WAIT', reason: 'โหมดที่เลือกต้องใช้ข้อมูลแท่งย้อนหลังที่สดและครบ · งดใช้ Live Price Fallback เพื่อไม่ให้ขัดกับโหมดที่เลือก' };
+      return;
+    }
     if (!analysis.ready || historyUnavailable) {
       const previousQuoteIsFresh = Number.isFinite(previousTickTimestamp) &&
         now >= previousTickTimestamp && now - previousTickTimestamp <= 30000;
@@ -194,7 +199,8 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const forecast = {
       signal: visibleSignal, displayState: analysis.regime || (analysis.isSideway ? 'SIDEWAY' : visibleSignal),
       confidence: analysis.confidence, agreementScore: Number(analysis.confidence),
-      strictness: analysis.strictness ?? null, rsiConfirmationLevel: analysis.rsiConfirmationLevel ?? null,
+      strictness: analysis.strictness ?? preferences.strictness, rsiConfirmationLevel: analysis.rsiConfirmationLevel ?? null,
+      mode: preferences.mode, modeLabel: ({auto:'AUTO',uptrend:'UPTREND',downtrend:'DOWNTREND',sideway:'SIDEWAY'})[preferences.mode],
       agreementVotes: analysis.fallback ? 'LIVE_PRICE_DIRECTION' : analysis.ready ? 'FORMULA' : 'WAIT',
       horizon: 0, validFor: 'CURRENT_M1_FINAL_5_SECONDS',
       signalAt: signalState.signalAt, signalMinuteKey: signalState.minuteKey,
@@ -225,6 +231,19 @@ function createLiveEngine(apiKey, getClosedCandles) {
   const engineTimer = setInterval(processSignal, 100);
   return {
     prediction, getStatus:()=>({status,message}),
+    setPreferences: (next) => {
+      if (!next || !['auto','uptrend','downtrend','sideway'].includes(next.mode)) return { ...preferences };
+      const level = Number(next.strictness);
+      const nextPreferences = { mode: next.mode, strictness: Number.isFinite(level) ? Math.max(55, Math.min(100, Math.round(level))) : preferences.strictness };
+      if (nextPreferences.mode !== preferences.mode || nextPreferences.strictness !== preferences.strictness) {
+        preferences = nextPreferences;
+        signalState.signal = 'WAIT'; signalState.signalAt = null; signalState.expiresAt = 0;
+        signalState.minuteKey = Math.floor(Date.now() / 60000); latestAnalysis = null;
+      }
+      processSignal();
+      return { ...preferences };
+    },
+    getPreferences: () => ({ ...preferences }),
     stop:()=>{stopped=true;clearInterval(engineTimer);clearTimeout(retryTimer);clearInterval(heartbeatTimer);if(socket)socket.close();}
   };
 }
