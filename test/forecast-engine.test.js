@@ -10,7 +10,7 @@ function candlesFrom(closes) {
 }
 
 test('EMA uses the requested recursive smoothing formula', () => {
-  assert.equal(calculateEMA([1, 2, 3, 4, 5], 5), 3);
+  assert.ok(Math.abs(calculateEMA([1, 2, 3, 4, 5], 5) - 3.3950617283950617) < 1e-12);
 });
 
 test('Bollinger Bandwidth is calculated from the last 20 prices', () => {
