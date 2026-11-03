@@ -59,3 +59,14 @@ Latest baseline build:
 **Important:** this APK is a debug capture-shell build, not a completed AI scanner. The current Android source starts MediaProjection and creates an ImageReader, but it does not yet encode JPEG frames, upload them over authenticated HTTPS, parse backend decisions, or display backend STANDBY/CALL/PUT with reasons. The backend currently returns STANDBY because no vision adapter is configured, and it is not deployed as a Render service.
 
 Never embed API keys, bearer tokens, or reusable secrets in the APK or public source. Keep all directional output STANDBY until a real perception and decision model has been configured and evaluated. No automated broker execution is allowed.
+
+
+## Single-horizon signal policy (2026-11-03)
+
+- The only directional forecast is **NEXT M1**: the next one-minute candle.
+- The former FOLLOWING M1 horizon and the former REST EMA/RSI directional signal have been removed from the decision path.
+- REST Twelve Data is now used only to maintain completed candle history and verify data freshness; it does not produce a competing CALL/PUT direction.
+- The single NEXT M1 forecast uses the existing EMA5/EMA20, MACD(12,26,9), RSI(14), last completed candle body, and live momentum rules. Existing 5-of-6 threshold is retained.
+- The final alert uses the NEXT M1 forecast directly when REST history is healthy and the WebSocket quote timestamp is no older than 75 seconds. No second directional engine must agree.
+- If history/feed is stale, the quote is missing, or the forecast does not pass its rules, the final result remains STANDBY. No fabricated CALL/PUT and no automatic orders.
+- The 10-second preparation alert, final 5-second result, 35-second hold, sound/vibration behavior, and manual-only operation remain unchanged.
