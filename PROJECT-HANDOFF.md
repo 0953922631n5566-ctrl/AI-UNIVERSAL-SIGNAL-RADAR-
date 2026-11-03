@@ -51,3 +51,14 @@ Set `TWELVE_DATA_API_KEY` privately in Render Environment. Never place the key i
 - Audio/vibration depend on browser permissions and user gesture.
 - Manual signal support only; no automatic broker execution.
 - API blinking confirms successful API responses, not that a trade signal is present or an order should be placed.
+
+
+## Experimental Fast Signal A (2026-11-03)
+- Work is isolated on branch `experiment/fast-signal-a`; draft PR #10: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/10
+- Added `experimental/fast-signal.js`: directional score from EMA3/EMA8, RSI5, 3-candle momentum normalized by ATR14, MACD(5,13,4), latest candle body, and close-to-close direction. CALL/PUT threshold 55 with 15-point directional edge; otherwise STANDBY. Score is not a probability.
+- Added `experimental/fast-signal.test.js` and GitHub Actions workflow. CI run #1 completed successfully: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/41583524759
+- Added `FAST-SIGNAL-PLAN.md` describing the rules, test assumptions, and limitations.
+- This experiment is not integrated into `server.js`, not merged to `main`, and not deployed to Render. Production remains on `main`.
+- Unit tests use synthetic rising/falling fixtures only. No real-market historical backtest or profitability claim has been established yet.
+- The backtest helper signals on candle i close, enters at candle i+1 open, and evaluates candle i+1 close. It does not model spread, slippage, payout, or execution latency.
+- Production feed currently refreshes Twelve Data REST M1 candles every 120 seconds; this cannot deliver a fresh signal each minute or tick-level signals. Investigate eligible real-time WebSocket entitlement before increasing cadence.
