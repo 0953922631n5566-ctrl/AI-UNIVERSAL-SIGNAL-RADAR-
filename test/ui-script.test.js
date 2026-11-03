@@ -11,3 +11,9 @@ test('Mini App inline JavaScript parses without syntax errors', () => {
   assert.ok(inline, 'expected an inline Mini App script');
   assert.doesNotThrow(() => new vm.Script(inline, { filename: 'public/index.html' }));
 });
+
+test('Mini App client hold timer matches the 35-second alert contract', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.match(html, /const HOLD_MS=35000/);
+  assert.match(html, /RESULT LAST 5S/);
+});
