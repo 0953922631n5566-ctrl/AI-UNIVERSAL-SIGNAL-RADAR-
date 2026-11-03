@@ -54,3 +54,10 @@ The user approved applying the supplied EMA5/EMA20 and RSI14 concepts to the exi
 
 ## Rollback
 If this strategy refinement causes unexpected behavior, revert merge commit bbf1f1b394d1800a89b446e26551ad4ed3f162eb.
+
+## Final Mini App timing-label consistency fix
+- Corrected the client-side explanatory text from "final 3 seconds" to "final 5 seconds" so the display agrees with the server's configured five-second decision window.
+- Added a UI regression assertion for the five-second label and to reject the obsolete three-second wording.
+- Latest Render deploy: dep-dbksllh9dmos739ntrk0 — LIVE.
+- Final /health check: status=ok, 200 history candles, WebSocket subscribed, finalAlertWindowSeconds=5, signalHoldSeconds=35.
+- The main strategy CI run 41630630422 passed. The subsequent UI text/assertion-only commits were deployed; their new assertion has not yet been separately reported by a GitHub Actions run.
