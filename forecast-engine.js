@@ -59,6 +59,10 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   const bullishTrend = ema5 > ema20 && currentPrice >= ema5;
   const bearishTrend = ema5 < ema20 && currentPrice <= ema5;
   const isSideway = Number.isFinite(bb.bandwidth) && bb.bandwidth < 0.04 && !breakoutUp && !breakoutDown;
+  const rangeWidth = Math.max(0, rangeHigh - rangeLow);
+  const edgeTolerance = Math.max(rangeWidth * 0.18, currentPrice * 0.00005);
+  const sidewaySupportBounce = isSideway && currentPrice <= rangeLow + edgeTolerance && rsi <= 45;
+  const sidewayResistanceDrop = isSideway && currentPrice >= rangeHigh - edgeTolerance && rsi >= 55;
 
   let candidate = 'WAIT';
   let regime = 'CONSOLIDATION';
@@ -69,9 +73,15 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   } else if (breakoutDown) {
     candidate = 'PUT'; regime = 'BREAKOUT DOWN';
     reason = 'ราคาหลุดกรอบต่ำสุด 20 แท่ง M1 · รอจังหวะยืนยันขาลง';
+  } else if (sidewaySupportBounce) {
+    candidate = 'CALL'; regime = 'SIDEWAY SUPPORT BOUNCE';
+    reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวรับและ RSI ยืนยันแรงเด้ง · CALL';
+  } else if (sidewayResistanceDrop) {
+    candidate = 'PUT'; regime = 'SIDEWAY RESISTANCE DROP';
+    reason = 'ตลาดแกว่งในกรอบ · ราคาใกล้แนวต้านและ RSI ยืนยันแรงอ่อน · PUT';
   } else if (isSideway) {
-    regime = 'SIDEWAY / DANGER';
-    reason = 'Bollinger Bandwidth ต่ำกว่า 0.04% · ตลาดแกว่งแคบ · STANDBY';
+    regime = 'SIDEWAY / WAIT';
+    reason = 'ตลาดแกว่งแคบแต่ยังไม่ยืนยันการเด้งจากขอบกรอบ · STANDBY';
   } else if (bullishTrend) {
     candidate = 'CALL'; regime = 'UPTREND / MOMENTUM';
     reason = 'EMA5 เหนือ EMA20 และราคายืนเหนือ EMA5 · ตามเทรนด์ขาขึ้น';
@@ -86,14 +96,14 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   const confidence = Math.min(score, 96).toFixed(1);
   const date = new Date(now);
   const exactTimeLeft = 60 - (date.getSeconds() + date.getMilliseconds() / 1000);
-  const trend = bullishTrend || breakoutUp ? 'BULLISH' : bearishTrend || breakoutDown ? 'BEARISH' : 'NEUTRAL';
+  const trend = bullishTrend || breakoutUp || sidewaySupportBounce ? 'BULLISH' : bearishTrend || breakoutDown || sidewayResistanceDrop ? 'BEARISH' : 'NEUTRAL';
 
   return {
     ready: true, signal: 'WAIT', candidate, regime,
     statusText: isSideway ? 'DANGER' : candidate === 'WAIT' ? 'CAUTION' : 'SAFE',
     statusColor: isSideway ? 'red' : candidate === 'WAIT' ? 'yellow' : 'green',
     confidence, rsi: Number(rsi.toFixed(1)), ema5, ema20,
-    bandwidth: bb.bandwidth, rangeHigh, rangeLow, breakoutUp, breakoutDown,
+    bandwidth: bb.bandwidth, rangeHigh, rangeLow, breakoutUp, breakoutDown, sidewaySupportBounce, sidewayResistanceDrop,
     trend, trendLabel: trend === 'BULLISH' ? 'ขาขึ้น' : trend === 'BEARISH' ? 'ขาลง' : 'เป็นกลาง',
     isBullishTrend: bullishTrend, isBearishTrend: bearishTrend, isSideway,
     exactTimeLeft, currentPrice, previousPrice: prevPrice, reason
