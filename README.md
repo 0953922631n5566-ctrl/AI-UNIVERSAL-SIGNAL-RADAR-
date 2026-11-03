@@ -81,3 +81,13 @@ Never embed API keys, bearer tokens, or reusable secrets in the APK or public so
 - The Mini App polls the server cache every 5 seconds; it does not make a Twelve Data request for every browser poll.
 - The 10-second preparation reminder remains before each minute boundary. The final result is published 5 seconds after the new candle begins, so the just-closed candle's decision is announced for the candle it actually applies to. CALL/PUT/STANDBY remain visible for 35 seconds.
 - This project is one Main Market EUR/USD NON-OTC Mini App. There is no OTC mode, no second horizon, and no automatic broker execution.
+
+
+## Latest M1 timing and trend guard correction (branch validation pending)
+
+- The Mini App no longer waits for a fixed +5-second result timer. It polls the cached live forecast every 500 ms and publishes as soon as a fresh forecast's `nextCandleAt` matches the current minute. If no exact, fresh result arrives within 12 seconds, it publishes STANDBY once instead of a late CALL/PUT.
+- Starting scan mid-minute waits for the next minute boundary.
+- The forecast still uses the existing EMA5/EMA20, RSI14, MACD12/26/9, 35 closed-candle warm-up, and 5-of-6 threshold. It now requires EMA trend and latest completed candle body to agree: CALL = UPTREND + bullish candle; PUT = DOWNTREND + bearish candle. Otherwise STANDBY.
+- The UI separately displays EMA market trend, latest closed candle direction, and RSI14.
+- The forming candle is not treated as confirmed before it closes. REST still refreshes just after each minute boundary, so exact zero-latency is not guaranteed; provider/network response time remains a constraint.
+- Changes are on `fix/early-m1-alert-candle-trend`; not merged or deployed yet. Run `npm test` and verify Render + Telegram Mini App before production use.

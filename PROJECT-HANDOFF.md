@@ -163,3 +163,17 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - CI: Node Forecast Tests run 41604493045 completed successfully.
 - Telegram Mini App URL: https://ai-universal-signal-radar-main.onrender.com/
 - No automatic trading. This is a rule-based signal tool, not a guarantee of outcomes. Actual Telegram bot menu/launch configuration and device sound/vibration are not verifiable from the Render service alone.
+
+
+## Candle-aligned early alert and trend correction — 2026-11-03
+
+- Work is isolated on branch `fix/early-m1-alert-candle-trend`; production `main` has not been changed by this work yet.
+- `forecast-engine.js` retains EMA5/EMA20, RSI14, MACD12/26/9, the 35-closed-candle minimum, and the 5-of-6 vote threshold. It now also derives an explicit EMA trend regime (UPTREND/DOWNTREND/SIDEWAYS) and latest closed candle body direction (BULLISH/BEARISH/NEUTRAL).
+- CALL is permitted only when the EMA trend is UPTREND and the latest closed candle is bullish. PUT is permitted only when the EMA trend is DOWNTREND and the latest closed candle is bearish. A conflicting candle body forces STANDBY; no counter-trend signal is published.
+- Mini App trend cards separately show the EMA trend, latest completed candle direction, and RSI14.
+- Final alert no longer waits for a hard-coded 5–6 second window. It checks the local live endpoint every 500 ms and emits as soon as the fresh forecast's `nextCandleAt` matches the current M1 boundary. If no matching valid result arrives within 12 seconds, it emits STANDBY once and does not issue a late directional signal for that candle.
+- When scanning starts mid-minute, it waits for the next boundary rather than generating a late result for the already-open candle.
+- The 10-second preparation reminder, sound/vibration for all final outcomes, 35-second hold, one result per minute, Telegram Mini App UI, live WebSocket price display, and manual-only/no-auto-trade behavior are preserved.
+- Important timing limit: Twelve Data REST refresh is still scheduled just after the minute boundary to obtain a fully closed candle. Therefore this improves the previous fixed +5–6-second client delay, but zero-latency notification cannot be guaranteed; provider response and network time remain. If no fresh exact-boundary result is available by +12 seconds, the safe result is STANDBY.
+- Added tests assert that CALL/PUT can never contradict the latest closed candle direction and EMA trend. Run `npm test` before merging/deploying.
+- Production status: not yet merged or deployed. Do not call this production-ready until CI passes, the PR is reviewed/merged, Render deploy is LIVE, health/API data are verified, and the physical Telegram Mini App sound/vibration test is performed.
