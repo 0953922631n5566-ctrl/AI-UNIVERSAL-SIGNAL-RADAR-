@@ -177,3 +177,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Important timing limit: Twelve Data REST refresh is still scheduled just after the minute boundary to obtain a fully closed candle. Therefore this improves the previous fixed +5–6-second client delay, but zero-latency notification cannot be guaranteed; provider response and network time remain. If no fresh exact-boundary result is available by +12 seconds, the safe result is STANDBY.
 - Added tests assert that CALL/PUT can never contradict the latest closed candle direction and EMA trend. Run `npm test` before merging/deploying.
 - Production status: not yet merged or deployed. Do not call this production-ready until CI passes, the PR is reviewed/merged, Render deploy is LIVE, health/API data are verified, and the physical Telegram Mini App sound/vibration test is performed.
+
+
+## Live quote-derived M1 candle completion — 2026-11-03
+
+- Branch: `fix/live-tick-m1-candle-feed`; PR #13 targets `main`.
+- Twelve Data REST can lag the most recent completed M1 candle. The live engine now aggregates fresh WebSocket quotes into minute OHLC bars so the latest completed minute can be evaluated at the next boundary when REST history has not caught up.
+- A tick-derived bar is finalized only when a tick from the immediately following minute arrives. Multiple in-minute ticks use the last in-minute quote as close; a minute with only one tick uses the next boundary quote as close.
+- Gaps do not create synthetic missing bars. REST OHLC remains authoritative when it has the same timestamp; tick-derived candles fill only absent REST minutes.
+- The forecast cache key now includes OHLC values, so a REST replacement of a tick-derived bar causes recalculation.
+- Tests cover multi-tick aggregation, single-tick boundary close, missing-minute gaps, and out-of-order ticks. CI status must be checked before merge.
+- The existing strict alert alignment remains: only publish when the forecast targets the current M1 boundary and the quote is fresh; otherwise STANDBY. No late direction or automatic orders.

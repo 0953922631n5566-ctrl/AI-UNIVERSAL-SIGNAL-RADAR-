@@ -1,11 +1,76 @@
 const WebSocket = require('ws');
 const { evaluateNextCandle } = require('./forecast-engine');
 
+// Builds completed M1 candles from the live quote stream. It never fabricates missing minutes.
+// When only one quote arrives in a minute, the first quote of the next minute is used as that
+// minute's close (continuous FX prices share the prior close and next open).
+function createMinuteCandleAggregator() {
+  let current = null;
+  const completed = new Map();
+
+  function startBar(minuteStart, price, timestamp) {
+    current = {
+      minuteStart, open: price, high: price, low: price, close: price,
+      ticks: 1, lastTimestamp: timestamp
+    };
+  }
+
+  function ingest(price, timestamp) {
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(timestamp)) return null;
+    const minuteStart = Math.floor(timestamp / 60000) * 60000;
+    if (!current) {
+      startBar(minuteStart, price, timestamp);
+      return null;
+    }
+    if (minuteStart < current.minuteStart || timestamp < current.lastTimestamp) return null;
+    if (minuteStart === current.minuteStart) {
+      current.high = Math.max(current.high, price);
+      current.low = Math.min(current.low, price);
+      current.close = price;
+      current.ticks += 1;
+      current.lastTimestamp = timestamp;
+      return null;
+    }
+
+    let finalized = null;
+    if (minuteStart === current.minuteStart + 60000) {
+      // Prefer the final in-minute tick. If there was only one boundary tick, use the
+      // next boundary quote as the previous candle's close so a usable M1 body is formed.
+      const close = current.ticks > 1 ? current.close : price;
+      finalized = {
+        datetime: new Date(current.minuteStart).toISOString().slice(0, 19).replace('T', ' '),
+        open: current.open,
+        high: Math.max(current.high, close),
+        low: Math.min(current.low, close),
+        close
+      };
+      completed.set(finalized.datetime, finalized);
+      while (completed.size > 220) completed.delete(completed.keys().next().value);
+    }
+    // A gap larger than one minute resets the baseline; missing candles are never invented.
+    startBar(minuteStart, price, timestamp);
+    return finalized;
+  }
+
+  return {
+    ingest,
+    getCompletedCandles: () => Array.from(completed.values()),
+    getCurrentCandle: () => current ? {
+      datetime: new Date(current.minuteStart).toISOString().slice(0, 19).replace('T', ' '),
+      open: current.open, high: current.high, low: current.low, close: current.close,
+      ticks: current.ticks,
+      direction: current.close > current.open ? 'BULLISH' :
+        current.close < current.open ? 'BEARISH' : 'NEUTRAL'
+    } : null
+  };
+}
+
 function createLiveEngine(apiKey, getClosedCandles) {
   let socket = null, status = apiKey ? 'connecting' : 'unavailable';
   let message = apiKey ? 'กำลังเชื่อมต่อ Twelve Data WebSocket' : 'ยังไม่มี API key';
   let tick = null, retryTimer = null, heartbeatTimer = null, retryDelay = 5000, stopped = false;
   let evaluatedCandleKey = null, cachedForecast = null;
+  const tickCandles = createMinuteCandleAggregator();
 
   function connect() {
     if (stopped || !apiKey || (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING))) return;
@@ -31,7 +96,9 @@ function createLiveEngine(apiKey, getClosedCandles) {
       if (event.event === 'price' && String(event.symbol || '').replace(/\s/g,'').toUpperCase() === 'EUR/USD') {
         const price = Number(event.price), timestamp = Number(event.timestamp) * 1000, now = Date.now();
         if (Number.isFinite(price) && price > 0 && Number.isFinite(timestamp) && timestamp <= now + 10000 && now - timestamp <= 30000) {
-          tick = { price, timestamp }; status = 'subscribed'; message = 'รับราคาสด EUR/USD';
+          tick = { price, timestamp };
+          tickCandles.ingest(price, timestamp);
+          status = 'subscribed'; message = 'รับราคาสด EUR/USD';
         }
       }
       if (event.event === 'error' || event.status === 'error') { status = 'unavailable'; message = event.message || 'Twelve Data ปฏิเสธการเชื่อมต่อ'; }
@@ -46,10 +113,22 @@ function createLiveEngine(apiKey, getClosedCandles) {
     });
   }
 
+  function getMergedClosedCandles() {
+    const merged = new Map();
+    for (const candle of getClosedCandles()) merged.set(String(candle.datetime), candle);
+    // REST OHLC wins for any minute it has. Tick-derived bars fill only the latest REST gap.
+    for (const candle of tickCandles.getCompletedCandles()) {
+      if (!merged.has(candle.datetime)) merged.set(candle.datetime, candle);
+    }
+    return Array.from(merged.values())
+      .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      .slice(-220);
+  }
+
   function prediction() {
-    const candles = getClosedCandles().slice(-220);
+    const candles = getMergedClosedCandles();
     const last = candles.at(-1);
-    const key = last && last.datetime;
+    const key = last && [last.datetime, last.open, last.high, last.low, last.close].join(':');
     if (key && key !== evaluatedCandleKey) {
       evaluatedCandleKey = key;
       cachedForecast = evaluateNextCandle(candles);
@@ -67,13 +146,18 @@ function createLiveEngine(apiKey, getClosedCandles) {
       price:tick && tickAge <= 75000 ? tick.price.toFixed(5) : '—',
       dataAgeSeconds:Number.isFinite(tickAge) ? Math.max(0,Math.floor(tickAge/1000)) : null,
       timestamp:tick ? new Date(tick.timestamp).toISOString() : null,
-      lastClosedCandle:key || null, closedCandleAgeSeconds:Number.isFinite(age) ? Math.max(0,Math.floor(age/1000)) : null,
+      lastClosedCandle:last ? last.datetime : null,
+      closedCandleAgeSeconds:Number.isFinite(age) ? Math.max(0,Math.floor(age/1000)) : null,
+      liveCandle:tickCandles.getCurrentCandle(),
       reason:forecast.reason, ema5:forecast.indicators && forecast.indicators.ema5,
       ema20:forecast.indicators && forecast.indicators.ema20,
       rsi:forecast.indicators && forecast.indicators.rsi14
     };
   }
   connect();
-  return { prediction, getStatus:()=>({status,message}), stop:()=>{stopped=true;clearTimeout(retryTimer);clearInterval(heartbeatTimer);if(socket)socket.close();} };
+  return {
+    prediction, getStatus:()=>({status,message}),
+    stop:()=>{stopped=true;clearTimeout(retryTimer);clearInterval(heartbeatTimer);if(socket)socket.close();}
+  };
 }
-module.exports = { createLiveEngine };
+module.exports = { createLiveEngine, createMinuteCandleAggregator };
