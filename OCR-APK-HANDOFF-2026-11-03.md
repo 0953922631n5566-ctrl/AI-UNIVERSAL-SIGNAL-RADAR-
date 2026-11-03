@@ -1,34 +1,40 @@
 # OCR Android build handoff — 2026-11-03
 
 ## Current state
-The user does not have an APK and asked us to produce one. Android source is in this repository under android/. The existing MediaProjection capture shell previously had no frame listener or OCR upload.
+The user did not have an APK. We extended the existing Android MediaProjection capture project in this repository and built a new debug APK.
 
 ## Changes committed on main
 - bf65c26: added ML Kit on-device text recognition, ImageReader frame callback, right-side chart crop, price parsing, and HTTPS JSON upload.
-- 81532d3: added token entry and status display. The token is saved in app-private preferences and is not embedded in source.
-- 9323a40: configured the production Render HTTPS endpoint, ML Kit dependency, and app version 1.0.0 / versionCode 2.
+- 81532d3: added token entry and status display. Token is saved in app-private preferences and is not embedded in source.
+- 9323a40: configured production Render HTTPS endpoint, ML Kit dependency, and app version 1.0.0 / versionCode 2.
 - Upload endpoint: https://ai-universal-signal-radar-main.onrender.com/api/upload-screen
 - Package: com.aiuniversal.signalradar
-- Current OCR crop: rightmost 20% of screen, vertical 12%-90%; candidate price format has 4-6 decimals and numeric range 0.5-2.0.
-- Upload cadence: approximately one frame per second.
-- Render health returned status ok and ANDROID_OCR_ONLY; no APK readings have arrived yet.
+- OCR crop: rightmost 20% of screen, vertical 12%-90%; candidate format has 4-6 decimals and numeric range 0.5-2.0.
+- Upload cadence: approximately one OCR frame per second.
 
-## Build status
-- Latest GitHub Actions run #13: 41664323633, job 126015466901, commit 9323a40.
-- Last observed: Android SDK setup completed; Gradle assembleDebug was still running.
-- Earlier runs #11 and #12 came from intermediate commits. Use only #13 if successful.
-- Do not say APK is ready until run #13 succeeds and artifact download is verified.
+## APK build verified
+- GitHub Actions run #13: 41664323633, job 126015466901.
+- Source commit: 9323a402103de62a8c26cde01ed404bdb2c93a5b.
+- Build, APK existence check, SHA-256 generation, and artifact upload steps all completed successfully.
+- Artifact ID: 13243902522; name: ai-universal-signal-radar-debug-apk.
+- Downloaded ZIP: ai-universal-signal-radar-debug-apk.zip.
+- APK extracted and verified as Android package; size 46,404,778 bytes.
+- APK SHA-256: 0176f9bd7e919a43c4b4dce12ed805bb0bc7eb4256f4e90423e7d906c6876f2b.
+- Artifact expires 2026-11-17.
 
-## Next actions
-1. Poll job 126015466901.
-2. If build fails, inspect logs, fix source, and rebuild.
-3. Verify APK artifact and SHA-256.
-4. User installs on Xiaomi 11T / Android 14, saves token once in the app, then grants screen-capture permission.
-5. Verify real price upload from 8xTrade EUR/USD; check /health readingsLoaded and Mini App.
-6. If the broad crop reads chart-axis labels, add orange-badge localization and validate against the moving price tag.
+## Installation and first-use steps
+1. Install the APK on Xiaomi 11T / Android 14.
+2. Open AI Signal Radar OCR.
+3. Paste the OCR token supplied in the chat and tap save. It is stored in app-private preferences, not compiled into the APK.
+4. Open the 8xTrade EUR/USD chart.
+5. Tap START and approve Android screen capture.
+6. Keep the app capture service active while the chart is visible.
+7. Verify that the app status shows a price upload and that Render /health readingsLoaded increases.
 
-## Limitations
-- No physical Xiaomi device test yet.
-- The server's direction is a simple 5-reading momentum heuristic, not EMA/RSI/MACD or a validated strategy.
+## Limitations / not yet verified
+- No physical Xiaomi 11T test has been performed.
+- The broad crop may read chart-axis labels as well as the moving orange badge. Verify with the live chart; add orange-badge localization if needed.
+- Render health last returned status ok and ANDROID_OCR_ONLY, but OCR was not yet connected and readingsLoaded was 0.
+- Server CALL/PUT uses a simple 5-reading momentum heuristic, not EMA/RSI/MACD or a validated strategy.
 - No synthetic prices, external market APIs, or automatic broker orders.
 - Never embed reusable credentials in the APK or public source.
