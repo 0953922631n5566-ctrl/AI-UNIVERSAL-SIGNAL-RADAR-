@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { evaluateTwoHorizons } = require('./forecast-engine');
 
 function calculateEMA(values, period) {
   if (!Array.isArray(values) || values.length < period) return null;
@@ -115,7 +116,11 @@ function createLiveEngine(apiKey, getClosedCandles) {
       price: tick ? tick.price.toFixed(5) : '—',
       dataAgeSeconds: Number.isFinite(age) ? Math.max(0, Math.floor(age / 1000)) : null,
       timestamp: tick ? new Date(tick.timestamp).toISOString() : null,
-      ema5: null, ema20: null, rsi: null, momentum: null
+      ema5: null, ema20: null, rsi: null, momentum: null,
+      forecastHorizons: {
+        nextCandle: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 1, reason: 'รอข้อมูลราคาสด' },
+        followingCandle: { signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6', horizon: 2, reason: 'รอข้อมูลราคาสด' }
+      }
     };
     if (status !== 'subscribed' || !tick || age > 75000 || age < -10000) {
       base.reason = message + ' · ไม่มี Tick สดจึงงดออกสัญญาณ';
@@ -123,8 +128,8 @@ function createLiveEngine(apiKey, getClosedCandles) {
     }
 
     const closed = getClosedCandles().slice(-220);
-    if (closed.length < 20) {
-      base.reason = 'รอประวัติแท่งปิดอย่างน้อย 20 แท่งเพื่อใช้เป็นฐาน';
+    if (closed.length < 35) {
+      base.reason = 'รอประวัติแท่งปิดอย่างน้อย 35 แท่งเพื่อใช้พยากรณ์สองระยะ';
       return base;
     }
     const prices = closed.map(c => c.close).concat(tick.price);
@@ -140,16 +145,12 @@ function createLiveEngine(apiKey, getClosedCandles) {
     base.rsi = rsi.toFixed(1);
     base.momentum = momentum === null ? null : Number(momentum.toFixed(6));
 
-    if (momentum !== null && ema5 > ema20 && rsi >= 50 && rsi <= 78 && momentum > 0.000005) {
-      base.prediction = 'CALL';
-      base.reason = 'ราคาสดเหนือ EMA5/EMA20 และ Momentum เป็นบวก · ประเมินแท่งถัดไป';
-    } else if (momentum !== null && ema5 < ema20 && rsi >= 22 && rsi <= 50 && momentum < -0.000005) {
-      base.prediction = 'PUT';
-      base.reason = 'ราคาสดใต้ EMA5/EMA20 และ Momentum เป็นลบ · ประเมินแท่งถัดไป';
-    } else {
-      base.reason = momentum === null
-        ? 'รอราคาสดอย่างน้อย 2 รอบ (ห่างกันประมาณ 1 นาที) เพื่อวัด Momentum'
-        : 'แรงราคาและแนวโน้มยังไม่สอดคล้องกัน · STANDBY';
+    const forecasts = evaluateTwoHorizons(closed, tick.price, momentum);
+    base.forecastHorizons = forecasts;
+    base.prediction = forecasts.nextCandle.signal;
+    base.reason = forecasts.nextCandle.reason;
+    if (momentum === null && base.prediction === 'STANDBY') {
+      base.reason += ' · รอราคาสดอย่างน้อย 2 รอบเพื่อวัด Momentum';
     }
     return base;
   }
