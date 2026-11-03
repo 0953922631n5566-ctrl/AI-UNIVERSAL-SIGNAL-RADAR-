@@ -60,7 +60,15 @@ test('trend-following entry does not take a counter-trend price', () => {
 test('a low-bandwidth range can produce a CALL only at confirmed support with RSI', () => {
   const closes = Array.from({length:80},(_,i)=>1.1 + (i%8===0 ? 0.00001 : 0));
   const candles = candlesFrom(closes, 0.00001);
-  const result = evaluateLiveFormula(candles, 1.09999, 1.10000, Date.UTC(2026,0,1,0,0,56,0));
+  const result = evaluateLiveFormula(candles, 1.1, 1.1, Date.UTC(2026,0,1,0,0,56,0));
   assert.equal(result.isSideway, true);
   assert.equal(result.candidate, 'WAIT'); // neutral RSI is not sufficient confirmation
+});
+
+test('sideway support bounce needs a low RSI confirmation', () => {
+  const candles = candlesFrom(Array(80).fill(1.1), 0.00001);
+  const result = evaluateLiveFormula(candles, 1.09999, 1.1, Date.UTC(2026,0,1,0,0,56,0));
+  assert.equal(result.isSideway, true);
+  assert.equal(result.sidewaySupportBounce, true);
+  assert.equal(result.candidate, 'CALL');
 });
