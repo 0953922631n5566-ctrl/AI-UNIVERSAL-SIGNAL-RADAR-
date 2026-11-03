@@ -40,7 +40,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
 .timerow{display:flex;align-items:center;justify-content:space-between;gap:8px}.phase{font-size:10px;color:#a8bdd6;letter-spacing:1.1px;font-weight:900}.clock{font-size:28px;font-weight:1000;letter-spacing:1px;font-variant-numeric:tabular-nums;color:#eaf5ff}
 .bar{height:5px;margin:9px 0 12px;border-radius:10px;background:#293b54;overflow:hidden}.barfill{height:100%;width:0;background:linear-gradient(90deg,#36bdf3,#83eaff);transition:width .15s}
 .actions{display:flex;gap:9px}.start{flex:1;border:0;border-radius:12px;padding:13px;background:linear-gradient(120deg,#168ac1,#2365d9);color:#fff;font-size:12px;font-weight:1000;letter-spacing:.6px;box-shadow:0 7px 20px #147cc533}.start.active{background:linear-gradient(120deg,#078e70,#0aa77b)}.sound{width:48px;border:1px solid #38506c;border-radius:12px;background:#17273b;color:#d8ecff;font-size:18px}
-.note{padding:11px 12px;border:1px solid #263750;border-radius:13px;background:#0d1726}.note small{display:block;color:#85a1bf;font-size:9px;letter-spacing:1.2px;font-weight:900;margin-bottom:5px}.note p{font-size:10px;line-height:1.5;color:#d1deee;min-height:15px}
+.note{padding:11px 12px;border:1px solid #263750;border-radius:13px;background:#0d1726}.note small{display:block;color:#85a1bf;font-size:9px;letter-spacing:1.2px;font-weight:900;margin-bottom:5px}.note p{font-size:10px;line-height:1.5;color:#d1deee;min-height:15px}.note .forecastLine{margin-top:6px;padding-top:6px;border-top:1px solid #263750;color:#8fdcff;font-weight:800;font-variant-numeric:tabular-nums}
 .footer{display:flex;justify-content:space-between;gap:8px;color:#71859f;font-size:9px}.footer span:last-child{text-align:right}
 .final-three .radar{border-color:#e7b75c;box-shadow:0 0 0 1px #ffc76b55,0 0 32px #ffb84a35, inset 0 0 35px #ffb84a12;animation:finalGlow .55s infinite alternate}
 .final-three .radar:after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent,#ffc76b13,transparent);animation:sweep .7s infinite}
@@ -81,7 +81,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="bar"><div class="barfill" id="barfill"></div></div>
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
-<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p></section>
+<section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p><p class="forecastLine" id="forecast">NEXT M1: STANDBY · FOLLOWING M1: STANDBY</p></section>
 <footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + FINAL 5S · HOLD 35S</span></footer>
 </main>
 <script>
@@ -125,14 +125,21 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(!Number.isFinite(receivedAt)||!Number.isFinite(candleClosedAt))return Infinity;
   return Math.max(Date.now()-receivedAt,Date.now()-candleClosedAt);
  }
+ function renderForecast(){
+  const forecasts=currentLiveData&&currentLiveData.forecastHorizons;
+  if(!forecasts){$('forecast').textContent='NEXT M1: STANDBY · FOLLOWING M1: STANDBY · WAITING FOR LIVE DATA';return}
+  const first=forecasts.nextCandle||{},second=forecasts.followingCandle||{};
+  const fmt=x=>(x.signal||'STANDBY')+' ('+(x.agreementVotes||'0/6')+')';
+  $('forecast').textContent='NEXT M1: '+fmt(first)+'  |  FOLLOWING M1: '+fmt(second)+' · AGREEMENT, NOT WIN PROBABILITY';
+ }
  async function scanLive(){
   if(!running||busyLive)return;busyLive=true;
   try{
    const response=await fetch('/api/live',{cache:'no-store'});
    if(!response.ok)throw new Error('HTTP '+response.status);
-   currentLiveData=await response.json();
+   currentLiveData=await response.json();renderForecast();
   }catch(e){
-   currentLiveData=null;
+   currentLiveData=null;renderForecast();
   }finally{busyLive=false}
  }
  async function scan(){
@@ -195,7 +202,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;renderForecast();preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData)return null;
