@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMinuteCandleAggregator, getLivePriceDirection } = require('../live-engine');
+const { createMinuteCandleAggregator, getLivePriceDirection, hasFreshClosedHistory } = require('../live-engine');
 
 const base = Date.UTC(2026, 0, 1, 0, 0, 0);
 
@@ -66,4 +66,14 @@ test('live price fallback does not invent a direction for equal or invalid quote
   assert.equal(getLivePriceDirection(1.1000,1.1000),'WAIT');
   assert.equal(getLivePriceDirection(1.1000,null),'WAIT');
   assert.equal(getLivePriceDirection(NaN,1.1000),'WAIT');
+});
+
+test('closed REST history must contain at least 20 recent completed candles',()=>{
+  const candles=Array.from({length:20},(_,i)=>({
+    datetime:new Date(base+i*60000).toISOString().slice(0,19).replace('T',' '),
+    close:1.1
+  }));
+  assert.equal(hasFreshClosedHistory(candles,base+20*60000+10000),true);
+  assert.equal(hasFreshClosedHistory(candles,base+24*60000),false);
+  assert.equal(hasFreshClosedHistory(candles.slice(0,19),base+20*60000+10000),false);
 });
