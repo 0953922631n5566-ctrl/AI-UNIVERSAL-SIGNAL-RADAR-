@@ -290,7 +290,15 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
   }
   $('coreLabel').textContent='CURRENT SIGNAL';
-  if(confirmed&&remainMs<=5000){
+  if(lockUntil>Date.now()){
+   $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
+  } else if(finalDecisionUntil>Date.now()){
+   $('phase').textContent='FINAL 5 SEC · '+finalDecision;
+   $('radarHead').textContent='NEXT M1 · '+finalDecision;
+  } else if(running&&remainMs<=10000&&remainMs>5000){
+   $('phase').textContent='PREPARE · 10 SEC';
+   $('radarHead').textContent='WAITING FINAL RESULT';
+  } else if(confirmed&&remainMs<=5000){
    $('phase').textContent='FINAL 5 SEC · '+confirmed.direction;
    $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
   } else if(confirmed&&remainMs<=10000){
@@ -299,7 +307,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   } else if(confirmed){
    $('phase').textContent='DUAL SIGNAL · WAITING ENTRY WINDOW';
    $('radarHead').textContent='DUAL CONFIRMATION';
-  } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>3000){
+  } else if(running&&currentData&&currentData.apiStatus==='connected'&&remainMs>10000){
    $('phase').textContent='API CHECK · EVERY 120 SEC';
    $('radarHead').textContent='SIGNAL RADAR · MONITORING';
   } else if(!running) {
