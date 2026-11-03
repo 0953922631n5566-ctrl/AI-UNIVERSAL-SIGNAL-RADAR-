@@ -42,3 +42,14 @@ test('ignores out-of-order ticks within a minute',()=>{
   const done=a.ingest(1.1004,base+60000);
   assert.equal(done.close,1.1005);
 });
+
+test('exposes the forming live candle direction without marking it complete',()=>{
+  const a=createMinuteCandleAggregator();
+  a.ingest(1.1000,base);
+  a.ingest(1.1004,base+30000);
+  const current=a.getCurrentCandle();
+  assert.equal(current.ticks,2);
+  assert.equal(current.direction,'BULLISH');
+  assert.equal(current.close,1.1004);
+  assert.equal(a.getCompletedCandles().length,0);
+});
