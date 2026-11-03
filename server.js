@@ -16,40 +16,6 @@ const KEEP_CANDLES = 220;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-function calculateEMA(values, period) {
-  if (!Array.isArray(values) || values.length < period) return null;
-  const k = 2 / (period + 1);
-  let ema = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  for (let i = period; i < values.length; i++) ema = values[i] * k + ema * (1 - k);
-  return ema;
-}
-
-function calculateRSI(closes, period = 14) {
-  if (!Array.isArray(closes) || closes.length < period + 1) return null;
-  let gains = 0, losses = 0;
-  for (let i = 1; i <= period; i++) {
-    const diff = closes[i] - closes[i - 1];
-    if (diff > 0) gains += diff;
-    else losses -= diff;
-  }
-  let avgGain = gains / period, avgLoss = losses / period;
-  for (let i = period + 1; i < closes.length; i++) {
-    const diff = closes[i] - closes[i - 1];
-    avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
-    avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
-  }
-  if (avgLoss === 0) return avgGain === 0 ? 50 : 100;
-  if (avgGain === 0) return 0;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-}
-
-let cache = { at: 0, payload: null };
-let inFlight = null;
-let candleStore = new Map();
-let hasWarmHistory = false;
-let liveEngine = null;
-
 function errorPayload(status, message, reason) {
   return {
     symbol: 'EUR/USD', signal: 'STANDBY', regime: status === 'quota_exhausted' ? 'API LIMIT' : 'API ERROR',
@@ -101,17 +67,13 @@ async function buildSignal() {
     candleStore = new Map(candles.map(c => [c.datetime, c]));
     if (candles.length >= HISTORY_SIZE) hasWarmHistory = true;
 
-    const closes = candles.map(c => c.close);
-    if (closes.length < 20) {
+    if (candles.length < 35) {
       return errorPayload('error', 'ข้อมูลแท่งเทียนไม่ครบ',
-        'ต้องมีข้อมูลย้อนหลังอย่างน้อย 20 แท่งเพื่อคำนวณ EMA20');
+        'ต้องมีข้อมูลย้อนหลังอย่างน้อย 35 แท่งสำหรับพยากรณ์ M1 ถัดไป');
     }
 
     const last = candles[candles.length - 1];
     const price = last.close;
-    const ema5 = calculateEMA(closes, 5);
-    const ema20 = calculateEMA(closes, 20);
-    const rsi = calculateRSI(closes, 14);
     const candleTime = new Date(String(last.datetime).replace(' ', 'T') + 'Z');
     const candleClosedAtMs = candleTime.getTime() + 60000;
     const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleClosedAtMs;
@@ -119,32 +81,23 @@ async function buildSignal() {
     if (ageMs > 180000 || ageMs < -60000) {
       return {
         symbol: 'EUR/USD', signal: 'STANDBY', regime: 'STALE DATA',
-        price: price.toFixed(5), datetime: last.datetime, rsi: rsi.toFixed(1),
-        ema5: ema5.toFixed(5), ema20: ema20.toFixed(5), apiStatus: 'error',
-        apiMessage: 'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง',
-        reason: 'ข้อมูลไม่สดใหม่ ระบบจึงบังคับ STANDBY',
+        price: price.toFixed(5), datetime: last.datetime,
+        candleClosedAt: new Date(candleClosedAtMs).toISOString(),
+        apiStatus: 'error', apiMessage: 'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง',
+        reason: 'ข้อมูล REST ไม่สด ระบบจึงงดการยืนยันผลพยากรณ์',
         candlesLoaded: candles.length, refreshIntervalSeconds: REFRESH_MS / 1000
       };
     }
 
-    let signal = 'STANDBY';
-    let regime = 'CONSOLIDATION';
-    if (ema5 > ema20 && rsi >= 50 && rsi <= 75) {
-      signal = 'CALL'; regime = 'UPTREND';
-    } else if (ema5 < ema20 && rsi >= 25 && rsi <= 50) {
-      signal = 'PUT'; regime = 'DOWNTREND';
-    }
-
     return {
-      symbol: 'EUR/USD', signal, regime, price: price.toFixed(5),
-      datetime: last.datetime, candleClosedAt: new Date(candleClosedAtMs).toISOString(),
+      symbol: 'EUR/USD', signal: 'DATA_ONLY', regime: 'MARKET DATA',
+      price: price.toFixed(5), datetime: last.datetime,
+      candleClosedAt: new Date(candleClosedAtMs).toISOString(),
       dataAgeSeconds: Math.max(0, Math.floor(ageMs / 1000)),
-      rsi: rsi.toFixed(1), ema5: ema5.toFixed(5),
-      ema20: ema20.toFixed(5), apiStatus: 'connected',
-      apiMessage: 'เชื่อมต่อ Twelve Data แล้ว',
+      rsi: null, ema5: null, ema20: null, apiStatus: 'connected',
+      apiMessage: 'เชื่อมต่อ Twelve Data แล้ว · REST ใช้เป็นข้อมูลแท่งย้อนหลังเท่านั้น',
       apiUpdatedAt: new Date().toISOString(),
-      reason: 'EMA5 ' + ema5.toFixed(5) + ' / EMA20 ' + ema20.toFixed(5) +
-        ' / RSI14 ' + rsi.toFixed(1) + ' / ' + regime,
+      reason: 'REST HISTORY READY · DIRECTION IS DECIDED BY NEXT M1 FORECAST ONLY',
       candlesLoaded: candles.length,
       historyMode: hasWarmHistory ? 'rolling-update' : 'initial-history',
       refreshIntervalSeconds: REFRESH_MS / 1000
