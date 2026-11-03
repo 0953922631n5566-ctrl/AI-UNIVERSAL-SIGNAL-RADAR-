@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
+import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -127,10 +128,10 @@ class CaptureService : Service() {
             val frameSequence = sequence++
             val capturedAt = System.currentTimeMillis()
             try {
-                val jpeg = imageToJpeg(image)
+                val frame = imageToJpeg(image)
                 uploader.execute {
                     try {
-                        val result = uploadFrame(jpeg, imageWidth, imageHeight, frameSequence, capturedAt)
+                        val result = uploadFrame(frame.first, frame.second, frame.third, frameSequence, capturedAt)
                         sendStatus(ACTION_STATUS, "ส่งภาพ #$frameSequence สำเร็จ · $result")
                     } catch (e: Exception) {
                         sendStatus(ACTION_STATUS, "ส่งภาพไม่สำเร็จ: ${e.message ?: e.javaClass.simpleName}")
@@ -146,26 +147,23 @@ class CaptureService : Service() {
             ?: throw IllegalStateException("สร้าง VirtualDisplay ไม่สำเร็จ")
     }
 
-    private var imageWidth = 0
-    private var imageHeight = 0
-
-    private fun imageToJpeg(image: Image): ByteArray {
+    private fun imageToJpeg(image: Image): Triple<ByteArray, Int, Int> {
         val plane = image.planes[0]
-        val pixelStride = plane.pixelStride
         val rowStride = plane.rowStride
-        val paddedWidth = rowStride / pixelStride
-        val padded = Bitmap.createBitmap(paddedWidth, image.height, Bitmap.Config.ARGB_8888)
+        val pixelStride = plane.pixelStride
+        val rowBytes = image.width * pixelStride
+        val pixels = ByteArray(image.width * image.height * 4)
         val buffer = plane.buffer
-        buffer.rewind()
-        padded.copyPixelsFromBuffer(buffer)
-        val cropped = Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
-        imageWidth = image.width
-        imageHeight = image.height
+        for (y in 0 until image.height) {
+            buffer.position(y * rowStride)
+            buffer.get(pixels, y * rowBytes, rowBytes)
+        }
+        val bitmap = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(pixels))
         val output = ByteArrayOutputStream()
-        cropped.compress(Bitmap.CompressFormat.JPEG, 65, output)
-        padded.recycle()
-        cropped.recycle()
-        return output.toByteArray()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 65, output)
+        bitmap.recycle()
+        return Triple(output.toByteArray(), image.width, image.height)
     }
 
     private fun uploadFrame(jpeg: ByteArray, width: Int, height: Int, seq: Long, capturedAt: Long): String {
