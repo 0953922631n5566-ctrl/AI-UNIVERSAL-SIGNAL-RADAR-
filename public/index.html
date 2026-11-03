@@ -240,7 +240,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   }
   // The server calculates only in the final 3 seconds. Fall back to STANDBY at the minute edge if no valid signal arrived.
   if(running&&finalAlert5Key!==minuteKey){
-   const decision=confirmed?confirmed.direction:(remainMs<=100?'STANDBY':null);
+   const decision=confirmed?confirmed.direction:(remainMs<=500?'STANDBY':null);
    if(decision){
     finalAlert5Key=minuteKey;
     finalDecision=decision;
