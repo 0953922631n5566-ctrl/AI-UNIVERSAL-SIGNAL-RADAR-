@@ -194,6 +194,7 @@ function createLiveEngine(apiKey, getClosedCandles) {
     const forecast = {
       signal: visibleSignal, displayState: analysis.regime || (analysis.isSideway ? 'SIDEWAY' : visibleSignal),
       confidence: analysis.confidence, agreementScore: Number(analysis.confidence),
+      strictness: analysis.strictness ?? null, rsiConfirmationLevel: analysis.rsiConfirmationLevel ?? null,
       agreementVotes: analysis.fallback ? 'LIVE_PRICE_DIRECTION' : analysis.ready ? 'FORMULA' : 'WAIT',
       horizon: 0, validFor: 'CURRENT_M1_FINAL_5_SECONDS',
       signalAt: signalState.signalAt, signalMinuteKey: signalState.minuteKey,
