@@ -24,7 +24,7 @@ test('requires six completed M1 candles before indicator analysis', () => {
     const timestamp = base + i * 60_000;
     result = engine.ingestPrice({
       symbol: 'EUR/USD', market: 'OTC',
-      rawText: 'EUR/USD\\n' + (1.08000 + i * 0.00010).toFixed(5),
+      rawText: 'EUR/USD\n' + (1.08000 + i * 0.00010).toFixed(5),
       timestamp
     }, timestamp);
   }
@@ -33,7 +33,7 @@ test('requires six completed M1 candles before indicator analysis', () => {
   const timestamp = base + 6 * 60_000;
   result = engine.ingestPrice({
     symbol: 'EUR/USD', market: 'OTC',
-    rawText: 'EUR/USD\\n1.08060', timestamp
+    rawText: 'EUR/USD\n1.08060', timestamp
   }, timestamp);
   assert.equal(result.accepted, true);
   assert.equal(result.closedCandles, 6);
@@ -46,9 +46,9 @@ test('requires six completed M1 candles before indicator analysis', () => {
 
 test('resets M1 history on a missing minute and returns STANDBY', () => {
   const base = 1_800_000_000_000;
-  engine.ingestPrice({symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\\n1.08000',timestamp:base},base);
+  engine.ingestPrice({symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\n1.08000',timestamp:base},base);
   const next = base + 2 * 60_000;
-  const result = engine.ingestPrice({symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\\n1.08020',timestamp:next},next);
+  const result = engine.ingestPrice({symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\n1.08020',timestamp:next},next);
   assert.equal(result.status, 'STANDBY');
   assert.equal(result.reason, 'M1_DATA_GAP_RESET');
   assert.equal(result.closedCandles, 0);
@@ -56,7 +56,7 @@ test('resets M1 history on a missing minute and returns STANDBY', () => {
 
 test('rejects stale and duplicate timestamps', () => {
   const base = 1_800_000_000_000;
-  const input = {symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\\n1.08000',timestamp:base};
+  const input = {symbol:'EUR/USD',market:'OTC',rawText:'EUR/USD\n1.08000',timestamp:base};
   assert.equal(engine.ingestPrice(input, base + 100_000).reason, 'STALE_OCR_DATA');
   assert.equal(engine.ingestPrice(input, base).accepted, true);
   assert.equal(engine.ingestPrice(input, base).reason, 'DUPLICATE_OR_OLD_TICK');
