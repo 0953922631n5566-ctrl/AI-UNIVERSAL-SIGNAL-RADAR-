@@ -222,7 +222,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   if(currentLiveData.streamStatus!=='subscribed'||liveQuoteAgeSeconds()>30)return null;
   const minuteKey=Math.floor(Date.now()/60000);
   const signalAt=Number(forecast.signalAt);
-  if(!Number.isFinite(signalAt)||forecast.signalMinuteKey!==minuteKey||Date.now()-signalAt>4000||Date.now()<signalAt)return null;
+  const signalMinute=Number(forecast.signalMinuteKey);
+  if(!Number.isFinite(signalAt)||!Number.isFinite(signalMinute)||Math.abs(minuteKey-signalMinute)>1||Date.now()-signalAt>3500||Date.now()<signalAt)return null;
   return {direction,key:String(minuteKey)};
  }
  function tick(){
