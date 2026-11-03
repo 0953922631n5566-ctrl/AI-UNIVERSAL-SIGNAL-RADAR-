@@ -234,7 +234,12 @@ function createLiveEngine(apiKey, getClosedCandles) {
     setPreferences: (next) => {
       if (!next || !['auto','uptrend','downtrend','sideway'].includes(next.mode)) return { ...preferences };
       const level = Number(next.strictness);
-      preferences = { mode: next.mode, strictness: Number.isFinite(level) ? Math.max(55, Math.min(100, Math.round(level))) : preferences.strictness };
+      const nextPreferences = { mode: next.mode, strictness: Number.isFinite(level) ? Math.max(55, Math.min(100, Math.round(level))) : preferences.strictness };
+      if (nextPreferences.mode !== preferences.mode || nextPreferences.strictness !== preferences.strictness) {
+        preferences = nextPreferences;
+        signalState.signal = 'WAIT'; signalState.signalAt = null; signalState.expiresAt = 0;
+        signalState.minuteKey = null; latestAnalysis = null;
+      }
       processSignal();
       return { ...preferences };
     },
