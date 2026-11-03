@@ -205,6 +205,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
   running=!running;$('start').classList.toggle('active',running);
   $('start').textContent=running?'■ STOP RADAR':'▶ START RADAR';
   if(running){
+   // Starting mid-candle must not create a fake late result for a candle that is already underway.
+   finalAlert5Key=Math.floor(Date.now()/60000);
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,500);$('phase').textContent='LIVE MONITORING'
   }
