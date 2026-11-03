@@ -157,6 +157,10 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    const response=await fetch('/api/live',{cache:'no-store'});
    if(!response.ok)throw new Error('HTTP '+response.status);
    currentLiveData=await response.json();renderForecast();renderPrice();
+   const liveBar=currentLiveData.liveCandle;
+   $('candleTrend').textContent=liveBar&&liveBar.ticks>1
+    ?(liveBar.direction==='BULLISH'?'แท่งสด · ขึ้น':liveBar.direction==='BEARISH'?'แท่งสด · ลง':'แท่งสด · กลาง')
+    :'กำลังก่อตัว · รอ tick';
   }catch(e){
    currentLiveData=null;renderForecast();renderPrice();
   }finally{busyLive=false}
@@ -171,7 +175,6 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    renderPrice();
    const forecastView=currentLiveData&&currentLiveData.forecast;
    $('regime').textContent=forecastView&&forecastView.trendLabel?forecastView.trendLabel:'—';
-   $('candleTrend').textContent=forecastView&&forecastView.candleLabel?forecastView.candleLabel:'—';
    $('rsi').textContent=forecastView&&forecastView.indicators&&forecastView.indicators.rsi14!=null?forecastView.indicators.rsi14:'—';
    $('reason').textContent=data.apiStatus==='connected'
     ?(currentLiveData&&currentLiveData.reason||'รอผลวิเคราะห์แท่ง M1 ถัดไป')
