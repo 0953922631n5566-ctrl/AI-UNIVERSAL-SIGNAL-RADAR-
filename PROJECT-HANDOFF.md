@@ -202,3 +202,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The Mini App HTML is served at the existing URL and now has a LIVE M1 CANDLE display. Telegram bot menu/launch configuration was not changed or independently tested in Telegram. Actual phone sound/vibration also remains untested.
 - Live tick candle rules: aggregate only fresh quotes; finalize a minute only on the immediately following minute's tick; if a minute had one tick, use the next boundary quote as its close; if there is a gap, do not invent missing bars. REST OHLC remains authoritative when present. This is a quote-derived fallback, not a substitute for the broker's exact OHLC feed.
 - Signal operation remains EUR/USD NON-OTC M1, manual-only, no broker order placement. Keep STANDBY whenever fresh aligned data is unavailable.
+
+
+## Current live candle direction guard — 2026-11-03
+
+- PR #14 adds a final guard before any CALL/PUT is shown or alerted.
+- A directional forecast must target the exact currently opening M1 minute and arrive within the first 12 seconds.
+- The current forming M1 candle must be from that same minute, have at least 2 fresh WebSocket ticks, and agree with the direction: CALL requires live BULLISH; PUT requires live BEARISH.
+- If the current candle is opposite, the quote stream has not provided enough ticks, the forecast is stale, or the candle minute does not match, the live prediction and final alert are STANDBY.
+- The Mini App LIVE M1 CANDLE card shows the forming candle direction. The forecast text still separately reports the last closed candle direction.
+- GitHub Actions run `41610183584` completed successfully, including `npm test`. Inline Mini App and live-engine JavaScript syntax checks passed.
+- Merge and Render deployment pending at time this handoff was written.
