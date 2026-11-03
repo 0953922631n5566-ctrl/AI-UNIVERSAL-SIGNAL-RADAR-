@@ -2,97 +2,119 @@
 
 Updated: 2026-11-03
 
-## Current project tracks
+## Project tracks and preservation rules
 
-1. **Main Market web app:** the current `main` branch and current Render services contain the EUR/USD M1 Node/Express Mini App.
-2. **Standalone Android APK:** explicitly requested for continued delivery tracking, but the Android project is not present in the current `main` tree. The last Android source/build exists in Git history at commit `b26c73001bd9964b6fdc900160d399b819baa2bb`. Re-integrate it additively under `android/` without deleting or replacing the working root web app.
+1. **Main Market web app:** EUR/USD M1 Node/Express Mini App remains deployed and must not be removed or replaced while Android work continues.
+2. **Standalone Android APK:** requested delivery track. The Android project and FastAPI frame-ingestion baseline have been restored additively under `android/` and `backend/` on `main`.
+3. **Alert requirements:** `ALERT_CONFIGURATION.md` is the source of truth. Read it before touching alerts. Preserve the exact 10-second preparation alert, final 5-second CALL/PUT/STANDBY result, sound/vibration for STANDBY, and 35-second hold/reset cycle unless the user explicitly changes it.
 
-Do not describe the current Main Market web app as the Android app. Do not claim chart-vision AI is active. Do not fabricate CALL/PUT. The historical frame backend deliberately returns STANDBY until a real perception and decision adapter is configured and evaluated. No broker orders are permitted.
+Do not describe the Android capture shell as an AI chart analyzer. Do not fabricate CALL/PUT. The backend must remain STANDBY until a real perception and decision model is configured and evaluated. No broker orders are permitted.
 
-## Current main branch snapshot — 2026-11-03
+## Current main branch / Android reintegration
 
-- Branch: `main`
-- HEAD: `2d55d6ec78f33bb04b69c669328d95f539470d70`
-- Latest commit: `Hold every final alert for 35 seconds then reset`
-- Current tree contains `PROJECT-HANDOFF.md`, `README.md`, `live-engine.js`, `package.json`, `public/index.html`, and `server.js`.
-- Current tree does **not** contain `android/`, `backend/`, or `.github/workflows/android-apk.yml`.
-- The prior Android commit `b26c73001bd9964b6fdc900160d399b819baa2bb` is the merge base of current main; current main is 90 commits ahead of that baseline. Android sources remain retrievable from history but are not build inputs on current main.
+- Android reintegration commit: `ceef0bfb634c29e66b70456e56e4b673c6bd71f4`
+- Commit message: `build: restore Android APK and frame-ingest baseline additively`
+- Added files from the historical Android baseline:
+  - `.github/workflows/android-apk.yml`
+  - `android/app/build.gradle.kts`
+  - `android/app/src/main/AndroidManifest.xml`
+  - `android/app/src/main/java/com/aiuniversal/signalradar/MainActivity.kt`
+  - `android/app/src/main/java/com/aiuniversal/signalradar/CaptureService.kt`
+  - `android/build.gradle.kts`
+  - `android/gradle.properties`
+  - `android/settings.gradle.kts`
+  - `backend/app.py`
+  - `backend/requirements.txt`
+- This was additive. Existing root Main Market files and `ALERT_CONFIGURATION.md` were preserved.
+- The Android build workflow triggers on changes under `android/**` or to its own workflow file on branch `main`.
 
-## Main Market implementation
+## Android APK — latest verified build
 
-- `package.json`: Express 4, node-fetch 2, ws 8, Node 18.x, `npm start`.
-- `server.js`: Twelve Data EUR/USD M1 REST feed. It excludes a still-forming candle, keeps up to 220 closed candles, requires at least 20, calculates EMA(5/20) and Wilder-smoothed RSI(14), checks data freshness, and caches REST results for 120 seconds. API errors and quota exhaustion return STANDBY.
-- `live-engine.js`: separate EUR/USD WebSocket subscription. It requires an authorized subscription, a fresh tick (<=75 seconds), at least 20 closed candles, and two ticks with a usable 30–180 second gap before calculating momentum. Missing/stale stream or insufficient history returns STANDBY.
-- `public/index.html`: requires the REST closed-candle direction and live WebSocket estimate to agree before displaying CALL/PUT. It prevents a duplicate alert for the same candle/direction, holds a confirmed signal or final result for 35 seconds, then returns to STANDBY. Current source has a 10-second preparation alert and a final 5-second result alert.
-- The live engine is rule-based, not a trained AI/ML or chart-vision model. WebSocket cadence is approximately one update per minute, so the final 5-second alert is not a new tick-level confirmation.
-- The current server code does not implement the earlier requested server-side “signal candle, skip one candle” rotation. The UI's same-candle duplicate guard is not equivalent to a verified one-candle cooldown.
-- `README.md` was aligned on 2026-11-03 with the source's 35-second display hold and 10-second/final-5-second alerts.
+- Workflow: [Android APK Build #41592461418](https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/41592461418)
+- Run status: completed / success.
+- Build source commit: `ceef0bfb634c29e66b70456e56e4b673c6bd71f4`.
+- Job ID: `125772074700`.
+- Steps passed: JDK 17 setup, Gradle setup, Android SDK platform install, `:app:assembleDebug`, APK existence check, SHA-256 generation, artifact upload.
+- Gradle log confirms `BUILD SUCCESSFUL in 27s`; no compile errors.
+- Artifact ID: `13210975903`; name: `ai-universal-signal-radar-debug-apk`; ZIP size: 815,373 bytes; expires 2026-11-17 06:51:48 UTC.
+- Artifact ZIP digest: `sha256:2651ebfd13d3e8b4ab2ba2d9a1981557a72899b4111f960754ae2797c7bec761`.
+- APK size: 822,161 bytes.
+- APK SHA-256 calculated from the downloaded artifact bytes and checked against the artifact's `SHA256SUMS.txt`:
+  `f4cb8a7a6c1865791f9b469277ab781ae9791c6f7064acca73acdd8b9d8784a1`.
+- This is a debug APK. It is built and artifact-verified, but not device-tested or end-to-end validated on Xiaomi 11T.
 
-## Latest GitHub Actions
+## Android source implementation audit
 
-- Current `main` HEAD `2d55d6ec78f33bb04b69c669328d95f539470d70`: no workflow run is associated with this exact SHA; combined commit status has no checks.
-- Latest repository run: [Fast Signal A tests #41583581647](https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/41583581647), a draft PR #10 experiment on branch `experiment/fast-signal-a`, not main and not Android. Job passed 5/5 Node tests; no artifacts were produced.
-- Latest Root Mini App CI run: #41450092098 on commit `d5f12a107f583f267e7c845f1762f9700b1cd73c`, older than current main.
-- Latest Main Market CI run: #41441892631 on branch `main-market`, not the Android project.
-- No Android build workflow currently exists on main.
+| Requirement | Current status |
+|---|---|
+| MediaProjection permission and foreground service | Implemented |
+| START/STOP service lifecycle and status/error broadcasts | Implemented baseline |
+| ImageReader creation | Implemented |
+| ImageReader frame listener / frame throttling | Not implemented |
+| RGBA-to-Bitmap conversion | Not implemented |
+| JPEG encoding | Not implemented |
+| Authenticated HTTPS frame upload | Not implemented |
+| Secure token provisioning without embedding secrets | Not implemented |
+| Backend response parsing | Not implemented |
+| UI showing STANDBY/CALL/PUT plus reason | Not implemented |
+| Retry/backoff and network recovery | Not implemented |
+| Xiaomi 11T device test | No evidence |
 
-## Android APK — last verified historical build
+The current `CaptureService.kt` creates the MediaProjection, VirtualDisplay and ImageReader, but never attaches an image-available listener. The current `MainActivity.kt` displays capture-service state only. `android/app/build.gradle.kts` still has a placeholder `BACKEND_URL`; it is not a live endpoint.
 
-- Historical source commit: `b26c73001bd9964b6fdc900160d399b819baa2bb`.
-- Historical workflow: [Android APK Build #41307402212](https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/41307402212), completed successfully.
-- Historical artifact ID: `13083772367`, artifact name `ai-universal-signal-radar-debug-apk`.
-- APK SHA-256 verified from actual artifact bytes and rechecked locally on 2026-11-03:
-  `c5a2a9a04bdff133097bc6ad5a664eb93b2d652cd32fcb859031534ba2acaeac`.
-- APK is a debug build from the historical Android source, not a build of current main. It has not been device-tested or validated end-to-end on Xiaomi 11T.
+## Backend source audit
 
-### Historical Android source audit at `b26c730...`
+- `backend/app.py` uses Bearer-token authorization from server-only environment variable `RADAR_INGEST_TOKEN`.
+- It provides `/health`, `/v1/session/start`, `/v1/session/stop`, and `/v1/frame`.
+- It validates session ID, sequence, dimensions, image size/type, timestamp freshness, and duplicate/out-of-order frames. It records frame hashes and basic in-memory session/frame state.
+- Session state is process-memory only; a frame can implicitly create a state through the default dictionary, and no expiry/cleanup policy is implemented yet.
+- It deliberately returns `STANDBY` with `VISION_ADAPTER_NOT_CONFIGURED`. There is no perception model, decision model, model configuration, evaluation set, or inference test.
+- The FastAPI service is not deployed in Render. Existing Render services are Node/Static Site services for the Main Market web app, not this frame-ingestion API.
 
-- `MainActivity.kt`: START/STOP UI, Android screen-capture consent, service lifecycle and status/error broadcasts.
-- `CaptureService.kt`: MediaProjection foreground service, VirtualDisplay and ImageReader initialization. It does not attach an image-available listener, encode JPEG frames, upload frames, or parse backend decisions.
-- Android UI only reports capture service status; it does not yet render backend STANDBY/CALL/PUT with a decision reason.
-- `android/app/build.gradle.kts` contains a placeholder `BACKEND_URL`, not a deployed endpoint.
-- Historical `.github/workflows/android-apk.yml` builds a debug APK, but this workflow file is not present on current main.
+## Main Market source and alert behavior
 
-### Historical backend source audit at `b26c730...`
+- `server.js`: Twelve Data EUR/USD M1 REST feed; excludes a still-forming candle, keeps up to 220 closed candles, requires at least 20, calculates EMA(5/20) and Wilder-smoothed RSI(14), checks freshness, and caches REST results for 120 seconds. API errors/quota exhaustion return STANDBY.
+- `live-engine.js`: separate EUR/USD WebSocket subscription; requires authorization, a fresh tick (<=75 seconds), at least 20 closed candles, and two ticks with a usable 30–180 second gap before calculating momentum. Missing/stale stream or insufficient history returns STANDBY.
+- `public/index.html`: requires REST closed-candle direction and live WebSocket estimate to agree before CALL/PUT. It prevents duplicate alerts for the same candle/direction and holds the final result for 35 seconds.
+- The signal logic is rule-based, not a trained AI/ML or chart-vision model. WebSocket cadence is approximately one update per minute; the final 5-second alert is not a new tick-level price confirmation.
+- The current server code does not implement the earlier server-side “signal candle, skip one candle” rotation. Same-candle duplicate suppression is not equivalent to a verified one-candle cooldown.
+- `ALERT_CONFIGURATION.md` is mandatory for future alert work.
 
-- `backend/app.py` has Bearer-token authorization using server environment variable `RADAR_INGEST_TOKEN`, session start/stop routes, frame metadata/dimension/size/type/freshness/sequence validation, and in-memory session/frame state.
-- The frame route records the frame hash but intentionally returns `STANDBY` with `VISION_ADAPTER_NOT_CONFIGURED`.
-- No perception model, decision model, model configuration, evaluation results, or live inference tests exist in that source.
-- No FastAPI frame-ingestion service is currently listed in Render. The historical backend source is not deployed.
+## GitHub Actions and Render
 
-## Render deployment snapshot — 2026-11-03
-
+- Latest Android build is #41592461418 (success, details above).
+- The latest Fast Signal A test run #41583581647 is a draft PR experiment on `experiment/fast-signal-a`, not production Android code; 5/5 Node tests passed and it produced no APK.
 - Existing Node service `ai-universal-signal-radar-main`, service ID `srv-dbkaoo0473hc7384tmog`, is on branch `main`, free plan, auto-deploy enabled.
-- Latest deploy `dep-dbko3qrbc2fs7383jv9g` is `live` for commit `2d55d6ec78f33bb04b69c669328d95f539470d70`; finished 2026-11-03 06:41:22 UTC.
-- Existing Static Site `my-ai-signal-bot-v2` also deployed current main commit. These are Main Market web services, not Android frame-ingestion backend services.
-- HTTP endpoint content was not independently verified in this audit. Render's deployment control plane reports the latest Node deploy as live.
-- Do not create paid resources or enable paid plans without explicit approval. No new Render resource was created during this audit.
+- After Android reintegration commit `ceef0b...`, Render deploy `dep-dbko8ht9el5s73eor6og` reported `live` for the existing Node service.
+- Existing Static Site `my-ai-signal-bot-v2` deploy `dep-dbko8i59el5s73eor6t0` reported `live` for the same commit.
+- These deployments serve the root Main Market web app; neither is the FastAPI frame-ingestion backend.
+- No new paid resource or paid plan was created. Do not enable paid services without explicit user approval.
 
-## Android delivery blockers and next steps
+## Next steps to reach delivery
 
-1. Re-integrate the historical Android project and Android APK workflow into current `main` as additive files; preserve all root Main Market files.
-2. Implement ImageReader frame callback, safe RGBA-to-Bitmap conversion, JPEG encoding, frame throttling/backpressure, and cleanup.
-3. Design secure device pairing/token issuance. Never embed `RADAR_INGEST_TOKEN`, API keys, or any reusable secret in APK or public source. A user/device pairing step may be required before authenticated upload can work.
-4. Implement authenticated HTTPS multipart upload, response parsing, UI display of STANDBY/CALL/PUT plus reason, retry/backoff, session expiry and network error handling.
-5. Re-integrate and deploy the FastAPI backend only on an approved, non-paid configuration; test auth, validation, session lifecycle, replay protection and frame ingestion.
-6. Keep every decision STANDBY until a real vision/perception adapter and decision model are configured, evaluated on representative chart data, and pass documented safety tests.
-7. Build APK from the current main commit, inspect CI logs/artifact bytes and SHA-256, then test capture and upload on a real Xiaomi 11T. Do not mark device-tested or validated without evidence.
+1. Implement ImageReader listener, safe RGBA-to-Bitmap conversion, JPEG encoding, frame throttling/backpressure, and robust cleanup.
+2. Design secure device pairing/token issuance. Never embed `RADAR_INGEST_TOKEN`, API keys, or reusable secrets in APK or public source. A one-time user/device pairing step may be required.
+3. Configure a non-secret backend base URL and implement authenticated HTTPS multipart upload.
+4. Parse backend decisions and show STANDBY/CALL/PUT with reason in the Android UI; add retry/backoff, session expiry, and network error recovery.
+5. Deploy FastAPI only on an approved non-paid configuration; test authentication, validation, session lifecycle, replay protection and frame ingestion.
+6. Keep all decisions STANDBY until a real vision/perception adapter and decision model are configured and evaluated on representative chart data with documented safety tests.
+7. Build from current main, inspect CI logs/artifact bytes/SHA-256, then test capture and upload on a real Xiaomi 11T. Do not mark device-tested or validated without evidence.
 
-## Verification status
+## Delivery status
 
 | Area | Status |
 |---|---|
-| Current Main Market source | Implemented; latest root deploy reported live |
-| Historical Android MediaProjection startup | Implemented in old commit only |
-| Android JPEG frame pipeline | Not implemented |
-| Authenticated HTTPS upload from Android | Not implemented |
-| Android backend response parsing / signal UI | Not implemented |
-| Historical backend auth and validation | Implemented in old commit only |
-| Historical backend session/frame state | In-memory only; limited |
+| Main Market web app | Implemented; existing Render deployments reported live |
+| Android source on main | Restored additively |
+| Android APK build | Built successfully |
+| APK artifact bytes / SHA-256 | Downloaded and verified |
+| MediaProjection startup | Implemented baseline; device test pending |
+| JPEG pipeline | Not implemented |
+| Authenticated HTTPS upload | Not implemented |
+| Backend response parsing / signal UI | Not implemented |
+| Backend auth / validation source | Implemented baseline |
+| Backend deployed | No |
 | Vision/perception/decision model | Not configured |
-| APK build | Historical debug APK built and SHA-256 checked |
-| APK built from current main | No |
-| Backend frame service deployed | No |
 | Xiaomi 11T device test | No evidence |
 | End-to-end validation | Not validated |
 
