@@ -40,7 +40,7 @@ async function buildSignal() {
   if (!apiKey) return { symbol:'EUR/USD', signal:'STANDBY', regime:'NO API KEY', price:'—', rsi:null, apiStatus:'error', apiMessage:'กรุณากำหนด TWELVE_DATA_API_KEY ใน Render Environment', reason:'ยังไม่มี API key' };
   try {
     const url = new URL(API_URL);
-    url.search = new URLSearchParams({ symbol:'EUR/USD', interval:'1min', outputsize:'30', apikey:apiKey }).toString();
+    url.search = new URLSearchParams({ symbol:'EUR/USD', interval:'1min', outputsize:'30', timezone:'UTC', apikey:apiKey }).toString();
     const response = await fetch(url.toString(), { timeout:12000 });
     const data = await response.json();
     if (!response.ok || !data || !Array.isArray(data.values)) {
@@ -56,7 +56,7 @@ async function buildSignal() {
     const last = candles[candles.length - 1];
     const price = closes[closes.length - 1];
     const ema5 = calculateEMA(closes, 5), ema20 = calculateEMA(closes, 20), rsi = calculateRSI(closes, 14);
-    const candleTime = new Date(String(last.datetime).replace(' ', 'T'));
+    const candleTime = new Date(String(last.datetime).replace(' ', 'T') + 'Z');
     const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleTime.getTime();
     if (ageMs > 180000 || ageMs < -60000) {
       return { symbol:'EUR/USD', signal:'STANDBY', regime:'STALE DATA', price:price.toFixed(5), datetime:last.datetime, rsi:rsi===null?null:rsi.toFixed(1), ema5:ema5.toFixed(5), ema20:ema20.toFixed(5), apiStatus:'error', apiMessage:'ข้อมูลราคาเก่าหรือเวลาไม่ถูกต้อง', reason:'ข้อมูลไม่สดใหม่ ระบบจึงบังคับ STANDBY' };
