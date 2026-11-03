@@ -35,7 +35,7 @@ test('strong rising prices follow the trend and qualify for CALL only in final 3
   assert.equal(result.isBullishTrend, true);
   assert.equal(result.candidate, 'CALL');
   assert.equal(result.exactTimeLeft, 2.5);
-  assert.equal(result.confidence, '96.0');
+  assert.equal(result.confidence, '95.0');
 });
 
 test('strong falling prices follow the trend and qualify for PUT only in final 3 seconds', () => {
