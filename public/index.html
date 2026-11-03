@@ -172,6 +172,13 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('reason').textContent=data.reason||data.apiMessage||'—';
    $('updated').textContent=data.apiUpdatedAt?'UPDATED '+new Date(data.apiUpdatedAt).toLocaleTimeString('th-TH'):'API REFRESH · 120 SEC';
    const age=apiAge(data);
+   if(lockUntil>Date.now()){
+    const left=Math.ceil((lockUntil-Date.now())/1000);
+    show(lockedSignal,'⚡ '+lockedSignal+' · คงสัญญาณตามเวลาถือ 35 วินาที · '+left+' SEC');
+    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
+    $('radarHead').textContent='SIGNAL CONFIRMED · HOLD';
+    return;
+   }
    if(data.apiStatus!=='connected') {
     show('STANDBY',data.apiMessage||'API unavailable · no signal');
    } else if(age>MAX_SIGNAL_AGE_MS) {
@@ -192,17 +199,25 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
       $('phase').textContent='✦ DUAL SIGNAL · 35 SEC HOLD';
       $('radarHead').textContent='DUAL CONFIRMATION';
       beep(data.signal==='CALL'?1040:260,260,3);vibrate([250,80,250,80,500]);
-     } else if(lockUntil>Date.now()) {
-      show(lockedSignal,'⚡ '+lockedSignal+' · ยืนยันสองทางแล้ว · MANUAL ONLY · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC');
      } else {
-      show(data.signal,'แท่งปิดและราคาสดยืนยัน '+data.signal+' ตรงกัน · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
+      show('STANDBY','ครบเวลาถือสัญญาณ 35 วินาทีแล้ว · รอสัญญาณรอบใหม่');
+      $('phase').textContent='STANDBY · HOLD COMPLETE';
+      $('radarHead').textContent='WAITING NEXT SIGNAL';
      }
     }
    } else {
     show('STANDBY','ยังไม่มีเงื่อนไข CALL/PUT ที่ผ่านเกณฑ์');
    }
   }catch(e){
-   currentData=null;setApi('error');show('STANDBY','API connection error · signal disabled');$('reason').textContent=e.message||'API error';
+   currentData=null;setApi('error');
+   if(lockUntil>Date.now()){
+    const left=Math.ceil((lockUntil-Date.now())/1000);
+    show(lockedSignal,'⚡ '+lockedSignal+' · คงสัญญาณระหว่างรอครบ 35 วินาที · '+left+' SEC');
+    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
+   }else{
+    show('STANDBY','API connection error · signal disabled');
+   }
+   $('reason').textContent=e.message||'API error';
   }finally{busy=false}
  }
  function startStop(){
@@ -251,7 +266,15 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
    }
   }
-  if(lockUntil&&Date.now()>=lockUntil){lockUntil=0;lockedSignal='';}
+  if(lockUntil&&Date.now()>=lockUntil){
+   lockUntil=0;lockedSignal='';
+   show('STANDBY','ครบเวลาถือสัญญาณ 35 วินาทีแล้ว · รอสัญญาณรอบใหม่');
+   $('phase').textContent='STANDBY · HOLD COMPLETE';
+   $('radarHead').textContent='WAITING NEXT SIGNAL';
+  } else if(lockUntil>Date.now()){
+   const left=Math.ceil((lockUntil-Date.now())/1000);
+   $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
+  }
   $('coreLabel').textContent='CURRENT SIGNAL';
   if(confirmed&&remainMs<=3000){
    $('phase').textContent='ENTRY WINDOW · 3 SEC';
