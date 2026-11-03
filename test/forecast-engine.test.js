@@ -25,6 +25,12 @@ test('Wilder RSI returns 100 on uninterrupted gains, 0 on losses, and 50 when fl
   assert.equal(calculateRSI(Array(30).fill(1.1)), 50);
 });
 
+test('signal strictness defaults to 63% and modestly relaxes RSI confirmation only', () => {
+  const { SIGNAL_STRICTNESS, RSI_CONFIRMATION_LEVEL } = require('../forecast-engine');
+  assert.equal(SIGNAL_STRICTNESS, 63);
+  assert.equal(Number(RSI_CONFIRMATION_LEVEL.toFixed(1)), 49.3);
+});
+
 test('less than 20 real closed candles never produces a directional signal', () => {
   const result = evaluateLiveFormula(candlesFrom(Array.from({length:19},(_,i)=>1+i*0.0001)), 1.002, 1.001, Date.UTC(2026,0,1,0,0,54,500));
   assert.equal(result.ready, false);
