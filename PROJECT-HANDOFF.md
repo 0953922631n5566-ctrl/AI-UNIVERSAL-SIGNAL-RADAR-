@@ -272,3 +272,20 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Added a regression assertion in `test/ui-script.test.js` for the 35-second client timer and five-second result label.
 - First multi-regime deploy `dep-dbkru115efls73etq36g` reached LIVE on commit `d08c5fdc8c8fff72f366361e1483d68a7c070989`; a follow-up auto-deploy is running for the client timer correction and test.
 - Do not report the final client timer fix as live until the follow-up deploy reaches LIVE and endpoints are checked.
+
+
+## Final verification — multi-regime 5s/35s release — 2026-11-03
+
+- PR #16 merged successfully. Merge commit: `d08c5fdc8c8fff72f366361e1483d68a7c070989`.
+- Follow-up client hold correction: `HOLD_MS=35000`; live-engine metadata now reports `CURRENT_M1_FINAL_5_SECONDS`.
+- GitHub Actions:
+  - PR test run `41623981404`: success; `npm test` passed.
+  - Main follow-up test run `41624329326`: success; `npm test` passed.
+- Render service `ai-universal-signal-radar-main`, ID `srv-dbkaoo0473hc7384tmog`, deploy `dep-dbkrumbd4abc73feah2g`, commit `c21c92f4dca2bc2f178a4b77a03c90347fca8dd5`: status LIVE at 2026-11-03T11:04:00Z.
+- Post-deploy `/health`: status=ok, strategy=MULTI_REGIME_M1, finalAlertWindowSeconds=5, signalHoldSeconds=35, 200 history candles, WebSocket subscribed.
+- Post-deploy `/api/config`: EUR/USD NON-OTC M1; TREND/SIDEWAY/BREAKOUT; preparation=10s; final window=5s; hold=35s; manualOnly=true; automaticBrokerOrders=false.
+- Post-deploy `/api/signal`: Twelve Data apiStatus=connected, 200 real closed candles, DATA_ONLY as intended (REST does not issue a competing direction).
+- Post-deploy `/api/live`: WebSocket subscribed, fresh quote, live M1 candle populated, regime output and `validFor=CURRENT_M1_FINAL_5_SECONDS`. The sampled market was in SIDEWAY SUPPORT BOUNCE conditions; no final CALL was active because the sample was outside the final five-second publication window. This verifies data and regime calculation, not an end-to-end audible CALL/PUT alert.
+- Static homepage fetch confirms the updated Mini App page is served. The app must be opened and scanning started by the user; the root page initially shows OFFLINE/standby before the Start action.
+- Remaining physical checks: Telegram bot menu/launch tap-through and actual Xiaomi 11T sound/vibration. These cannot be verified by server/API deployment.
+- No automatic broker execution was added. Never treat an unconfirmed candidate as a published signal.
