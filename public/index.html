@@ -20,8 +20,8 @@ button{border:0;border-radius:11px;background:#176fc2;color:white;font-size:12px
 <header><div><div class="brand">◈ AI UNIVERSAL SIGNAL RADAR</div><div class="sub">OCR PRICE INPUT · TELEGRAM MINI APP</div></div><div id="status" class="badge">WAITING APK</div></header>
 <section class="market"><div><div class="muted">OCR MARKET · M1</div><div class="pair">EUR / USD</div><div class="muted">ANDROID SCREEN PRICE</div></div><div><div class="muted" style="text-align:right">LATEST REAL PRICE</div><div id="price" class="price">—</div><div id="age" class="muted">ยังไม่มีข้อมูล</div></div></section>
 <section class="radar"><div class="muted">LIVE OCR SIGNAL</div><div id="signal" class="signal">STANDBY</div><div id="regime" class="muted">รอราคาจริงจาก APK</div></section>
-<section class="stats"><div><div class="muted">OCR READINGS</div><b id="count">0 / 5</b></div><div><div class="muted">SOURCE</div><b>ANDROID APK</b></div><div><div class="muted">LAST RECEIVED</div><b id="received">—</b></div><div><div class="muted">REFRESH</div><b>2 วินาที</b></div></section>
-<section class="note" id="reason">ระบบจะไม่สร้างราคาเอง ไม่เรียก Twelve Data หรือ API ตลาดภายนอก และจะรอรับราคา OCR จาก APK เท่านั้น</section>
+<section class="stats"><div><div class="muted">OCR READINGS</div><b id="count">0 / 6</b></div><div><div class="muted">SOURCE</div><b>ANDROID APK</b></div><div><div class="muted">LAST RECEIVED</div><b id="received">—</b></div><div><div class="muted">REFRESH</div><b>2 วินาที</b></div></section>
+<section class="note" id="reason">Server สกัดราคาจาก rawText เท่านั้น · M1 ต้องปิดครบ 6 แท่ง · ไม่มี API ตลาดภายนอกหรือราคาจำลอง</section>
 <button id="refresh">ตรวจสถานะอีกครั้ง</button>
 <footer class="footer"><span>MANUAL ONLY · NO AUTO ORDERS</span><span id="footer">OCR NOT CONNECTED</span></footer>
 </main>
@@ -29,21 +29,21 @@ button{border:0;border-radius:11px;background:#176fc2;color:white;font-size:12px
 const tg=window.Telegram&&window.Telegram.WebApp;if(tg)tg.expand();
 const $=id=>document.getElementById(id);
 function render(d){
- const live=d.feedStatus==='LIVE';
- $('status').textContent=live?'OCR LIVE':'WAITING APK';
- $('status').className='badge'+(live?' live':'');
- $('price').textContent=d.price||'—';
- $('age').textContent=d.dataAgeSeconds==null?'ยังไม่มีข้อมูล':('ข้อมูลอายุ '+d.dataAgeSeconds+' วินาที');
- $('signal').textContent=d.signal||'STANDBY';
- $('signal').className='signal '+(d.signal==='CALL'||d.signal==='PUT'?d.signal:'');
- $('regime').textContent=d.regime||'STANDBY';
- $('count').textContent=(d.readingsLoaded||0)+' / '+(d.minimumReadings||5);
- $('received').textContent=d.receivedAt?new Date(d.receivedAt).toLocaleTimeString('th-TH'):'—';
+ const active=d.status!=='STANDBY' && d.status!=='WAITING';
+ $('status').textContent=d.status==='CALL'||d.status==='PUT'?'OCR READY':'STANDBY';
+ $('status').className='badge'+(active?' live':'');
+ $('price').textContent=d.currentPrice==null?'—':Number(d.currentPrice).toFixed(5);
+ $('age').textContent=d.lastTimestamp?'อัปเดต '+new Date(d.lastTimestamp).toLocaleTimeString('th-TH'):'ยังไม่มีข้อมูล';
+ $('signal').textContent=d.status||'STANDBY';
+ $('signal').className='signal '+(d.status==='CALL'||d.status==='PUT'?d.status:'');
+ $('regime').textContent=d.reason||'รอข้อมูล OCR';
+ $('count').textContent=(d.closedCandles||0)+' / '+(d.requiredCandles||6)+' แท่ง M1 ปิดแล้ว';
+ $('received').textContent=d.lastTimestamp?new Date(d.lastTimestamp).toLocaleTimeString('th-TH'):'—';
  $('reason').textContent=d.reason||'รอข้อมูล OCR';
- $('footer').textContent=live?'OCR CONNECTED':'OCR NOT CONNECTED';
+ $('footer').textContent=d.source==='ANDROID_OCR_RAW_TEXT'?'SERVER OCR ENGINE':'OCR NOT CONNECTED';
 }
 async function poll(){
- try{const r=await fetch('/api/signal',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);render(await r.json());}
+ try{const r=await fetch('/api/signal?symbol=EUR%2FUSD&market=OTC',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);render(await r.json());}
  catch(e){$('status').textContent='SERVER ERROR';$('status').className='badge';$('signal').textContent='STANDBY';$('reason').textContent='เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: '+e.message;}
 }
 $('refresh').addEventListener('click',poll);poll();setInterval(poll,2000);
