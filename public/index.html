@@ -300,6 +300,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  async function savePreferences(){
   const mode=$('modeSelect').value,strictness=Number($('strictnessRange').value);
   preferences={mode,strictness};
+  finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');
   $('strictnessValue').textContent=strictness+'%';$('modeHint').textContent=modeHints[mode];
   try{localStorage.setItem('airadar.preferences',JSON.stringify(preferences));}catch(e){}
   $('settingsStatus').textContent='กำลังบันทึก…';
