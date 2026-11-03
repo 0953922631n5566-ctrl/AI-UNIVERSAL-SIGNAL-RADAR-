@@ -82,7 +82,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="actions"><button class="start" id="start">▶ START RADAR</button><button class="sound" id="sound" aria-label="เปิดเสียงแจ้งเตือน">♫</button></div>
 </section>
 <section class="note"><small>AI MARKET READOUT</small><p id="reason">ระบบจะแสดงผล EMA5 / EMA20 / RSI14 หลังเชื่อมต่อข้อมูลตลาด</p><p class="forecastLine" id="forecast">NEXT M1: STANDBY · CLOSED CANDLE ONLY</p></section>
-<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">ORDER ALERT · 10S + FINAL 5S · HOLD 35S</span></footer>
+<footer class="footer"><span>MANUAL ENTRY ONLY · NO AUTO TRADE</span><span id="updated">PREP 10S · RESULT +5S · HOLD 35S</span></footer>
 </main>
 <script>
 (()=>{
@@ -235,7 +235,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    show(finalDecision,finalDecision==='STANDBY'
     ?'ผลสุดท้าย: STANDBY · ผลวิเคราะห์แท่ง M1 ถัดไปยังไม่ผ่านเกณฑ์หรือข้อมูลไม่สด · งดเข้าออเดอร์'
     :'ผลสุดท้าย: '+finalDecision+' · ผ่านเกณฑ์วิเคราะห์แท่ง M1 ถัดไป · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
-   $('phase').textContent='FINAL 5 SEC · '+finalDecision;
+   $('phase').textContent='FINAL RESULT · '+finalDecision;
    $('radarHead').textContent='NEXT M1 · '+finalDecision;
    app.classList.add('final-three');
    if(finalDecision==='CALL'){beep(1040,170,3);vibrate([220,70,220]);}
@@ -261,7 +261,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('radarHead').textContent='WAITING FINAL RESULT';
   } else if(confirmed&&sec<6){
    $('phase').textContent='FINAL 5 SEC · '+confirmed.direction;
-   $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
+   $('radarHead').textContent='NEXT M1 RESULT';
   } else if(confirmed&&remainMs<=10000){
    $('phase').textContent='PREPARE ORDER · 10 SEC';
    $('radarHead').textContent='NEXT M1 FORECAST READY';
