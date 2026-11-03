@@ -108,3 +108,21 @@ The user explicitly replaced the prior signal formula and changed the final timi
 - Input data is real Twelve Data EUR/USD closed M1 history plus the current live WebSocket quote. If live data is stale or fewer than 20 closed candles exist, remain STANDBY.
 - Manual entry only; no broker orders.
 
+
+
+## User-authorized multi-regime alert update — 2026-11-03
+
+This section supersedes the previous 3-second final window and 30-second hold.
+
+- Keep the 10-second preparation reminder before every M1 boundary.
+- Publish the final CALL/PUT/STANDBY as soon as a valid decision is available during the final **5 seconds** before the M1 boundary. If no valid result is available by the boundary, publish STANDBY once; do not publish a late direction.
+- Hold every final result for **35 seconds** from its notification timestamp, then reset to STANDBY.
+- Support three market regimes using real EUR/USD market data:
+  - TREND: EMA5/EMA20 alignment and live price confirmation; follow the prevailing direction.
+  - SIDEWAY: only allow a support bounce (CALL) or resistance rejection (PUT) when price is near the corresponding 20-candle range edge and RSI confirms; otherwise STANDBY.
+  - BREAKOUT: CALL above the prior 20-candle high; PUT below the prior 20-candle low.
+- Bollinger bandwidth below 0.04% marks a narrow range. It does not create a direction by itself; the sideway edge + RSI confirmation is required.
+- Keep the existing real Twelve Data REST history and WebSocket quote sources. Never use Math.random, fixed demo prices, or forced CALL/PUT fallbacks when API data is absent or stale.
+- Missing API key, stale quotes, insufficient candles, stream errors, and unconfirmed conditions must resolve to STANDBY.
+- Manual entry only. No automatic broker order execution.
+- Actual Telegram Mini App sound/vibration must still be tested on the Xiaomi 11T; deployment alone does not prove device behavior.
