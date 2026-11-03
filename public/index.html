@@ -104,7 +104,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
  let running=false,poll=null,livePoll=null,audio=null,busy=false,busyLive=false,currentData=null,currentLiveData=null;
  let lockUntil=0,lockedSignal='',lastSignalCandle='';
- let preAlert10Key='',finalAlert3Key='';
+ let preAlert10Key='',finalAlert5Key='',finalDecisionUntil=0,finalDecision='';
  const HOLD_MS=35000, CLIENT_POLL_MS=5000, MAX_SIGNAL_AGE_MS=180000;
  function setApi(status){
   const ok=status==='connected';
@@ -179,6 +179,12 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
     $('radarHead').textContent='SIGNAL CONFIRMED · HOLD';
     return;
    }
+   if(finalDecisionUntil>Date.now()){
+    show(finalDecision,'ผลประเมินช่วง 5 วินาทีสุดท้าย · '+(finalDecision==='STANDBY'?'ข้อมูลยืนยันสองทางยังไม่ครบ':'ยืนยันสองทางแล้ว'));
+    $('phase').textContent='FINAL RESULT · '+finalDecision;
+    $('radarHead').textContent='NEXT M1 · FINAL RESULT';
+    return;
+   }
    if(data.apiStatus!=='connected') {
     show('STANDBY',data.apiMessage||'API unavailable · no signal');
    } else if(age>MAX_SIGNAL_AGE_MS) {
@@ -227,7 +233,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    try{const AC=window.AudioContext||window.webkitAudioContext;if(AC&&!audio)audio=new AC();if(audio&&audio.state==='suspended')audio.resume();$('sound').textContent='🔔'}catch(e){}
    setApi('connecting');show('STANDBY','Connecting to Twelve Data...');scan();scanLive();poll=setInterval(scan,CLIENT_POLL_MS);livePoll=setInterval(scanLive,1000);$('phase').textContent='LIVE MONITORING'
   }
-  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';preAlert10Key='';finalAlert3Key='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
+  else{clearInterval(poll);clearInterval(livePoll);poll=null;livePoll=null;currentData=null;currentLiveData=null;$('liveStatus').textContent='STOPPED';$('liveSignal').textContent='STANDBY';$('liveSignal').className='';$('liveReason').textContent='หยุดติดตามราคาสด';lockUntil=0;lockedSignal='';lastSignalCandle='';preAlert10Key='';finalAlert5Key='';finalDecisionUntil=0;finalDecision='';app.classList.remove('final-three');setApi('off');show('STANDBY','Radar stopped');$('phase').textContent='READY TO SCAN';$('updated').textContent='API REFRESH · 120 SEC'}
  }
  function confirmedSignalForAlert(){
   if(!running||!currentData||!currentLiveData)return null;
@@ -241,26 +247,34 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  function tick(){
   const now=new Date(),sec=now.getSeconds(),remain=60-sec;
   const remainMs=60000-(Date.now()%60000);
+  const minuteKey=Math.floor(Date.now()/60000);
   const confirmed=confirmedSignalForAlert();
-  if(confirmed){
-   if(remainMs<=10000&&remainMs>3000&&preAlert10Key!==confirmed.key){
-    preAlert10Key=confirmed.key;
-    $('phase').textContent='PREPARE ORDER · 10 SEC';
-    $('message').textContent='เตรียมตรวจราคาโบรกเกอร์ · '+confirmed.direction+' · เหลือประมาณ 10 วินาที';
-    beep(880,180,2);vibrate([180,90,180]);
-   }
-   if(remainMs<=3000&&remainMs>0&&finalAlert3Key!==confirmed.key){
-    finalAlert3Key=confirmed.key;
-    $('phase').textContent='ENTRY WINDOW · 3 SEC';
-    $('message').textContent='สัญญาณ '+confirmed.direction+' ยังผ่านสองทาง · ตรวจราคาโบรกเกอร์ก่อนกด Order';
-    app.classList.add('final-three');
-    beep(1320,150,3);vibrate([250,70,250,70,400]);
-   }
+  // 10-second preparation reminder is independent of signal availability.
+  if(running&&remainMs<=10000&&remainMs>0&&preAlert10Key!==minuteKey){
+   preAlert10Key=minuteKey;
+   $('phase').textContent='PREPARE · 10 SEC';
+   $('message').textContent='เตรียมดูผลประเมินแท่ง M1 รอบถัดไป · อีกประมาณ 10 วินาที';
+   beep(880,180,2);vibrate([180,90,180]);
+  }
+  // Final 5-second result: CALL/PUT only on dual confirmation; otherwise explicitly STANDBY.
+  if(running&&remainMs<=5000&&remainMs>0&&finalAlert5Key!==minuteKey){
+   finalAlert5Key=minuteKey;
+   finalDecision=confirmed?confirmed.direction:'STANDBY';
+   finalDecisionUntil=Math.ceil(Date.now()/60000)*60000+1000;
+   show(finalDecision,finalDecision==='STANDBY'
+    ?'ผลสุดท้าย: STANDBY · สัญญาณสองทางยังไม่ยืนยันตรงกัน · งดเข้าออเดอร์'
+    :'ผลสุดท้าย: '+finalDecision+' · ผ่านการยืนยันสองทาง · ตรวจราคาโบรกเกอร์ก่อนตัดสินใจ');
+   $('phase').textContent='FINAL 5 SEC · '+finalDecision;
+   $('radarHead').textContent='NEXT M1 · '+finalDecision;
+   app.classList.add('final-three');
+   if(finalDecision==='CALL'){beep(1040,170,3);vibrate([220,70,220]);}
+   else if(finalDecision==='PUT'){beep(260,170,3);vibrate([220,70,220]);}
+   else {beep(520,110,1);vibrate(100);}
   }
   $('clock').textContent='00:'+String(remain).padStart(2,'0');
   $('barfill').style.width=(sec/60*100)+'%';
   $('progress').style.strokeDashoffset=251-(sec/60*251);
-  if(remainMs>3000)app.classList.remove('final-three');
+  if(remainMs>5000)app.classList.remove('final-three');
   if(lockUntil>Date.now()){
    if(!confirmed||!confirmed.key.startsWith(String(currentData.datetime||''))) {
     $('phase').textContent='SIGNAL HOLD · '+Math.ceil((lockUntil-Date.now())/1000)+' SEC';
@@ -276,8 +290,8 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    $('phase').textContent='SIGNAL HOLD · '+left+' SEC';
   }
   $('coreLabel').textContent='CURRENT SIGNAL';
-  if(confirmed&&remainMs<=3000){
-   $('phase').textContent='ENTRY WINDOW · 3 SEC';
+  if(confirmed&&remainMs<=5000){
+   $('phase').textContent='FINAL 5 SEC · '+confirmed.direction;
    $('radarHead').textContent='FINAL ENTRY COUNTDOWN';
   } else if(confirmed&&remainMs<=10000){
    $('phase').textContent='PREPARE ORDER · 10 SEC';
