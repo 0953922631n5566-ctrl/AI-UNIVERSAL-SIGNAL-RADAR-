@@ -102,12 +102,12 @@ function createLiveEngine(apiKey, getClosedCandles) {
       let event; try { event = JSON.parse(raw.toString()); } catch (_) { return; }
       if (event.event === 'subscribe-status') {
         const ok = event.status === 'ok' && Array.isArray(event.success) &&
-          event.success.some(x => String(x.symbol || '').replace(/\\s/g,'').toUpperCase() === 'EUR/USD');
+          event.success.some(x => String(x.symbol || '').replace(/\s/g,'').toUpperCase() === 'EUR/USD');
         status = ok ? 'subscribed' : 'unavailable';
         message = ok ? 'ได้รับสิทธิ์ราคาสด EUR/USD แล้ว' : ((event.fails && event.fails[0] && event.fails[0].message) || event.message || 'แพ็กเกจไม่อนุญาต WebSocket');
         if (ok) retryDelay = 5000;
       }
-      if (event.event === 'price' && String(event.symbol || '').replace(/\\s/g,'').toUpperCase() === 'EUR/USD') {
+      if (event.event === 'price' && String(event.symbol || '').replace(/\s/g,'').toUpperCase() === 'EUR/USD') {
         const price = Number(event.price), timestamp = Number(event.timestamp) * 1000, now = Date.now();
         if (Number.isFinite(price) && price > 0 && Number.isFinite(timestamp) && timestamp <= now + 10000 && now - timestamp <= 30000) {
           previousTickPrice = tick ? tick.price : null;
