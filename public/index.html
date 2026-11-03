@@ -13,27 +13,149 @@
 <footer class="foot"><span>MANUAL ONLY · NO AUTO TRADE</span><span id="foot">พร้อมใช้งาน</span></footer>
 </main>
 <script>
-(()=> {
- const $=id=>document.getElementById(id), tg=window.Telegram&&window.Telegram.WebApp;
+(()=>{
+ const $=id=>document.getElementById(id);
+ const tg=window.Telegram&&window.Telegram.WebApp;
  if(tg){try{tg.ready();tg.expand()}catch(e){}}
- let running=false,poll=null,lockUntil=0,lockedSignal='',lastAlert='',audio=null,soundOn=true,busy=false;
- const holdMs=35000;
- function status(s){$('status').textContent=s==='connected'?'API LIVE':s==='connecting'?'CONNECTING':s==='quota_exhausted'?'API LIMIT':s==='error'?'API ERROR':'OFFLINE';$('status').classList.toggle('online',s==='connected')}
- function show(sig,msg){$('signal').textContent=sig;$('signal').className='signal '+(sig==='STANDBY'?'':sig);$('msg').textContent=msg||''}
- function beep(freq,duration){if(!soundOn)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;if(!audio)audio=new AC();if(audio.state==='suspended')audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.frequency.value=freq;o.connect(g);g.connect(audio.destination);g.gain.setValueAtTime(.0001,audio.currentTime);g.gain.exponentialRampToValueAtTime(1,audio.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+duration/1000);o.start();o.stop(audio.currentTime+duration/1000+.02)}catch(e){console.warn(e)}}
- function vibrate(pattern){try{if(navigator.vibrate)navigator.vibrate(pattern);if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success')}catch(e){}}
- function alert(sig,key){if(key===lastAlert)return;lastAlert=key;beep(sig==='CALL'?880:220,300);vibrate([300,100,300,100,500])}
- async function scan(){if(!running||busy)return;busy=true;try{const r=await fetch('/api/signal',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();status(d.apiStatus||'error');$('price').textContent=d.price&&d.price!=='—'?'Price: '+d.price:'รอข้อมูลราคา';$('regime').textContent=d.regime||'—';$('rsi').textContent=d.rsi==null?'—':'RSI: '+d.rsi;$('reason').textContent=d.reason||d.apiMessage||'—';if(d.apiStatus!=='connected'){lockUntil=0;lockedSignal='';show('STANDBY',d.apiMessage||'API ไม่พร้อม · หยุดการออกสัญญาณ');return}
- const sig=['CALL','PUT'].includes(d.signal)?d.signal:'STANDBY',now=Date.now();
- if(lockUntil>now){show(lockedSignal,'ล็อกสัญญาณ '+Math.ceil((lockUntil-now)/1000)+' วินาที');return}
- if(lockUntil&&now>=lockUntil){lockUntil=0;lockedSignal='';show('STANDBY','ครบเวลาล็อก 35 วินาที · รอการยืนยันรอบใหม่')}
- if(sig!=='STANDBY'){const key=String(d.datetime||'')+':'+sig;if(key===lastAlert){show('STANDBY','สัญญาณแท่งนี้ถูกใช้แล้ว · รอแท่งใหม่');return}alert(sig,key);lockedSignal=sig;lockUntil=now+holdMs;show(sig,sig+' · ยืนยันจากข้อมูลตลาดจริง · ล็อก 35 วินาที')}else show('STANDBY','ยังไม่มีเงื่อนไขเข้า · รอสัญญาณที่ชัดเจน');
- $('foot').textContent='อัปเดต '+new Date().toLocaleTimeString('th-TH');
- }catch(e){status('error');lockUntil=0;lockedSignal='';show('STANDBY','เชื่อมต่อไม่ได้ · ระบบหยุดสัญญาณ');$('reason').textContent=e.message}finally{busy=false}}
- function startStop(){running=!running;$('start').classList.toggle('active',running);$('start').textContent=running?'■ หยุดสแกน':'▶ เริ่มเฝ้าระวัง';$('arc').classList.toggle('spin',running);if(running){status('connecting');show('STANDBY','กำลังเชื่อมต่อ Twelve Data...');scan();poll=setInterval(scan,15000)}else{clearInterval(poll);poll=null;status('off');lockUntil=0;lockedSignal='';show('STANDBY','หยุดการสแกนแล้ว');$('foot').textContent='หยุดทำงาน'}}
+
+ let running=false, poll=null, timer=null, audio=null, soundOn=true, busy=false;
+ let currentData=null, lockUntil=0, lockedSignal='', lastSignalCandle='', lastPreAlertMinute='';
+ const HOLD_MS=35000;
+
+ function setStatus(value){
+   const label=value==='connected'?'API LIVE':value==='connecting'?'CONNECTING':value==='quota_exhausted'?'API LIMIT':value==='error'?'API ERROR':'OFFLINE';
+   $('status').textContent=label;
+   $('status').classList.toggle('online',value==='connected');
+ }
+ function showSignal(signal,message){
+   $('signal').textContent=signal;
+   $('signal').className='signal '+(signal==='STANDBY'?'':signal);
+   $('msg').textContent=message||'';
+ }
+ function beep(freq,duration){
+   if(!soundOn)return;
+   try{
+     const AC=window.AudioContext||window.webkitAudioContext;
+     if(!AC)return;
+     if(!audio)audio=new AC();
+     if(audio.state==='suspended')audio.resume();
+     const osc=audio.createOscillator(),gain=audio.createGain();
+     osc.frequency.setValueAtTime(freq,audio.currentTime);
+     osc.connect(gain);gain.connect(audio.destination);
+     gain.gain.setValueAtTime(0.0001,audio.currentTime);
+     gain.gain.exponentialRampToValueAtTime(1,audio.currentTime+0.02);
+     gain.gain.exponentialRampToValueAtTime(0.0001,audio.currentTime+duration/1000);
+     osc.start();osc.stop(audio.currentTime+duration/1000+0.03);
+   }catch(err){console.warn('Audio unavailable',err)}
+ }
+ function vibrate(pattern){
+   try{
+     if($('vibrateToggle') && !$('vibrateToggle').checked)return;
+     if(navigator.vibrate)navigator.vibrate(pattern);
+     if(tg&&tg.HapticFeedback)tg.HapticFeedback.notificationOccurred('success');
+   }catch(err){}
+ }
+ async function scan(){
+   if(!running||busy)return;
+   busy=true;
+   try{
+     const response=await fetch('/api/signal',{cache:'no-store'});
+     if(!response.ok)throw new Error('HTTP '+response.status);
+     const data=await response.json();
+     currentData=data;
+     setStatus(data.apiStatus||'error');
+     $('price').textContent=data.price&&data.price!=='—'?'Price: '+data.price:'รอข้อมูลราคา';
+     $('regime').textContent=data.regime||'—';
+     $('rsi').textContent=data.rsi==null?'—':'RSI: '+data.rsi;
+     $('reason').textContent=data.reason||data.apiMessage||'—';
+     $('foot').textContent='อัปเดต '+new Date().toLocaleTimeString('th-TH');
+     if(data.apiStatus!=='connected'){
+       showSignal('STANDBY',data.apiMessage||'API ไม่พร้อม · หยุดการออกสัญญาณ');
+     }else if(lockUntil>Date.now()){
+       showSignal(lockedSignal,'ล็อกสัญญาณ '+Math.ceil((lockUntil-Date.now())/1000)+' วินาที');
+     }else{
+       showSignal('STANDBY','ข้อมูลพร้อม · รอจังหวะยืนยันก่อนปิดแท่ง');
+     }
+   }catch(err){
+     currentData=null;setStatus('error');
+     showSignal('STANDBY','เชื่อมต่อไม่ได้ · ระบบหยุดการออกสัญญาณ');
+     $('reason').textContent=err.message||'API Fetch Error';
+   }finally{busy=false}
+ }
+ function startStop(){
+   running=!running;
+   $('start').classList.toggle('active',running);
+   $('start').textContent=running?'■ หยุดสแกน':'▶ เริ่มเฝ้าระวัง';
+   $('arc').classList.toggle('spin',running);
+   if(running){
+     setStatus('connecting');
+     showSignal('STANDBY','กำลังเชื่อมต่อ Twelve Data...');
+     scan();
+     poll=setInterval(scan,5000);
+     $('foot').textContent='กำลังเฝ้าระวัง';
+   }else{
+     clearInterval(poll);poll=null;
+     setStatus('off');currentData=null;lockUntil=0;lockedSignal='';
+     showSignal('STANDBY','หยุดการสแกนแล้ว');
+     $('foot').textContent='หยุดทำงาน';
+   }
+ }
+ function tick(){
+   const now=new Date();
+   const seconds=now.getSeconds();
+   const remain=60-seconds;
+   const minuteKey=now.getFullYear()+'-'+now.getMonth()+'-'+now.getDate()+'-'+now.getHours()+'-'+now.getMinutes();
+   $('clock').textContent='00:'+String(remain).padStart(2,'0');
+   $('fill').style.width=((seconds/60)*100)+'%';
+
+   if(lockUntil>Date.now()){
+     $('timerTitle').textContent='SIGNAL LOCK · 35 SEC';
+     if(running)showSignal(lockedSignal,'ล็อกสัญญาณ '+Math.ceil((lockUntil-Date.now())/1000)+' วินาที');
+     return;
+   }
+   if(lockUntil&&Date.now()>=lockUntil){
+     lockUntil=0;lockedSignal='';
+     if(running)showSignal('STANDBY','ครบเวลาล็อก 35 วินาที · รอสัญญาณรอบใหม่');
+   }
+
+   $('timerTitle').textContent='NEXT CANDLE IN';
+   if(!running)return;
+
+   if(remain===10&&lastPreAlertMinute!==minuteKey){
+     lastPreAlertMinute=minuteKey;
+     beep(440,220);
+     vibrate([100,60,100]);
+     showSignal('STANDBY','⚠️ เหลือ 10 วินาที · เฝ้าระวังสัญญาณ');
+   }
+
+   if(remain===3){
+     const data=currentData;
+     if(!data||data.apiStatus!=='connected'){
+       showSignal('STANDBY','ข้อมูล API ไม่พร้อม · งดแจ้งสัญญาณ');
+       return;
+     }
+     const signal=data.signal;
+     const candleKey=String(data.datetime||'')+':'+signal;
+     if((signal==='CALL'||signal==='PUT')&&candleKey!==lastSignalCandle){
+       lastSignalCandle=candleKey;
+       lockedSignal=signal;
+       lockUntil=Date.now()+HOLD_MS;
+       showSignal(signal,'🔥 '+signal+' · สัญญาณเตือนสำหรับการตัดสินใจด้วยตนเอง · ล็อก 35 วินาที');
+       beep(signal==='CALL'?880:220,420);
+       vibrate([300,100,300,100,500]);
+     }else{
+       showSignal('STANDBY','ไม่มีเงื่อนไขยืนยัน · STANDBY');
+     }
+   }
+ }
  $('start').addEventListener('click',startStop);
- $('sound').addEventListener('click',()=>{soundOn=true;beep(880,250);vibrate(80);$('sound').textContent='🔔'});
- setInterval(()=>{const s=new Date().getSeconds(),remain=60-s;$('clock').textContent='00:'+String(remain).padStart(2,'0');$('fill').style.width=(s/60*100)+'%';if(lockUntil>Date.now()){$('timerTitle').textContent='SIGNAL LOCK · 35 SEC';}else{$('timerTitle').textContent='NEXT CANDLE IN';}},250);
- status('off');
+ $('sound').addEventListener('click',()=>{
+   soundOn=true;beep(880,250);vibrate(80);
+   $('sound').textContent='🔔';
+   $('sound').title='เปิดเสียงแล้ว';
+ });
+ timer=setInterval(tick,200);
+ tick();
+ setStatus('off');
 })();
 </script></body></html>
