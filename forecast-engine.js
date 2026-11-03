@@ -57,7 +57,7 @@ function evaluateLiveFormula(closedCandles, currentPrice, previousPrice, now = D
   const requestedMode = ['auto','uptrend','downtrend','sideway'].includes(options.mode) ? options.mode : 'auto';
   const rawLevel = Number(options.strictness ?? SIGNAL_STRICTNESS);
   const strictness = Number.isFinite(rawLevel) ? Math.max(55, Math.min(100, rawLevel)) : 55;
-  const rsiConfirmationLevel = Math.max(48.5, Math.min(53, 50 + (strictness - 70) * 0.1));
+  const rsiConfirmationLevel = Math.max(50, Math.min(56.75, 50 + (strictness - 55) * 0.15));
   const candles = (Array.isArray(closedCandles) ? closedCandles : [])
     .filter(c => c && Number.isFinite(Number(c.close)))
     .slice(-120);
