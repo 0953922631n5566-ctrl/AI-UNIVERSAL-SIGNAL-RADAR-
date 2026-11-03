@@ -85,7 +85,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
  <div class="stat"><small>RSI 14</small><b id="rsi">—</b></div>
 </section>
 <section class="livepanel">
- <div class="livehead"><span>LIVE PREDICTION · NEXT M1</span><span id="liveStatus">WAITING STREAM</span></div>
+ <div class="livehead"><span>LIVE PRICE · NEXT M1 · 1-MIN FEED</span><span id="liveStatus">WAITING STREAM</span></div>
  <div class="livebody"><b id="liveSignal">STANDBY</b><span id="livePrice">—</span></div>
  <p id="liveReason">กำลังรอข้อมูลราคาสดจาก Twelve Data WebSocket</p>
 </section>
@@ -150,7 +150,7 @@ body{display:flex;justify-content:center;padding:10px;transition:background .25s
    signal.textContent=data.prediction||'STANDBY';
    signal.className=(data.prediction==='CALL'||data.prediction==='PUT')?data.prediction:'';
    $('livePrice').textContent=data.price||'—';
-   $('liveReason').textContent=data.reason||'รอข้อมูลราคาสด';
+   $('liveReason').textContent=(data.reason||'รอข้อมูลราคาสด')+(data.dataAgeSeconds==null?'':' · ราคาอายุ '+data.dataAgeSeconds+' วินาที');
   }catch(e){
    $('liveStatus').textContent='OFFLINE';$('liveStatus').className='livebad';
    $('liveSignal').textContent='STANDBY';$('liveSignal').className='';
