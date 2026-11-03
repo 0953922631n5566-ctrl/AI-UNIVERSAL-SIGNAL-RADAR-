@@ -2,23 +2,26 @@
 
 Single-market signal dashboard for **EUR/USD, 1-minute candles**.
 
-## Runtime
-- Node.js 18.x
-- Express 4
-- Twelve Data API key supplied through the Render environment variable `TWELVE_DATA_API_KEY`
-- Start command: `npm start`
+## Two independent analysis engines
 
-## Render configuration
-- Build: `npm install`
-- Start: `npm start`
-- Environment: `TWELVE_DATA_API_KEY` (set privately in Render; never commit credentials)
-
-## Signal behavior
-- Outputs CALL, PUT, or STANDBY.
-- Uses EMA(5/20), RSI(14), and a market-regime filter.
-- After a CALL/PUT decision, the next newly observed candle is forced to STANDBY (one-candle cooldown).
-- Stale data is forced to STANDBY.
+- **Closed-candle confirmation:** Twelve Data REST `/time_series`, completed M1 bars only, EMA(5/20), RSI(14). Historical refresh remains capped at 120 seconds to protect the REST API quota.
+- **Live next-candle estimate:** One server-side Twelve Data `/quotes/price` WebSocket subscription for EUR/USD. The engine combines the latest tick with completed-bar history and short-term tick momentum. It is displayed separately and never overwrites the closed-candle result.
+- Live output is forced to STANDBY if the subscription is not authorized, no fresh tick arrives within 15 seconds, or the history baseline is incomplete.
+- Basic/Grow plans only permit trial WebSocket symbols; full symbol access requires Pro or higher. The live panel reports unavailable if EUR/USD is not included in the account's permitted trial symbols.
+- This is a rule-based estimate, not a guarantee or a trained machine-learning model. Validate the next candle after close and measure accuracy before relying on it.
 - Manual decision support only; no broker orders are placed.
 
-## Important validation notes
-The supplied strategy uses the latest Twelve Data bar returned by the API; the API response may include a still-forming minute candle. This implementation does not independently confirm candle closure. The one-candle cooldown is applied per newly observed timestamp by this single-process server. Verify live API access and candle timestamps before relying on signals. This is a rule-based indicator engine, not a trained machine-learning model.
+## Runtime
+- Node.js 18.x
+- Express 4, node-fetch 2, ws 8
+- `TWELVE_DATA_API_KEY` supplied privately through Render environment variables.
+
+## Render
+- Build: `npm install`
+- Start: `npm start`
+- Main service: https://ai-universal-signal-radar-main.onrender.com
+
+## Endpoints
+- `/health`: service status and live stream status
+- `/api/signal`: closed-candle signal
+- `/api/live`: separate live-price prediction
