@@ -79,13 +79,16 @@ async function buildSignal() {
         'ไม่สามารถยืนยันข้อมูลตลาดได้ จึงหยุดการออกสัญญาณ');
     }
 
-    // Merge the latest API candles into the rolling in-memory history.
+    // Only ingest completed M1 bars. Twelve Data timestamps each bar by OPEN time.
+    const nowMs = Date.now();
     for (const candle of data.values) {
       const close = Number(candle.close);
       const open = Number(candle.open);
       const high = Number(candle.high);
       const low = Number(candle.low);
       if (!candle.datetime || ![close, open, high, low].every(Number.isFinite)) continue;
+      const candleStartMs = new Date(String(candle.datetime).replace(' ', 'T') + 'Z').getTime();
+      if (!Number.isFinite(candleStartMs) || candleStartMs + 60000 > nowMs - 2000) continue;
       candleStore.set(String(candle.datetime), {
         datetime: String(candle.datetime), close, open, high, low
       });
@@ -108,7 +111,8 @@ async function buildSignal() {
     const ema20 = calculateEMA(closes, 20);
     const rsi = calculateRSI(closes, 14);
     const candleTime = new Date(String(last.datetime).replace(' ', 'T') + 'Z');
-    const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleTime.getTime();
+    const candleClosedAtMs = candleTime.getTime() + 60000;
+    const ageMs = Number.isNaN(candleTime.getTime()) ? Infinity : Date.now() - candleClosedAtMs;
 
     if (ageMs > 180000 || ageMs < -60000) {
       return {
@@ -131,7 +135,9 @@ async function buildSignal() {
 
     return {
       symbol: 'EUR/USD', signal, regime, price: price.toFixed(5),
-      datetime: last.datetime, rsi: rsi.toFixed(1), ema5: ema5.toFixed(5),
+      datetime: last.datetime, candleClosedAt: new Date(candleClosedAtMs).toISOString(),
+      dataAgeSeconds: Math.max(0, Math.floor(ageMs / 1000)),
+      rsi: rsi.toFixed(1), ema5: ema5.toFixed(5),
       ema20: ema20.toFixed(5), apiStatus: 'connected',
       apiMessage: 'เชื่อมต่อ Twelve Data แล้ว',
       apiUpdatedAt: new Date().toISOString(),
