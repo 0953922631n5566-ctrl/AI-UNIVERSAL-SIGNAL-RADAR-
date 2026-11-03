@@ -58,68 +58,50 @@ function result(votes, direction, horizon, reason) {
   };
 }
 
-function evaluateTwoHorizons(closedCandles, livePrice, momentum) {
+function evaluateNextCandle(closedCandles, livePrice, momentum) {
   const candles = Array.isArray(closedCandles) ? closedCandles.slice(-220) : [];
   const closes = candles.map(c => Number(c.close)).filter(Number.isFinite);
   const last = candles[candles.length - 1];
   const values = closes.concat(Number(livePrice));
-  const standby = (horizon, reason) => ({
+  const standby = reason => ({
     signal: 'STANDBY', agreementScore: 0, agreementVotes: '0/6',
-    horizon, reason
+    horizon: 1, reason
   });
   if (candles.length < 35 || !Number.isFinite(Number(livePrice)) || !last) {
-    return {
-      nextCandle: standby(1, 'ข้อมูลย้อนหลังไม่ครบ 35 แท่ง'),
-      followingCandle: standby(2, 'ข้อมูลย้อนหลังไม่ครบ 35 แท่ง')
-    };
+    return standby('ข้อมูลย้อนหลังไม่ครบ 35 แท่ง');
   }
 
   const ema5 = ema(values, 5), ema20 = ema(values, 20);
   const ema5Prev = ema(values.slice(0, -1), 5);
   const ema20Prev = ema(values.slice(0, -1), 20);
-  const ema20Older = ema(values.slice(0, -3), 20);
   const strength = rsi(values, 14);
   const m = macd(values);
-  if (![ema5, ema20, ema5Prev, ema20Prev, ema20Older, strength].every(Number.isFinite) || !m) {
-    return {
-      nextCandle: standby(1, 'คำนวณอินดิเคเตอร์ไม่ครบ'),
-      followingCandle: standby(2, 'คำนวณอินดิเคเตอร์ไม่ครบ')
-    };
+  if (![ema5, ema20, ema5Prev, ema20Prev, strength].every(Number.isFinite) || !m) {
+    return standby('คำนวณอินดิเคเตอร์ไม่ครบ');
   }
 
   const bullish = ema5 > ema20;
   const bearish = ema5 < ema20;
   const fastUp = ema5 > ema5Prev && ema20 > ema20Prev;
   const fastDown = ema5 < ema5Prev && ema20 < ema20Prev;
-  const slowUp = ema20 > ema20Older;
-  const slowDown = ema20 < ema20Older;
   const macdUp = m.histogram > 0 && (m.previousHistogram === null || m.histogram >= m.previousHistogram);
   const macdDown = m.histogram < 0 && (m.previousHistogram === null || m.histogram <= m.previousHistogram);
   const rsiUp = strength >= 52 && strength <= 70;
   const rsiDown = strength >= 30 && strength <= 48;
   const bodyUp = Number(last.close) > Number(last.open);
   const bodyDown = Number(last.close) < Number(last.open);
-  const threeBarMove = closes.length >= 4 ? closes[closes.length - 1] - closes[closes.length - 4] : 0;
   const momentumUp = Number.isFinite(momentum) && momentum > 0.000005;
   const momentumDown = Number.isFinite(momentum) && momentum < -0.000005;
 
-  const nextCandle = bullish
-    ? result([bullish, fastUp, macdUp, rsiUp, bodyUp, momentumUp], 'CALL', 1,
-        'แท่งถัดไป: EMA, MACD, RSI, แท่งปิด และ Momentum')
-    : bearish
-      ? result([bearish, fastDown, macdDown, rsiDown, bodyDown, momentumDown], 'PUT', 1,
-          'แท่งถัดไป: EMA, MACD, RSI, แท่งปิด และ Momentum')
-      : standby(1, 'EMA5/EMA20 ยังไม่แยกทิศทาง');
-
-  const followingCandle = bullish
-    ? result([bullish, slowUp, macdUp, rsiUp, threeBarMove > 0, fastUp], 'CALL', 2,
-        'แท่งถัดจากนั้น: แนวโน้ม EMA20, MACD, RSI และแรงเคลื่อนที่ 3 แท่ง')
-    : bearish
-      ? result([bearish, slowDown, macdDown, rsiDown, threeBarMove < 0, fastDown], 'PUT', 2,
-          'แท่งถัดจากนั้น: แนวโน้ม EMA20, MACD, RSI และแรงเคลื่อนที่ 3 แท่ง')
-      : standby(2, 'EMA5/EMA20 ยังไม่แยกทิศทาง');
-
-  return { nextCandle, followingCandle };
+  if (bullish) return result(
+    [bullish, fastUp, macdUp, rsiUp, bodyUp, momentumUp],
+    'CALL', 1, 'แท่ง M1 ถัดไป: EMA5/20, MACD, RSI, แท่งปิด และ Momentum'
+  );
+  if (bearish) return result(
+    [bearish, fastDown, macdDown, rsiDown, bodyDown, momentumDown],
+    'PUT', 1, 'แท่ง M1 ถัดไป: EMA5/20, MACD, RSI, แท่งปิด และ Momentum'
+  );
+  return standby('EMA5/EMA20 ยังไม่แยกทิศทาง');
 }
 
-module.exports = { evaluateTwoHorizons };
+module.exports = { evaluateNextCandle };
