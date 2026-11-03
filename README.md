@@ -70,3 +70,14 @@ Never embed API keys, bearer tokens, or reusable secrets in the APK or public so
 - The final alert uses the NEXT M1 forecast directly when REST history is healthy and the WebSocket quote timestamp is no older than 75 seconds. No second directional engine must agree.
 - If history/feed is stale, the quote is missing, or the forecast does not pass its rules, the final result remains STANDBY. No fabricated CALL/PUT and no automatic orders.
 - The 10-second preparation alert, final 5-second result, 35-second hold, sound/vibration behavior, and manual-only operation remain unchanged.
+
+
+## Closed-candle-only M1 decision engine — 2026-11-03
+
+- The only directional decision is calculated from fully completed EUR/USD M1 OHLC candles. The live WebSocket quote is display-only and never enters CALL/PUT calculations.
+- The forecast uses EMA(5/20), MACD(12/26/9), RSI(14), and the latest completed candle body; at least 5 of 6 rule checks are required.
+- Each decision is keyed to the latest completed candle and applies to the immediately following M1 candle only. A newly completed candle triggers a fresh decision; stale closed-candle data returns STANDBY.
+- Server history refresh is aligned just after each UTC M1 boundary, at one Twelve Data REST request per minute (up to 1,440 requests/day). The user's provider quota may be exhausted; the service fails safe to STANDBY when data cannot be refreshed.
+- The Mini App polls the server cache every 5 seconds; it does not make a Twelve Data request for every browser poll.
+- The 10-second preparation reminder remains before each minute boundary. The final result is published 5 seconds after the new candle begins, so the just-closed candle's decision is announced for the candle it actually applies to. CALL/PUT/STANDBY remain visible for 35 seconds.
+- This project is one Main Market EUR/USD NON-OTC Mini App. There is no OTC mode, no second horizon, and no automatic broker execution.
