@@ -9,6 +9,33 @@ import pytesseract
 PRICE_RE = re.compile(r"^1[.,][0-9]{5,6}$")
 
 
+def _read_price_text(crop: np.ndarray) -> str | None:
+    """Read white quote digits on an orange badge using color isolation first."""
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    # The quote digits are near-white while the badge background is saturated orange.
+    white_text = cv2.inRange(
+        hsv, np.array([0, 0, 145], dtype=np.uint8),
+        np.array([180, 115, 255], dtype=np.uint8),
+    )
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    variants = (white_text, gray)
+    for source in variants:
+        enlarged = cv2.resize(source, None, fx=4, fy=4, interpolation=cv2.INTER_CUBIC)
+        # A light blur removes compression speckles without erasing thin decimal strokes.
+        enlarged = cv2.medianBlur(enlarged, 3)
+        for psm in (7, 6):
+            text = pytesseract.image_to_string(
+                enlarged,
+                config=f"--oem 3 --psm {psm} -c tessedit_char_whitelist=0123456789.,",
+            ).strip().replace(" ", "").replace("\n", "")
+            match = re.search(r"1[.,][0-9]{5,6}", text)
+            if match:
+                value = match.group(0).replace(",", ".")
+                if PRICE_RE.fullmatch(value):
+                    return value
+    return None
+
+
 def read_orange_price(payload: bytes) -> tuple[str | None, float, str]:
     arr = np.frombuffer(payload, dtype=np.uint8)
     image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -34,17 +61,13 @@ def read_orange_price(payload: bytes) -> tuple[str | None, float, str]:
         candidates.append((area, x, y, cw, ch))
     candidates.sort(reverse=True)
     for _, x, y, cw, ch in candidates[:8]:
-        # Include a margin: orange contour may omit leading dark digits and decimal.
-        pad_x, pad_y = max(12, int(cw * 0.20)), max(6, int(ch * 0.30))
-        crop = image[max(0, y-pad_y):min(h, y+ch+pad_y), max(0, x-pad_x):min(w, x+cw+pad_x)]
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        gray = cv2.resize(gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-        text = pytesseract.image_to_string(
-            gray, config="--psm 7 -c tessedit_char_whitelist=0123456789.,"
-        ).strip().replace(" ", "")
-        match = re.search(r"1[.,][0-9]{5,6}", text)
-        if match:
-            value = match.group(0).replace(",", ".")
-            if PRICE_RE.fullmatch(value):
-                return value, 0.75, f"ORANGE_BADGE:{x},{y},{cw},{ch}"
+        # Expand around the contour: include all white digits and the decimal point.
+        pad_x, pad_y = max(16, int(cw * 0.24)), max(8, int(ch * 0.40))
+        crop = image[
+            max(0, y - pad_y):min(h, y + ch + pad_y),
+            max(0, x - pad_x):min(w, x + cw + pad_x),
+        ]
+        value = _read_price_text(crop)
+        if value:
+            return value, 0.75, f"ORANGE_BADGE:{x},{y},{cw},{ch}"
     return None, 0.0, "ORANGE_BADGE_NOT_FOUND"
