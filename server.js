@@ -280,7 +280,7 @@ function signalSnapshot(symbol = 'EUR/USD', market = 'OTC', now = Date.now()) {
 }
 
 function authorized(req) {
-  if (!process.env.OCR_API_TOKEN) return true;
+  if (!process.env.OCR_API_TOKEN) return false;
   const headerToken = req.get('x-api-token') || '';
   const bearer = req.get('authorization') || '';
   const supplied = headerToken || (bearer.startsWith('Bearer ') ? bearer.slice(7) : '');
