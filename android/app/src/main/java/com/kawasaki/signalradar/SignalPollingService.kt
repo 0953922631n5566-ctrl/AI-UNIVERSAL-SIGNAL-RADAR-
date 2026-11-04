@@ -103,16 +103,35 @@ class SignalPollingService : Service() {
 
     private fun showSignalNotification(signal: String, price: String, reason: String, candle: String) {
         val isCall = signal == "CALL"
-        val accent = if (isCall) Color.rgb(20, 160, 95) else Color.rgb(205, 48, 65)
+        val accent = if (isCall) Color.rgb(23, 107, 67) else Color.rgb(152, 45, 59)
         val title = if (isCall) "CALL · EUR/USD" else "PUT · EUR/USD"
+        val subtitle = if (isCall) "สัญญาณซื้อ · M1" else "สัญญาณขาย · M1"
         playAlertTone()
+
+        // Use a real colored custom notification card rather than relying only on
+        // Android's small accent stripe, which varies by device/OS skin.
+        val card = android.widget.RemoteViews(packageName, R.layout.notification_signal).apply {
+            setInt(R.id.signal_notification_root, "setBackgroundColor", accent)
+            setTextViewText(R.id.signal_notification_title, title)
+            setTextViewText(R.id.signal_notification_subtitle, subtitle)
+            setTextViewText(R.id.signal_notification_price, "ราคา: $price")
+            setTextViewText(
+                R.id.signal_notification_reason,
+                "$reason\nแท่ง M1: $candle\nSignal Radar PRO"
+            )
+        }
+        val openApp = PendingIntent.getActivity(
+            this, 10, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = Notification.Builder(this, SIGNAL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
-            .setContentText("สัญญาณใหม่ · ราคา $price")
-            .setStyle(Notification.BigTextStyle().bigText(
-                "${if (isCall) "🟢" else "🔴"} $title\nราคา: $price\n$reason\nเวลาแท่ง M1: $candle"
-            ))
+            .setContentText("$subtitle · ราคา $price")
+            .setCustomContentView(card)
+            .setCustomBigContentView(card)
+            .setStyle(Notification.DecoratedCustomViewStyle())
+            .setContentIntent(openApp)
             .setColor(accent)
             .setColorized(true)
             .setCategory(Notification.CATEGORY_ALARM)
