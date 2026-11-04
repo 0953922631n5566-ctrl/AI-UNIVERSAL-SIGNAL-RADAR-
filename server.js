@@ -174,7 +174,7 @@ function publicState(candles) {
     void sendTelegramMessage('AI UNIVERSAL SIGNAL RADAR\\nMAIN MARKET · EUR/USD · M1\\n' + label +
       '\\nEvidence: ' + visible.score + '%\\nRegime: ' + visible.regime +
       '\\nPrice: ' + latest.close + '\\n' + visible.reason +
-      '\\nEntry timing: final 10 seconds of candle · decision support only');
+      '\\nEntry timing: final 5 seconds of candle · decision support only');
   }
   return {...connectionStatus(),signal:visible?.signal||'STANDBY',
     regime:analysis.regime,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
@@ -189,7 +189,7 @@ app.get('/api/market',async(_req,res)=>{
   catch(error){console.error('Market data unavailable:',error.message);
     res.status(503).json({...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
       reason:error.message==='TWELVE_DATA_API_KEY_MISSING'?'Twelve Data API key is not configured':'Market data unavailable · '+error.message,
-      price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=10});}
+      price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});}
 });
 app.post('/api/telegram/notify',async(req,res)=>{
   const expected=process.env.TELEGRAM_NOTIFY_TOKEN||'', auth=req.get('authorization')||'';
