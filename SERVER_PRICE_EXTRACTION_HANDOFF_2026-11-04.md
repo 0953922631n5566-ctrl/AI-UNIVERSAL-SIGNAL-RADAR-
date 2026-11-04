@@ -31,22 +31,22 @@ File: `.github/workflows/build-android-apk.yml`
 - Build now rejects non-HTTPS BACKEND_URL values.
 - Artifact name remains `ai-signal-radar-debug-apk`; expected APK path is `android/app/build/outputs/apk/debug/app-debug.apk`; retention is 14 days.
 
-## Required GitHub Actions repository secrets
-Set these in GitHub repository Settings → Secrets and variables → Actions:
-- `BACKEND_URL`: the Render HTTPS base URL.
-- `OCR_API_TOKEN`: the current rotated token.
 
-Do not put token values in source files, commits, chat messages, or build logs. A token exposed in chat should be rotated in both GitHub and Render before a production APK is built.
+## Follow-up implementation — runtime token / no GitHub Secrets
+The APK build path was revised on 2026-11-04 so a build no longer depends on GitHub Actions repository secrets:
+- android/app/build.gradle.kts now sets BACKEND_URL to the Render URL and does not define an OCR_API_TOKEN BuildConfig field.
+- MainActivity.kt now presents a password-style OCR token field, saves the value in app-private SharedPreferences, and passes it to the foreground capture service when starting.
+- CaptureService.kt reads EXTRA_TOKEN at runtime and sends it as Authorization: Bearer. The token is not embedded in the APK, Gradle files, workflow, or repository.
+- .github/workflows/build-android-apk.yml now builds without BACKEND_URL / OCR_API_TOKEN secrets, installs Android SDK 35, verifies the APK, writes SHA-256, and uploads ai-signal-radar-ocr-clean-apk.
+- APK version: 1.3.0 / versionCode 5.
+- Commits: 86a25fe (Gradle URL), 5cfdad5 (runtime token service), 9a7cdd9 (token entry UI), 0d3fd49 (workflow).
+- GitHub Actions run #8 (ID 41756883972) was triggered automatically by the workflow update on feature/server-price-extraction. At the last check it was still in progress at Set up Gradle; no successful artifact has yet been confirmed.
+- Intermediate runs #5–#7 failed because they started from earlier commits whose workflow still required the missing secrets. They are superseded by run #8 and are not the target artifact.
 
-## Not yet verified
-- GitHub Actions build has not yet been dispatched or completed.
-- No APK artifact has yet been produced or downloaded in this change.
-- Live screen OCR from the Xiaomi 11T has not been revalidated after this change.
-- CALL/PUT accuracy has not been validated against a representative live price feed.
+## User installation step after successful build
+On first app launch, paste the current OCR token into the token field once, then press START and approve Android screen capture. The app stores it locally for subsequent starts. Do not use the token value that was exposed in chat; rotate it in Render first and use the replacement token in the app.
 
-## Next steps
-1. Rotate the token previously exposed in chat; update GitHub Actions secret and Render environment variable with the same new value.
-2. Confirm the GitHub browser session is signed in to this repository.
-3. Run the `Build Android APK` workflow on `feature/server-price-extraction`.
-4. Verify the run is successful and the artifact contains the APK.
-5. Install on Xiaomi 11T and verify health, authenticated rawText upload, M1 warm-up, and STANDBY on missing/stale data before enabling any signal alerts.
+## Security and remaining verification
+- The earlier workflow design embedded a GitHub Actions secret in BuildConfig. This has been removed; runtime token entry is now used instead.
+- Rotate any token previously exposed in chat. Never commit it or paste it into repository files.
+- Live screen OCR on Xiaomi 11T, authenticated upload, M1 candle warm-up, and signal behavior still require device-side validation.
