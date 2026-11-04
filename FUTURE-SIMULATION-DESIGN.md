@@ -35,3 +35,13 @@ Provide a separate what-if projection for the next 10, 20 and 30 seconds using r
 - Reversal risk is a heuristic score, not a statistically calibrated probability.
 - Before production use: validate against timestamped historical EUR/USD data, measure false blocks and missed fakeouts, tune thresholds out-of-sample, and verify added latency.
 - Any missing or invalid simulation output must fail closed only when the feature is explicitly enabled; with the feature disabled, legacy behavior is unchanged.
+
+## Tick-level replay harness
+
+- Run: `npm run backtest:ticks -- ./data/EURUSD_TICKS.csv ./tick-report.json`.
+- Input accepts timestamp/bid/ask header CSV or HistData Generic ASCII tick rows: `YYYYMMDD HHMMSS;bid;ask`. HistData timestamps are interpreted as fixed EST (UTC-5, no DST), matching its documented convention.
+- Bid/ask quotes are validated; timestamps must be non-decreasing. Mid-price ticks are aggregated into M1 OHLC candles. The analyzer and simulator see only the 200 completed M1 bars available at each minute boundary.
+- Entry uses ask for CALL and bid for PUT; subsequent path evaluation uses executable-side bid for CALL and ask for PUT, so the quoted spread is included. Outcomes are measured independently at 10, 20 and 30 seconds after the minute boundary.
+- Entry ticks arriving more than 2 seconds after the boundary are skipped. Horizons without adequate tick coverage are skipped. Reports include sample counts, fakeout capture, and good-signal loss for the same threshold grid as M1 replay.
+- This is still a research diagnostic: verify the exact downloaded HistData product format, tick coverage, spread semantics and timezone before trusting results. Add slippage/commission only when the intended execution venue and costs are known. Do not infer profitability from favorable/adverse excursions alone.
+- The M1 and tick scripts are offline only. Neither accesses Twelve Data, Render, API keys, nor production endpoints. No safety gate is connected to the live engine.
