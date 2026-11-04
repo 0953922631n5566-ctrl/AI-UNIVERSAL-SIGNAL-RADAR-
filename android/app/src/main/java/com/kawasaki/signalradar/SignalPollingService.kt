@@ -74,8 +74,12 @@ class SignalPollingService : Service() {
                 conn.readTimeout = 2000
                 conn.setRequestProperty("Accept", "application/json")
                 try {
-                    if (conn.responseCode !in 200..299) throw IllegalStateException("HTTP ${conn.responseCode}")
-                    JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                    val code = conn.responseCode
+                    val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+                    val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    val payload = JSONObject(body.ifBlank { "{}" })
+                    if (code !in 200..299) { saveApiError(payload, "HTTP $code"); return }
+                    payload
                 } finally { conn.disconnect() }
             }
             val status = json.optString("status", "UNKNOWN")
@@ -84,7 +88,8 @@ class SignalPollingService : Service() {
             val candle = json.optString("candleTime", "unknown")
             val reason = json.optString("reason", "")
             val price = if (json.isNull("price")) "--" else json.optString("price")
-            prefs.edit()
+            val apiKeys = json.optJSONObject("apiKeys")?.toString() ?: "{}"
+            prefs.edit().putString("api_keys_summary", apiKeys)
                 .putString("connection", if (status == "ONLINE") "ONLINE" else status)
                 .putString("signal", signal)
                 .putString("reason", reason)
@@ -103,6 +108,20 @@ class SignalPollingService : Service() {
         } catch (error: Exception) {
             saveError("OFFLINE", error.message ?: "เชื่อมต่อ Server ไม่สำเร็จ")
         }
+    }
+
+    private fun saveApiError(payload: JSONObject, fallback: String) {
+        val summary = payload.optJSONObject("apiKeys")?.toString() ?: "{}"
+        val reason = payload.optString("reason", fallback)
+        val keys = payload.optJSONObject("apiKeys")
+        val state = when {
+            keys?.optBoolean("allDepleted", false) == true -> "ALL_API_KEYS_DEPLETED"
+            keys?.optBoolean("allUnavailable", false) == true -> "API_KEYS_UNAVAILABLE"
+            else -> "API_ERROR"
+        }
+        prefs.edit().putString("connection", state).putString("signal", "STANDBY")
+            .putString("reason", reason).putString("api_keys_summary", summary).putString("price", "--").apply()
+        manager.notify(1001, serviceNotification(reason))
     }
 
     private fun showSignalNotification(signal: String, price: String, reason: String, candle: String) {
