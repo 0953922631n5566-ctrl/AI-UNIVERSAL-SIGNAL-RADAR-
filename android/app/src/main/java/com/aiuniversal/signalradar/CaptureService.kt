@@ -75,10 +75,10 @@ class CaptureService : Service() {
             }
             ACTION_START -> {
                 try {
-                    val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
-                    if (token.isBlank()) throw IllegalStateException("กรุณาบันทึก OCR Token ในแอปก่อนเริ่ม")
-                    if (BuildConfig.BACKEND_URL.contains("REPLACE_WITH_TEST_SERVER_HOST") || BuildConfig.BACKEND_URL.contains("REPLACE_WITH_BACKEND_HOST")) {
-                        throw IllegalStateException("ยังไม่ได้กำหนด Server URL ในตัวแอป")
+                    val token = BuildConfig.OCR_API_TOKEN
+                    if (token.isBlank()) throw IllegalStateException("Build ไม่มี OCR API Token")
+                    if (BuildConfig.BACKEND_URL.isBlank() || !BuildConfig.BACKEND_URL.startsWith("https://")) {
+                        throw IllegalStateException("Build ไม่มี HTTPS Server URL ที่ถูกต้อง")
                     }
                     createNotificationChannel()
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
