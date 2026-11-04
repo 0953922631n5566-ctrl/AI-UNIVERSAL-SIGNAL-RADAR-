@@ -1,6 +1,8 @@
 'use strict';
 const express = require('express');
 const path = require('node:path');
+const { analyzeMarket } = require('./engine/analyze-market');
+const { createSignalCache } = require('./engine/signal-cache');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -18,6 +20,7 @@ app.use(express.json({ limit: '8kb', strict: true }));
 app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
 
 let cache = { at: 0, candles: null, error: null };
+const signalAnalysisCache = createSignalCache();
 let lastSignalCandle = null;
 let activeSignal = null;
 let keyCursor = 0;
@@ -89,51 +92,7 @@ function macd(values) {
   return { line:fast-slow, signal, histogram:signal===null?null:(fast-slow)-signal };
 }
 function analyze(candles) {
-  const c=candles.map(x=>x.close), last=candles.at(-1), prev=candles.at(-2);
-  const e9=ema(c,9), e21=ema(c,21), e50=ema(c,50), rv=rsi(c), m=macd(c);
-  if([e9,e21,e50,rv,m?.histogram].some(x=>x===null||!Number.isFinite(x)))
-    return { signal:'STANDBY', regime:'UNCLEAR', score:0, reason:'Insufficient indicator history' };
-  const ranges=candles.slice(-20).map(x=>x.high-x.low);
-  const avgRange=ranges.reduce((a,b)=>a+b,0)/ranges.length;
-  const currentRange=last.high-last.low;
-  const returns=candles.slice(-20).map(x=>Math.abs(x.close-x.open));
-  const bodyAvg=returns.reduce((a,b)=>a+b,0)/returns.length;
-  const upTrend=e9>e21&&e21>e50, downTrend=e9<e21&&e21<e50;
-  const highVol=currentRange>Math.max(avgRange*2.2, bodyAvg*3);
-  const recentHigh=Math.max(...candles.slice(-21,-1).map(x=>x.high));
-  const recentLow=Math.min(...candles.slice(-21,-1).map(x=>x.low));
-  const nearResistance=(recentHigh-last.close)<=avgRange*0.25;
-  const nearSupport=(last.close-recentLow)<=avgRange*0.25;
-  const bullish=last.close>last.open&&last.close>prev.close;
-  const bearish=last.close<last.open&&last.close<prev.close;
-  const momentumUp=rv>=52&&m.histogram>0, momentumDown=rv<=48&&m.histogram<0;
-  let regime='UNCLEAR';
-  if(highVol) regime='HIGH VOLATILITY';
-  else if((upTrend&&rv>55)||(downTrend&&rv<45)) regime='TRENDING';
-  else if(Math.abs(e9-e21)<avgRange*0.18&&rv>=42&&rv<=58) regime='RANGING';
-  else if((upTrend&&rv<48)||(downTrend&&rv>52)) regime='REVERSAL';
-
-  const up=[upTrend,e9>e21,momentumUp,rv>50,m.histogram>0,bullish,last.close>e9&&!nearResistance].filter(Boolean).length;
-  const dn=[downTrend,e9<e21,momentumDown,rv<50,m.histogram<0,bearish,last.close<e9&&!nearSupport].filter(Boolean).length;
-  // Calibrated evidence scale: 4 of 7 checks maps to 64 points;
-  // 3 checks maps to 48 and remains below THRESHOLD. 7 checks caps at 100.
-  const evidenceScore = count => Math.min(100, count * 16);
-  const scoreUp=evidenceScore(up), scoreDown=evidenceScore(dn);
-  let signal='STANDBY', score=Math.max(scoreUp,scoreDown), reason=[];
-  if(highVol) reason.push('Volatility spike');
-  if(regime==='UNCLEAR') reason.push('Market regime unclear');
-  if(scoreUp>=THRESHOLD&&scoreUp>scoreDown&&regime!=='HIGH VOLATILITY'&&regime!=='RANGING'&&!(nearResistance&&upTrend)){
-    signal='CALL';score=scoreUp;reason=['EMA alignment bullish','RSI/MACD momentum confirms','Price action supports CALL'];
-  } else if(scoreDown>=THRESHOLD&&scoreDown>scoreUp&&regime!=='HIGH VOLATILITY'&&regime!=='RANGING'&&!(nearSupport&&downTrend)){
-    signal='PUT';score=scoreDown;reason=['EMA alignment bearish','RSI/MACD momentum confirms','Price action supports PUT'];
-  } else {
-    reason.push('Evidence below strict threshold or conflicting');
-  }
-  return { signal, regime, score, reason:reason.join(' · '), indicators:{
-    ema9:e9,ema21:e21,ema50:e50,rsi:rv,macdHistogram:m.histogram,
-    support:recentLow,resistance:recentHigh,volatility:currentRange/Math.max(avgRange,1e-9),
-    momentum:rv>=52?'BULLISH':rv<=48?'BEARISH':'NEUTRAL'
-  }};
+  return analyzeMarket(candles);
 }
 async function fetchCandles(force=false) {
   const now=Date.now();
@@ -194,8 +153,10 @@ function publicState(candles) {
     reason:'ข้อมูลแท่งเทียนล่าช้าหรือไม่สดใหม่',price:latest.close,dataAgeMs:Math.max(0,age),
     candleTime:new Date(latest.time).toISOString(),countdownSeconds,signalExpiresAt:null,
     signalWindowOpen:false };
-  const analysis=analyze(candles);
   const candleId=latest.time;
+  // Compute indicators + regime + selected strategy once per closed candle in process RAM.
+  const cachedAnalysis=signalAnalysisCache.get(candleId);
+  const analysis=cachedAnalysis || signalAnalysisCache.set(candleId,analyze(candles));
   if(analysis.signal!=='STANDBY' && lastSignalCandle!==candleId){
     lastSignalCandle=candleId;
     // Keep the closed-candle decision available until the final 5 seconds
