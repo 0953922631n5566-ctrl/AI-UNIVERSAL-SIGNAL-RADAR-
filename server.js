@@ -86,7 +86,10 @@ function analyze(candles) {
 
   const up=[upTrend,e9>e21,momentumUp,rv>50,m.histogram>0,bullish,last.close>e9&&!nearResistance].filter(Boolean).length;
   const dn=[downTrend,e9<e21,momentumDown,rv<50,m.histogram<0,bearish,last.close<e9&&!nearSupport].filter(Boolean).length;
-  const scoreUp=Math.round(up/7*100), scoreDown=Math.round(dn/7*100);
+  // Calibrated evidence scale: 4 of 7 checks maps to 64 points;
+  // 3 checks maps to 48 and remains below THRESHOLD. 7 checks caps at 100.
+  const evidenceScore = count => Math.min(100, count * 16);
+  const scoreUp=evidenceScore(up), scoreDown=evidenceScore(dn);
   let signal='STANDBY', score=Math.max(scoreUp,scoreDown), reason=[];
   if(highVol) reason.push('Volatility spike');
   if(regime==='UNCLEAR') reason.push('Market regime unclear');
