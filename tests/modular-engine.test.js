@@ -11,3 +11,6 @@ test('router never runs a strategy for UNCLEAR',()=>assert.equal(routeStrategy({
 test('decision engine blocks unclear regime',()=>assert.equal(decide({regime:'UNCLEAR'},null).signal,'STANDBY'));
 test('RAM cache is keyed by candle timestamp',()=>{const c=createSignalCache();c.set(1,{signal:'CALL'});assert.equal(c.get(1).signal,'CALL');assert.equal(c.get(2),null);});
 test('full analyzer always returns valid signal enum',()=>{const x=analyzeMarket(mk(Array.from({length:200},(_,i)=>1+i*.00001)));assert.ok(['CALL','PUT','STANDBY'].includes(x.signal));});
+
+test('sideway CALL at support is not blocked by trend boundary filter',()=>{const out=decide({regime:'SIDEWAY',indicators:{volatilityRatio:1,nearSupport:true,nearResistance:false}},{strategy:'SIDEWAY',signal:'CALL',score:80,reason:'Support bounce'});assert.equal(out.signal,'CALL');});
+test('trend CALL near resistance is blocked',()=>{const out=decide({regime:'UPTREND',indicators:{volatilityRatio:1,nearSupport:false,nearResistance:true}},{strategy:'UPTREND',signal:'CALL',score:80,reason:'Pullback'});assert.equal(out.signal,'STANDBY');});
