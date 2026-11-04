@@ -1,12 +1,12 @@
 // Real-data multi-regime M1 analysis: EMA trend following, RSI momentum confirmation,
 // range breakout, and a narrowly-scoped sideway reversal exception.
 // SIGNAL_STRICTNESS: 0-100. Lower values relax only RSI confirmation; EMA trend alignment stays mandatory.
-const rawStrictness = Number(process.env.SIGNAL_STRICTNESS ?? 63);
+const rawStrictness = Number(process.env.SIGNAL_STRICTNESS ?? 64);
 const SIGNAL_STRICTNESS = Number.isFinite(rawStrictness)
   ? Math.max(0, Math.min(100, rawStrictness))
-  : 63;
-// 70 is the former baseline (RSI 50); 63 modestly relaxes confirmation to RSI 49.3 / 50.7.
-const RSI_CONFIRMATION_LEVEL = Math.max(45, Math.min(55, 50 + (SIGNAL_STRICTNESS - 70) * 0.1));
+  : 64;
+// Keep the exported default threshold aligned with evaluateLiveFormula's strictness mapping.
+const RSI_CONFIRMATION_LEVEL = Math.max(50, Math.min(56.75, 50 + (SIGNAL_STRICTNESS - 55) * 0.15));
 function calculateEMA(prices, period) {
   if (!Array.isArray(prices) || prices.length < period) return null;
   const k = 2 / (period + 1);
