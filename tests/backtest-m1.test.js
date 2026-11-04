@@ -31,7 +31,7 @@ test('CSV loader supports HistData Generic ASCII semicolon rows and fixed EST', 
     const close = 1.1 + i * 0.00001;
     lines.push(`${stamp};${close - 0.00001};${close + 0.00002};${close - 0.00002};${close};0`);
   }
-  const rows = loadCandles(lines.join('\\n'));
+  const rows = loadCandles(lines.join('\n'));
   assert.equal(rows.length, 205);
   assert.equal(rows[0].time, Date.parse('1970-01-01T05:00:00Z'));
 });
