@@ -1,16 +1,15 @@
 {
   "name": "ai-universal-signal-radar",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
-  "description": "Minimal connection status and Telegram notification service",
+  "description": "Adaptive EUR/USD Main Market M1 signal radar using Twelve Data",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.21.2"
   },
-  "engines": {
-    "node": "18.x"
-  }
+  "engines": { "node": "18.x" }
 }
