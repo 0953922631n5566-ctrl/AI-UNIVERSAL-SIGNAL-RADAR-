@@ -1,7 +1,6 @@
 'use strict';
 const express = require('express');
 const path = require('node:path');
-const crypto = require('node:crypto');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -20,17 +19,12 @@ app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }))
 
 let cache = { at: 0, candles: null, error: null };
 let lastSignalCandle = null;
-let lastTelegramSignalCandle = null;
 let activeSignal = null;
 let apiNextAllowedAt = 0;
 
-function telegramConfigured() {
-  return Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID);
-}
 function connectionStatus() {
   return { status: 'ONLINE', service: 'MAIN_MARKET_EURUSD_M1', market: 'MAIN', symbol: SYMBOL,
-    timeframe: '1min', provider: 'Twelve Data', telegramConfigured: telegramConfigured(),
-    notificationAuthConfigured: Boolean(process.env.TELEGRAM_NOTIFY_TOKEN) };
+    timeframe: '1min', provider: 'Twelve Data' };
 }
 function ema(values, period) {
   if (values.length < period) return null;
@@ -131,18 +125,6 @@ async function fetchCandles(force=false) {
   cache={at:now,candles,error:null};
   return cache;
 }
-async function sendTelegramMessage(message) {
-  if (!telegramConfigured()) return;
-  try {
-    const response = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: message, disable_web_page_preview: true }),
-      signal: AbortSignal.timeout(10000)
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.ok !== true) console.error('Telegram delivery failed:', result.description || response.status);
-  } catch (error) { console.error('Telegram connection failed:', error.message); }
-}
 function candleCountdownSeconds(now = Date.now()) {
   const elapsedMs = now % 60000;
   return Math.max(1, Math.ceil((60000 - elapsedMs) / 1000));
@@ -167,15 +149,7 @@ function publicState(candles) {
   if(activeSignal&&now>=activeSignal.expiresAt)activeSignal=null;
   const signalWindowOpen=countdownSeconds<=5;
   const visible=signalWindowOpen&&activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
-  // Telegram is sent once, only after the final-5-second window opens.
-  if(visible && lastTelegramSignalCandle!==candleId){
-    lastTelegramSignalCandle=candleId;
-    const label = visible.signal === 'CALL' ? '🟢 CALL' : '🔴 PUT';
-    void sendTelegramMessage('AI UNIVERSAL SIGNAL RADAR\\nMAIN MARKET · EUR/USD · M1\\n' + label +
-      '\\nEvidence: ' + visible.score + '%\\nRegime: ' + visible.regime +
-      '\\nPrice: ' + latest.close + '\\n' + visible.reason +
-      '\\nEntry timing: final 5 seconds of candle · decision support only');
-  }
+
   return {...connectionStatus(),signal:visible?.signal||'STANDBY',
     regime:analysis.regime,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
     price:latest.close,dataAgeMs:Math.max(0,age),candleTime:new Date(latest.time).toISOString(),
@@ -190,25 +164,6 @@ app.get('/api/market',async(_req,res)=>{
     res.status(503).json({...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
       reason:error.message==='TWELVE_DATA_API_KEY_MISSING'?'Twelve Data API key is not configured':'Market data unavailable · '+error.message,
       price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});}
-});
-app.post('/api/telegram/notify',async(req,res)=>{
-  const expected=process.env.TELEGRAM_NOTIFY_TOKEN||'', auth=req.get('authorization')||'';
-  const supplied=auth.startsWith('Bearer ')?auth.slice(7):'';
-  if(!expected||!supplied||supplied.length!==expected.length||
-    !crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))
-    return res.status(401).json({ok:false,error:'UNAUTHORIZED'});
-  if(!telegramConfigured())return res.status(503).json({ok:false,error:'TELEGRAM_NOT_CONFIGURED'});
-  const message=typeof req.body?.message==='string'?req.body.message.trim():'';
-  if(!message||message.length>4000)return res.status(400).json({ok:false,error:'MESSAGE_REQUIRED_OR_TOO_LONG'});
-  try{
-    const response=await fetch('https://api.telegram.org/bot'+process.env.TELEGRAM_BOT_TOKEN+'/sendMessage',{
-      method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({chat_id:process.env.TELEGRAM_CHAT_ID,text:message,disable_web_page_preview:true}),
-      signal:AbortSignal.timeout(10000)});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok||result.ok!==true)return res.status(502).json({ok:false,error:'TELEGRAM_DELIVERY_FAILED'});
-    res.json({ok:true,messageId:result.result?.message_id??null});
-  }catch(error){res.status(502).json({ok:false,error:'TELEGRAM_CONNECTION_FAILED'});}
 });
 app.use((error,_req,res,_next)=>{
   if(error?.type==='entity.too.large')return res.status(413).json({error:'REQUEST_TOO_LARGE'});
