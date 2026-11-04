@@ -127,6 +127,18 @@ async function fetchCandles(force=false) {
   cache={at:now,candles,error:null};
   return cache;
 }
+async function sendTelegramMessage(message) {
+  if (!telegramConfigured()) return;
+  try {
+    const response = await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: message, disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(10000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok !== true) console.error('Telegram delivery failed:', result.description || response.status);
+  } catch (error) { console.error('Telegram connection failed:', error.message); }
+}
 function publicState(candles) {
   const now=Date.now(), latest=candles.at(-1), age=now-latest.time-60000;
   const fresh=age<=MAX_STALE_MS && age>=-60000;
@@ -138,6 +150,11 @@ function publicState(candles) {
   if(analysis.signal!=='STANDBY' && lastSignalCandle!==candleId){
     lastSignalCandle=candleId;
     activeSignal={...analysis,candleTime:candleId,expiresAt:now+SIGNAL_TTL_MS};
+    const label = analysis.signal === 'CALL' ? '🟢 CALL' : '🔴 PUT';
+    void sendTelegramMessage('AI UNIVERSAL SIGNAL RADAR\\nMAIN MARKET · EUR/USD · M1\\n' + label +
+      '\\nEvidence: ' + analysis.score + '%\\nRegime: ' + analysis.regime +
+      '\\nPrice: ' + candles.at(-1).close + '\\n' + analysis.reason +
+      '\\nSignal valid for 40 seconds · decision support only');
   }
   if(activeSignal&&now>=activeSignal.expiresAt)activeSignal=null;
   const visible=activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
