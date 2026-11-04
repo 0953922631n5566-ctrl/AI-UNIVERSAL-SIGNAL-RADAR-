@@ -52,11 +52,11 @@ function markKey(i,status,message='',retryAt=0) {
 }
 function isQuotaDepleted(response,data) {
   const msg=String(data?.message||data?.msg||'').toLowerCase();
-  return response.status===403 || /daily|per day|credits exhausted|quota.*(exceed|exhaust|limit)|api credits/.test(msg);
+  return /daily|per day|credits exhausted|quota.*(exceed|exhaust|limit)|api credits|credit limit/.test(msg);
 }
 
 function connectionStatus() {
-  return { status: 'ONLINE', service: 'MAIN_MARKET_EURUSD_M1', market: 'MAIN', symbol: SYMBOL,
+  return { status: 'ONLINE', apiKeys: apiKeySummary(), service: 'MAIN_MARKET_EURUSD_M1', market: 'MAIN', symbol: SYMBOL,
     timeframe: '1min', provider: 'Twelve Data' };
 }
 function ema(values, period) {
