@@ -6,15 +6,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.media.AudioAttributes
+import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.IBinder
 import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -25,18 +25,28 @@ import java.net.URL
 
 class SignalPollingService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var pollingJob: Job? = null
     private val prefs by lazy { getSharedPreferences("signal_radar_pro", MODE_PRIVATE) }
     private val manager by lazy { getSystemService(NOTIFICATION_SERVICE) as NotificationManager }
 
     override fun onCreate() {
         super.onCreate()
         createChannels()
-        startForeground(1001, serviceNotification("Connecting to signal server…"))
+        startForeground(1001, serviceNotification("กำลังเชื่อมต่อ Render · EUR/USD M1"))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (scope.isActive) {
-            scope.launch {
+        if (intent?.action == ACTION_STOP) {
+            prefs.edit().putBoolean("monitoring_enabled", false).apply()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!prefs.getBoolean("monitoring_enabled", false)) {
+            prefs.edit().putBoolean("monitoring_enabled", true).apply()
+        }
+        if (pollingJob?.isActive != true) {
+            pollingJob = scope.launch {
                 while (isActive) {
                     pollOnce()
                     delay(1000)
@@ -47,10 +57,9 @@ class SignalPollingService : Service() {
     }
 
     private suspend fun pollOnce() {
-        val base = (prefs.getString("server_url", "https://ai-universal-signal-radar-main.onrender.com") ?: "")
-            .trim().trimEnd('/')
+        val base = (prefs.getString("server_url", DEFAULT_SERVER) ?: DEFAULT_SERVER).trim().trimEnd('/')
         if (!base.startsWith("https://")) {
-            saveError("INVALID SERVER URL", "Server URL must use HTTPS")
+            saveError("URL ไม่ถูกต้อง", "Server URL ต้องใช้ HTTPS")
             return
         }
         try {
@@ -68,39 +77,19 @@ class SignalPollingService : Service() {
             val status = json.optString("status", "UNKNOWN")
             val signal = json.optString("signal", "STANDBY")
             val age = json.optLong("dataAgeMs", Long.MAX_VALUE)
-            val countdown = json.optInt("countdownSeconds", -1)
-            val regime = thaiRegime(json.optString("regime", "UNCLEAR"))
+            val candle = json.optString("candleTime", "unknown")
             val reason = json.optString("reason", "")
             val price = if (json.isNull("price")) "--" else json.optString("price")
-            val score = json.optInt("score", 0).toString()
-            val indicators = json.optJSONObject("indicators")
-            val fmt = { key: String -> indicators?.let { if (it.isNull(key)) "--" else it.opt(key).toString() } ?: "--" }
             prefs.edit()
                 .putString("connection", if (status == "ONLINE") "ONLINE" else status)
                 .putString("signal", signal)
                 .putString("reason", reason)
                 .putString("price", price)
-                .putString("score", score)
-                .putString("regime", regime)
-                .putString("countdown", if (countdown >= 0) countdown.toString() else "--")
-                .putString("data_age", if (age < 1000) "สดใหม่" else (age / 1000).toString() + " วินาที")
-                .putString("ema9", fmt("ema9")).putString("ema21", fmt("ema21")).putString("ema50", fmt("ema50"))
-                .putString("rsi", fmt("rsi")).putString("macd", fmt("macdHistogram"))
-                .putString("support", fmt("support")).putString("resistance", fmt("resistance"))
-                .putString("volatility", fmt("volatility")).putString("momentum", fmt("momentum"))
                 .putLong("last_success_at", System.currentTimeMillis())
                 .apply()
-            manager.notify(1001, serviceNotification("เชื่อมต่อแล้ว · EUR/USD · M1 · " + signal))
-            val candle = json.optString("candleTime", "unknown")
-            if (age <= 150000L && countdown == 10 && prefs.getString("last_pre10_candle", "") != candle) {
-                prefs.edit().putString("last_pre10_candle", candle).apply()
-                playAlertTone(1)
-            }
-            if (age <= 150000L && countdown == 3 && prefs.getString("last_pre3_candle", "") != candle) {
-                prefs.edit().putString("last_pre3_candle", candle).apply()
-                playAlertTone(2)
-            }
-            if (age <= 150000L && json.optBoolean("signalWindowOpen", false) && (signal == "CALL" || signal == "PUT")) {
+            manager.notify(1001, serviceNotification("ออนไลน์ · EUR/USD M1 · รอสัญญาณ"))
+            if (age <= 150000L && json.optBoolean("signalWindowOpen", false) &&
+                (signal == "CALL" || signal == "PUT")) {
                 val key = "$candle:$signal"
                 if (prefs.getString("last_notified_signal", "") != key) {
                     prefs.edit().putString("last_notified_signal", key).apply()
@@ -108,54 +97,37 @@ class SignalPollingService : Service() {
                 }
             }
         } catch (error: Exception) {
-            saveError("OFFLINE", error.message ?: "Unable to reach server")
+            saveError("OFFLINE", error.message ?: "เชื่อมต่อ Server ไม่สำเร็จ")
         }
     }
 
-    private fun playAlertTone(kind: Int) {
-        if (prefs.getBoolean("mute_alerts", false)) return
-        val volume = prefs.getInt("alert_volume", 75).coerceIn(0, 100)
-        if (volume == 0) return
-        try {
-            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, volume)
-            val toneType = when (kind) {
-                1 -> ToneGenerator.TONE_PROP_ACK
-                2 -> ToneGenerator.TONE_PROP_BEEP2
-                else -> ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD
-            }
-            tone.startTone(toneType, if (kind == 3) 700 else 300)
-        } catch (_: Exception) { }
-    }
-
-    private fun thaiRegime(value: String): String = when (value) {
-        "TRENDING" -> "แนวโน้มชัดเจน"
-        "RANGING" -> "แกว่งตัวในกรอบ"
-        "HIGH VOLATILITY" -> "ผันผวนสูง"
-        "REVERSAL" -> "มีโอกาสกลับตัว"
-        else -> "ยังไม่ชัดเจน"
-    }
-
-    private fun saveError(status: String, detail: String) {
-        prefs.edit().putString("connection", status).putString("signal", "STANDBY")
-            .putString("reason", detail).putString("price", "--").apply()
-        manager.notify(1001, serviceNotification("Connection issue · Signal set to STANDBY"))
-    }
-
     private fun showSignalNotification(signal: String, price: String, reason: String, candle: String) {
-        val isBuy = signal == "CALL"
-        val title = if (isBuy) "🟢 BUY · EUR/USD" else "🔴 SELL · EUR/USD"
-        val text = if (isBuy) "CALL signal received" else "PUT signal received"
-        playAlertTone(3)
+        val isCall = signal == "CALL"
+        val accent = if (isCall) Color.rgb(20, 160, 95) else Color.rgb(205, 48, 65)
+        val title = if (isCall) "CALL · EUR/USD" else "PUT · EUR/USD"
+        playAlertTone()
         val notification = Notification.Builder(this, SIGNAL_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
-            .setContentText("$text · Price $price")
-            .setStyle(Notification.BigTextStyle().bigText("$text\nPrice: $price\n$reason\nM1 candle: $candle"))
+            .setContentText("สัญญาณใหม่ · ราคา $price")
+            .setStyle(Notification.BigTextStyle().bigText(
+                "${if (isCall) "🟢" else "🔴"} $title\nราคา: $price\n$reason\nเวลาแท่ง M1: $candle"
+            ))
+            .setColor(accent)
+            .setColorized(true)
             .setCategory(Notification.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setDefaults(Notification.DEFAULT_VIBRATE)
             .build()
-        manager.notify(2001, notification)
+        manager.notify(if (isCall) 2001 else 2002, notification)
+    }
+
+    private fun playAlertTone() {
+        try {
+            val volume = 85
+            val tone = ToneGenerator(AudioManager.STREAM_ALARM, volume)
+            tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 800)
+        } catch (_: Exception) { }
     }
 
     private fun serviceNotification(text: String): Notification {
@@ -165,7 +137,7 @@ class SignalPollingService : Service() {
         )
         return Notification.Builder(this, SERVICE_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_popup_sync)
-            .setContentTitle("AI Signal Radar PRO")
+            .setContentTitle("Signal Radar PRO")
             .setContentText(text)
             .setContentIntent(openApp)
             .setOngoing(true)
@@ -173,21 +145,36 @@ class SignalPollingService : Service() {
             .build()
     }
 
+    private fun saveError(status: String, detail: String) {
+        prefs.edit().putString("connection", status).putString("signal", "STANDBY")
+            .putString("reason", detail).apply()
+        manager.notify(1001, serviceNotification("Server ไม่พร้อม · รอเชื่อมต่อใหม่"))
+    }
+
     private fun createChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val service = NotificationChannel(SERVICE_CHANNEL, "Radar connection", NotificationManager.IMPORTANCE_LOW)
-            val alerts = NotificationChannel(SIGNAL_CHANNEL, "Trading signal alerts", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Vibration for new EUR/USD M1 signals; sound is controlled in the app"
+            manager.createNotificationChannel(NotificationChannel(
+                SERVICE_CHANNEL, "Radar background service", NotificationManager.IMPORTANCE_LOW
+            ))
+            val alerts = NotificationChannel(
+                SIGNAL_CHANNEL, "CALL / PUT signal alerts", NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "เสียงและการสั่นเมื่อพบสัญญาณใหม่"
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 350, 180, 500)
+                vibrationPattern = longArrayOf(0, 400, 180, 600)
                 setSound(null, null)
             }
-            manager.createNotificationChannel(service)
             manager.createNotificationChannel(alerts)
         }
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // START_STICKY allows Android to recreate the foreground service after process reclaim.
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
+        pollingJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
@@ -195,7 +182,9 @@ class SignalPollingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        private const val SERVICE_CHANNEL = "radar_service"
-        private const val SIGNAL_CHANNEL = "radar_signal_alerts"
+        const val ACTION_STOP = "com.kawasaki.signalradar.STOP"
+        const val DEFAULT_SERVER = "https://ai-universal-signal-radar-main.onrender.com"
+        private const val SERVICE_CHANNEL = "radar_service_v2"
+        private const val SIGNAL_CHANNEL = "radar_signal_alerts_v2"
     }
 }
