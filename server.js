@@ -83,9 +83,9 @@ function analyze(candles) {
   else if(Math.abs(e9-e21)<avgRange*0.18&&rv>=42&&rv<=58) regime='RANGING';
   else if((upTrend&&rv<48)||(downTrend&&rv>52)) regime='REVERSAL';
 
-  const up=[upTrend,momentumUp,bullish,!nearResistance,last.close>e9].filter(Boolean).length;
-  const dn=[downTrend,momentumDown,bearish,!nearSupport,last.close<e9].filter(Boolean).length;
-  const scoreUp=Math.round(up/5*100), scoreDown=Math.round(dn/5*100);
+  const up=[upTrend,e9>e21,momentumUp,rv>50,m.histogram>0,bullish,last.close>e9&&!nearResistance].filter(Boolean).length;
+  const dn=[downTrend,e9<e21,momentumDown,rv<50,m.histogram<0,bearish,last.close<e9&&!nearSupport].filter(Boolean).length;
+  const scoreUp=Math.round(up/7*100), scoreDown=Math.round(dn/7*100);
   let signal='STANDBY', score=Math.max(scoreUp,scoreDown), reason=[];
   if(highVol) reason.push('Volatility spike');
   if(regime==='UNCLEAR') reason.push('Market regime unclear');
@@ -121,6 +121,7 @@ async function fetchCandles(force=false) {
   const candles=data.values.map(v=>({time:Date.parse(v.datetime.replace(' ','T')+'Z'),
     open:Number(v.open),high:Number(v.high),low:Number(v.low),close:Number(v.close)}))
     .filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite))
+    .filter(x=>x.time+60000<=Date.now())
     .sort((a,b)=>a.time-b.time);
   if(candles.length<60)throw new Error('INSUFFICIENT_CANDLES');
   cache={at:now,candles,error:null};
