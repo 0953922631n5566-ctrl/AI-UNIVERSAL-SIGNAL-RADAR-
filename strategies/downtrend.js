@@ -1,0 +1,3 @@
+'use strict';
+function evaluateDowntrend(x){const i=x.indicators,c=x.latest,p=x.candles.at(-2);if(!i||!c||!p)return{signal:'STANDBY',score:0,reason:'Missing trend context'};const pull=c.high>=i.ema9||c.close>=i.ema9*.9998,reject=c.close<i.ema9&&c.close<c.open&&c.close<p.close,n=[i.adx>=22,i.minusDI>i.plusDI,i.rsi>=32&&i.rsi<=50,i.macdHistogram<0,pull&&reject,!i.nearSupport].filter(Boolean).length;return n>=4?{signal:'PUT',score:Math.min(100,n*16),reason:'Downtrend pullback and bearish momentum confirmed'}:{signal:'STANDBY',score:n*16,reason:'Downtrend entry confirmation incomplete'};}
+module.exports={evaluateDowntrend};
