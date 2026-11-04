@@ -50,8 +50,10 @@ class SignalPollingService : Service() {
         if (pollingJob?.isActive != true) {
             pollingJob = scope.launch {
                 while (isActive) {
+                    val tickStartedAt = android.os.SystemClock.elapsedRealtime()
                     pollOnce()
-                    delay(1000)
+                    val elapsed = android.os.SystemClock.elapsedRealtime() - tickStartedAt
+                    if (elapsed < 1000) delay(1000 - elapsed)
                 }
             }
         }
@@ -68,8 +70,8 @@ class SignalPollingService : Service() {
             val json = URL("$base/api/market").openConnection().let { raw ->
                 val conn = raw as HttpURLConnection
                 conn.requestMethod = "GET"
-                conn.connectTimeout = 8000
-                conn.readTimeout = 8000
+                conn.connectTimeout = 2000
+                conn.readTimeout = 2000
                 conn.setRequestProperty("Accept", "application/json")
                 try {
                     if (conn.responseCode !in 200..299) throw IllegalStateException("HTTP ${conn.responseCode}")
