@@ -2,7 +2,7 @@ name: Node Forecast Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/main-market-apk-background-fcm']
     paths:
       - 'forecast-engine.js'
       - 'live-engine.js'
