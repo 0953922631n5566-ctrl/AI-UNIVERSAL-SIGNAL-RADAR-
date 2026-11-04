@@ -9,7 +9,7 @@ Branch: feature/server-price-extraction
 - Express backend, guarded 15-second cache, 200-candle history, stale-data fail-closed behavior.
 - Adaptive analysis with EMA 9/21/50, RSI 14, MACD 12/26/9, price action, support/resistance, volatility, and momentum.
 - Regimes: TRENDING, RANGING, HIGH VOLATILITY, REVERSAL, UNCLEAR.
-- Strict evidence threshold: 64; conflicts/unclear/high volatility/stale data => STANDBY.
+- Strict evidence threshold: 68 (score is based on 7 binary evidence checks; minimum attainable passing score remains 71/100). conflicts/unclear/high volatility/stale data => STANDBY.
 - Signal endpoint exposes CALL/PUT only in the final 10 seconds of the current M1 candle; one signal per closed candle.
 
 ## Android client — Signal Radar PRO
