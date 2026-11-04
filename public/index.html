@@ -12,8 +12,29 @@
 <div class="controls"><button id="sound">เสียง: เปิด</button><button id="vibrate">สั่น: เปิด</button><button id="refresh">รีเฟรชข้อมูล</button></div>
 <div class="foot">Signal = decision support only · ไม่ส่งคำสั่งซื้อขายอัตโนมัติ</div>
 </main>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
-const $=id=>document.getElementById(id);let soundOn=true,vibrateOn=true,lastAlertKey='',audioCtx=null;
+const $=id=>document.getElementById(id);
+const tg=window.Telegram?.WebApp;
+try{tg?.ready();tg?.expand();}catch{}
+let soundOn=true,vibrateOn=true,audioCtx=null,lastSignalKey="",lastCandleKey="",pre10Done=false,pre3Done=false;
+function beep(freq,duration){
+ if(!soundOn)return;
+ try{
+  audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==="suspended")void audioCtx.resume();
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type="sine";o.frequency.value=freq;g.gain.setValueAtTime(.0001,audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(.22,audioCtx.currentTime+.015);
+  g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+duration/1000);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration/1000+.02);
+ }catch{}
+}
+function buzz(pattern){
+ if(!vibrateOn)return;
+ try{tg?.HapticFeedback?.impactOccurred("medium");}catch{}
+ if(navigator.vibrate)navigator.vibrate(pattern);
+}
 function beep(freq,duration){if(!soundOn)return;try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=freq;g.gain.value=.12;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration/1000);}catch{}}
 function buzz(pattern){if(vibrateOn&&navigator.vibrate)navigator.vibrate(pattern);}
 async function update(){
@@ -28,19 +49,21 @@ async function update(){
   $('lamp').className='lamp '+(d.signal==='CALL'?'call':d.signal==='PUT'?'put':'');
   const sec=Number(d.countdownSeconds||0);$('countdown').textContent='00:'+String(sec).padStart(2,'0');
   const pct=(60-sec)/60*100;$('fill').style.width=pct+'%';$('clock').textContent=Math.round(pct)+'%';
-  const key=(d.candleTime||'')+':'+d.signal;
-  if((d.signal==='CALL'||d.signal==='PUT')&&key!==lastAlertKey){lastAlertKey=key;beep(d.signal==='CALL'?880:440,260);buzz([180,80,180]);}
   const candleKey=d.candleTime||'';
-  if(candleKey){
-   if(sec===10&&lastAlertKey!=='pre10:'+candleKey){lastAlertKey='pre10:'+candleKey;beep(660,100);buzz([100]);}
-   if(sec===3&&lastAlertKey!=='pre3:'+candleKey){lastAlertKey='pre3:'+candleKey;beep(990,140);buzz([120,50,120]);}
+  if(candleKey!==lastCandleKey){lastCandleKey=candleKey;pre10Done=false;pre3Done=false;}
+  const signalKey=candleKey+':'+d.signal;
+  if((d.signal==='CALL'||d.signal==='PUT')&&signalKey!==lastSignalKey){
+   lastSignalKey=signalKey;beep(d.signal==='CALL'?880:440,320);buzz([180,80,180]);
   }
+  // Threshold crossing prevents delayed mobile timers from missing exact-second cues.
+  if(candleKey&&sec<=10&&sec>3&&!pre10Done){pre10Done=true;beep(660,180);buzz([100]);}
+  if(candleKey&&sec<=3&&!pre3Done){pre3Done=true;beep(990,240);buzz([120,50,120]);}
  }catch(e){
   $('api').textContent='● API ERROR';$('api').className='api error';$('signal').textContent='STANDBY';$('lamp').className='lamp';
   $('score').textContent='Data unavailable · no signal';$('reason').textContent=e.message;$('regime').textContent='UNCLEAR';
  }
 }
-$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent='เสียง: '+(soundOn?'เปิด':'ปิด');if(soundOn)beep(700,100)};
+$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent='เสียง: '+(soundOn?'เปิด':'ปิด');if(soundOn){if(audioCtx?.state==='suspended')void audioCtx.resume();beep(700,160)}};
 $('vibrate').onclick=()=>{vibrateOn=!vibrateOn;$('vibrate').textContent='สั่น: '+(vibrateOn?'เปิด':'ปิด');buzz([60])};
-$('refresh').onclick=update;update();setInterval(update,5000);
+$('refresh').onclick=update;update();setInterval(update,1000);
 </script></body></html>
