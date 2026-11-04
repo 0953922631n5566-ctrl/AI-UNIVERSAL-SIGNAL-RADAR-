@@ -22,7 +22,8 @@ Provide a separate what-if projection for the next 10, 20 and 30 seconds using r
 ## Offline replay harness
 
 - Run: `npm run backtest:m1 -- ./data/EURUSD_M1.csv ./backtest-report.json`.
-- Input CSV must have ascending UTC timestamps and `time,open,high,low,close` (or `datetime` instead of `time`); at least 202 valid candles are required.
+- Input supports ascending UTC-header CSV (`time,open,high,low,close`) and HistData Generic ASCII (`YYYYMMDD HHMMSS;open;high;low;close;volume`). HistData's documented fixed EST (UTC-5, no DST) timestamps are converted to UTC during import; at least 202 valid candles are required.
+- Public source candidate: [HistData EUR/USD Generic ASCII M1 downloads](https://www.histdata.com/download-free-forex-data/). The 2025 archive selection page was inspected, but the download uses a JavaScript action and no ZIP download confirmation was available in the browser session; no dataset has yet been imported or backtested.
 - The replay calls the existing analyzer using only candles available up to each decision point, then scores the next contiguous M1 candle from its open using favorable/adverse range. Weekend/session gaps are excluded.
 - Threshold grid: 0.55, 0.60, 0.65, 0.70, 0.72, 0.75, 0.80. The report includes fakeout capture and good-signal loss; no threshold is auto-selected.
 - This is a coarse M1 diagnostic, not validation of the 10/20/30-second envelopes. Exact sub-minute calibration requires timestamped tick/second-level EUR/USD data. Use separate in-sample and out-of-sample date ranges before proposing any production threshold.
