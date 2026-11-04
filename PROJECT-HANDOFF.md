@@ -289,3 +289,20 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Static homepage fetch confirms the updated Mini App page is served. The app must be opened and scanning started by the user; the root page initially shows OFFLINE/standby before the Start action.
 - Remaining physical checks: Telegram bot menu/launch tap-through and actual Xiaomi 11T sound/vibration. These cannot be verified by server/API deployment.
 - No automatic broker execution was added. Never treat an unconfirmed candidate as a published signal.
+
+
+## Android OCR pipeline audit and safe-signal correction — 2026-11-04
+
+- Audit base: main head before this correction was `0bcc162dccf41a8ffcf6470ad39fe97777d79fad`.
+- Source correction commit: `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`.
+- Files changed:
+  - `server.js`: removed the unvalidated five-reading momentum CALL/PUT heuristic; fresh OCR prices now remain STANDBY with an explicit model-not-configured reason. The `/api/upload-screen` endpoint now fails closed with HTTP 503 when `OCR_INGEST_TOKEN` is absent and HTTP 401 when the supplied `x-ocr-token` is wrong. Successful responses include the STANDBY reason.
+  - `android/app/src/main/java/com/aiuniversal/signalradar/CaptureService.kt`: allowlists only CALL/PUT/STANDBY values from the response (unknown values become STANDBY) and forwards the backend reason.
+  - `android/app/src/main/java/com/aiuniversal/signalradar/MainActivity.kt`: displays the backend reason alongside price and signal.
+- Android source audit: MediaProjection, ImageReader listener, bitmap conversion/cropping, and local ML Kit text recognition are implemented. The app sends extracted price JSON over HTTPS to `/api/upload-screen`; it does not JPEG-encode or upload screen images. Retry is opportunistic on later OCR frames only; no bounded network backoff is implemented.
+- The Android app's configured URL is `https://ai-universal-signal-radar-main.onrender.com/api/upload-screen`. Current Render service `ai-universal-signal-radar-main` is configured to branch `feature/server-price-extraction`; that branch's `server.js` is the Twelve Data Main Market service and has no `/api/upload-screen` route. No request logs for that path were observed. Therefore the APK is not confirmed connected to the deployed service.
+- Separate FastAPI `backend/app.py` exposes Bearer-authenticated multipart `/v1/frame`, session start/stop, image validation and sequence/freshness checks, but the Android APK does not call it. No perception/decision model adapter is configured; FastAPI returns STANDBY with `VISION_ADAPTER_NOT_CONFIGURED`.
+- Render `ai-signal-radar-ocr-api` is LIVE on `feature/xiaomi11t-8xtrade-ocr-nonotc`; historical logs showed repeated `POST /v1/frame` HTTP 401 responses. This is not evidence of a successful APK connection. The separate `ai-signal-radar-ocr-capture` service's latest deploy is `build_failed`.
+- Android build triggered on main: GitHub Actions run `41786296602`, source commit `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`; status was in progress when this note was written. Artifact and SHA-256 are pending.
+- No Xiaomi 11T device test or end-to-end validation has been evidenced. Do not describe local OCR as chart perception or claim AI analysis. Keep all signals STANDBY until a real perception and decision model is configured and evaluated.
+- No deployment branch was changed, no paid resource was created, and no broker order execution was enabled.
