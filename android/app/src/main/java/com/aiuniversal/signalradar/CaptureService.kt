@@ -183,14 +183,20 @@ class CaptureService : Service() {
 
     private fun uploadRawText(rawText: String) {
         if (!uploadInProgress.compareAndSet(false, true)) return
-        val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
+        // Use the token injected by the protected GitHub Actions secret at build time.
+        val token = BuildConfig.OCR_API_TOKEN
+        if (token.isBlank()) {
+            uploadInProgress.set(false)
+            sendStatus(ACTION_FAILED, "Build ไม่มี OCR API Token")
+            return
+        }
         network.execute {
             var connection: HttpURLConnection? = null
             try {
                 connection = (URL(UPLOAD_URL).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"; connectTimeout = 7000; readTimeout = 7000; doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    setRequestProperty("X-API-Token", token)
+                    setRequestProperty("Authorization", "Bearer $token")
                 }
                 val body = JSONObject().put("symbol", "EUR/USD").put("market", "OTC")
                     .put("rawText", rawText).put("timestamp", System.currentTimeMillis()).toString()
