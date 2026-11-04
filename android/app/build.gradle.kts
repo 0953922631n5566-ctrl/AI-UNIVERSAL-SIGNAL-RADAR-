@@ -3,14 +3,6 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
-fun requiredBuildSecret(name: String): String =
-    providers.environmentVariable(name).orNull
-        ?.takeIf { it.isNotBlank() }
-        ?: throw GradleException("Missing required GitHub Actions secret: $name")
-
-fun quotedBuildConfig(value: String): String =
-    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
-
 android {
     namespace = "com.aiuniversal.signalradar"
     compileSdk = 35
@@ -18,10 +10,9 @@ android {
         applicationId = "com.aiuniversal.signalradar"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.2.0"
-        buildConfigField("String", "BACKEND_URL", quotedBuildConfig(requiredBuildSecret("BACKEND_URL").trimEnd('/')))
-        buildConfigField("String", "OCR_API_TOKEN", quotedBuildConfig(requiredBuildSecret("OCR_API_TOKEN")))
+        versionCode = 5
+        versionName = "1.3.0"
+        buildConfigField("String", "BACKEND_URL", "\"https://ai-universal-signal-radar-main.onrender.com\"")
     }
     buildFeatures { buildConfig = true }
     compileOptions {
