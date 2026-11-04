@@ -29,6 +29,16 @@ Branch: feature/server-price-extraction
 - Signal is keyed to the latest fully closed candle and is deduplicated on the Android client by candleTime + signal.
 - Server must not send alerts to any third-party messaging platform.
 
+## Modular Dynamic Trend Scanner Engine (2026-11-04)
+- Added CommonJS modules under indicators/, scanner/, strategies/, and engine/; server.js remains the HTTP/data-provider entry point.
+- Scanner requires 200 closed M1 candles. It classifies UPTREND, DOWNTREND, SIDEWAY, REVERSAL, or UNCLEAR. Missing/incomplete indicators and UNCLEAR fail closed to STANDBY.
+- Indicators: EMA 9/21/50/200, RSI14, MACD, ADX with DI+/DI-, volatility range, and rolling support/resistance.
+- Strategy router invokes only the module matching the detected regime. Decision engine retains minimum score 64 and blocks volatility spikes and entries too close to opposing support/resistance.
+- Two-tier RAM cache: existing 15-second Twelve Data candle cache plus a process-local analysis cache keyed by latest closed-candle timestamp. Repeated APK polling reuses the computed analysis for that candle.
+- Existing GET /api/market, /health, /api/connection, API key rotation/failover, closed-candle filtering, stale-data checks, final-five-second gate, and no-auto-trading policy are retained.
+- RAM caches and key health are process-local and reset on Render restart. The final-five-second window is not a guarantee of end-to-end notification delivery; verify with live traffic and physical device.
+- Automated tests: `npm test` (Node built-in test runner); test file: tests/modular-engine.test.js. A successful GitHub commit is not evidence that tests or a Render deployment passed.
+
 ## Android client
 - Native Kotlin + Jetpack Compose app; application ID: com.kawasaki.signalradar.
 - Current source version: 1.3.0 / versionCode 7.
