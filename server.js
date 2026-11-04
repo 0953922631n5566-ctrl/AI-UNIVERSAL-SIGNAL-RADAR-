@@ -299,11 +299,17 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.post('/api/ocr/price', (req, res) => {
+function handleOcrPost(req, res) {
   if (!authorized(req)) return res.status(401).json(sendStandby('UNAUTHORIZED'));
   const result = ingestPrice(req.body);
   return res.status(result.accepted ? 200 : 400).json(result);
-});
+}
+
+// APK v1.3.0 primary endpoint plus backward-compatible aliases.
+// All paths share identical authentication, validation, and ingestion logic.
+app.post('/api/ocr/price', handleOcrPost);
+app.post('/ocr', handleOcrPost);
+app.post('/api/ocr', handleOcrPost);
 
 app.get('/api/signal', (req, res) => {
   const symbol = req.query.symbol || 'EUR/USD';
