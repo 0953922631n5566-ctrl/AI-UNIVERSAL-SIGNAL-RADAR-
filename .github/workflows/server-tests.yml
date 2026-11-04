@@ -1,0 +1,26 @@
+name: Server Modular Engine Tests
+on:
+  push:
+    branches: [feature/server-price-extraction]
+    paths:
+      - "server.js"
+      - "indicators/**"
+      - "scanner/**"
+      - "strategies/**"
+      - "engine/**"
+      - "tests/**"
+      - "package.json"
+      - ".github/workflows/server-tests.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+      - run: npm install
+      - run: npm test
