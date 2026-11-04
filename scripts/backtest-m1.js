@@ -23,17 +23,17 @@ function splitCsvLine(line) {
 }
 
 function parseTime(value) {
-  if (/^\\d+(?:\\.\\d+)?$/.test(value)) {
+  if (/^\d+(?:\.\d+)?$/.test(value)) {
     const n = Number(value);
     return n < 1e11 ? n * 1000 : n;
   }
   const normalized = value.includes('T') ? value : value.replace(' ', 'T');
-  const parsed = Date.parse(/(?:Z|[+-]\\d\\d:\\d\\d)$/.test(normalized) ? normalized : `${normalized}Z`);
+  const parsed = Date.parse(/(?:Z|[+-]\d\d:\d\d)$/.test(normalized) ? normalized : `${normalized}Z`);
   return Number.isFinite(parsed) ? parsed : NaN;
 }
 
 function loadCandles(csvText) {
-  const lines = String(csvText).replace(/^\\uFEFF/, '').split(/\\r?\\n/).filter(x => x.trim());
+  const lines = String(csvText).replace(/^\uFEFF/, '').split(/\r?\n/).filter(x => x.trim());
   if (lines.length < 2) throw new Error('CSV must contain a header and at least one candle');
   const headers = splitCsvLine(lines[0]).map(x => x.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const index = (...names) => headers.findIndex(h => names.includes(h));
@@ -126,7 +126,7 @@ if (require.main === module) {
       const candles = loadCandles(fs.readFileSync(path.resolve(input), 'utf8'));
       const report = runM1Backtest(candles);
       const output = JSON.stringify(report, null, 2);
-      if (process.argv[3]) fs.writeFileSync(path.resolve(process.argv[3]), `${output}\\n`);
+      if (process.argv[3]) fs.writeFileSync(path.resolve(process.argv[3]), `${output}\n`);
       console.log(output);
     } catch (error) {
       console.error(`Backtest failed: ${error.message}`);
