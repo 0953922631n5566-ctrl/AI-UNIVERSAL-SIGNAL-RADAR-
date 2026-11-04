@@ -306,3 +306,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Android build triggered on main: GitHub Actions run `41786296602`, source commit `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`; status was in progress when this note was written. Artifact and SHA-256 are pending.
 - No Xiaomi 11T device test or end-to-end validation has been evidenced. Do not describe local OCR as chart perception or claim AI analysis. Keep all signals STANDBY until a real perception and decision model is configured and evaluated.
 - No deployment branch was changed, no paid resource was created, and no broker order execution was enabled.
+
+
+## Android safe-STANDBY patch build result — 2026-11-04
+
+- Android source commit: `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`.
+- GitHub Actions run `41786296602` completed successfully on branch `main`; job `126429092712`.
+- Build log confirms `:app:assembleDebug` and `BUILD SUCCESSFUL in 31s`; APK existence check, SHA-256 file generation, and artifact upload all passed. No compile/build error was reported.
+- Artifact ID: `13301890589`; name: `ai-universal-signal-radar-debug-apk`; ZIP size: 22,405,042 bytes; ZIP digest: `sha256:7bf0736d6d55da65fa0cd4934ed3a95a29eb7ac2761d050334446725e1f49c1b`; expires 2026-11-18 06:34:19 UTC.
+- The workflow generated `SHA256SUMS.txt` inside the artifact. This run's local container/Python runtime was unavailable, so the APK entry and its SHA-256 were not independently re-extracted/recomputed here. Do not substitute the ZIP digest for the APK digest.
+- This is a debug APK, built but not installed or tested on Xiaomi 11T. Backend end-to-end connectivity remains unverified and is currently blocked by the Render branch/route mismatch documented above.
+- Handoff documentation commit: `0761448bd53183b5ce59c028669ba11a0f069337`.
