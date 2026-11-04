@@ -35,8 +35,6 @@ function buzz(pattern){
  try{tg?.HapticFeedback?.impactOccurred("medium");}catch{}
  if(navigator.vibrate)navigator.vibrate(pattern);
 }
-function beep(freq,duration){if(!soundOn)return;try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=freq;g.gain.value=.12;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration/1000);}catch{}}
-function buzz(pattern){if(vibrateOn&&navigator.vibrate)navigator.vibrate(pattern);}
 async function update(){
  try{
   const r=await fetch('/api/market',{cache:'no-store'}),d=await r.json();
@@ -52,12 +50,12 @@ async function update(){
   const candleKey=d.candleTime||'';
   if(candleKey!==lastCandleKey){lastCandleKey=candleKey;pre10Done=false;pre3Done=false;}
   const signalKey=candleKey+':'+d.signal;
-  if((d.signal==='CALL'||d.signal==='PUT')&&signalKey!==lastSignalKey){
+  if(d.signalWindowOpen&&(d.signal==='CALL'||d.signal==='PUT')&&signalKey!==lastSignalKey){
    lastSignalKey=signalKey;beep(d.signal==='CALL'?880:440,320);buzz([180,80,180]);
   }
   // Threshold crossing prevents delayed mobile timers from missing exact-second cues.
-  if(candleKey&&sec<=10&&sec>3&&!pre10Done){pre10Done=true;beep(660,180);buzz([100]);}
-  if(candleKey&&sec<=3&&!pre3Done){pre3Done=true;beep(990,240);buzz([120,50,120]);}
+  if(candleKey&&sec>=1&&sec<=10&&!pre10Done){pre10Done=true;beep(660,180);buzz([100]);}
+  if(candleKey&&sec>=1&&sec<=3&&!pre3Done){pre3Done=true;beep(990,240);buzz([120,50,120]);}
  }catch(e){
   $('api').textContent='● API ERROR';$('api').className='api error';$('signal').textContent='STANDBY';$('lamp').className='lamp';
   $('score').textContent='Data unavailable · no signal';$('reason').textContent=e.message;$('regime').textContent='UNCLEAR';
