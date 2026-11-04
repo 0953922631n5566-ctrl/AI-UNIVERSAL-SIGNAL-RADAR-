@@ -334,3 +334,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - `CaptureService.kt` now forces the displayed result to STANDBY even if an upstream response contains CALL or PUT. It explains that directional output is disabled until the perception and decision model has passed evaluation.
 - This supersedes the prior allowlist-only behavior in commit `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`. Do not distribute artifact from run `41786296602` as the latest safety-gated APK.
 - New main-branch build run `41786849036`, source commit `386d0240bc13c83b9e45153a91557d0d75563cb9`, was in progress when this note was written. Wait for completed/success and artifact verification before distributing.
+
+
+## APK-side hard STANDBY build result — 2026-11-04
+
+- Source commit: `386d0240bc13c83b9e45153a91557d0d75563cb9`.
+- GitHub Actions run `41786849036` completed successfully on `main`; job `126430840634`.
+- Build log confirms `:app:assembleDebug` and `BUILD SUCCESSFUL in 22s`. APK existence check, SHA-256 generation, artifact upload and all cleanup steps passed.
+- Artifact ID: `13301269404`; name: `ai-universal-signal-radar-debug-apk`; ZIP size: 22,405,226 bytes; ZIP digest: `sha256:8f4ed87dfd1b3db8b59cc30e4a64b399ec8d17d8c8c180ee0c25200867c6007b`; expires 2026-11-18 06:39:05 UTC.
+- The workflow generated `SHA256SUMS.txt` inside the artifact. The local container/Python runtime remained unavailable, so the APK entry was not extracted and its SHA-256 was not independently recomputed. The ZIP digest above is not the APK digest.
+- This build supersedes run `41786296602`; it includes the APK-side unconditional STANDBY gate. It is a debug build only, not device-tested or end-to-end validated.
+- Backend route/contract mismatch remains unresolved; do not mark delivery complete.
