@@ -9,7 +9,7 @@ Branch: feature/server-price-extraction
 - Express backend, guarded 15-second cache, 200-candle history, stale-data fail-closed behavior.
 - Adaptive analysis with EMA 9/21/50, RSI 14, MACD 12/26/9, price action, support/resistance, volatility, and momentum.
 - Regimes: TRENDING, RANGING, HIGH VOLATILITY, REVERSAL, UNCLEAR.
-- Strict evidence threshold: 64 (score is based on 7 binary evidence checks; minimum attainable passing score remains 71/100, so this numeric threshold change alone does not alter the current pass/fail boundary). conflicts/unclear/high volatility/stale data => STANDBY.
+- Evidence threshold: 64 on a calibrated 7-check scale. Each positive evidence check contributes 16 points, capped at 100: 3/7 = 48 (fails), 4/7 = 64 (passes), 5/7 = 80, 6/7 = 96, 7/7 = 100. Thus threshold 64 genuinely permits 4 of 7 checks, subject to the existing regime, volatility, support/resistance, direction-conflict, and fresh-data safety gates. UNCLEAR/high volatility/stale data => STANDBY.
 - Signal endpoint exposes CALL/PUT only in the final 10 seconds of the current M1 candle; one signal per closed candle.
 
 ## Android client — Signal Radar PRO
@@ -62,3 +62,11 @@ Branch: feature/server-price-extraction
 - Incremented Android versionCode to 2 and versionName to 1.0.1 to produce a distinguishable refreshed APK. The Android app's configured default server URL remains unchanged: https://ai-universal-signal-radar-main.onrender.com.
 - Build workflow is triggered by Android file changes on this branch. Verify CI success and artifact before claiming a new APK is ready.
 - This source update does not itself deploy the server to Render. Confirm the Render service is tracking this branch or separately deploy the updated server.js before saying the live server uses threshold 64.
+
+
+## Evidence threshold recalibration — 2026-11-04
+- User approved lowering the effective signal gate so 4 of 7 evidence checks can pass at threshold 64.
+- Updated `server.js`: evidence score is now `Math.min(100, count * 16)` for CALL and PUT.
+- Mapping: 3/7 = 48 (below threshold), 4/7 = 64 (meets threshold), 5/7 = 80, 6/7 = 96, 7/7 = 100.
+- The seven underlying checks and all existing regime/volatility/near-support-resistance/conflicting-direction filters remain in place. This changes the effective scoring scale, not the underlying evidence checks.
+- Render deployment must be confirmed before claiming the live service is updated. Check the service's configured branch and latest deploy status; do not assume deployment from the GitHub commit alone.
