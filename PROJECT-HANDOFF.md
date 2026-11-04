@@ -317,3 +317,12 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The workflow generated `SHA256SUMS.txt` inside the artifact. This run's local container/Python runtime was unavailable, so the APK entry and its SHA-256 were not independently re-extracted/recomputed here. Do not substitute the ZIP digest for the APK digest.
 - This is a debug APK, built but not installed or tested on Xiaomi 11T. Backend end-to-end connectivity remains unverified and is currently blocked by the Render branch/route mismatch documented above.
 - Handoff documentation commit: `0761448bd53183b5ce59c028669ba11a0f069337`.
+
+
+## Deployed OCR API contract inspection — 2026-11-04
+
+- Render service `ai-signal-radar-ocr-api` is configured to branch `feature/xiaomi11t-8xtrade-ocr-nonotc`, with its latest recorded deploy `dep-dbkuv4gae00c73827rp0` marked LIVE.
+- That branch's `backend/app.py` imports `read_orange_price` from `vision_ocr` and accepts multipart image frames at `POST /v1/frame` with `Authorization: Bearer ...`, session ID, sequence, capture timestamp and image dimensions.
+- It performs orange-price OCR and returns only a price candidate plus confidence/evidence; it deliberately returns STANDBY with `PRICE_CANDIDATE_ONLY` or `ORANGE_BADGE_NOT_FOUND`. This is OCR extraction, not chart-regime perception or a validated directional decision model.
+- Historical Render logs showed repeated `POST /v1/frame` HTTP 401 responses. A fresh log query later returned a Render log-service 503, so current request/auth state could not be rechecked in this run.
+- The current main-branch APK remains incompatible with this service: it sends JSON price data to `/api/upload-screen` using `x-ocr-token`, rather than multipart JPEG/PNG to `/v1/frame` using Bearer auth. No successful end-to-end connection is established.
