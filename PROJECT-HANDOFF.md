@@ -24,7 +24,7 @@ Branch: feature/server-price-extraction
 - Health endpoint: GET /health
 - Twelve Data candle cache: 15 seconds; API minimum-call guard: 10 seconds.
 - Closed M1 candles only; stale/missing data fails closed to STANDBY.
-- Signal threshold: 64 on the calibrated evidence scale, with existing regime, volatility, support/resistance, and direction-conflict filters.
+- Trend-following threshold: 60 on the evidence scale. UPTREND/DOWNTREND recognize confirmed directional continuation candles; short-term opposing S/R is a soft filter when ADX, DI, MACD, RSI and candidate score confirm strong aligned momentum. Extreme volatility remains blocked.
 - CALL/PUT is exposed only while countdownSeconds <= 5 (final five seconds of the current M1 clock window).
 - Signal is keyed to the latest fully closed candle and is deduplicated on the Android client by candleTime + signal.
 - Server must not send alerts to any third-party messaging platform.
@@ -33,7 +33,7 @@ Branch: feature/server-price-extraction
 - Added CommonJS modules under indicators/, scanner/, strategies/, and engine/; server.js remains the HTTP/data-provider entry point.
 - Scanner requires 200 closed M1 candles. It classifies UPTREND, DOWNTREND, SIDEWAY, REVERSAL, or UNCLEAR. Missing/incomplete indicators and UNCLEAR fail closed to STANDBY.
 - Indicators: EMA 9/21/50/200, RSI14, MACD, ADX with DI+/DI-, volatility range, and rolling support/resistance.
-- Strategy router invokes only the module matching the detected regime. Decision engine retains minimum score 64 and blocks volatility spikes and entries too close to opposing support/resistance.
+- Strategy router invokes only the module matching the detected regime. Trend strategies accept either a pullback/rejection or a strong directional continuation candle (body >= 35% of candle range, closes beyond prior close, aligned DI/MACD); minimum score is 60. Nearby opposing short-term S/R can be bypassed only with strong aligned trend momentum and score >= 80. Volatility ratio > 2.8 always blocks; ratio > 2.2 blocks unless strong trend momentum is confirmed. SIDEWAY and REVERSAL routing remain separate.
 - Two-tier RAM cache: existing 15-second Twelve Data candle cache plus a process-local analysis cache keyed by latest closed-candle timestamp. Repeated APK polling reuses the computed analysis for that candle.
 - Existing GET /api/market, /health, /api/connection, API key rotation/failover, closed-candle filtering, stale-data checks, final-five-second gate, and no-auto-trading policy are retained.
 - RAM caches and key health are process-local and reset on Render restart. The final-five-second window is not a guarantee of end-to-end notification delivery; verify with live traffic and physical device.
