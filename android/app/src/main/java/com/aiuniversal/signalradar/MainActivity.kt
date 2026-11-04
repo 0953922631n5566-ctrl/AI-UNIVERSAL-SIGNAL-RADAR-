@@ -35,7 +35,8 @@ class MainActivity : Activity() {
                 CaptureService.ACTION_PRICE -> {
                     val price = intent.getStringExtra(CaptureService.EXTRA_PRICE) ?: "—"
                     val signal = intent.getStringExtra(CaptureService.EXTRA_SIGNAL) ?: "STANDBY"
-                    status.text = "ส่งราคา $price สำเร็จ · สัญญาณ $signal"
+                    val reason = intent.getStringExtra(CaptureService.EXTRA_REASON) ?: "ยังไม่มีเหตุผลจาก Server"
+                    status.text = "ส่งราคา $price สำเร็จ · สัญญาณ $signal\nเหตุผล: $reason"
                 }
                 CaptureService.ACTION_FAILED -> {
                     val reason = intent.getStringExtra(CaptureService.EXTRA_ERROR) ?: "ไม่ทราบสาเหตุ"

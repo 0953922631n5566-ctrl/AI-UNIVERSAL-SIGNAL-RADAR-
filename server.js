@@ -28,7 +28,6 @@ function getSignal() {
   const latest = priceHistory[priceHistory.length - 1];
   const ageMs = latest ? now - latest.receivedAt : Infinity;
   const fresh = !!latest && ageMs >= 0 && ageMs <= MAX_AGE_MS;
-  const prices = priceHistory.map(x => x.price);
   const base = {
     symbol: 'EUR/USD',
     market: 'OCR',
@@ -37,46 +36,33 @@ function getSignal() {
     apiStatus: fresh ? 'connected' : 'waiting',
     feedStatus: fresh ? 'LIVE' : 'WAITING_FOR_OCR',
     signal: 'STANDBY',
-    regime: 'WAITING FOR REAL OCR PRICES',
+    regime: fresh ? 'MODEL_NOT_CONFIGURED' : 'NO FRESH OCR DATA',
     price: latest && fresh ? latest.price.toFixed(5) : '—',
     priceTimestamp: latest ? new Date(latest.timestamp).toISOString() : null,
     receivedAt: latest ? new Date(latest.receivedAt).toISOString() : null,
     dataAgeSeconds: latest ? Math.max(0, Math.floor(ageMs / 1000)) : null,
     readingsLoaded: priceHistory.length,
     minimumReadings: MIN_POINTS,
-    refreshIntervalSeconds: REFRESH_SECONDS,
-    reason: 'รอราคาจริงจาก APK OCR เท่านั้น · ไม่มีการสร้างราคาแทน'
+    refreshIntervalSeconds: REFRESH_SECONDS
   };
 
   if (!fresh) {
-    return { ...base, apiStatus: 'waiting', feedStatus: 'STALE_OR_MISSING', regime: 'NO FRESH OCR DATA',
-      reason: latest ? 'ราคาจาก APK เก่าเกิน 30 วินาที · หยุดออกสัญญาณ' : 'ยังไม่ได้รับราคาจาก APK OCR' };
-  }
-  if (prices.length < MIN_POINTS) {
-    return { ...base, regime: 'COLLECTING OCR READINGS',
-      reason: 'ได้รับราคาจริงแล้ว แต่ต้องสะสมอย่างน้อย 5 ค่าเพื่อประเมินทิศทาง' };
+    return {
+      ...base,
+      apiStatus: 'waiting',
+      feedStatus: 'STALE_OR_MISSING',
+      reason: latest ? 'ราคาจาก APK เก่าเกิน 30 วินาที · หยุดออกสัญญาณ' : 'ยังไม่ได้รับราคาจาก APK OCR'
+    };
   }
 
-  const recent = prices.slice(-MIN_POINTS);
-  const deltas = recent.slice(1).map((p, i) => p - recent[i]);
-  const ups = deltas.filter(x => x > 0).length;
-  const downs = deltas.filter(x => x < 0).length;
-  const net = recent[recent.length - 1] - recent[0];
-  const scale = Math.max(Math.abs(recent[0]) * 0.000001, 0.000001);
-  let signal = 'STANDBY';
-  let regime = 'MIXED MOMENTUM';
-  let reason = 'ทิศทางราคา OCR ยังไม่ชัดเจน · รอข้อมูลเพิ่ม';
-  if (net > scale && ups >= 3) {
-    signal = 'CALL'; regime = 'UPWARD MOMENTUM';
-    reason = 'ราคาจริงจาก OCR เคลื่อนขึ้นอย่างน้อย 3 ใน 4 ช่วงล่าสุด';
-  } else if (net < -scale && downs >= 3) {
-    signal = 'PUT'; regime = 'DOWNWARD MOMENTUM';
-    reason = 'ราคาจริงจาก OCR เคลื่อนลงอย่างน้อย 3 ใน 4 ช่วงล่าสุด';
-  }
-  return { ...base, signal, regime, reason, momentumReadings: recent.length,
-    risingSteps: ups, fallingSteps: downs, netChange: Number(net.toFixed(6)) };
+  // OCR price extraction is not chart perception. Keep all directional outputs
+  // disabled until a real perception + decision model has been configured and evaluated.
+  return {
+    ...base,
+    signal: 'STANDBY',
+    reason: 'รับราคา OCR แล้ว แต่ยังไม่มี perception และ decision model ที่ผ่านการประเมิน · ปิด CALL/PUT ไว้'
+  };
 }
-
 app.get('/health', (_req, res) => {
   const latest = priceHistory[priceHistory.length - 1];
   const ageMs = latest ? Date.now() - latest.receivedAt : null;
@@ -97,7 +83,11 @@ app.get('/health', (_req, res) => {
 // Optional protection: set OCR_INGEST_TOKEN in Render and send it as x-ocr-token.
 app.post('/api/upload-screen', (req, res) => {
   const expectedToken = process.env.OCR_INGEST_TOKEN;
-  if (expectedToken && req.get('x-ocr-token') !== expectedToken) {
+  if (!expectedToken) {
+    rejectedUploads++;
+    return res.status(503).json({ status: 'error', message: 'OCR_INGEST_TOKEN is not configured on the server' });
+  }
+  if (req.get('x-ocr-token') !== expectedToken) {
     rejectedUploads++;
     return res.status(401).json({ status: 'error', message: 'Unauthorized OCR uploader' });
   }
@@ -136,8 +126,8 @@ app.post('/api/upload-screen', (req, res) => {
   lastUploadTimestamp = parsedTimestamp;
   lastUploadSource = item.source;
   const result = getSignal();
-  return res.json({ status: 'success', price: price.toFixed(5), signal: result.signal,
-    readingsLoaded: priceHistory.length, receivedAt: new Date(receivedAt).toISOString() });
+  return res.json({ status: 'success', price: price.toFixed(5), signal: 'STANDBY',
+    reason: result.reason, readingsLoaded: priceHistory.length, receivedAt: new Date(receivedAt).toISOString() });
 });
 
 app.get('/api/signal', (_req, res) => res.json(getSignal()));

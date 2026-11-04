@@ -40,6 +40,7 @@ class CaptureService : Service() {
         const val EXTRA_ERROR = "error"
         const val EXTRA_PRICE = "price"
         const val EXTRA_SIGNAL = "signal"
+        const val EXTRA_REASON = "reason"
         private const val CHANNEL_ID = "radar_capture"
         private const val NOTIFICATION_ID = 73
         private const val OCR_INTERVAL_MS = 1000L
@@ -220,7 +221,10 @@ class CaptureService : Service() {
                 val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code in 200..299) {
                     val json = JSONObject(response)
-                    sendPriceStatus(price, json.optString("signal", "STANDBY"), "ส่งราคาเข้า Server แล้ว")
+                    val rawSignal = json.optString("signal", "STANDBY").uppercase()
+                    val safeSignal = if (rawSignal == "CALL" || rawSignal == "PUT" || rawSignal == "STANDBY") rawSignal else "STANDBY"
+                    val reason = json.optString("reason", "Server ไม่ได้ส่งเหตุผล")
+                    sendPriceStatus(price, safeSignal, reason)
                 } else {
                     sendStatus(ACTION_FAILED, "Server ตอบ HTTP $code — ตรวจ Token หรือการเชื่อมต่อ")
                 }
@@ -233,11 +237,11 @@ class CaptureService : Service() {
         }
     }
 
-    private fun sendPriceStatus(price: Double, signal: String, message: String) {
+    private fun sendPriceStatus(price: Double, signal: String, reason: String) {
         val intent = Intent(ACTION_PRICE).setPackage(packageName)
             .putExtra(EXTRA_PRICE, price.toString())
             .putExtra(EXTRA_SIGNAL, signal)
-            .putExtra(EXTRA_ERROR, message)
+            .putExtra(EXTRA_REASON, reason)
         sendBroadcast(intent)
     }
 
