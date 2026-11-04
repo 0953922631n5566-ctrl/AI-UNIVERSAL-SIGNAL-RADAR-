@@ -8,14 +8,17 @@ import android.content.IntentFilter
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 
 class MainActivity : Activity() {
     private val captureRequest = 4102
     private lateinit var status: TextView
+    private lateinit var tokenInput: EditText
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
     private var receiverRegistered = false
@@ -61,6 +64,12 @@ class MainActivity : Activity() {
             text = "พร้อมใช้งาน · ตั้งค่า Server อัตโนมัติจาก Build"
             textSize = 14f
         })
+        tokenInput = EditText(this).apply {
+            hint = "วาง OCR Token (บันทึกไว้ในเครื่อง)"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setSingleLine(true)
+            setText(getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty())
+        }
         status = TextView(this).apply {
             text = "กด Start เพื่อเริ่มต้น และอนุญาตการจับภาพหน้าจอเมื่อ Android ถาม"
             textSize = 16f
@@ -70,6 +79,7 @@ class MainActivity : Activity() {
             text = "STOP · หยุด"
             isEnabled = false
         }
+        layout.addView(tokenInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         layout.addView(status)
         layout.addView(startButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         layout.addView(stopButton, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -89,10 +99,12 @@ class MainActivity : Activity() {
         receiverRegistered = true
 
         startButton.setOnClickListener {
-            if (BuildConfig.BACKEND_URL.isBlank() || BuildConfig.OCR_API_TOKEN.isBlank()) {
-                status.text = "การตั้งค่า Build ไม่ครบ กรุณาติดต่อผู้พัฒนา"
+            val token = tokenInput.text.toString().trim()
+            if (token.isBlank()) {
+                status.text = "กรุณาวาง OCR Token ก่อนเริ่ม"
                 return@setOnClickListener
             }
+            getSharedPreferences("radar_config", MODE_PRIVATE).edit().putString("ocr_token", token).apply()
             try {
                 val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
                 startButton.isEnabled = false
@@ -122,6 +134,7 @@ class MainActivity : Activity() {
                 action = CaptureService.ACTION_START
                 putExtra(CaptureService.EXTRA_RESULT_CODE, resultCode)
                 putExtra(CaptureService.EXTRA_RESULT_DATA, data)
+                putExtra(CaptureService.EXTRA_TOKEN, getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty())
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service) else startService(service)
