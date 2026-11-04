@@ -345,3 +345,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The workflow generated `SHA256SUMS.txt` inside the artifact. The local container/Python runtime remained unavailable, so the APK entry was not extracted and its SHA-256 was not independently recomputed. The ZIP digest above is not the APK digest.
 - This build supersedes run `41786296602`; it includes the APK-side unconditional STANDBY gate. It is a debug build only, not device-tested or end-to-end validated.
 - Backend route/contract mismatch remains unresolved; do not mark delivery complete.
+
+
+## Main Market APK + background push rebuild — 2026-11-04
+
+- User approved a new APK direction: restore the former 64% behavior; compact screen with logo-style ON/OFF, EUR/USD live price, buy/sell pressure, trend/regime and CALL/PUT/STANDBY; background CALL/PUT alerts; no floating window, OCR, screen capture, or broker order execution.
+- Isolated work branch created: feat/main-market-apk-background-fcm (based on main). No Render service, production branch, existing APK source, or live deployment was changed.
+- Audit and detailed acceptance gates are recorded in APK-BACKGROUND-PUSH-HANDOFF-2026-11-04.md.
+- Important finding: main currently contains the OCR-only backend and MediaProjection APK. The real Main Market backend is in the main-market subdirectory on branch main-market and currently authenticates Telegram Mini App initData; it has no Android device-auth or FCM push integration. These two systems must be connected deliberately, not mixed by changing the APK URL alone.
+- The deployed Main Market analyzer on main-market uses EMA9/21/50, RSI14, MACD, ATR, price action and regime filters; it has no 64% confidence score. Root forecast-engine.js is a different analyzer with a 63 strictness value. The exact previous 64% scoring behavior was not found in the current sources, so it must be recovered before claiming a true rollback.
+- Background delivery target is Firebase Cloud Messaging (FCM), because polling/foreground screen capture is not a reliable design for an app swiped away. Firebase Android configuration and server service-account credentials are not present. They must be provided/configured securely before end-to-end push can be built and tested. Force Stop and OEM battery policies can still delay notifications until the app is reopened or battery restrictions are relaxed.
+- Status: repository audit and isolated branch + handoff documentation committed; application code, APK build, FCM delivery, Render deployment, and Xiaomi 11T device test are NOT yet completed.
