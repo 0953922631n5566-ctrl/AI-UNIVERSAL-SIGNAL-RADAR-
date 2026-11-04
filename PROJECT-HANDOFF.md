@@ -70,3 +70,14 @@ Branch: feature/server-price-extraction
 ## Secrets and retired integrations
 - Never print or commit API keys or tokens.
 - Telegram integration is retired and must not be reintroduced: no Telegram send function, bot token/chat ID settings, notification token, endpoint, or delivery path.
+
+## Future Simulation Engine — isolated research branch (2026-11-05)
+- Development branch: `feature/future-simulation-engine`; exact base remains `d260d68368a91f07eb9ab65f2e305bb02f08a143`. Branch is 15 commits ahead / 0 behind at the latest verified comparison.
+- Added experimental `simulation/future-simulation-engine.js`, `simulation/simulation-safety-gate.js`, `simulation/index.js`, and deterministic tests. These files are not wired into `server.js`, `engine/analyze-market.js`, or the production Decision Engine.
+- Added offline `scripts/backtest-m1.js`, `tests/backtest-m1.test.js`, and `npm run backtest:m1 -- <EURUSD_M1.csv> [report.json]`.
+- Parser supports header-based UTC OHLC CSV and HistData Generic ASCII M1 rows (`YYYYMMDD HHMMSS;open;high;low;close;volume`). HistData timestamps are fixed EST (UTC-5) without DST and are converted to UTC.
+- M1 replay is explicitly a coarse next-M1-candle range diagnostic. It cannot calibrate the engine's 10/20/30-second projections. Exact horizon calibration requires tick/second-level data.
+- Data source inspected: https://www.histdata.com/download-free-forex-data/ (EUR/USD M1 and tick/second-level files are listed). The 2025 M1 archive page uses a JavaScript download action; browser inspection did not confirm a ZIP download. No historical data has yet been loaded and no empirical backtest/threshold calibration has been completed.
+- Local isolated parser/harness smoke tests passed against stubbed analyzer/simulation dependencies; this is not a full repository test run. GitHub commit status returned no CI statuses. Do not claim full suite green.
+- Production Render remains on commit `d260d68368a91f07eb9ab65f2e305bb02f08a143`, deployment `dep-dbll98lt1l0c73dn92ng`, status `live`; do not change its branch or deploy this research branch until separately approved.
+- Next: obtain EUR/USD M1 history plus 1-second/tick history, verify provider timestamps/spread conventions, run in-sample/out-of-sample replay, report fakeout capture vs good-signal loss by threshold, then discuss integration only after stable results.
