@@ -1,49 +1,46 @@
 <!doctype html>
-<html lang="th">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<meta name="theme-color" content="#090d14">
-<title>AI Universal Signal Radar · Connection</title>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta name="theme-color" content="#090d14"><title>AI Universal Signal Radar · EUR/USD</title>
 <style>
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#090d14;color:#e8eef8;font-family:system-ui,-apple-system,sans-serif;display:grid;place-items:center;padding:18px}.panel{width:min(100%,430px);border:1px solid #26364b;border-radius:20px;padding:22px;background:#111a27;box-shadow:0 18px 60px #0008}.brand{font-size:13px;font-weight:900;letter-spacing:1.3px}.sub{font-size:11px;color:#8fa3bc;margin-top:5px}.lamp{width:12px;height:12px;border-radius:50%;background:#8995a5;display:inline-block;margin-right:9px}.lamp.on{background:#31d69a;box-shadow:0 0 14px #31d69a88}.status{margin-top:24px;padding:16px;border:1px solid #293c54;border-radius:14px;background:#0c1420}.line{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #233247;font-size:13px}.line:last-child{border:0}.value{font-weight:800}.good{color:#31d69a}.warn{color:#ffca72}.muted{color:#8fa3bc;font-size:11px;margin-top:18px;line-height:1.6}button{width:100%;border:0;border-radius:11px;padding:13px;margin-top:18px;background:#176fc2;color:white;font-weight:800;font-size:13px}
-</style>
-</head>
-<body>
-<main class="panel">
-  <div class="brand">◈ AI UNIVERSAL SIGNAL RADAR</div>
-  <div class="sub">CONNECTION SERVICE · TELEGRAM NOTIFICATION</div>
-  <section class="status">
-    <div class="line"><span><i id="serverLamp" class="lamp"></i>Server</span><b id="serverState" class="value">Checking…</b></div>
-    <div class="line"><span><i id="telegramLamp" class="lamp"></i>Telegram Bot</span><b id="telegramState" class="value">Checking…</b></div>
-    <div class="line"><span>Notification Gateway</span><b id="gatewayState" class="value">Checking…</b></div>
-  </section>
-  <div id="message" class="muted">หน้านี้แสดงเฉพาะสถานะการเชื่อมต่อและ Telegram Notification ไม่มี OCR ไม่มีการจับภาพ ไม่มีระบบอ่านหรือวิเคราะห์ราคา</div>
-  <button id="refresh">ตรวจสอบการเชื่อมต่อ</button>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#080d15;color:#eaf1fb;font-family:system-ui,-apple-system,sans-serif;padding:14px;display:grid;place-items:center}.app{width:min(100%,480px);border:1px solid #26364b;border-radius:22px;padding:18px;background:linear-gradient(160deg,#131f30,#0c1420);box-shadow:0 20px 70px #0009}.top{display:flex;justify-content:space-between;align-items:center}.brand{font-weight:900;letter-spacing:1px;font-size:13px}.sub{font-size:10px;color:#91a5bf;margin-top:4px}.api{font-size:10px;color:#31d69a}.pair{margin-top:22px;display:flex;justify-content:space-between;align-items:end}.symbol{font-size:17px;font-weight:900}.price{font-size:25px;font-weight:850;font-variant-numeric:tabular-nums}.tf{font-size:10px;color:#91a5bf}.signal{margin-top:18px;border:1px solid #34445a;border-radius:18px;background:#0a111c;padding:20px;text-align:center}.lamp{width:22px;height:22px;border-radius:50%;background:#8995a5;margin:0 auto 10px;box-shadow:0 0 16px #8995a555}.lamp.call{background:#30d58f;box-shadow:0 0 24px #30d58f99}.lamp.put{background:#ff5365;box-shadow:0 0 24px #ff536599}.state{font-size:30px;font-weight:950;letter-spacing:1px}.score{font-size:11px;color:#a5b5ca;margin-top:4px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.tile{background:#101b2a;border:1px solid #293a50;border-radius:13px;padding:12px}.label{font-size:10px;color:#91a5bf}.value{font-size:13px;font-weight:800;margin-top:5px}.reason{margin-top:12px;padding:12px;border-radius:12px;background:#101b2a;color:#bdcbe0;font-size:11px;line-height:1.5}.timer{margin-top:14px}.timerhead{display:flex;justify-content:space-between;font-size:11px;color:#a5b5ca}.bar{height:7px;background:#25354a;border-radius:10px;overflow:hidden;margin-top:8px}.fill{height:100%;width:0;background:#42a5ff;transition:width .3s}.controls{display:flex;gap:8px;margin-top:14px}button{flex:1;border:1px solid #354962;border-radius:10px;padding:11px;background:#16263a;color:#eaf1fb;font-weight:750;font-size:11px}.foot{text-align:center;color:#71849d;font-size:9px;margin-top:14px}.error{color:#ffca72}
+</style></head><body><main class="app">
+<header class="top"><div><div class="brand">◈ AI UNIVERSAL SIGNAL RADAR</div><div class="sub">MAIN MARKET · NON-OTC · EUR/USD · M1</div></div><div class="api" id="api">● CONNECTING</div></header>
+<div class="pair"><div><div class="symbol">EUR / USD</div><div class="tf">TWELVE DATA · 1 MINUTE</div></div><div style="text-align:right"><div class="price" id="price">—</div><div class="tf" id="age">Waiting for market data</div></div></div>
+<section class="signal"><div id="lamp" class="lamp"></div><div id="signal" class="state">STANDBY</div><div id="score" class="score">Evidence threshold ≥ 64%</div></section>
+<div class="grid"><div class="tile"><div class="label">MARKET REGIME</div><div class="value" id="regime">UNCLEAR</div></div><div class="tile"><div class="label">CANDLE COUNTDOWN</div><div class="value" id="countdown">--:--</div></div></div>
+<div class="reason" id="reason">กำลังรอข้อมูลแท่งเทียนที่สดใหม่จาก Twelve Data</div>
+<div class="timer"><div class="timerhead"><span>แท่งเทียน M1</span><span id="clock">0%</span></div><div class="bar"><div class="fill" id="fill"></div></div></div>
+<div class="controls"><button id="sound">เสียง: เปิด</button><button id="vibrate">สั่น: เปิด</button><button id="refresh">รีเฟรชข้อมูล</button></div>
+<div class="foot">Signal = decision support only · ไม่ส่งคำสั่งซื้อขายอัตโนมัติ</div>
 </main>
 <script>
-const $=id=>document.getElementById(id);
-async function refresh(){
-  $('serverState').textContent='Checking…';
-  try{
-    const response=await fetch('/api/connection',{cache:'no-store'});
-    if(!response.ok)throw new Error('HTTP '+response.status);
-    const data=await response.json();
-    $('serverLamp').className='lamp on';
-    $('serverState').textContent='ONLINE';$('serverState').className='value good';
-    $('telegramLamp').className='lamp'+(data.telegramConfigured?' on':'');
-    $('telegramState').textContent=data.telegramConfigured?'CONFIGURED':'NOT CONFIGURED';
-    $('telegramState').className='value '+(data.telegramConfigured?'good':'warn');
-    $('gatewayState').textContent=data.notificationAuthConfigured?'READY':'TOKEN REQUIRED';
-    $('gatewayState').className='value '+(data.notificationAuthConfigured?'good':'warn');
-    $('message').textContent='เชื่อมต่อเซิร์ฟเวอร์แล้ว · Telegram '+(data.telegramConfigured?'ตั้งค่าแล้ว':'ยังไม่ได้ตั้งค่า Token/Chat ID')+' · ไม่มีระบบ OCR หรือประมวลผลตลาด';
-  }catch(error){
-    $('serverLamp').className='lamp';$('serverState').textContent='OFFLINE';$('serverState').className='value warn';
-    $('telegramState').textContent='UNKNOWN';$('gatewayState').textContent='UNKNOWN';
-    $('message').textContent='ไม่สามารถเชื่อมต่อ Server ได้: '+error.message;
+const $=id=>document.getElementById(id);let soundOn=true,vibrateOn=true,lastAlertKey='',audioCtx=null;
+function beep(freq,duration){if(!soundOn)return;try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.frequency.value=freq;g.gain.value=.12;o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+duration/1000);}catch{}}
+function buzz(pattern){if(vibrateOn&&navigator.vibrate)navigator.vibrate(pattern);}
+async function update(){
+ try{
+  const r=await fetch('/api/market',{cache:'no-store'}),d=await r.json();
+  if(!r.ok)throw new Error(d.reason||'API unavailable');
+  $('api').textContent='● API LIVE';$('api').className='api';
+  $('price').textContent=d.price==null?'—':Number(d.price).toFixed(5);
+  $('age').textContent=d.dataAgeMs==null?'No fresh candle':'Data age '+Math.max(0,Math.round(d.dataAgeMs/1000))+'s';
+  $('regime').textContent=d.regime||'UNCLEAR';$('reason').textContent=d.reason||'—';
+  $('signal').textContent=d.signal||'STANDBY';$('score').textContent=d.signal==='STANDBY'?'No trade · threshold 64%+':'Evidence score '+d.score+'% · active 40s';
+  $('lamp').className='lamp '+(d.signal==='CALL'?'call':d.signal==='PUT'?'put':'');
+  const sec=Number(d.countdownSeconds||0);$('countdown').textContent='00:'+String(sec).padStart(2,'0');
+  const pct=(60-sec)/60*100;$('fill').style.width=pct+'%';$('clock').textContent=Math.round(pct)+'%';
+  const key=(d.candleTime||'')+':'+d.signal;
+  if((d.signal==='CALL'||d.signal==='PUT')&&key!==lastAlertKey){lastAlertKey=key;beep(d.signal==='CALL'?880:440,260);buzz([180,80,180]);}
+  const candleKey=d.candleTime||'';
+  if(candleKey){
+   if(sec===10&&lastAlertKey!=='pre10:'+candleKey){lastAlertKey='pre10:'+candleKey;beep(660,100);buzz([100]);}
+   if(sec===3&&lastAlertKey!=='pre3:'+candleKey){lastAlertKey='pre3:'+candleKey;beep(990,140);buzz([120,50,120]);}
   }
+ }catch(e){
+  $('api').textContent='● API ERROR';$('api').className='api error';$('signal').textContent='STANDBY';$('lamp').className='lamp';
+  $('score').textContent='Data unavailable · no signal';$('reason').textContent=e.message;$('regime').textContent='UNCLEAR';
+ }
 }
-$('refresh').addEventListener('click',refresh);refresh();
-</script>
-</body>
-</html>
+$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent='เสียง: '+(soundOn?'เปิด':'ปิด');if(soundOn)beep(700,100)};
+$('vibrate').onclick=()=>{vibrateOn=!vibrateOn;$('vibrate').textContent='สั่น: '+(vibrateOn?'เปิด':'ปิด');buzz([60])};
+$('refresh').onclick=update;update();setInterval(update,5000);
+</script></body></html>
