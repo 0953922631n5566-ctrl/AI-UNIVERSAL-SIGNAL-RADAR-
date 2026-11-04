@@ -18,6 +18,16 @@ Provide a separate what-if projection for the next 10, 20 and 30 seconds using r
 - A later integration should run only after the original Decision Engine produces CALL/PUT, reuse already-fetched candles/indicators, and impose a strict compute budget. No extra Twelve Data request is allowed.
 - Enable the gate only after replay/backtest calibration. Until then it is experimental and must not change live signals.
 
+
+## Offline replay harness
+
+- Run: `npm run backtest:m1 -- ./data/EURUSD_M1.csv ./backtest-report.json`.
+- Input CSV must have ascending UTC timestamps and `time,open,high,low,close` (or `datetime` instead of `time`); at least 202 valid candles are required.
+- The replay calls the existing analyzer using only candles available up to each decision point, then scores the next contiguous M1 candle from its open using favorable/adverse range. Weekend/session gaps are excluded.
+- Threshold grid: 0.55, 0.60, 0.65, 0.70, 0.72, 0.75, 0.80. The report includes fakeout capture and good-signal loss; no threshold is auto-selected.
+- This is a coarse M1 diagnostic, not validation of the 10/20/30-second envelopes. Exact sub-minute calibration requires timestamped tick/second-level EUR/USD data. Use separate in-sample and out-of-sample date ranges before proposing any production threshold.
+- No historical dataset has been bundled, and no live Twelve Data key or production endpoint is read by this script.
+
 ## Safety and limitations
 - Projection horizons are 10/20/30 seconds within an M1 candle.
 - ATR and momentum create scenario envelopes, not deterministic candle shapes.
