@@ -53,3 +53,11 @@ The 64% value is a deterministic evidence score (count of five directional evide
 - Backend sends one Telegram message when a new CALL/PUT signal is first created for a closed M1 candle, provided TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are configured.
 - Telegram credentials must be added in Render as a merge update (never replace existing variables). No secret values are stored in Git.
 - Physical Xiaomi 11T sound/vibration and actual Telegram delivery still require on-device verification after credentials are set.
+
+
+## Alert timing correction (2026-11-04)
+- Backend calculates remaining M1 seconds with a ceiling-based countdown and exposes CALL/PUT only while the current candle has 10 seconds or less remaining; before that, the UI receives STANDBY.
+- Telegram signal delivery is gated server-side to the final 10 seconds and deduplicated once per closed-candle signal.
+- The client 10-second preparation cue is restricted to countdown 1–10 seconds; the 3-second entry cue and vibration are restricted to countdown 1–3 seconds. Both are deduplicated per candle.
+- Removed duplicate legacy beep/vibration function declarations so the ramped audio and Telegram haptic implementations remain active.
+- Deployment/device verification must confirm /api/market countdown and signalWindowOpen, Telegram credentials, and physical Xiaomi 11T audio/haptic behavior.
