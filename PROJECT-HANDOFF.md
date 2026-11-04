@@ -44,3 +44,12 @@ Never print or commit secret values. Add TWELVE_DATA_API_KEY in Render Dashboard
 
 ## Known limitations / honest status
 The 64% value is a deterministic evidence score (count of five directional evidence groups), not a statistically calibrated probability or win-rate estimate. No strategy profitability is claimed. Browser audio/vibration depends on device/browser permissions and user interaction. Telegram delivery remains a separate authenticated endpoint.
+
+
+## Latest mobile and Telegram readiness update (2026-11-04)
+- Added Telegram WebApp SDK initialization (ready and expand) for Telegram in-app launch.
+- Countdown polling is 1 second; 10s and 3s cues use threshold-crossing guards and separate per-candle deduplication, preventing missed exact-second events and shared-key collisions.
+- Audio uses a ramped Web Audio tone and resumes the audio context after the user's sound-toggle gesture; haptics use Telegram HapticFeedback where available plus Android vibration fallback.
+- Backend sends one Telegram message when a new CALL/PUT signal is first created for a closed M1 candle, provided TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are configured.
+- Telegram credentials must be added in Render as a merge update (never replace existing variables). No secret values are stored in Git.
+- Physical Xiaomi 11T sound/vibration and actual Telegram delivery still require on-device verification after credentials are set.
