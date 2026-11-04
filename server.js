@@ -20,6 +20,7 @@ app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }))
 
 let cache = { at: 0, candles: null, error: null };
 let lastSignalCandle = null;
+let lastTelegramSignalCandle = null;
 let activeSignal = null;
 let apiNextAllowedAt = 0;
 
@@ -139,29 +140,43 @@ async function sendTelegramMessage(message) {
     if (!response.ok || result.ok !== true) console.error('Telegram delivery failed:', result.description || response.status);
   } catch (error) { console.error('Telegram connection failed:', error.message); }
 }
+function candleCountdownSeconds(now = Date.now()) {
+  const elapsedMs = now % 60000;
+  return Math.max(1, Math.ceil((60000 - elapsedMs) / 1000));
+}
 function publicState(candles) {
   const now=Date.now(), latest=candles.at(-1), age=now-latest.time-60000;
+  const countdownSeconds=candleCountdownSeconds(now);
   const fresh=age<=MAX_STALE_MS && age>=-60000;
   if(!fresh)return { ...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
     reason:'ข้อมูลแท่งเทียนล่าช้าหรือไม่สดใหม่',price:latest.close,dataAgeMs:Math.max(0,age),
-    candleTime:new Date(latest.time).toISOString(),countdownSeconds:60-Math.floor((now%60000)/1000),signalExpiresAt:null };
+    candleTime:new Date(latest.time).toISOString(),countdownSeconds,signalExpiresAt:null,
+    signalWindowOpen:false };
   const analysis=analyze(candles);
   const candleId=latest.time;
   if(analysis.signal!=='STANDBY' && lastSignalCandle!==candleId){
     lastSignalCandle=candleId;
-    activeSignal={...analysis,candleTime:candleId,expiresAt:now+SIGNAL_TTL_MS};
-    const label = analysis.signal === 'CALL' ? '🟢 CALL' : '🔴 PUT';
-    void sendTelegramMessage('AI UNIVERSAL SIGNAL RADAR\\nMAIN MARKET · EUR/USD · M1\\n' + label +
-      '\\nEvidence: ' + analysis.score + '%\\nRegime: ' + analysis.regime +
-      '\\nPrice: ' + candles.at(-1).close + '\\n' + analysis.reason +
-      '\\nSignal valid for 40 seconds · decision support only');
+    // Keep the closed-candle decision available until the final 10 seconds
+    // of the current M1 candle; do not expose it early.
+    activeSignal={...analysis,candleTime:candleId,
+      expiresAt:now+((countdownSeconds-1)*1000)+10000};
   }
   if(activeSignal&&now>=activeSignal.expiresAt)activeSignal=null;
-  const visible=activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
+  const signalWindowOpen=countdownSeconds<=10;
+  const visible=signalWindowOpen&&activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
+  // Telegram is sent once, only after the final-10-second window opens.
+  if(visible && lastTelegramSignalCandle!==candleId){
+    lastTelegramSignalCandle=candleId;
+    const label = visible.signal === 'CALL' ? '🟢 CALL' : '🔴 PUT';
+    void sendTelegramMessage('AI UNIVERSAL SIGNAL RADAR\\nMAIN MARKET · EUR/USD · M1\\n' + label +
+      '\\nEvidence: ' + visible.score + '%\\nRegime: ' + visible.regime +
+      '\\nPrice: ' + latest.close + '\\n' + visible.reason +
+      '\\nEntry timing: final 10 seconds of candle · decision support only');
+  }
   return {...connectionStatus(),signal:visible?.signal||'STANDBY',
     regime:analysis.regime,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
     price:latest.close,dataAgeMs:Math.max(0,age),candleTime:new Date(latest.time).toISOString(),
-    countdownSeconds:60-Math.floor((now%60000)/1000),
+    countdownSeconds,signalWindowOpen,
     signalExpiresAt:visible?.expiresAt||null,indicators:analysis.indicators||null};
 }
 app.get('/health',(_req,res)=>res.json(connectionStatus()));
@@ -171,7 +186,7 @@ app.get('/api/market',async(_req,res)=>{
   catch(error){console.error('Market data unavailable:',error.message);
     res.status(503).json({...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
       reason:error.message==='TWELVE_DATA_API_KEY_MISSING'?'Twelve Data API key is not configured':'Market data unavailable · '+error.message,
-      price:null,dataAgeMs:null,countdownSeconds:60-Math.floor((Date.now()%60000)/1000)});}
+      price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=10});}
 });
 app.post('/api/telegram/notify',async(req,res)=>{
   const expected=process.env.TELEGRAM_NOTIFY_TOKEN||'', auth=req.get('authorization')||'';
