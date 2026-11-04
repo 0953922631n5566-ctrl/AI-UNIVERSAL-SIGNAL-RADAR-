@@ -169,7 +169,8 @@ function publicState(candles) {
   const visible=signalWindowOpen&&activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
 
   return {...connectionStatus(),signal:visible?.signal||'STANDBY',
-    regime:analysis.regime,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
+    regime:analysis.regime,strategy:visible?.strategy||analysis.strategy||'NONE',
+    regimeConfidence:analysis.regimeConfidence||0,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
     price:latest.close,dataAgeMs:Math.max(0,age),candleTime:new Date(latest.time).toISOString(),
     countdownSeconds,signalWindowOpen,
     signalExpiresAt:visible?.expiresAt||null,indicators:analysis.indicators||null};
