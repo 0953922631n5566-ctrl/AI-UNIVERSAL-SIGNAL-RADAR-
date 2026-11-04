@@ -159,15 +159,15 @@ function publicState(candles) {
   const candleId=latest.time;
   if(analysis.signal!=='STANDBY' && lastSignalCandle!==candleId){
     lastSignalCandle=candleId;
-    // Keep the closed-candle decision available until the final 10 seconds
+    // Keep the closed-candle decision available until the final 5 seconds
     // of the current M1 candle; do not expose it early.
     activeSignal={...analysis,candleTime:candleId,
       expiresAt:now+((countdownSeconds-1)*1000)+10000};
   }
   if(activeSignal&&now>=activeSignal.expiresAt)activeSignal=null;
-  const signalWindowOpen=countdownSeconds<=10;
+  const signalWindowOpen=countdownSeconds<=5;
   const visible=signalWindowOpen&&activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
-  // Telegram is sent once, only after the final-10-second window opens.
+  // Telegram is sent once, only after the final-5-second window opens.
   if(visible && lastTelegramSignalCandle!==candleId){
     lastTelegramSignalCandle=candleId;
     const label = visible.signal === 'CALL' ? '🟢 CALL' : '🔴 PUT';
