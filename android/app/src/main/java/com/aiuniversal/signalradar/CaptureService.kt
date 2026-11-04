@@ -222,8 +222,15 @@ class CaptureService : Service() {
                 if (code in 200..299) {
                     val json = JSONObject(response)
                     val rawSignal = json.optString("signal", "STANDBY").uppercase()
-                    val safeSignal = if (rawSignal == "CALL" || rawSignal == "PUT" || rawSignal == "STANDBY") rawSignal else "STANDBY"
-                    val reason = json.optString("reason", "Server ไม่ได้ส่งเหตุผล")
+                    val backendReason = json.optString("reason", "Server ไม่ได้ส่งเหตุผล")
+                    // Fail closed: directional outputs stay disabled until a perception
+                    // and decision model has been configured and formally evaluated.
+                    val safeSignal = "STANDBY"
+                    val reason = if (rawSignal == "CALL" || rawSignal == "PUT") {
+                        "ปิด CALL/PUT ไว้จนกว่าโมเดลจะผ่านการประเมิน · $backendReason"
+                    } else {
+                        backendReason
+                    }
                     sendPriceStatus(price, safeSignal, reason)
                 } else {
                     sendStatus(ACTION_FAILED, "Server ตอบ HTTP $code — ตรวจ Token หรือการเชื่อมต่อ")
