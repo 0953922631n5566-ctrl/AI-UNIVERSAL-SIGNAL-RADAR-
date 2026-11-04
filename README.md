@@ -1,36 +1,31 @@
-# AI Universal Signal Radar — Connection + Telegram Only
+# AI Universal Signal Radar
 
-This repository has been reduced to a minimal connection-status service and an authenticated Telegram notification gateway.
+Main Market EUR/USD M1 signal service and Android notification client.
 
-## Retained
-- Node.js 18 + Express server
-- Static connection-status page
-- `GET /health` and `GET /api/connection`
-- Authenticated `POST /api/telegram/notify`
+## Android PRO app
+Native Kotlin / Jetpack Compose project: `android/`.
 
-## Removed
-Android APK / screen capture, OCR and price extraction, image/frame ingestion, candle aggregation, indicators, forecast/signal engines, trading UI, related tests, and APK build workflows.
+Features:
+- Editable Render server URL in app Settings.
+- Direct signal polling from `GET /api/market`.
+- Health check via `GET /health`.
+- User-enabled foreground monitoring while app is backgrounded.
+- Local BUY/SELL notifications with sound, vibration, and per-candle duplicate protection.
+- Telegram API is not used by the Android app.
 
-## Render environment variables
-Set these in the Render service environment:
-- `TELEGRAM_BOT_TOKEN` — Telegram bot token
-- `TELEGRAM_CHAT_ID` — destination chat or channel ID
-- `TELEGRAM_NOTIFY_TOKEN` — private bearer token required by the notification endpoint
+### Build APK
+GitHub Actions builds an installable debug APK on pushes to `feature/server-price-extraction` that change Android files, or by manual workflow dispatch.
 
-The server never returns secret values from status endpoints. Existing Render environment variables are not overwritten by this source cleanup.
+Artifact name: `signal-radar-pro-debug-apk`.
 
-## API
-- `GET /health` — server health and non-secret configuration flags
-- `GET /api/connection` — connection status
-- `POST /api/telegram/notify` — send a Telegram text message
+## Server API
+- `GET /health`
+- `GET /api/connection`
+- `GET /api/market`
 
-Example request:
-```http
-POST /api/telegram/notify
-Authorization: Bearer <TELEGRAM_NOTIFY_TOKEN>
-Content-Type: application/json
+Default server: https://ai-universal-signal-radar-main.onrender.com
 
-{"message":"Connection test"}
-```
+The server remains Main Market / Non-OTC / EUR/USD M1. No broker auto-trading is implemented.
 
-No OCR, screenshot capture, price ingestion, market data, indicators, trading signals, or broker execution are included.
+## Background behavior
+Enable **BACKGROUND ALERTS** inside the app. Android displays an ongoing foreground-service notification while polling. Android 13+ notification permission is required. Force-stop, battery restrictions, and Android 15's dataSync foreground-service time limit can interrupt continuous polling; guaranteed 24/7 delivery would need a push provider such as Firebase Cloud Messaging.

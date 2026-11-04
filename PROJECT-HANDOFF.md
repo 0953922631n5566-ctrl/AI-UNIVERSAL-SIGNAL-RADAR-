@@ -3,61 +3,44 @@
 Updated: 2026-11-04
 Branch: feature/server-price-extraction
 
-## Active specification
+## Active server specification
 - Main Market (Non-OTC), EUR/USD, M1 only.
-- Twelve Data REST time series; no OCR, Android APK, 8xTrade, broker execution, or OTC.
-- Express backend with a guarded 15-second data cache, API request spacing, 200-candle history, stale-candle fail-closed behavior, and STANDBY on missing/invalid data.
-- Adaptive analysis: EMA 9/21/50, RSI 14, MACD 12/26/9, candle price action, 20-candle support/resistance, range volatility, and momentum.
+- Twelve Data REST time series; no OCR, 8xTrade, OTC, or broker order execution.
+- Express backend, guarded 15-second cache, 200-candle history, stale-data fail-closed behavior.
+- Adaptive analysis with EMA 9/21/50, RSI 14, MACD 12/26/9, price action, support/resistance, volatility, and momentum.
 - Regimes: TRENDING, RANGING, HIGH VOLATILITY, REVERSAL, UNCLEAR.
-- Strict evidence threshold: 64%; conflict, unclear regime, high volatility, or stale data => STANDBY.
-- Signal display lifetime: 40 seconds; one signal per closed candle.
-- Mini App shows signal, price, regime, reason, evidence score, M1 countdown, and API state; browser sound/vibration controls.
+- Strict evidence threshold: 64; conflicts/unclear/high volatility/stale data => STANDBY.
+- Signal endpoint exposes CALL/PUT only in the final 10 seconds of the current M1 candle; one signal per closed candle.
 
-## Files
-- server.js — market data ingestion, rate guard, freshness guard, analysis and Telegram notification endpoint.
-- package.json — Node 18 / Express.
-- public/index.html — responsive Mini App.
+## Android client — Signal Radar PRO
+- Native Kotlin + Jetpack Compose Android app is under `android/`.
+- Editable HTTPS Render server URL, saved locally on device.
+- Reads `GET /api/market` directly; no Telegram bot token, Chat ID, or Telegram API required by the Android app.
+- User-controlled background monitor uses an Android foreground dataSync service and polls every 5 seconds. Backend caches Twelve Data calls, so this does not call Twelve Data on every app poll.
+- Local high-priority Android notification maps CALL => BUY and PUT => SELL, with sound/vibration and per-candle deduplication.
+- Requires Android 13+ notification permission. Monitoring starts only after user enables it in the app. Force-stop stops the service; Android battery controls may affect long-running background work. Android 15 applies a time limit to dataSync foreground services; true 24/7 unattended delivery would require push (e.g. FCM) rather than continuous polling.
+- Debug APK is built by GitHub Actions workflow `.github/workflows/android-apk.yml` and uploaded as artifact `signal-radar-pro-debug-apk`. This is an installable debug-signed APK, not a Play Store release-signed build.
 
-## Render environment
-Preserve existing variables and secrets. Required market variable:
-- TWELVE_DATA_API_KEY
+## API endpoints
+- `GET /health` — health/configuration flags.
+- `GET /api/connection` — non-secret connection status.
+- `GET /api/market` — JSON market/signal payload used by Android app.
+- Legacy `POST /api/telegram/notify` remains in server source for compatibility only; the Android app does not use it.
 
-Existing Telegram variables remain supported:
-- TELEGRAM_BOT_TOKEN
-- TELEGRAM_CHAT_ID
-- TELEGRAM_NOTIFY_TOKEN
+## Android API contract
+- Base URL default: `https://ai-universal-signal-radar-main.onrender.com`
+- Market path: `GET {baseUrl}/api/market`
+- Health test: `GET {baseUrl}/health`
+- Relevant fields: `status`, `signal` (CALL/PUT/STANDBY), `regime`, `score`, `reason`, `price`, `dataAgeMs`, `candleTime`, `countdownSeconds`, `signalWindowOpen`.
+- App notifies only when signal is CALL/PUT, signalWindowOpen=true, dataAgeMs <= 150000, and candleTime+signal have not already been notified.
 
-Never print or commit secret values. Add TWELVE_DATA_API_KEY in Render Dashboard if not already configured.
+## Build and verification
+- Workflow: `.github/workflows/android-apk.yml`
+- Build command in CI: `cd android && gradle --no-daemon assembleDebug`
+- Artifact path: `android/app/build/outputs/apk/debug/app-debug.apk`
+- Must verify GitHub Actions build succeeds before distributing APK.
+- Must install and test on Xiaomi 11T / Android 14: URL save/change, health test, background monitoring, notification permission, signal sound/vibration, duplicate suppression, and app restart behavior.
 
-## Endpoints
-- GET /health
-- GET /api/connection
-- GET /api/market
-- POST /api/telegram/notify (Bearer TELEGRAM_NOTIFY_TOKEN)
-
-## Verification checklist
-- Confirm Twelve Data key exists in Render environment.
-- Confirm /api/market returns fresh EUR/USD M1 candles and indicators.
-- Confirm rate-limit, missing-key, stale-data, and conflicting-evidence paths return STANDBY.
-- Confirm Mini App sound/vibration after user interaction; mobile browsers may require a tap to unlock audio.
-- Confirm deployment LIVE and inspect Render logs after deploy.
-
-## Known limitations / honest status
-The 64% value is a deterministic evidence score (count of five directional evidence groups), not a statistically calibrated probability or win-rate estimate. No strategy profitability is claimed. Browser audio/vibration depends on device/browser permissions and user interaction. Telegram delivery remains a separate authenticated endpoint.
-
-
-## Latest mobile and Telegram readiness update (2026-11-04)
-- Added Telegram WebApp SDK initialization (ready and expand) for Telegram in-app launch.
-- Countdown polling is 1 second; 10s and 3s cues use threshold-crossing guards and separate per-candle deduplication, preventing missed exact-second events and shared-key collisions.
-- Audio uses a ramped Web Audio tone and resumes the audio context after the user's sound-toggle gesture; haptics use Telegram HapticFeedback where available plus Android vibration fallback.
-- Backend sends one Telegram message when a new CALL/PUT signal is first created for a closed M1 candle, provided TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are configured.
-- Telegram credentials must be added in Render as a merge update (never replace existing variables). No secret values are stored in Git.
-- Physical Xiaomi 11T sound/vibration and actual Telegram delivery still require on-device verification after credentials are set.
-
-
-## Alert timing correction (2026-11-04)
-- Backend calculates remaining M1 seconds with a ceiling-based countdown and exposes CALL/PUT only while the current candle has 10 seconds or less remaining; before that, the UI receives STANDBY.
-- Telegram signal delivery is gated server-side to the final 10 seconds and deduplicated once per closed-candle signal.
-- The client 10-second preparation cue is restricted to countdown 1–10 seconds; the 3-second entry cue and vibration are restricted to countdown 1–3 seconds. Both are deduplicated per candle.
-- Removed duplicate legacy beep/vibration function declarations so the ramped audio and Telegram haptic implementations remain active.
-- Deployment/device verification must confirm /api/market countdown and signalWindowOpen, Telegram credentials, and physical Xiaomi 11T audio/haptic behavior.
+## Secrets
+- Never print or commit Twelve Data or notification secrets.
+- The Android app contains no Telegram credential.
