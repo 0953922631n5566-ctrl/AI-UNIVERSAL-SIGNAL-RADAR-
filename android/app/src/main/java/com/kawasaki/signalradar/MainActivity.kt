@@ -10,6 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import org.json.JSONObject
+import org.json.JSONArray
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,6 +73,20 @@ private fun MinimalRadarScreen() {
     var monitoring by remember { mutableStateOf(prefs.getBoolean("monitoring_enabled", false)) }
     var soundEnabled by remember { mutableStateOf(prefs.getBoolean("alert_sound_enabled", true)) }
     var saved by remember { mutableStateOf("Server URL ที่บันทึกไว้") }
+    var apiSummary by remember { mutableStateOf(prefs.getString("api_keys_summary", "{}") ?: "{}") }
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "api_keys_summary") apiSummary = prefs.getString("api_keys_summary", "{}") ?: "{}"
+            if (key == "monitoring_enabled") monitoring = prefs.getBoolean("monitoring_enabled", false)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val api = remember(apiSummary) { runCatching { JSONObject(apiSummary) }.getOrDefault(JSONObject()) }
+    val keyRows = remember(apiSummary) {
+        val arr = api.optJSONArray("keys") ?: JSONArray()
+        (0 until arr.length()).map { arr.getJSONObject(it) }
+    }
 
     MaterialTheme(colorScheme = darkColorScheme(
         primary = Color(0xFF20D68A), background = Color(0xFF080E18),
@@ -76,14 +94,29 @@ private fun MinimalRadarScreen() {
     )) {
         Surface(Modifier.fillMaxSize(), color = Color(0xFF080E18)) {
             Column(
-                Modifier.fillMaxSize().padding(22.dp),
-                verticalArrangement = Arrangement.Center,
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(22.dp),
+                verticalArrangement = Arrangement.Top,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("SIGNAL RADAR PRO", color = Color.White, fontSize = 23.sp)
                 Spacer(Modifier.height(8.dp))
                 Text("EUR/USD · MAIN MARKET · M1 · Threshold 64", color = Color(0xFF91A3B9), fontSize = 12.sp)
-                Spacer(Modifier.height(34.dp))
+                Spacer(Modifier.height(24.dp))
+                Text("API Keys ทั้งหมด: ${api.optInt("total")} | พร้อมใช้: ${api.optInt("ready") + api.optInt("active")} | หมดโควตา: ${api.optInt("depleted")}",
+                    color = Color.White, fontSize = 13.sp)
+                if (api.optBoolean("allDepleted", false)) Text("All API Keys Depleted · STANDBY", color = Color(0xFFFF6B6B), fontSize = 15.sp)
+                else if (api.optBoolean("allUnavailable", false)) Text("All API Keys Unavailable · STANDBY", color = Color(0xFFFFB74D), fontSize = 14.sp)
+                keyRows.forEach { item ->
+                    val st = item.optString("status", "UNKNOWN")
+                    val tint = when (st) {
+                        "ACTIVE" -> Color(0xFF20D68A)
+                        "READY" -> Color(0xFF91A3B9)
+                        "DEPLETED", "RATE_LIMITED", "ERROR" -> Color(0xFFFF7777)
+                        else -> Color.LightGray
+                    }
+                    Text("Key #${item.optInt("index")}: $st", color = tint, fontSize = 13.sp)
+                }
+                Spacer(Modifier.height(22.dp))
                 Button(
                     onClick = {
                         val next = !monitoring
