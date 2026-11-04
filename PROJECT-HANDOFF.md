@@ -80,3 +80,10 @@ Branch: feature/server-price-extraction
 - This is polling + local notification, not FCM remote push. Continuous background operation is best-effort: Android/MIUI battery management, user force-stop, revoked permissions, network loss, and OS foreground-service policy can interrupt it. It is not honest to promise 100% uptime or operation after force-stop.
 - Set targetSdk 34 to avoid opting into Android 15 target-35 dataSync foreground-service time limits while retaining Android 14 compatibility. Device-level Xiaomi 11T testing remains required.
 - APK version 1.1.0 / versionCode 3. Build and verify GitHub Actions artifact before distribution.
+
+## Colored background signal notifications — 2026-11-04
+- User requested visibly colored background CALL/PUT alerts, not text-only notifications.
+- Added `android/app/src/main/res/layout/notification_signal.xml`: full card green (#176B43) for CALL and red (#982D3B) for PUT, showing EUR/USD M1, price, reason, candle time, and app name.
+- Updated `SignalPollingService.kt` to use Android RemoteViews custom collapsed and expanded notification layouts. Retained signal freshness/window checks, per-candle deduplication, sound, vibration, and the existing Render API contract.
+- Bumped APK to versionName 1.2.0 / versionCode 4 for upgrade over 1.1.0.
+- GitHub Actions build and Xiaomi 11T visual/sound/vibration verification are still required. Android/HyperOS may decorate notification surfaces differently.
