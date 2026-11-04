@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "backtest:m1": "node scripts/backtest-m1.js"
+    "backtest:m1": "node scripts/backtest-m1.js",
+    "backtest:ticks": "node scripts/backtest-ticks.js"
   },
   "dependencies": {
     "express": "^4.21.2"
