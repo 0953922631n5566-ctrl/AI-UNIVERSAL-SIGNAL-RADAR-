@@ -3,105 +3,51 @@
 Updated: 2026-11-04
 Branch: feature/server-price-extraction
 
-## Active server specification
+## Canonical project scope
 - Main Market (Non-OTC), EUR/USD, M1 only.
-- Twelve Data REST time series; no OCR, 8xTrade, OTC, or broker order execution.
-- Express backend, guarded 15-second cache, 200-candle history, stale-data fail-closed behavior.
-- Adaptive analysis with EMA 9/21/50, RSI 14, MACD 12/26/9, price action, support/resistance, volatility, and momentum.
-- Regimes: TRENDING, RANGING, HIGH VOLATILITY, REVERSAL, UNCLEAR.
-- Evidence threshold: 64 on a calibrated 7-check scale. Each positive evidence check contributes 16 points, capped at 100: 3/7 = 48 (fails), 4/7 = 64 (passes), 5/7 = 80, 6/7 = 96, 7/7 = 100. Thus threshold 64 genuinely permits 4 of 7 checks, subject to the existing regime, volatility, support/resistance, direction-conflict, and fresh-data safety gates. UNCLEAR/high volatility/stale data => STANDBY.
-- Signal endpoint exposes CALL/PUT only in the final 10 seconds of the current M1 candle; one signal per closed candle.
+- Twelve Data REST candles are fetched by the Render server; API credentials never belong in the APK.
+- No OCR, 8xTrade, OTC, broker order execution, Telegram integration, Telegram bot credentials, or Telegram notification endpoint.
+- Android APK on the user's Xiaomi 11T is the sole alert destination.
 
-## Android client — Signal Radar PRO
-- Native Kotlin + Jetpack Compose Android app is under `android/`.
-- Editable HTTPS Render server URL, saved locally on device.
-- Reads `GET /api/market` directly; no Telegram bot token, Chat ID, or Telegram API required by the Android app.
-- User-controlled background monitor uses an Android foreground dataSync service and polls every 5 seconds. Backend caches Twelve Data calls, so this does not call Twelve Data on every app poll.
-- Local high-priority Android notification maps CALL => BUY and PUT => SELL, with sound/vibration and per-candle deduplication.
-- Requires Android 13+ notification permission. Monitoring starts only after user enables it in the app. Force-stop stops the service; Android battery controls may affect long-running background work. Android 15 applies a time limit to dataSync foreground services; true 24/7 unattended delivery would require push (e.g. FCM) rather than continuous polling.
-- Debug APK is built by GitHub Actions workflow `.github/workflows/android-apk.yml` and uploaded as artifact `signal-radar-pro-debug-apk`. This is an installable debug-signed APK, not a Play Store release-signed build.
+## Server
+- Node.js / Express service on Render: https://ai-universal-signal-radar-main.onrender.com
+- Market endpoint: GET /api/market
+- Health endpoint: GET /health
+- Twelve Data candle cache: 15 seconds; API minimum-call guard: 10 seconds.
+- Closed M1 candles only; stale/missing data fails closed to STANDBY.
+- Signal threshold: 64 on the calibrated evidence scale, with existing regime, volatility, support/resistance, and direction-conflict filters.
+- CALL/PUT is exposed only while countdownSeconds <= 5 (final five seconds of the current M1 clock window).
+- Signal is keyed to the latest fully closed candle and is deduplicated on the Android client by candleTime + signal.
+- Server must not send alerts to any third-party messaging platform.
 
-## API endpoints
-- `GET /health` — health/configuration flags.
-- `GET /api/connection` — non-secret connection status.
-- `GET /api/market` — JSON market/signal payload used by Android app.
-- Legacy `POST /api/telegram/notify` remains in server source for compatibility only; the Android app does not use it.
+## Android client
+- Native Kotlin + Jetpack Compose app; application ID: com.kawasaki.signalradar.
+- Current source version before this review: 1.2.1 / versionCode 5.
+- Default server URL: https://ai-universal-signal-radar-main.onrender.com
+- Foreground dataSync service polls GET /api/market on an approximately 1-second cadence while monitoring is enabled. Requests are sequential; actual interval includes request latency.
+- Client accepts an alert only when signal is CALL or PUT, signalWindowOpen=true, and dataAgeMs <= 150000.
+- Duplicate suppression key: candleTime + signal.
+- Local Android notification uses a green CALL card or red PUT card, high-importance channel, app-generated alarm tone controlled by the sound switch, and notification vibration.
+- This is background polling plus local Android notification, not FCM remote push.
+- Required Android permissions include INTERNET, POST_NOTIFICATIONS, VIBRATE, FOREGROUND_SERVICE, and FOREGROUND_SERVICE_DATA_SYNC.
+- Notification permission must be granted. User/device notification-channel settings, DND, volume, network, Android process controls, and Xiaomi HyperOS battery/autostart policies can still affect delivery.
+- Force-stop prevents background restart until the user opens the app again. No 100% uptime guarantee.
+- Xiaomi 11T / Android 14 physical-device verification is mandatory before claiming audible, vibration, heads-up, reboot, or long-duration reliability.
 
-## Android API contract
-- Base URL default: `https://ai-universal-signal-radar-main.onrender.com`
-- Market path: `GET {baseUrl}/api/market`
-- Health test: `GET {baseUrl}/health`
-- Relevant fields: `status`, `signal` (CALL/PUT/STANDBY), `regime`, `score`, `reason`, `price`, `dataAgeMs`, `candleTime`, `countdownSeconds`, `signalWindowOpen`.
-- App notifies only when signal is CALL/PUT, signalWindowOpen=true, dataAgeMs <= 150000, and candleTime+signal have not already been notified.
+## Background service timing
+- Polling cadence is approximately one second, with request latency included; requests have bounded connection/read timeouts.
+- Render's final-five-second gate is authoritative. The APK does not independently calculate the M1 window.
+- A slow/unavailable Render response can still miss a five-second window. Verify with live server and device tests.
+- The 15-second server cache protects Twelve Data quota; APK polling does not mean Twelve Data is called every second.
 
 ## Build and verification
-- Workflow: `.github/workflows/android-apk.yml`
-- Build command in CI: `cd android && gradle --no-daemon assembleDebug`
-- Artifact path: `android/app/build/outputs/apk/debug/app-debug.apk`
-- Must verify GitHub Actions build succeeds before distributing APK.
-- Must install and test on Xiaomi 11T / Android 14: URL save/change, health test, background monitoring, notification permission, signal sound/vibration, duplicate suppression, and app restart behavior.
+- GitHub Actions workflow: .github/workflows/android-apk.yml
+- Build command: cd android && gradle --no-daemon assembleDebug
+- Artifact name: signal-radar-pro-debug-apk (debug-signed APK, installable for testing; not Play Store release-signed).
+- After source changes, verify CI success and artifact presence.
+- Device test checklist: enable monitoring; grant notifications; verify green CALL/red PUT heads-up card; sound ON/OFF; vibration; duplicate suppression; screen off; app background; reboot; Xiaomi Autostart and battery settings.
+- Do not claim physical-device testing unless the user confirms or a real device test is performed.
 
-## Secrets
-- Never print or commit Twelve Data or notification secrets.
-- The Android app contains no Telegram credential.
-
-## Android UI refresh — Thai complete dashboard
-- MainActivity now presents Thai-language EUR/USD M1 dashboard: signal, current price, evidence score, countdown, market regime, data age, EMA 9/21/50, RSI, MACD histogram, support/resistance, volatility, momentum, and AI reason.
-- Buy/sell pressure is explicitly a heuristic display derived from EMA alignment and momentum only; it is NOT order-book/order-flow data and must not be described as actual buyer/seller volume.
-- Monitoring toggle starts/stops the existing Android foreground polling service.
-- Alert volume (0–100), mute toggle, and test sound are stored locally. The service uses app-controlled ToneGenerator alerts at countdown 10 seconds, 3 seconds, and on CALL/PUT. Poll interval is 1 second; backend Twelve Data fetches remain protected by the server-side cache.
-- Signal calculation, evidence threshold, EUR/USD pair, M1 timeframe, and server final-10-second signal window were not changed by this Android UI update.
-- The notification channel uses vibration; audible alert tones are generated by the app so its volume slider can control them. Android channel/user sound settings may still affect notification presentation.
-- CI build and Xiaomi 11T device verification must be checked after this commit. Do not claim device-tested until the APK is installed and exercised on the phone.
-
-
-## User-requested 64 threshold + APK refresh — 2026-11-04
-- User explicitly confirmed the target is the existing Signal Radar PRO app, not a new OCR or replacement project.
-- Changed the Main Market server analyzer threshold constant from 68 to 64 in `server.js`; retained the same seven evidence checks, EUR/USD M1 logic, final-10-second signal window, and existing Android UI/background polling behavior.
-- Important scoring detail: the score is calculated from 7 binary checks (increments of about 14.3 points). With the current integer score calculation, the first attainable score above both 68 and 64 is 71. Therefore changing only the constant records the requested 64 setting but does not by itself make the current analyzer more permissive. Do not change scoring granularity or evidence rules without user approval.
-- Incremented Android versionCode to 2 and versionName to 1.0.1 to produce a distinguishable refreshed APK. The Android app's configured default server URL remains unchanged: https://ai-universal-signal-radar-main.onrender.com.
-- Build workflow is triggered by Android file changes on this branch. Verify CI success and artifact before claiming a new APK is ready.
-- This source update does not itself deploy the server to Render. Confirm the Render service is tracking this branch or separately deploy the updated server.js before saying the live server uses threshold 64.
-
-
-## Evidence threshold recalibration — 2026-11-04
-- User approved lowering the effective signal gate so 4 of 7 evidence checks can pass at threshold 64.
-- Updated `server.js`: evidence score is now `Math.min(100, count * 16)` for CALL and PUT.
-- Mapping: 3/7 = 48 (below threshold), 4/7 = 64 (meets threshold), 5/7 = 80, 6/7 = 96, 7/7 = 100.
-- The seven underlying checks and all existing regime/volatility/near-support-resistance/conflicting-direction filters remain in place. This changes the effective scoring scale, not the underlying evidence checks.
-- Render deployment must be confirmed before claiming the live service is updated. Check the service's configured branch and latest deploy status; do not assume deployment from the GitHub commit alone.
-
-
-## Minimal background-notification APK — 2026-11-04
-- User requested a minimal ON/OFF + Server URL app focused on background CALL/PUT notifications, no floating window and no dashboard.
-- Replaced MainActivity UI with minimal controls; kept existing package/application ID and Render server URL default.
-- Polling foreground service checks the Render `/api/market` endpoint every second while enabled, deduplicates alerts by candle + signal, and shows CALL (green) / PUT (red) notification with immediate app-generated alarm tone and vibration.
-- Added BOOT_COMPLETED receiver to attempt service restart after reboot when monitoring was enabled. Android notification permission is required for visible alert notifications.
-- This is polling + local notification, not FCM remote push. Continuous background operation is best-effort: Android/MIUI battery management, user force-stop, revoked permissions, network loss, and OS foreground-service policy can interrupt it. It is not honest to promise 100% uptime or operation after force-stop.
-- Set targetSdk 34 to avoid opting into Android 15 target-35 dataSync foreground-service time limits while retaining Android 14 compatibility. Device-level Xiaomi 11T testing remains required.
-- APK version 1.1.0 / versionCode 3. Build and verify GitHub Actions artifact before distribution.
-
-## Colored background signal notifications — 2026-11-04
-- User requested visibly colored background CALL/PUT alerts, not text-only notifications.
-- Added `android/app/src/main/res/layout/notification_signal.xml`: full card green (#176B43) for CALL and red (#982D3B) for PUT, showing EUR/USD M1, price, reason, candle time, and app name.
-- Updated `SignalPollingService.kt` to use Android RemoteViews custom collapsed and expanded notification layouts. Retained signal freshness/window checks, per-candle deduplication, sound, vibration, and the existing Render API contract.
-- Bumped APK to versionName 1.2.0 / versionCode 4 for upgrade over 1.1.0.
-- GitHub Actions build and Xiaomi 11T visual/sound/vibration verification are still required. Android/HyperOS may decorate notification surfaces differently.
-
-
-## Alert sound toggle fix — 2026-11-04
-- Found APK 1.2.0 had no sound ON/OFF control in its minimal UI, despite earlier handoff notes describing one. The signal notification channel intentionally uses `setSound(null, null)`; audible alert was app-generated only.
-- Added a persistent `alert_sound_enabled` switch to the Android app (default ON). The foreground service checks this preference before playing the CALL/PUT alert tone; OFF suppresses audible tone while retaining visual notification and vibration.
-- Added delayed ToneGenerator release after playback to avoid leaving the audio generator allocated.
-- This change does not alter signal calculation, API polling, freshness checks, notification colors, vibration, or per-candle deduplication.
-- Build and real Xiaomi 11T testing are pending; verify ON produces sound and OFF remains silent while visual notifications continue.
-
-
-## M1 signal window tightened to final five seconds — 2026-11-04
-- User requested the CALL/PUT signal window move from seconds 50–59 to seconds 55–59 of each M1 candle.
-- Updated `server.js`: `signalWindowOpen` now opens only when `countdownSeconds <= 5`; API error/fallback payload uses the same condition.
-- Updated server comments and Telegram entry-timing label to say final five seconds.
-- Retained the existing decision source (latest fully closed M1 candle), EUR/USD Main Market scope, 64 evidence threshold, freshness/volatility/regime filters, one-signal-per-candle deduplication, and 40-second signal lifetime logic.
-- Important timing clarification: this changes when a prepared closed-candle decision becomes visible; it does not make the Twelve Data feed tick-by-tick or guarantee a fresh REST response at second 55. Server candle cache remains 15 seconds and API minimum-call guard remains 10 seconds to protect the Twelve Data quota.
-- Commits: `c9d4f2e` (window gate/comments), `56b05aa` (fallback and Telegram timing label).
-- Render deployment and live endpoint verification must be completed before claiming the live service uses the five-second window.
+## Secrets and retired integrations
+- Never print or commit API keys or tokens.
+- Telegram integration is retired and must not be reintroduced: no Telegram send function, bot token/chat ID settings, notification token, endpoint, or delivery path.
