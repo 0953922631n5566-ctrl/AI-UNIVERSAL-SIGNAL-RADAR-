@@ -326,3 +326,11 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - It performs orange-price OCR and returns only a price candidate plus confidence/evidence; it deliberately returns STANDBY with `PRICE_CANDIDATE_ONLY` or `ORANGE_BADGE_NOT_FOUND`. This is OCR extraction, not chart-regime perception or a validated directional decision model.
 - Historical Render logs showed repeated `POST /v1/frame` HTTP 401 responses. A fresh log query later returned a Render log-service 503, so current request/auth state could not be rechecked in this run.
 - The current main-branch APK remains incompatible with this service: it sends JSON price data to `/api/upload-screen` using `x-ocr-token`, rather than multipart JPEG/PNG to `/v1/frame` using Bearer auth. No successful end-to-end connection is established.
+
+
+## APK-side hard STANDBY gate — 2026-11-04
+
+- Follow-up Android source commit: `386d0240bc13c83b9e45153a91557d0d75563cb9`.
+- `CaptureService.kt` now forces the displayed result to STANDBY even if an upstream response contains CALL or PUT. It explains that directional output is disabled until the perception and decision model has passed evaluation.
+- This supersedes the prior allowlist-only behavior in commit `c3ab12b1ae5e35d3bb2580ac10f04526e06e430c`. Do not distribute artifact from run `41786296602` as the latest safety-gated APK.
+- New main-branch build run `41786849036`, source commit `386d0240bc13c83b9e45153a91557d0d75563cb9`, was in progress when this note was written. Wait for completed/success and artifact verification before distributing.
