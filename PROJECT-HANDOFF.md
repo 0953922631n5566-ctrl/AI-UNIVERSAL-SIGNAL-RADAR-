@@ -367,3 +367,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The feature branch source also still contains the OCR/MediaProjection implementation. Before building its APK, replace that implementation with the approved EUR/USD Main Market client and remove OCR/MediaProjection dependencies and permissions.
 - The approved feature also requires the Main Market backend's authenticated Android API and FCM push pipeline. Firebase Android configuration and server-side Firebase credentials are not yet available; do not claim background push is working until configured and tested.
 - The latest audit therefore confirms: **there is a buildable APK artifact, but no correct/approved new APK ready for the user.**
+
+
+## Signal selection strictness restored to 64% — 2026-11-04
+
+- User clarified that the requested 64% refers to **signal-selection strictness**, not confidence/win probability.
+- On branch `feat/main-market-apk-background-fcm`, the default `SIGNAL_STRICTNESS` is set to 64 (environment variable `SIGNAL_STRICTNESS` can still explicitly override it).
+- The strictness-to-RSI confirmation mapping is now consistent between the exported default constant and the live evaluator: 64 maps to RSI bullish confirmation 51.35 and symmetric bearish confirmation 48.65.
+- EMA trend alignment, breakout confirmation, range filters, fresh-data guards, and STANDBY conditions are preserved. This is a small filter adjustment, not a claim of 64% accuracy or a 64% win rate.
+- Node tests now assert the 64% default and matching RSI threshold.
+- Node test workflow now runs on pushes to this APK feature branch as well as main, so this branch can produce direct CI evidence.
+- This change updates the rule-based Node signal engine only. It does not make the Android app Main Market-ready, does not remove OCR code, does not configure Firebase/FCM, and does not create a downloadable APK by itself.
