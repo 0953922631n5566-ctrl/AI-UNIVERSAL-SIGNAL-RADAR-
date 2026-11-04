@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "backtest:m1": "node scripts/backtest-m1.js"
   },
   "dependencies": {
     "express": "^4.21.2"
