@@ -3,40 +3,44 @@
 Updated: 2026-11-04
 Branch: feature/server-price-extraction
 
-## Active scope
-The project is intentionally reduced to ONLY:
-1. Basic HTTP connection/health status.
-2. Telegram notification delivery.
+## Active specification
+- Main Market (Non-OTC), EUR/USD, M1 only.
+- Twelve Data REST time series; no OCR, Android APK, 8xTrade, broker execution, or OTC.
+- Express backend with a guarded 15-second data cache, API request spacing, 200-candle history, stale-candle fail-closed behavior, and STANDBY on missing/invalid data.
+- Adaptive analysis: EMA 9/21/50, RSI 14, MACD 12/26/9, candle price action, 20-candle support/resistance, range volatility, and momentum.
+- Regimes: TRENDING, RANGING, HIGH VOLATILITY, REVERSAL, UNCLEAR.
+- Strict evidence threshold: 64%; conflict, unclear regime, high volatility, or stale data => STANDBY.
+- Signal display lifetime: 40 seconds; one signal per closed candle.
+- Mini App shows signal, price, regime, reason, evidence score, M1 countdown, and API state; browser sound/vibration controls.
 
-## Retained files
-- `server.js` — Express connection endpoints and authenticated Telegram send endpoint.
-- `public/index.html` — minimal server/Telegram connection status UI.
-- `package.json` — minimal Node.js runtime dependency.
-- `README.md` — API and Render environment setup.
+## Files
+- server.js — market data ingestion, rate guard, freshness guard, analysis and Telegram notification endpoint.
+- package.json — Node 18 / Express.
+- public/index.html — responsive Mini App.
 
-## Explicitly removed from this branch
-- Android APK project, MediaProjection, screen capture and OCR.
-- Raw OCR text ingestion, price parsing, price/candle state, M1 aggregation.
-- Indicator calculations, forecast engine, CALL/PUT/STANDBY trading analysis UI.
-- Python frame-ingestion backend.
-- OCR/price/forecast test suites and Android/APK GitHub Actions workflows.
-- Historical OCR/market handoff and strategy documents.
+## Render environment
+Preserve existing variables and secrets. Required market variable:
+- TWELVE_DATA_API_KEY
 
-## Telegram configuration
-Render environment variables:
+Existing Telegram variables remain supported:
 - TELEGRAM_BOT_TOKEN
 - TELEGRAM_CHAT_ID
 - TELEGRAM_NOTIFY_TOKEN
 
-The status endpoints expose only whether configuration exists, never secret values. The send endpoint requires Authorization: Bearer TELEGRAM_NOTIFY_TOKEN and accepts a JSON body with a message up to 4,000 characters.
+Never print or commit secret values. Add TWELVE_DATA_API_KEY in Render Dashboard if not already configured.
 
 ## Endpoints
 - GET /health
 - GET /api/connection
-- POST /api/telegram/notify
+- GET /api/market
+- POST /api/telegram/notify (Bearer TELEGRAM_NOTIFY_TOKEN)
 
-## Deployment notes
-The Render service's existing environment variables must be preserved; do not replace the complete environment set during this cleanup. Deploy the cleaned branch only after confirming the intended Render workspace and service. After deployment, verify /health and /api/connection. Telegram delivery requires valid bot token, chat ID, and notification bearer token in Render.
+## Verification checklist
+- Confirm Twelve Data key exists in Render environment.
+- Confirm /api/market returns fresh EUR/USD M1 candles and indicators.
+- Confirm rate-limit, missing-key, stale-data, and conflicting-evidence paths return STANDBY.
+- Confirm Mini App sound/vibration after user interaction; mobile browsers may require a tap to unlock audio.
+- Confirm deployment LIVE and inspect Render logs after deploy.
 
-## Safety
-No APK, OCR, screenshot capture, price extraction, market API, candle engine, forecast, CALL/PUT generation, or broker execution exists in this codebase state.
+## Known limitations / honest status
+The 64% value is a deterministic evidence score (count of five directional evidence groups), not a statistically calibrated probability or win-rate estimate. No strategy profitability is claimed. Browser audio/vibration depends on device/browser permissions and user interaction. Telegram delivery remains a separate authenticated endpoint.
