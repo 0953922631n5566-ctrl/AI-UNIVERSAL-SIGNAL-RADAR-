@@ -87,3 +87,11 @@ Branch: feature/server-price-extraction
 - Updated `SignalPollingService.kt` to use Android RemoteViews custom collapsed and expanded notification layouts. Retained signal freshness/window checks, per-candle deduplication, sound, vibration, and the existing Render API contract.
 - Bumped APK to versionName 1.2.0 / versionCode 4 for upgrade over 1.1.0.
 - GitHub Actions build and Xiaomi 11T visual/sound/vibration verification are still required. Android/HyperOS may decorate notification surfaces differently.
+
+
+## Alert sound toggle fix — 2026-11-04
+- Found APK 1.2.0 had no sound ON/OFF control in its minimal UI, despite earlier handoff notes describing one. The signal notification channel intentionally uses `setSound(null, null)`; audible alert was app-generated only.
+- Added a persistent `alert_sound_enabled` switch to the Android app (default ON). The foreground service checks this preference before playing the CALL/PUT alert tone; OFF suppresses audible tone while retaining visual notification and vibration.
+- Added delayed ToneGenerator release after playback to avoid leaving the audio generator allocated.
+- This change does not alter signal calculation, API polling, freshness checks, notification colors, vibration, or per-candle deduplication.
+- Build and real Xiaomi 11T testing are pending; verify ON produces sound and OFF remains silent while visual notifications continue.
