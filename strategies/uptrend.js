@@ -1,0 +1,3 @@
+'use strict';
+function evaluateUptrend(x){const i=x.indicators,c=x.latest,p=x.candles.at(-2);if(!i||!c||!p)return{signal:'STANDBY',score:0,reason:'Missing trend context'};const pull=c.low<=i.ema9||c.close<=i.ema9*1.0002,reclaim=c.close>i.ema9&&c.close>c.open&&c.close>p.close,n=[i.adx>=22,i.plusDI>i.minusDI,i.rsi>=50&&i.rsi<=68,i.macdHistogram>0,pull&&reclaim,!i.nearResistance].filter(Boolean).length;return n>=4?{signal:'CALL',score:Math.min(100,n*16),reason:'Uptrend pullback and bullish momentum confirmed'}:{signal:'STANDBY',score:n*16,reason:'Uptrend entry confirmation incomplete'};}
+module.exports={evaluateUptrend};
