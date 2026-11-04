@@ -20,7 +20,40 @@ app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }))
 let cache = { at: 0, candles: null, error: null };
 let lastSignalCandle = null;
 let activeSignal = null;
-let apiNextAllowedAt = 0;
+let keyCursor = 0;
+const keyHealth = new Map();
+const keyNextAllowedAt = new Map();
+function configuredKeys() {
+  const many = (process.env.TWELVE_DATA_KEYS || '').split(',').map(x => x.trim()).filter(Boolean);
+  const keys = many.length ? many : [process.env.TWELVE_DATA_API_KEY || ''].filter(Boolean);
+  return [...new Set(keys)];
+}
+function utcTomorrow() { const d = new Date(); d.setUTCHours(24,0,0,0); return d.getTime(); }
+function stateFor(i) {
+  if (!keyHealth.has(i)) keyHealth.set(i,{status:'READY',message:'',retryAt:0});
+  const st=keyHealth.get(i);
+  if (['RATE_LIMITED','ERROR','DEPLETED'].includes(st.status) && Date.now()>=st.retryAt) {
+    st.status='READY'; st.message=''; st.retryAt=0;
+  }
+  return st;
+}
+function apiKeySummary() {
+  const items=configuredKeys().map((_,i)=>({index:i+1,...stateFor(i)}));
+  const count=x=>items.filter(k=>k.status===x).length;
+  return {total:items.length,active:count('ACTIVE'),ready:count('READY'),depleted:count('DEPLETED'),
+    rateLimited:count('RATE_LIMITED'),error:count('ERROR'),
+    allDepleted:items.length>0&&items.every(k=>k.status==='DEPLETED'),
+    allUnavailable:items.length>0&&items.every(k=>!['READY','ACTIVE'].includes(k.status)),
+    keys:items.map(({index,status,message,retryAt})=>({index,status,message,retryAt}))};
+}
+function markKey(i,status,message='',retryAt=0) {
+  keyHealth.set(i,{status,message:String(message).slice(0,120),retryAt});
+  if(status==='ACTIVE') for(const [j,st] of keyHealth.entries()) if(j!==i&&st.status==='ACTIVE') st.status='READY';
+}
+function isQuotaDepleted(response,data) {
+  const msg=String(data?.message||data?.msg||'').toLowerCase();
+  return response.status===403 || /daily|per day|credits exhausted|quota.*(exceed|exhaust|limit)|api credits/.test(msg);
+}
 
 function connectionStatus() {
   return { status: 'ONLINE', service: 'MAIN_MARKET_EURUSD_M1', market: 'MAIN', symbol: SYMBOL,
@@ -103,27 +136,49 @@ function analyze(candles) {
 async function fetchCandles(force=false) {
   const now=Date.now();
   if(!force&&cache.candles&&now-cache.at<CACHE_MS)return cache;
-  if(now<apiNextAllowedAt) {
-    if(cache.candles)return cache;
-    throw new Error('RATE_LIMIT_GUARD');
+  const keys=configuredKeys();
+  if(!keys.length)throw new Error('TWELVE_DATA_API_KEYS_MISSING');
+  let lastError='TWELVE_DATA_UNAVAILABLE';
+  for(let offset=0;offset<keys.length;offset++) {
+    const i=(keyCursor+offset)%keys.length, st=stateFor(i);
+    if(['DEPLETED','RATE_LIMITED','ERROR'].includes(st.status))continue;
+    if(Date.now()<(keyNextAllowedAt.get(i)||0))continue;
+    keyNextAllowedAt.set(i,Date.now()+10000);
+    const url=new URL(API_BASE);
+    url.search=new URLSearchParams({symbol:SYMBOL,interval:INTERVAL,outputsize:String(MAX_CANDLES),timezone:'UTC',apikey:keys[i]}).toString();
+    try {
+      const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
+      const data=await response.json().catch(()=>({}));
+      if(response.status===429||data.code===429||isQuotaDepleted(response,data)) {
+        const depleted=isQuotaDepleted(response,data);
+        markKey(i,depleted?'DEPLETED':'RATE_LIMITED',data.message||'Rate limited',
+          depleted?utcTomorrow():Date.now()+60000);
+        lastError=depleted?'TWELVE_DATA_QUOTA_EXHAUSTED':'TWELVE_DATA_RATE_LIMIT';
+        continue;
+      }
+      if(!response.ok||data.status==='error'||!Array.isArray(data.values)) {
+        markKey(i,'ERROR',data.message||'Provider error',Date.now()+60000);
+        lastError=data.message||'TWELVE_DATA_UNAVAILABLE'; continue;
+      }
+      const candles=data.values.map(v=>({time:Date.parse(v.datetime.replace(' ','T')+'Z'),
+        open:Number(v.open),high:Number(v.high),low:Number(v.low),close:Number(v.close)}))
+        .filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite))
+        .filter(x=>x.time+60000<=Date.now()).sort((a,b)=>a.time-b.time);
+      if(candles.length<60) {
+        markKey(i,'ERROR','Insufficient historical candles',Date.now()+60000);
+        lastError='INSUFFICIENT_CANDLES'; continue;
+      }
+      markKey(i,'ACTIVE',''); keyCursor=(i+1)%keys.length;
+      cache={at:Date.now(),candles,error:null}; return cache;
+    } catch(error) {
+      markKey(i,'ERROR',error.message||'Network error',Date.now()+30000);
+      lastError=error.message||'TWELVE_DATA_UNAVAILABLE';
+    }
   }
-  const key=process.env.TWELVE_DATA_API_KEY;
-  if(!key)throw new Error('TWELVE_DATA_API_KEY_MISSING');
-  apiNextAllowedAt=now+10000;
-  const url=new URL(API_BASE);
-  url.search=new URLSearchParams({symbol:SYMBOL,interval:INTERVAL,outputsize:String(MAX_CANDLES),timezone:'UTC',apikey:key}).toString();
-  const response=await fetch(url,{signal:AbortSignal.timeout(12000)});
-  const data=await response.json().catch(()=>({}));
-  if(response.status===429||data.code===429)throw new Error('TWELVE_DATA_RATE_LIMIT');
-  if(!response.ok||data.status==='error'||!Array.isArray(data.values))throw new Error(data.message||'TWELVE_DATA_UNAVAILABLE');
-  const candles=data.values.map(v=>({time:Date.parse(v.datetime.replace(' ','T')+'Z'),
-    open:Number(v.open),high:Number(v.high),low:Number(v.low),close:Number(v.close)}))
-    .filter(x=>Number.isFinite(x.time)&&[x.open,x.high,x.low,x.close].every(Number.isFinite))
-    .filter(x=>x.time+60000<=Date.now())
-    .sort((a,b)=>a.time-b.time);
-  if(candles.length<60)throw new Error('INSUFFICIENT_CANDLES');
-  cache={at:now,candles,error:null};
-  return cache;
+  const summary=apiKeySummary();
+  if(summary.allDepleted)throw new Error('ALL_API_KEYS_DEPLETED');
+  if(summary.allUnavailable)throw new Error('ALL_API_KEYS_UNAVAILABLE');
+  throw new Error(lastError);
 }
 function candleCountdownSeconds(now = Date.now()) {
   const elapsedMs = now % 60000;
@@ -162,7 +217,7 @@ app.get('/api/market',async(_req,res)=>{
   try{const data=await fetchCandles();res.set('Cache-Control','no-store');res.json(publicState(data.candles));}
   catch(error){console.error('Market data unavailable:',error.message);
     res.status(503).json({...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
-      reason:error.message==='TWELVE_DATA_API_KEY_MISSING'?'Twelve Data API key is not configured':'Market data unavailable · '+error.message,
+      reason:error.message==='TWELVE_DATA_API_KEYS_MISSING'?'Twelve Data API keys are not configured':error.message==='ALL_API_KEYS_DEPLETED'?'All API Keys Depleted':error.message==='ALL_API_KEYS_UNAVAILABLE'?'All API Keys Unavailable':'Market data unavailable · '+error.message,
       price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});}
 });
 app.use((error,_req,res,_next)=>{
@@ -171,4 +226,4 @@ app.use((error,_req,res,_next)=>{
   console.error(error);res.status(500).json({error:'INTERNAL_SERVER_ERROR'});
 });
 if(require.main===module)app.listen(PORT,'0.0.0.0',()=>console.log('AI Signal Radar EUR/USD M1 listening on '+PORT));
-module.exports={app,analyze,ema,rsi,macd,connectionStatus};
+module.exports={app,analyze,ema,rsi,macd,connectionStatus,apiKeySummary,configuredKeys};
