@@ -95,3 +95,13 @@ Branch: feature/server-price-extraction
 - Added delayed ToneGenerator release after playback to avoid leaving the audio generator allocated.
 - This change does not alter signal calculation, API polling, freshness checks, notification colors, vibration, or per-candle deduplication.
 - Build and real Xiaomi 11T testing are pending; verify ON produces sound and OFF remains silent while visual notifications continue.
+
+
+## M1 signal window tightened to final five seconds — 2026-11-04
+- User requested the CALL/PUT signal window move from seconds 50–59 to seconds 55–59 of each M1 candle.
+- Updated `server.js`: `signalWindowOpen` now opens only when `countdownSeconds <= 5`; API error/fallback payload uses the same condition.
+- Updated server comments and Telegram entry-timing label to say final five seconds.
+- Retained the existing decision source (latest fully closed M1 candle), EUR/USD Main Market scope, 64 evidence threshold, freshness/volatility/regime filters, one-signal-per-candle deduplication, and 40-second signal lifetime logic.
+- Important timing clarification: this changes when a prepared closed-candle decision becomes visible; it does not make the Twelve Data feed tick-by-tick or guarantee a fresh REST response at second 55. Server candle cache remains 15 seconds and API minimum-call guard remains 10 seconds to protect the Twelve Data quota.
+- Commits: `c9d4f2e` (window gate/comments), `56b05aa` (fallback and Telegram timing label).
+- Render deployment and live endpoint verification must be completed before claiming the live service uses the five-second window.
