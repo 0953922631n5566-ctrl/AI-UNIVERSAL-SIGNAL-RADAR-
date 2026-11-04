@@ -1,3 +1,4 @@
+run-name: Build Signal Radar PRO APK (${{ github.ref_name }})
 name: Build Signal Radar PRO APK
 on:
   push:
