@@ -37,7 +37,7 @@ test('aggregates bid/ask into M1 mid-price candles', () => {
 });
 
 test('tick replay returns separate 10/20/30 second report buckets', () => {
-  const ticks = loadTicks(histTicks(120));
+  const ticks = loadTicks(histTicks(12060));
   const report = runTickBacktest(ticks, { thresholds: [0.6], horizons: [10, 20, 30] });
   assert.deepEqual(report.evaluatedHorizonsSeconds, [10, 20, 30]);
   assert.deepEqual(Object.keys(report.reports), ['10', '20', '30']);
