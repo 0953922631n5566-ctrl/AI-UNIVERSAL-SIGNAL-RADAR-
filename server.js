@@ -12,7 +12,7 @@ const CACHE_MS = 15000;
 const MAX_CANDLES = 200;
 const MAX_STALE_MS = 150000;
 const SIGNAL_TTL_MS = 40000;
-const THRESHOLD = 68;
+const THRESHOLD = 64;
 
 app.disable('x-powered-by');
 app.use(express.json({ limit: '8kb', strict: true }));
