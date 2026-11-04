@@ -21,6 +21,8 @@ let cache = { at: 0, candles: null, error: null };
 let lastSignalCandle = null;
 let activeSignal = null;
 let keyCursor = 0;
+let lastLoggedMarketError = '';
+let lastLoggedMarketErrorAt = 0;
 const keyHealth = new Map();
 const keyNextAllowedAt = new Map();
 function configuredKeys() {
@@ -215,8 +217,8 @@ app.get('/health',(_req,res)=>res.json(connectionStatus()));
 app.get('/api/connection',(_req,res)=>res.json(connectionStatus()));
 app.get('/api/market',async(_req,res)=>{
   try{const data=await fetchCandles();res.set('Cache-Control','no-store');res.json(publicState(data.candles));}
-  catch(error){console.error('Market data unavailable:',error.message);
-    res.status(503).json({...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
+  catch(error){if(error.message!==lastLoggedMarketError||Date.now()-lastLoggedMarketErrorAt>30000){console.error('Market data unavailable:',error.message);lastLoggedMarketError=error.message;lastLoggedMarketErrorAt=Date.now();}
+    res.status(503).json({...connectionStatus(),status:'DEGRADED',signal:'STANDBY',regime:'UNCLEAR',score:0,
       reason:error.message==='TWELVE_DATA_API_KEYS_MISSING'?'Twelve Data API keys are not configured':error.message==='ALL_API_KEYS_DEPLETED'?'All API Keys Depleted':error.message==='ALL_API_KEYS_UNAVAILABLE'?'All API Keys Unavailable':'Market data unavailable · '+error.message,
       price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});}
 });
