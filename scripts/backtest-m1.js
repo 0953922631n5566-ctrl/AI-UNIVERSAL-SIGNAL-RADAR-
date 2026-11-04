@@ -9,13 +9,13 @@ const { simulateFuture } = require('../simulation/future-simulation-engine');
 
 const DEFAULT_THRESHOLDS = [0.55, 0.60, 0.65, 0.70, 0.72, 0.75, 0.80];
 
-function splitCsvLine(line) {
+function splitCsvLine(line, delimiter = ',') {
   const out = []; let value = ''; let quoted = false;
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === '"' && line[i + 1] === '"' && quoted) { value += '"'; i++; }
     else if (ch === '"') quoted = !quoted;
-    else if (ch === ',' && !quoted) { out.push(value.trim()); value = ''; }
+    else if (ch === delimiter && !quoted) { out.push(value.trim()); value = ''; }
     else value += ch;
   }
   out.push(value.trim());
@@ -23,6 +23,13 @@ function splitCsvLine(line) {
 }
 
 function parseTime(value) {
+  // HistData Generic ASCII timestamps are YYYYMMDD HHMMSS in fixed EST (UTC-5),
+  // explicitly without daylight-saving adjustment.
+  const hist = /^(\d{4})(\d{2})(\d{2})\s(\d{2})(\d{2})(\d{2})$/.exec(value);
+  if (hist) {
+    const [, y, mo, d, h, mi, sec] = hist;
+    return Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${sec}-05:00`);
+  }
   if (/^\d+(?:\.\d+)?$/.test(value)) {
     const n = Number(value);
     return n < 1e11 ? n * 1000 : n;
@@ -34,15 +41,25 @@ function parseTime(value) {
 
 function loadCandles(csvText) {
   const lines = String(csvText).replace(/^\uFEFF/, '').split(/\r?\n/).filter(x => x.trim());
-  if (lines.length < 2) throw new Error('CSV must contain a header and at least one candle');
-  const headers = splitCsvLine(lines[0]).map(x => x.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  if (!lines.length) throw new Error('CSV contains no candle rows');
+  const delimiter = lines[0].includes(';') ? ';' : ',';
+  const first = splitCsvLine(lines[0], delimiter);
+  const headers = first.map(x => x.toLowerCase().replace(/[^a-z0-9]/g, ''));
   const index = (...names) => headers.findIndex(h => names.includes(h));
-  const ti = index('time', 'datetime', 'timestamp', 'date');
-  const oi = index('open', 'o'), hi = index('high', 'h'), li = index('low', 'l'), ci = index('close', 'c');
-  if ([ti, oi, hi, li, ci].some(x => x < 0)) throw new Error('CSV headers must include time/datetime, open, high, low, close');
+  const headerTime = index('time', 'datetime', 'timestamp', 'date');
+  const hasHeader = headerTime >= 0 && index('open', 'o') >= 0 && index('high', 'h') >= 0 &&
+    index('low', 'l') >= 0 && index('close', 'c') >= 0;
+  // HistData Generic ASCII has no header: YYYYMMDD HHMMSS;open;high;low;close;volume
+  const histDataRows = !hasHeader && /^\d{8}\s\d{6}$/.test(first[0]) && first.length >= 5;
+  if (!hasHeader && !histDataRows) throw new Error('Unsupported CSV. Expected time/open/high/low/close headers or HistData Generic ASCII M1 rows.');
+  const ti = hasHeader ? headerTime : 0;
+  const oi = hasHeader ? index('open', 'o') : 1;
+  const hi = hasHeader ? index('high', 'h') : 2;
+  const li = hasHeader ? index('low', 'l') : 3;
+  const ci = hasHeader ? index('close', 'c') : 4;
   const candles = [];
-  for (let row = 1; row < lines.length; row++) {
-    const cols = splitCsvLine(lines[row]);
+  for (let row = hasHeader ? 1 : 0; row < lines.length; row++) {
+    const cols = splitCsvLine(lines[row], delimiter);
     if (cols.length <= Math.max(ti, oi, hi, li, ci)) continue;
     const candle = { time: parseTime(cols[ti]), open: Number(cols[oi]), high: Number(cols[hi]), low: Number(cols[li]), close: Number(cols[ci]) };
     if (!Number.isFinite(candle.time) || ![candle.open, candle.high, candle.low, candle.close].every(Number.isFinite) ||
