@@ -356,3 +356,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The deployed Main Market analyzer on main-market uses EMA9/21/50, RSI14, MACD, ATR, price action and regime filters; it has no 64% confidence score. Root forecast-engine.js is a different analyzer with a 63 strictness value. The exact previous 64% scoring behavior was not found in the current sources, so it must be recovered before claiming a true rollback.
 - Background delivery target is Firebase Cloud Messaging (FCM), because polling/foreground screen capture is not a reliable design for an app swiped away. Firebase Android configuration and server service-account credentials are not present. They must be provided/configured securely before end-to-end push can be built and tested. Force Stop and OEM battery policies can still delay notifications until the app is reopened or battery restrictions are relaxed.
 - Status: repository audit and isolated branch + handoff documentation committed; application code, APK build, FCM delivery, Render deployment, and Xiaomi 11T device test are NOT yet completed.
+
+
+## Correction from live APK artifact audit — 2026-11-04
+
+- A successful Android build exists on **main**, not on this feature branch: workflow run [41786849036](https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/41786849036), commit `386d0240bc13c83b9e45153a91557d0d75563cb9`.
+- Artifact `ai-universal-signal-radar-debug-apk` (ID `13301269404`) is available until 2026-11-18; artifact ZIP digest is `sha256:8f4ed87dfd1b3db8b59cc30e4a64b399ec8d17d8c8c180ee0c25200867c6007b`.
+- **Do not deliver this artifact as the requested new APK.** Inspection of the source at that exact commit shows `MainActivity.kt` still asks for an OCR token and MediaProjection screen-capture permission, and `CaptureService.kt` still runs OCR. It is a successful build of the wrong product, not the approved Main Market companion.
+- The feature branch `feat/main-market-apk-background-fcm` currently has no workflow runs. Its Android workflow is configured to trigger on pushes to `main` only, so feature-branch commits do not automatically build.
+- The feature branch source also still contains the OCR/MediaProjection implementation. Before building its APK, replace that implementation with the approved EUR/USD Main Market client and remove OCR/MediaProjection dependencies and permissions.
+- The approved feature also requires the Main Market backend's authenticated Android API and FCM push pipeline. Firebase Android configuration and server-side Firebase credentials are not yet available; do not claim background push is working until configured and tested.
+- The latest audit therefore confirms: **there is a buildable APK artifact, but no correct/approved new APK ready for the user.**
