@@ -1,6 +1,15 @@
 # PROJECT HANDOFF — AI Universal Signal Radar
 
 Updated: 2026-11-04
+
+## Dynamic Twelve Data API key failover (v1.3.0)
+- Set Render Environment Variable `TWELVE_DATA_KEYS` to comma-separated API keys. Legacy `TWELVE_DATA_API_KEY` remains a single-key fallback. Never expose key values to APK or logs.
+- Server rotates through configured keys. HTTP 429 marks `RATE_LIMITED` for 60 seconds; quota-style 403/provider quota messages mark `DEPLETED` until next UTC day; other errors are temporarily skipped. The next eligible key is attempted in the same request.
+- API responses include redacted `apiKeys` totals and per-key index/status only. No key string is returned.
+- All depleted => HTTP 503 + STANDBY + `All API Keys Depleted`; all unavailable for mixed reasons => `All API Keys Unavailable`.
+- Status is in-memory and resets on Render restart. Quota classification relies on provider error response; no guaranteed quota-balance API is assumed.
+- APK v1.3.0 shows dynamic key rows and summary, and parses error JSON so 503 quota state is visible.
+
 Branch: feature/server-price-extraction
 
 ## Canonical project scope
@@ -22,7 +31,7 @@ Branch: feature/server-price-extraction
 
 ## Android client
 - Native Kotlin + Jetpack Compose app; application ID: com.kawasaki.signalradar.
-- Current source version before this review: 1.2.1 / versionCode 5.
+- Current source version: 1.3.0 / versionCode 7.
 - Default server URL: https://ai-universal-signal-radar-main.onrender.com
 - Foreground dataSync service polls GET /api/market on an approximately 1-second cadence while monitoring is enabled. Requests are sequential; actual interval includes request latency.
 - Client accepts an alert only when signal is CALL or PUT, signalWindowOpen=true, and dataAgeMs <= 150000.
@@ -38,7 +47,7 @@ Branch: feature/server-price-extraction
 - Polling cadence is approximately one second, with request latency included; requests have bounded connection/read timeouts.
 - Render's final-five-second gate is authoritative. The APK does not independently calculate the M1 window.
 - A slow/unavailable Render response can still miss a five-second window. Verify with live server and device tests.
-- The 15-second server cache protects Twelve Data quota; APK polling does not mean Twelve Data is called every second.
+- The 15-second server cache protects Twelve Data quota; APK polling does not mean Twelve Data is called every second. Each key has a 10-second minimum request interval.
 
 ## Build and verification
 - GitHub Actions workflow: .github/workflows/android-apk.yml
