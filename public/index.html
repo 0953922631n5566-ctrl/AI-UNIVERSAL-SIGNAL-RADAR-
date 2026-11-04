@@ -1,50 +1,49 @@
 <!doctype html>
-<html lang="th"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#07090e"><title>AI UNIVERSAL SIGNAL RADAR · OCR</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#090d14">
+<title>AI Universal Signal Radar · Connection</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#07090e;color:#e8eef8;font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
-body{display:flex;justify-content:center;padding:10px}.app{width:100%;max-width:420px;min-height:calc(100svh - 20px);padding:15px;border:1px solid #24344b;border-radius:20px;background:linear-gradient(160deg,#111c2d,#080e18);display:flex;flex-direction:column;gap:12px}
-header,.market,.note{border:1px solid #26364e;background:#111b2a;border-radius:13px;padding:12px}
-header{display:flex;align-items:center;justify-content:space-between}.brand{font-weight:900;font-size:13px;letter-spacing:1px}.sub{font-size:9px;color:#91a4bf;margin-top:3px}
-.badge{font-size:10px;font-weight:900;color:#ffc76b}.badge.live{color:#45e6ad}.market{display:flex;justify-content:space-between;align-items:center}.pair{font-size:18px;font-weight:900}.muted{font-size:9px;color:#91a4bf}.price{text-align:right;font-size:19px;font-weight:900;font-variant-numeric:tabular-nums}
-.radar{flex:1;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid #2b405d;border-radius:17px;background:radial-gradient(circle,#172e49,#0d1726 70%);padding:18px}
-.signal{font-size:38px;font-weight:1000;letter-spacing:2px;margin:16px 0 8px;color:#ffc76b}.signal.CALL{color:#45e6ad;text-shadow:0 0 20px #45e6ad55}.signal.PUT{color:#ff647e;text-shadow:0 0 20px #ff647e55}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:9px}.stats>div{border:1px solid #26364e;background:#111b2a;border-radius:13px;padding:10px}.stats b{display:block;font-size:13px;margin-top:5px}
-.note{font-size:11px;line-height:1.55;color:#c4d1e2;min-height:44px}
-button{border:0;border-radius:11px;background:#176fc2;color:white;font-size:12px;font-weight:900;padding:13px;width:100%}
-.footer{display:flex;justify-content:space-between;font-size:9px;color:#7387a2}
-</style></head><body>
-<main class="app">
-<header><div><div class="brand">◈ AI UNIVERSAL SIGNAL RADAR</div><div class="sub">OCR PRICE INPUT · TELEGRAM MINI APP</div></div><div id="status" class="badge">WAITING APK</div></header>
-<section class="market"><div><div class="muted">OCR MARKET · M1</div><div class="pair">EUR / USD</div><div class="muted">ANDROID SCREEN PRICE</div></div><div><div class="muted" style="text-align:right">LATEST REAL PRICE</div><div id="price" class="price">—</div><div id="age" class="muted">ยังไม่มีข้อมูล</div></div></section>
-<section class="radar"><div class="muted">LIVE OCR SIGNAL</div><div id="signal" class="signal">STANDBY</div><div id="regime" class="muted">รอราคาจริงจาก APK</div></section>
-<section class="stats"><div><div class="muted">OCR READINGS</div><b id="count">0 / 6</b></div><div><div class="muted">SOURCE</div><b>ANDROID APK</b></div><div><div class="muted">LAST RECEIVED</div><b id="received">—</b></div><div><div class="muted">REFRESH</div><b>2 วินาที</b></div></section>
-<section class="note" id="reason">Server สกัดราคาจาก rawText เท่านั้น · M1 ต้องปิดครบ 6 แท่ง · ไม่มี API ตลาดภายนอกหรือราคาจำลอง</section>
-<button id="refresh">ตรวจสถานะอีกครั้ง</button>
-<footer class="footer"><span>MANUAL ONLY · NO AUTO ORDERS</span><span id="footer">OCR NOT CONNECTED</span></footer>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:#090d14;color:#e8eef8;font-family:system-ui,-apple-system,sans-serif;display:grid;place-items:center;padding:18px}.panel{width:min(100%,430px);border:1px solid #26364b;border-radius:20px;padding:22px;background:#111a27;box-shadow:0 18px 60px #0008}.brand{font-size:13px;font-weight:900;letter-spacing:1.3px}.sub{font-size:11px;color:#8fa3bc;margin-top:5px}.lamp{width:12px;height:12px;border-radius:50%;background:#8995a5;display:inline-block;margin-right:9px}.lamp.on{background:#31d69a;box-shadow:0 0 14px #31d69a88}.status{margin-top:24px;padding:16px;border:1px solid #293c54;border-radius:14px;background:#0c1420}.line{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #233247;font-size:13px}.line:last-child{border:0}.value{font-weight:800}.good{color:#31d69a}.warn{color:#ffca72}.muted{color:#8fa3bc;font-size:11px;margin-top:18px;line-height:1.6}button{width:100%;border:0;border-radius:11px;padding:13px;margin-top:18px;background:#176fc2;color:white;font-weight:800;font-size:13px}
+</style>
+</head>
+<body>
+<main class="panel">
+  <div class="brand">◈ AI UNIVERSAL SIGNAL RADAR</div>
+  <div class="sub">CONNECTION SERVICE · TELEGRAM NOTIFICATION</div>
+  <section class="status">
+    <div class="line"><span><i id="serverLamp" class="lamp"></i>Server</span><b id="serverState" class="value">Checking…</b></div>
+    <div class="line"><span><i id="telegramLamp" class="lamp"></i>Telegram Bot</span><b id="telegramState" class="value">Checking…</b></div>
+    <div class="line"><span>Notification Gateway</span><b id="gatewayState" class="value">Checking…</b></div>
+  </section>
+  <div id="message" class="muted">หน้านี้แสดงเฉพาะสถานะการเชื่อมต่อและ Telegram Notification ไม่มี OCR ไม่มีการจับภาพ ไม่มีระบบอ่านหรือวิเคราะห์ราคา</div>
+  <button id="refresh">ตรวจสอบการเชื่อมต่อ</button>
 </main>
 <script>
-const tg=window.Telegram&&window.Telegram.WebApp;if(tg)tg.expand();
 const $=id=>document.getElementById(id);
-function render(d){
- const active=d.status!=='STANDBY' && d.status!=='WAITING';
- $('status').textContent=d.status==='CALL'||d.status==='PUT'?'OCR READY':'STANDBY';
- $('status').className='badge'+(active?' live':'');
- $('price').textContent=d.currentPrice==null?'—':Number(d.currentPrice).toFixed(5);
- $('age').textContent=d.lastTimestamp?'อัปเดต '+new Date(d.lastTimestamp).toLocaleTimeString('th-TH'):'ยังไม่มีข้อมูล';
- $('signal').textContent=d.status||'STANDBY';
- $('signal').className='signal '+(d.status==='CALL'||d.status==='PUT'?d.status:'');
- $('regime').textContent=d.reason||'รอข้อมูล OCR';
- $('count').textContent=(d.closedCandles||0)+' / '+(d.requiredCandles||6)+' แท่ง M1 ปิดแล้ว';
- $('received').textContent=d.lastTimestamp?new Date(d.lastTimestamp).toLocaleTimeString('th-TH'):'—';
- $('reason').textContent=d.reason||'รอข้อมูล OCR';
- $('footer').textContent=d.source==='ANDROID_OCR_RAW_TEXT'?'SERVER OCR ENGINE':'OCR NOT CONNECTED';
+async function refresh(){
+  $('serverState').textContent='Checking…';
+  try{
+    const response=await fetch('/api/connection',{cache:'no-store'});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const data=await response.json();
+    $('serverLamp').className='lamp on';
+    $('serverState').textContent='ONLINE';$('serverState').className='value good';
+    $('telegramLamp').className='lamp'+(data.telegramConfigured?' on':'');
+    $('telegramState').textContent=data.telegramConfigured?'CONFIGURED':'NOT CONFIGURED';
+    $('telegramState').className='value '+(data.telegramConfigured?'good':'warn');
+    $('gatewayState').textContent=data.notificationAuthConfigured?'READY':'TOKEN REQUIRED';
+    $('gatewayState').className='value '+(data.notificationAuthConfigured?'good':'warn');
+    $('message').textContent='เชื่อมต่อเซิร์ฟเวอร์แล้ว · Telegram '+(data.telegramConfigured?'ตั้งค่าแล้ว':'ยังไม่ได้ตั้งค่า Token/Chat ID')+' · ไม่มีระบบ OCR หรือประมวลผลตลาด';
+  }catch(error){
+    $('serverLamp').className='lamp';$('serverState').textContent='OFFLINE';$('serverState').className='value warn';
+    $('telegramState').textContent='UNKNOWN';$('gatewayState').textContent='UNKNOWN';
+    $('message').textContent='ไม่สามารถเชื่อมต่อ Server ได้: '+error.message;
+  }
 }
-async function poll(){
- try{const r=await fetch('/api/signal?symbol=EUR%2FUSD&market=OTC',{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);render(await r.json());}
- catch(e){$('status').textContent='SERVER ERROR';$('status').className='badge';$('signal').textContent='STANDBY';$('reason').textContent='เชื่อมต่อเซิร์ฟเวอร์ไม่ได้: '+e.message;}
-}
-$('refresh').addEventListener('click',poll);poll();setInterval(poll,2000);
-</script></body></html>
+$('refresh').addEventListener('click',refresh);refresh();
+</script>
+</body>
+</html>

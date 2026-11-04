@@ -1,14 +1,14 @@
 {
   "name": "ai-universal-signal-radar",
-  "version": "3.0.0",
-  "description": "AI Universal Signal Radar - Android OCR price ingestion only",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Minimal connection status and Telegram notification service",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test"
+    "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.21.2"
   },
   "engines": {
     "node": "18.x"

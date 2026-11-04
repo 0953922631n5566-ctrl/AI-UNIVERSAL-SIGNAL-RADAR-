@@ -1,42 +1,36 @@
-# AI SIGNAL RADAR OCR CLEAN · Server Price Extraction
+# AI Universal Signal Radar — Connection + Telegram Only
 
-The Android app captures the full visible screen, runs OCR, and sends the raw recognized text to the server. The server alone extracts a price and builds M1 candles. There is no Twelve Data integration, other external market-price API, synthetic price, random fallback, or automatic broker order.
+This repository has been reduced to a minimal connection-status service and an authenticated Telegram notification gateway.
 
-## Runtime
-- Node.js 18.x
-- `npm install`
-- `npm test`
-- `npm start`
+## Retained
+- Node.js 18 + Express server
+- Static connection-status page
+- `GET /health` and `GET /api/connection`
+- Authenticated `POST /api/telegram/notify`
 
-## Android → server contract
-The APK sends `POST /api/ocr/price` with JSON:
+## Removed
+Android APK / screen capture, OCR and price extraction, image/frame ingestion, candle aggregation, indicators, forecast/signal engines, trading UI, related tests, and APK build workflows.
 
-```json
-{
-  "symbol": "EUR/USD",
-  "market": "OTC",
-  "rawText": "EUR/USD\n1.08456",
-  "timestamp": 1793700000000
-}
+## Render environment variables
+Set these in the Render service environment:
+- `TELEGRAM_BOT_TOKEN` — Telegram bot token
+- `TELEGRAM_CHAT_ID` — destination chat or channel ID
+- `TELEGRAM_NOTIFY_TOKEN` — private bearer token required by the notification endpoint
+
+The server never returns secret values from status endpoints. Existing Render environment variables are not overwritten by this source cleanup.
+
+## API
+- `GET /health` — server health and non-secret configuration flags
+- `GET /api/connection` — connection status
+- `POST /api/telegram/notify` — send a Telegram text message
+
+Example request:
+```http
+POST /api/telegram/notify
+Authorization: Bearer <TELEGRAM_NOTIFY_TOKEN>
+Content-Type: application/json
+
+{"message":"Connection test"}
 ```
 
-The APK must not extract a price, crop a presumed price badge, or send `detectedPrice`. Server extraction rejects ambiguous/missing price candidates rather than guessing. Configure `OCR_API_TOKEN` on the test server and provide the same token in the APK's token field. The token is sent as `X-API-Token`.
-
-## Analysis rules
-- M1 candles are aggregated only from timestamped OCR observations.
-- A candle is marked closed only when an observation from the immediately following minute arrives.
-- A missing M1 minute resets the candle history; no candles are fabricated.
-- At least 6 consecutive completed M1 candles are required.
-- Indicators: EMA(3/5), RSI(5), MACD(3/5/2).
-- Missing/ambiguous/stale/duplicate/out-of-order/stuck data returns STANDBY.
-- A flat quote that does not change for 20 seconds is treated as stuck and blocks signals.
-- CALL/PUT are emitted only when all configured indicator conditions align; otherwise STANDBY.
-
-## Endpoints
-- `GET /health`: server mode, counters, and token configuration.
-- `GET /api/config`: extraction and indicator configuration.
-- `GET /api/signal?symbol=EUR/USD&market=OTC`: current server-side state.
-- `POST /api/ocr/price`: raw OCR ingestion.
-
-## Test/deployment safety
-The Android `BACKEND_URL` is intentionally set to `https://REPLACE_WITH_TEST_SERVER_HOST`. Replace it only with a controlled test server after configuring its token. Do not point the APK at the Render production URL yet. No Render deployment is part of this branch; first run automated tests, build/install the APK, and verify real device request/response logs.
+No OCR, screenshot capture, price ingestion, market data, indicators, trading signals, or broker execution are included.
