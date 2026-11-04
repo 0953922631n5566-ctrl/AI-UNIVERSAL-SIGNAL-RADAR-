@@ -70,3 +70,13 @@ Branch: feature/server-price-extraction
 - Mapping: 3/7 = 48 (below threshold), 4/7 = 64 (meets threshold), 5/7 = 80, 6/7 = 96, 7/7 = 100.
 - The seven underlying checks and all existing regime/volatility/near-support-resistance/conflicting-direction filters remain in place. This changes the effective scoring scale, not the underlying evidence checks.
 - Render deployment must be confirmed before claiming the live service is updated. Check the service's configured branch and latest deploy status; do not assume deployment from the GitHub commit alone.
+
+
+## Minimal background-notification APK — 2026-11-04
+- User requested a minimal ON/OFF + Server URL app focused on background CALL/PUT notifications, no floating window and no dashboard.
+- Replaced MainActivity UI with minimal controls; kept existing package/application ID and Render server URL default.
+- Polling foreground service checks the Render `/api/market` endpoint every second while enabled, deduplicates alerts by candle + signal, and shows CALL (green) / PUT (red) notification with immediate app-generated alarm tone and vibration.
+- Added BOOT_COMPLETED receiver to attempt service restart after reboot when monitoring was enabled. Android notification permission is required for visible alert notifications.
+- This is polling + local notification, not FCM remote push. Continuous background operation is best-effort: Android/MIUI battery management, user force-stop, revoked permissions, network loss, and OS foreground-service policy can interrupt it. It is not honest to promise 100% uptime or operation after force-stop.
+- Set targetSdk 34 to avoid opting into Android 15 target-35 dataSync foreground-service time limits while retaining Android 14 compatibility. Device-level Xiaomi 11T testing remains required.
+- APK version 1.1.0 / versionCode 3. Build and verify GitHub Actions artifact before distribution.
