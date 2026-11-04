@@ -67,6 +67,7 @@ private fun MinimalRadarScreen() {
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var serverUrl by remember { mutableStateOf(prefs.getString("server_url", DEFAULT_SERVER) ?: DEFAULT_SERVER) }
     var monitoring by remember { mutableStateOf(prefs.getBoolean("monitoring_enabled", false)) }
+    var soundEnabled by remember { mutableStateOf(prefs.getBoolean("alert_sound_enabled", true)) }
     var saved by remember { mutableStateOf("Server URL ที่บันทึกไว้") }
 
     MaterialTheme(colorScheme = darkColorScheme(
@@ -97,7 +98,28 @@ private fun MinimalRadarScreen() {
                 ) {
                     Text(if (monitoring) "●  SYSTEM ON" else "○  SYSTEM OFF", fontSize = 18.sp, color = Color.White)
                 }
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("เสียงแจ้งเตือน", color = Color.White, fontSize = 16.sp)
+                        Text(
+                            if (soundEnabled) "เปิดเสียง CALL / PUT" else "ปิดเสียงแจ้งเตือน",
+                            color = Color(0xFF91A3B9), fontSize = 12.sp
+                        )
+                    }
+                    Switch(
+                        checked = soundEnabled,
+                        onCheckedChange = { enabled ->
+                            soundEnabled = enabled
+                            prefs.edit().putBoolean("alert_sound_enabled", enabled).apply()
+                        }
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
                 OutlinedTextField(
                     value = serverUrl,
                     onValueChange = { serverUrl = it },
