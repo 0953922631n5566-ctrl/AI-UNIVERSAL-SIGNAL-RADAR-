@@ -10,6 +10,8 @@ import android.graphics.Color
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.IBinder
 import org.json.JSONObject
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +108,7 @@ class SignalPollingService : Service() {
         val accent = if (isCall) Color.rgb(23, 107, 67) else Color.rgb(152, 45, 59)
         val title = if (isCall) "CALL · EUR/USD" else "PUT · EUR/USD"
         val subtitle = if (isCall) "สัญญาณซื้อ · M1" else "สัญญาณขาย · M1"
-        playAlertTone()
+        if (prefs.getBoolean("alert_sound_enabled", true)) playAlertTone()
 
         // Use a real colored custom notification card rather than relying only on
         // Android's small accent stripe, which varies by device/OS skin.
@@ -145,7 +147,11 @@ class SignalPollingService : Service() {
         try {
             val volume = 85
             val tone = ToneGenerator(AudioManager.STREAM_ALARM, volume)
-            tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 800)
+            if (tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 800)) {
+                Handler(Looper.getMainLooper()).postDelayed({ tone.release() }, 1000)
+            } else {
+                tone.release()
+            }
         } catch (_: Exception) { }
     }
 
