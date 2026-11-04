@@ -30,10 +30,13 @@ jobs:
       - name: Build debug APK
         working-directory: android
         env:
-          # Build-only fallback. Replace with repository Actions secrets for a live backend.
-          BACKEND_URL: ${{ secrets.BACKEND_URL || 'https://test-ocr-api.local' }}
-          OCR_API_TOKEN: ${{ secrets.OCR_API_TOKEN || 'TEST_ONLY_NOT_A_REAL_SECRET' }}
-        run: gradle --no-daemon :app:assembleDebug
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          OCR_API_TOKEN: ${{ secrets.OCR_API_TOKEN }}
+        run: |
+          test -n "$BACKEND_URL" || { echo "Missing BACKEND_URL repository secret"; exit 1; }
+          test -n "$OCR_API_TOKEN" || { echo "Missing OCR_API_TOKEN repository secret"; exit 1; }
+          case "$BACKEND_URL" in https://*) ;; *) echo "BACKEND_URL must use HTTPS"; exit 1 ;; esac
+          gradle --no-daemon :app:assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
