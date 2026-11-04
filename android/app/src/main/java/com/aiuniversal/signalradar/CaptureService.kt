@@ -37,6 +37,7 @@ class CaptureService : Service() {
         const val ACTION_PRICE = "radar.PRICE"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
+        const val EXTRA_TOKEN = "ocr_api_token"
         const val EXTRA_ERROR = "error"
         const val EXTRA_PRICE = "price"
         const val EXTRA_SIGNAL = "signal"
@@ -55,6 +56,7 @@ class CaptureService : Service() {
     private val uploadInProgress = AtomicBoolean(false)
     private var lastOcrAt = 0L
     private var isCleaningUp = false
+    private var apiToken: String = ""
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -75,8 +77,8 @@ class CaptureService : Service() {
             }
             ACTION_START -> {
                 try {
-                    val token = BuildConfig.OCR_API_TOKEN
-                    if (token.isBlank()) throw IllegalStateException("Build ไม่มี OCR API Token")
+                    apiToken = intent.getStringExtra(EXTRA_TOKEN)?.trim().orEmpty()
+                    if (apiToken.isBlank()) throw IllegalStateException("กรุณาบันทึก OCR Token ในแอปก่อนเริ่ม")
                     if (BuildConfig.BACKEND_URL.isBlank() || !BuildConfig.BACKEND_URL.startsWith("https://")) {
                         throw IllegalStateException("Build ไม่มี HTTPS Server URL ที่ถูกต้อง")
                     }
@@ -183,8 +185,8 @@ class CaptureService : Service() {
 
     private fun uploadRawText(rawText: String) {
         if (!uploadInProgress.compareAndSet(false, true)) return
-        // Use the token injected by the protected GitHub Actions secret at build time.
-        val token = BuildConfig.OCR_API_TOKEN
+        // Token is supplied at runtime by the user and kept in app-private preferences.
+        val token = apiToken
         if (token.isBlank()) {
             uploadInProgress.set(false)
             sendStatus(ACTION_FAILED, "Build ไม่มี OCR API Token")
