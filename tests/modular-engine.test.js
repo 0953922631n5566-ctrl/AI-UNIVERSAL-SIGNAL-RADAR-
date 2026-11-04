@@ -2,6 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const{ema}=require('../indicators/ema'),{rsi}=require('../indicators/rsi'),{adx}=require('../indicators/adx');
 const{scanTrend}=require('../scanner/trend-scanner'),{routeStrategy}=require('../engine/strategy-router'),{decide}=require('../engine/decision-engine'),{createSignalCache}=require('../engine/signal-cache'),{analyzeMarket}=require('../engine/analyze-market');
+const{evaluateDowntrend}=require('../strategies/downtrend'),{evaluateUptrend}=require('../strategies/uptrend');
 function mk(values){return values.map((close,i)=>({time:i*60000,open:close-.0001,high:close+.0002,low:close-.0002,close}));}
 test('EMA needs sufficient history',()=>assert.equal(ema([1,2],3),null));
 test('RSI rising sequence is bounded',()=>assert.equal(rsi(Array.from({length:20},(_,i)=>i+1)),100));
@@ -11,6 +12,9 @@ test('router never runs a strategy for UNCLEAR',()=>assert.equal(routeStrategy({
 test('decision engine blocks unclear regime',()=>assert.equal(decide({regime:'UNCLEAR'},null).signal,'STANDBY'));
 test('RAM cache is keyed by candle timestamp',()=>{const c=createSignalCache();c.set(1,{signal:'CALL'});assert.equal(c.get(1).signal,'CALL');assert.equal(c.get(2),null);});
 test('full analyzer always returns valid signal enum',()=>{const x=analyzeMarket(mk(Array.from({length:200},(_,i)=>1+i*.00001)));assert.ok(['CALL','PUT','STANDBY'].includes(x.signal));});
-
 test('sideway CALL at support is not blocked by trend boundary filter',()=>{const out=decide({regime:'SIDEWAY',indicators:{volatilityRatio:1,nearSupport:true,nearResistance:false}},{strategy:'SIDEWAY',signal:'CALL',score:80,reason:'Support bounce'});assert.equal(out.signal,'CALL');});
-test('trend CALL near resistance is blocked',()=>{const out=decide({regime:'UPTREND',indicators:{volatilityRatio:1,nearSupport:false,nearResistance:true}},{strategy:'UPTREND',signal:'CALL',score:80,reason:'Pullback'});assert.equal(out.signal,'STANDBY');});
+test('weak trend CALL near resistance remains blocked',()=>{const out=decide({regime:'UPTREND',indicators:{volatilityRatio:1,nearSupport:false,nearResistance:true,adx:20,plusDI:25,minusDI:15,macdHistogram:0.1,rsi:62}},{strategy:'UPTREND',signal:'CALL',score:60,reason:'Pullback'});assert.equal(out.signal,'STANDBY');});
+test('strong trend CALL may pass nearby short-term resistance',()=>{const out=decide({regime:'UPTREND',indicators:{volatilityRatio:1,nearSupport:false,nearResistance:true,adx:30,plusDI:28,minusDI:12,macdHistogram:0.0002,rsi:65}},{strategy:'UPTREND',signal:'CALL',score:80,reason:'Strong continuation'});assert.equal(out.signal,'CALL');});
+test('strong bearish momentum can pass a volatility expansion and nearby support',()=>{const out=decide({regime:'DOWNTREND',indicators:{volatilityRatio:2.5,nearSupport:true,nearResistance:false,adx:31,minusDI:30,plusDI:10,macdHistogram:-0.0003,rsi:38}},{strategy:'DOWNTREND',signal:'PUT',score:80,reason:'Strong continuation'});assert.equal(out.signal,'PUT');});
+test('downtrend strategy recognizes a strong bearish continuation candle',()=>{const candles=[{open:1.101,high:1.102,low:1.100,close:1.101},{open:1.101,high:1.1012,low:1.098,close:1.0985}];const indicators={ema9:1.100,adx:29,minusDI:28,plusDI:11,rsi:39,macdHistogram:-0.0004};const out=evaluateDowntrend({indicators,latest:candles[1],candles});assert.equal(out.signal,'PUT');assert.ok(out.score>=60);});
+test('uptrend strategy recognizes a strong bullish continuation candle',()=>{const candles=[{open:1.098,high:1.099,low:1.097,close:1.098},{open:1.098,high:1.101,low:1.0978,close:1.1005}];const indicators={ema9:1.099,adx:29,plusDI:28,minusDI:11,rsi:61,macdHistogram:0.0004};const out=evaluateUptrend({indicators,latest:candles[1],candles});assert.equal(out.signal,'CALL');assert.ok(out.score>=60);});
