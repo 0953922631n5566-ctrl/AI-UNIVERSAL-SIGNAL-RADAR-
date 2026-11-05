@@ -117,3 +117,4 @@ Branch: feature/server-price-extraction
 - Safety Gate remains research-only and disabled in production. Do not connect it to production until CI passes, real tick decoding and coverage are verified, a meaningful out-of-sample backtest is completed, and falseout capture versus good-signal loss is reviewed.
 
 - Added `.github/workflows/historical-backtest.yml` with manual `workflow_dispatch`: runs `npm test`, downloads the requested UTC date range (or defaults to 30 days), decodes Tick + M1, runs both backtests, and uploads CSV/JSON outputs as a 14-day GitHub Actions artifact. This provides a cloud runner path; it has not yet been dispatched or completed.
+- Historical backtest workflow now also triggers on pushes to `feature/future-simulation-engine` (latest workflow commit `fc6fcea47767d0398e11acfa9bbe4a16bab9c1d8`). The latest commit status query still returned no CI statuses at check time; wait for the Actions run before claiming success.
