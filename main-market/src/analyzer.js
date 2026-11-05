@@ -182,38 +182,39 @@ export function analyzeMarket(input, { now = Date.now(), tickAgeSeconds = null, 
     `Support: ${rangeLow.toFixed(5)} · Resistance: ${rangeHigh.toFixed(5)}`
   ];
 
+  // Directional evidence score (0-100), NOT a calibrated win probability.
+  // Hard data-integrity and freshness checks remain above this point.
+  const bullishScore =
+    (context.rising ? 20 : 0) +
+    (last.close > ema9 ? 15 : 0) +
+    (momentum3 > 0 ? 15 : 0) +
+    (momentum5 > 0 ? 15 : 0) +
+    (upBars >= 2 ? 15 : 0) +
+    (macdData.histogram > 0 ? 10 : 0) +
+    (rsi14 >= 50 && rsi14 <= 75 ? 10 : 0);
+  const bearishScore =
+    (context.falling ? 20 : 0) +
+    (last.close < ema9 ? 15 : 0) +
+    (momentum3 < 0 ? 15 : 0) +
+    (momentum5 < 0 ? 15 : 0) +
+    (downBars >= 2 ? 15 : 0) +
+    (macdData.histogram < 0 ? 10 : 0) +
+    (rsi14 >= 25 && rsi14 <= 50 ? 10 : 0);
+
   let signal = "STANDBY";
-  let reason = "หลักฐานยังไม่สอดคล้องกัน — รอจังหวะที่ชัดเจน";
+  let reason = "คะแนนสนับสนุนทิศทางยังไม่ถึงเกณฑ์ 53/100";
   if (!liveReady) {
     reason = allowRestFallback
       ? "ข้อมูล REST fallback เก่าเกินกำหนด — ล็อกสัญญาณไว้ที่ STANDBY"
       : tickAgeSeconds === null
         ? "ข้อมูล REST ใช้คำนวณบริบทได้ แต่ยังไม่มีราคา Streaming สด — งด CALL/PUT"
         : "ราคา Streaming เก่าหรือผิดปกติ — ล็อกสัญญาณไว้ที่ STANDBY";
-  } else if (regime === "HIGH_VOLATILITY") {
-    reason = "ความผันผวนสูงผิดปกติ — รอให้ตลาดสงบก่อน";
-  } else if (regime === "RANGING") {
-    reason = "ตลาดแกว่งในกรอบ — รอการ breakout ที่ยืนยันได้";
-  } else if (regime === "REVERSAL") {
-    reason = "พบโครงสร้างที่อาจกลับตัว — รอแท่งยืนยันเพิ่ม";
-  } else if (regime === "TRENDING_UP" && context.rising &&
-      last.close > ema9 &&
-      rsi14 >= 50 && rsi14 <= 75 &&
-      momentum3 > 0 && momentum5 > 0 && upBars >= 2 &&
-      macdData.histogram > 0 &&
-      !nearResistance && bodyAtr <= 1.8) {
+  } else if (bullishScore >= DIRECTIONAL_THRESHOLD && bullishScore > bearishScore) {
     signal = "CALL";
-    reason = "ตามโมเมนตัมขาขึ้น: EMA 9/21/50 เรียงตัว, MACD เป็นบวก, RSI และแรงส่ง 3/5 แท่งยืนยัน";
-  } else if (regime === "TRENDING_DOWN" && context.falling &&
-      last.close < ema9 &&
-      rsi14 >= 25 && rsi14 <= 50 &&
-      momentum3 < 0 && momentum5 < 0 && downBars >= 2 &&
-      macdData.histogram < 0 &&
-      !nearSupport && bodyAtr <= 1.8) {
+    reason = `คะแนนสนับสนุน CALL ${bullishScore}/100 ถึงเกณฑ์ ${DIRECTIONAL_THRESHOLD}; ไม่ใช้แนวต้านหรือ volatility เป็น hard veto`;
+  } else if (bearishScore >= DIRECTIONAL_THRESHOLD && bearishScore > bullishScore) {
     signal = "PUT";
-    reason = "ตามโมเมนตัมขาลง: EMA 9/21/50 เรียงตัว, MACD เป็นลบ, RSI และแรงส่ง 3/5 แท่งยืนยัน";
-  } else if (nearResistance || nearSupport) {
-    reason = "ราคาเข้าใกล้แนวรับหรือแนวต้าน — ไม่ไล่ราคา";
+    reason = `คะแนนสนับสนุน PUT ${bearishScore}/100 ถึงเกณฑ์ ${DIRECTIONAL_THRESHOLD}; ไม่ใช้แนวรับหรือ volatility เป็น hard veto`;
   }
 
   if (signal !== "STANDBY" && restFallbackReady) {
