@@ -104,3 +104,14 @@ Branch: feature/server-price-extraction
 - A local checkout/test attempt could not run because this execution environment could not resolve `github.com`; no npm test result is claimed.
 - No actual EUR/USD tick CSV is available in the current conversation or repository checkout. The previously obtained HistData archives were EUR/USD M1 candle archives, which cannot validate 10/20/30-second bid/ask paths. `scripts/backtest-ticks.js` requires timestamp + bid + ask tick rows (HistData Generic ASCII `YYYYMMDD HHMMSS;bid;ask` or header-based CSV).
 - Real tick replay remains pending receipt of an actual EUR/USD tick dataset. Do not run the M1 archives through the tick parser or substitute synthetic fixtures as empirical results.
+
+## Automated Historical EUR/USD Data Pipeline — 2026-11-05
+
+- Added `scripts/download-historical.js`: resumable UTC-hour downloader for EUR/USD Dukascopy BI5 tick files. Defaults to the previous 30 complete UTC days, accepts `--from YYYY-MM-DD --to YYYY-MM-DD`, caps each run at 366 days, retries transient failures, caches existing non-empty hourly files, and treats HTTP 404 as missing hour (weekends/holidays).
+- Added `scripts/decode-dukascopy-bi5.py`: decodes hourly LZMA-Alone BI5 records (20-byte big-endian: ms offset, ask, bid, ask volume, bid volume; EUR/USD price scale 100000) into UTC `data/historical/EURUSD_ticks.csv` and bid-side M1 OHLC `data/historical/EURUSD_M1.csv`.
+- Added npm commands: `npm run data:download -- --from YYYY-MM-DD --to YYYY-MM-DD`, `npm run data:decode`, and `npm run data:prepare`. Tick backtest now defaults to the generated tick CSV and writes `data/historical/reports/tick-backtest-report.json`.
+- Added `data/historical/README.md` with instructions, source limitations, sample commands, and safety criteria. Added `.gitignore` rules so large raw files and generated reports are not committed.
+- CI workflow changed from `npm ci` to `npm install` because this branch has no package-lock.json; cache setting still uses npm.
+- Data source is Dukascopy public historical quote data, not Twelve Data or the user's broker feed. Broker spread/execution differences remain. Missing hours are not fabricated. M1 bars are aggregated from bid ticks and cannot validate 10/20/30-second outcomes.
+- Important verification status: code is committed, but the downloader/decompressor have NOT yet been executed against a live BI5 sample in this environment, and the real-data backtest has NOT been run. No accuracy percentage is available. The complete npm test suite is NOT confirmed green until GitHub Actions reports success.
+- Safety Gate remains research-only and disabled in production. Do not connect it to production until CI passes, real tick decoding and coverage are verified, a meaningful out-of-sample backtest is completed, and falseout capture versus good-signal loss is reviewed.
