@@ -98,3 +98,11 @@ Branch: feature/server-price-extraction
 - Live `GET /api/market` was checked after deploy. It returned ONLINE, 10 configured API-key slots (1 ACTIVE, 9 READY), Simulation READY with 30 historical analogues, projectedPrice/currentPrice/expectedMovePrice fields, and Round 16 diagnostics.
 - At the verification sample, market regime was SIDEWAY, ADX 12.45 (<22), historical analogue direction had no sufficient edge, and API signal was correctly STANDBY. This is expected safe behavior, not a failed deployment. CALL/PUT should only appear when both Decision Engine and Simulation agree and every Safety Gate threshold passes.
 - APK source and package were not modified in this work. Existing polling/local-notification client remains the integration target; actual on-device notification and end-to-end CALL/PUT delivery still require physical Xiaomi 11T verification when a qualifying market setup occurs.
+
+
+## Original Engine APK build (2026-11-05)
+- Added dedicated GET /api/market/original endpoint. It runs the existing `engine/analyze-market.js` path (Market Context → Strategy Router → Decision Engine) directly and does not apply Future Simulation or Safety Gate filtering.
+- Existing GET /api/market remains the enhanced path (Main Market Adapter → Future Simulation → Safety Gate). Both endpoints share the same Twelve Data candle fetch/cache but maintain independent per-mode analysis caches and signal-window state.
+- Android polling client is configured to call `/api/market/original`; this APK is explicitly the ORIGINAL MODE client. The UI, background polling, local notifications, sound switch, duplicate suppression, and server URL setting are retained.
+- APK version bumped to 1.4.0 / versionCode 8. Build artifact is a debug-signed test APK, not a Play Store release-signed package.
+- Verify server tests, Android Actions build, Render deployment, and then live GET /api/market/original before telling the user it is ready. Physical Xiaomi 11T alert delivery still requires device testing.
