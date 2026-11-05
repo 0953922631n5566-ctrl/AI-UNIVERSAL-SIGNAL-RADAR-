@@ -115,3 +115,11 @@ Branch: feature/server-price-extraction
 - Hard blocks remain for invalid/unready history, candle timestamp mismatch, no directional edge, insufficient analogue count, inconsistent direction/expected move, excessive adverse-outcome risk, and extreme volatility.
 - This tuning makes the simulation primary and reduces indicator vetoes; it does not guarantee more signals, accuracy, or profit. When analogue frequency is below 58% or expected move has no directional sign, STANDBY remains correct.
 - Updated safety-gate tests cover Simulation overriding the original analyzer's STANDBY/opposite direction and the relaxed ADX/range rules. CI and Render deployment must be checked before production status is claimed.
+
+
+## Future Projection Bar (2026-11-05)
+- Future Simulation now emits `simulation.projectionBar`: a synthetic next-M1 OHLC scenario with open=current closed close, close=analogue expected projected price, and high/low padded by 0.25 ATR.
+- The bar is explicitly tagged `synthetic: true` and `FUTURE_PROJECTION_NOT_MARKET_DATA`; it must never be presented as observed Twelve Data OHLC or a guaranteed future price.
+- Safety Gate response summary passes this projectionBar through to /api/market for app/UI use.
+- No forced CALL/PUT behavior was added. A weak directional lean alone is not treated as an actionable entry; no-edge, invalid/stale data, timestamp mismatch, or excessive risk remains STANDBY.
+- Test suite now asserts projection bar timestamp and OHLC construction. Verify CI and Render auto-deploy before claiming production availability.
