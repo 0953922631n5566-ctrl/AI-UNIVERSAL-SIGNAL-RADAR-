@@ -90,3 +90,11 @@ Branch: feature/server-price-extraction
 - `GET /api/market` already serializes the adapter's simulation and safetyGate diagnostics; the APK polling contract and Local Notification implementation are unchanged. Signal availability remains controlled by the existing final-five-second window and client duplicate suppression.
 - Tests expanded in `tests/safety-gate.test.js` for history validation, ATR feature construction, analogue result structure, same-candle/direction confirmation, all four gates, and default adapter integration. Must verify GitHub Actions and live Render deploy before claiming production readiness.
 - Historical sample size is limited to the latest 200 closed M1 candles currently fetched by server configuration. For stronger statistical validation, increase outputsize or persist a larger real historical archive after confirming Twelve Data plan limits. Do not imply a 58% analogue rate is a calibrated probability.
+
+
+## Verification snapshot after Historical Simulation deployment
+- Render service `ai-universal-signal-radar-main` deployed successfully from `feature/server-price-extraction`; latest application code includes the empirical projected-price fields and API diagnostics.
+- GitHub Actions `Server Modular Engine Tests`, run #29 for commit `3148c8fc15c464f872e3b385dda949116f86dab5`, completed successfully: 29 tests passed, 0 failed.
+- Live `GET /api/market` was checked after deploy. It returned ONLINE, 10 configured API-key slots (1 ACTIVE, 9 READY), Simulation READY with 30 historical analogues, projectedPrice/currentPrice/expectedMovePrice fields, and Round 16 diagnostics.
+- At the verification sample, market regime was SIDEWAY, ADX 12.45 (<22), historical analogue direction had no sufficient edge, and API signal was correctly STANDBY. This is expected safe behavior, not a failed deployment. CALL/PUT should only appear when both Decision Engine and Simulation agree and every Safety Gate threshold passes.
+- APK source and package were not modified in this work. Existing polling/local-notification client remains the integration target; actual on-device notification and end-to-end CALL/PUT delivery still require physical Xiaomi 11T verification when a qualifying market setup occurs.
