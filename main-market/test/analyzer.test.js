@@ -7,12 +7,12 @@ import { analyzeMarket } from "../src/analyzer.js";
 const require = createRequire(import.meta.url);
 const { analyzeMarket: analyzeOriginalMarket } = require("../original-ai/engine/analyze-market.js");
 
-function history(count = 220) {
+function history(count = 220, variant = 0) {
   let price = 1.08;
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
   return Array.from({ length: count }, (_, i) => {
-    const delta = Math.sin(i * 1.7) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
+    const delta = Math.sin(i * 1.7 + variant) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
     const open = price, close = price + delta, epoch = start + i * 60;
     price = close;
     return { time: new Date(epoch * 1000).toISOString(), epoch, open,
@@ -27,7 +27,7 @@ test("Original AI data warm-up is 200 closed M1 candles with live-candle headroo
   assert.equal(MAX_CANDLES, 220);
 });
 
-test("Original AI is the only CALL/PUT decision-maker; simulation is advisory metadata", () => {
+test("Original AI alone decides CALL/PUT; historical simulation runs as a parallel advisory worker", () => {
   const candles = history();
   const options = { now: Date.now(), tickAgeSeconds: 0 };
   const original = analyzeOriginalMarket(candles.slice(-MIN_CLOSED_CANDLES));
@@ -37,6 +37,7 @@ test("Original AI is the only CALL/PUT decision-maker; simulation is advisory me
   assert.equal(result.assistant.role, "ADVISORY_ONLY");
   assert.ok(["READY", "LIMITED_SAMPLE"].includes(result.assistant.status));
   assert.ok(["AGREES", "CONFLICTS", "NO_COMPARISON"].includes(result.assistant.alignment));
+  assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(result.assistant.executionMode));
   assert.equal("confidence" in result.assistant, false);
 });
 
@@ -46,6 +47,7 @@ test("Historical assistant never manufactures an order when its data source gate
   assert.equal(result.livePriceReady, false);
   assert.equal(result.assistant.role, "ADVISORY_ONLY");
   assert.equal(result.assistant.status, "UNAVAILABLE");
+  assert.equal(result.assistant.executionMode, "SOURCE_BLOCKED");
 });
 
 test("REST fallback can supply data only when explicitly enabled and fresh", () => {
@@ -73,4 +75,11 @@ test("Malformed and stale source data fails closed", () => {
   const stale = history();
   stale.forEach(c => { c.epoch -= 600; });
   assert.equal(analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 }).signal, "STANDBY");
+});
+
+test("Historical assistant cache is invalidated when candle history changes", () => {
+  const a = analyzeMarket(history(220, 0), { tickAgeSeconds: 0 });
+  const b = analyzeMarket(history(220, 1), { tickAgeSeconds: 0 });
+  assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(a.assistant.executionMode));
+  assert.equal(b.assistant.executionMode, "PARALLEL_WORKER_THREAD");
 });

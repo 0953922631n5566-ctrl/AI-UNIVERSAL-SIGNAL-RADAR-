@@ -1026,3 +1026,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - This change is not considered delivered until the new branch passes `npm test` and syntax checks, then Render reports the deployment Live. The existing production service remains on `main-market` until those gates pass.
 - No Xiaomi 11T physical-device test is implied by a successful server build. Validate API status, Mini App display, alert timing, sound, vibration, and 40-second signal hold on the handset after deployment.
 - Any future change that lets historical analogue scores alter the Original AI decision must be separately backtested out-of-sample and documented; do not silently convert the assistant into a second decision engine.
+
+
+### 2026-11-06 — True parallel execution for the Historical Assistant
+- The active adapter now starts `src/historical-analogue-worker.js` in a Node Worker Thread, then evaluates the Original AI on the main thread while the assistant calculates independently.
+- A SharedArrayBuffer/Atomics handoff returns the assistant result with a 5-second timeout. The assistant result is cached by closed-candle history signature and source mode, avoiding repeated worker creation for unchanged M1 history.
+- Assistant metadata exposes `executionMode` (`PARALLEL_WORKER_THREAD`, `CACHED_WORKER_RESULT`, or a blocked/unavailable state) and measured worker time.
+- Worker failure or insufficient analogue matches does not veto or replace the Original AI decision. Only the hard market-data freshness gate may force the top-level signal to STANDBY.
+- The worker is computation-only: no network, API calls, broker actions, timers, or external side effects.
