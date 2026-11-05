@@ -164,3 +164,5 @@ Branch: feature/server-price-extraction
 - Commit: `d54c26f24252b192d76e2934f2091c389ecc9a74` (initial implementation); follow-up commit records the leakage guard and handoff.
 - GitHub Actions run #14 / `42008378751` and Node Tests #78 / `42008378552` were triggered by the implementation commit. Their terminal results must be checked before reporting the backtest as verified.
 - This remains research-only. OOS results from a single 14-day period are preliminary, not proof of stable performance or profitability. Safety Gate remains OFF; no Render deployment or production parameter change is authorized.
+
+- CI follow-up: the first implementation run exposed one stale unit test still asserting the former seven-day downloader limit. Updated that test to assert the new fourteen-day maximum; no runtime failure was found in the attribution/OOS tests before the stale assertion stopped the suite.

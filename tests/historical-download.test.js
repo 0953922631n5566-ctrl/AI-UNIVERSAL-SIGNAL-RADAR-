@@ -11,6 +11,6 @@ test('coverage includes cached and newly downloaded hours',()=>{
  assert.equal(c.missingProviderHours,10);assert.equal(c.failedAfterRetriesHours,10);
 });
 
-test('Fast & Accurate historical range is capped at seven days',()=>{
- assert.equal(MAX_DAYS,7);
+test('chronological training and holdout historical range supports fourteen days',()=>{
+ assert.equal(MAX_DAYS,14);
 });
