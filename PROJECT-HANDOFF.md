@@ -1,6 +1,6 @@
 # PROJECT HANDOFF — AI Universal Signal Radar
 
-Updated: 2026-11-03
+Updated: 2026-11-05
 
 ## Main Market single-signal production correction
 
@@ -345,3 +345,21 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The workflow generated `SHA256SUMS.txt` inside the artifact. The local container/Python runtime remained unavailable, so the APK entry was not extracted and its SHA-256 was not independently recomputed. The ZIP digest above is not the APK digest.
 - This build supersedes run `41786296602`; it includes the APK-side unconditional STANDBY gate. It is a debug build only, not device-tested or end-to-end validated.
 - Backend route/contract mismatch remains unresolved; do not mark delivery complete.
+
+
+## Verification refresh — 2026-11-05
+
+- Audit base: current `main` HEAD before this handoff entry was `1f909b1a857149bc13bfaf61c0fa81fc22b90a06`.
+- Comparing Android source build commit `386d0240bc13c83b9e45153a91557d0d75563cb9` to that HEAD shows two commits ahead, but both changes are confined to `PROJECT-HANDOFF.md`; no Android or backend source changed after the APK build.
+- Latest Android APK workflow run on `main` remains #15 / run `41786849036`, job `126430840634`, source commit `386d0240bc13c83b9e45153a91557d0d75563cb9`. GitHub job status is completed/success; all build, APK existence, SHA-256 generation and artifact-upload steps completed. The job log explicitly reports `BUILD SUCCESSFUL in 22s`.
+- A newer overall APK workflow exists on `feature/server-price-extraction`: run `41854327002`, commit `44d1b55185b99da4f2181e9ef40a41616d2ac662`, success on 2026-11-04. It is not a `main` build and is not substituted for the requested main-branch deliverable.
+- Main-branch artifact: ID `13301269404`, name `ai-universal-signal-radar-debug-apk`, ZIP size 22,405,226 bytes, expires 2026-11-18 06:39:05 UTC.
+- Downloaded the actual ZIP bytes from GitHub and extracted `app-debug.apk` (46,404,778 bytes). The APK's SHA-256 was independently calculated and exactly matches the included `SHA256SUMS.txt`: `a286223e1cc3c57e7b8fd30fd77fb86f14b9ea61d7abe2b492fbb8ced9f3da8f`. This supersedes any earlier APK size/hash stated for different build runs. The ZIP digest is `8f4ed87dfd1b3db8b59cc30e4a64b399ec8d17d8c8c180ee0c25200867c6007b`.
+- Current Android source audit: MediaProjection, ImageReader listener, RGBA-to-Bitmap conversion/cropping, on-device ML Kit text OCR, HTTPS JSON price upload to `/api/upload-screen` with `x-ocr-token`, response parsing, UI price/STANDBY/reason, START/STOP lifecycle, and upload concurrency guard are implemented. The user must manually enter and save the OCR token in app-private SharedPreferences. The app does not JPEG-encode or upload screen images, does not call FastAPI session start/stop, and has no bounded exponential retry/backoff; after a failure it can try again on a later OCR frame. Any returned CALL/PUT is forcibly converted to STANDBY locally.
+- Main-branch `server.js` exposes `POST /api/upload-screen`, requires server-only `OCR_INGEST_TOKEN`, validates EUR/USD price and timestamp, stores in-memory price history, and deliberately returns STANDBY. It has no chart perception or decision model.
+- Main-branch `backend/app.py` separately exposes Bearer-authenticated multipart `/v1/frame` plus session start/stop and metadata/image validation. Android does not call this API. Session state is in-memory and has no expiry/cleanup policy. The API deliberately returns `VISION_ADAPTER_NOT_CONFIGURED`; no model is configured or evaluated.
+- Deployment contract blocker confirmed at source level: the last documented Render production service branch is `feature/server-price-extraction`; its current `server.js` blob `8027390f3b05de829f1ea14d02b0125ae5c6a2e3` has no `/api/upload-screen` route. The Android APK points to the Render Main Market host and therefore cannot be considered connected while that branch is deployed. This run could not re-check Render dashboard settings because the Render connector has no workspace selected. Public fetches of the Main Market and OCR API `/health` URLs returned HTTP 503 from the fetch service; this does not establish whether the origin service is down or the fetch path is transiently failing.
+- No Render branch was changed, no new service/resource was created, no paid plan was enabled, and no broker execution was introduced.
+- Delivery blockers: align the Android upload contract with a dedicated non-paid backend deployment without replacing the Main Market service; implement JPEG/multipart upload and session lifecycle or explicitly approve a price-only OCR design; add bounded retry/backoff; configure and evaluate a real chart-perception plus decision model before any CALL/PUT; test on Xiaomi 11T.
+- Device-tested and end-to-end validated remain false. Do not claim AI chart analysis or directional signals. Keep STANDBY.
+
