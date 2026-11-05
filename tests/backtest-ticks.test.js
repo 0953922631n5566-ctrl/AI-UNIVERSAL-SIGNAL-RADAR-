@@ -42,3 +42,29 @@ test('tick replay returns separate 10/20/30 second report buckets', () => {
   assert.deepEqual(report.evaluatedHorizonsSeconds, [10, 20, 30]);
   assert.deepEqual(Object.keys(report.reports), ['10', '20', '30']);
 });
+
+
+test('optimizer reports feature attribution and enforces good-signal-loss cap', () => {
+  const { optimizeFilter } = require('../scripts/backtest-ticks');
+  const rows = [];
+  for (let i = 0; i < 30; i++) rows.push({
+    risk: 0.48, volatilityRatio: 1.9, adx: 14, rangeAtr: 1.8,
+    fakeout: true, good: false
+  });
+  for (let i = 0; i < 30; i++) rows.push({
+    risk: 0.35, volatilityRatio: 1.0, adx: 28, rangeAtr: 0.8,
+    fakeout: false, good: true
+  });
+  const result = optimizeFilter(rows, {
+    riskThresholds: [0.45, 0.55],
+    volatilityThresholds: [1.5],
+    weakAdxThresholds: [18],
+    rangeAtrThresholds: [1.5],
+    maxGoodSignalLossPct: 10,
+    minSamples: 50
+  });
+  assert.equal(result.candidatesEvaluated, 2);
+  assert.ok(result.best.length > 0);
+  assert.equal(result.best[0].fakeoutCapturePct, 100);
+  assert.equal(result.best[0].goodSignalLossPct, 0);
+});
