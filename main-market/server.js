@@ -181,79 +181,24 @@ function classifyError(error) {
 }
 
 function evaluate(feed) {
-  const tickAge = feed.tickAt ? (Date.now() - feed.tickAt) / 1000 : null;
-  const restFallback = ["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus);
-  const result = analyzeMarket(feed.candles, {
-    now: Date.now(),
-    tickAgeSeconds: tickAge,
-    allowRestFallback: restFallback,
-    maxAgeSeconds: MAX_CANDLE_AGE_SECONDS
-  });
-  const candleId = result.lastCandleEpoch ?? null;
-  if (feed.preAlertCandle !== candleId) {
-    feed.preAlertCandle = candleId;
-    feed.preAlertSignal = null;
-  }
-  if (result.signal === "CALL" || result.signal === "PUT") {
-    feed.preAlertSignal = result.signal;
-  } else if (!(feed.activeSignal && Date.now() < feed.activeUntil)) {
-    feed.preAlertSignal = null;
-  }
-
-  if (result.signal === "CALL" || result.signal === "PUT") {
-    if (feed.activeSignal && Date.now() < feed.activeUntil) {
-      if (feed.activeSignal !== result.signal) {
-        feed.activeSignal = null;
-        feed.activeUntil = 0;
-        feed.signalCandle = candleId;
-        feed.alertId = null;
-        feed.analysis = standby("หลักฐานเปลี่ยนทิศทางระหว่างช่วงถือสัญญาณ — ยกเลิกเป็น STANDBY");
-        return;
-      }
-      result.signal = feed.activeSignal;
-    } else if (candleId !== null && feed.signalCandle !== candleId) {
-      feed.activeSignal = result.signal;
-      feed.activeUntil = Date.now() + SIGNAL_HOLD_SECONDS * 1000;
-      feed.signalCandle = candleId;
-      feed.alertId = `${candleId}:${result.signal}`;
-    } else {
-      result.signal = "STANDBY";
-      result.reason = "ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน";
-    }
-  } else if (feed.activeSignal && Date.now() < feed.activeUntil) {
-    const ema21 = result.metrics?.ema21;
-    const close = feed.candles.filter(c => !c.live).at(-1)?.close;
-    const invalid = finite(ema21) && finite(close) && (
-      feed.activeSignal === "CALL"
-        ? result.regime === "TRENDING_DOWN" || close < ema21
-        : result.regime === "TRENDING_UP" || close > ema21
-    );
-    const restFallbackFresh = restFallback && finite(result.ageSeconds) && result.ageSeconds <= MAX_CANDLE_AGE_SECONDS;
-    if (invalid || (!restFallbackFresh && (!feed.tickAt || Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000))) {
-      feed.activeSignal = null;
-      feed.activeUntil = 0;
-      feed.signalCandle = candleId;
-      feed.preAlertSignal = null;
-      feed.alertId = null;
-      feed.analysis = standby(invalid
-        ? "ยกเลิกสัญญาณเดิม: เงื่อนไขตลาดเปลี่ยน"
-        : "ยกเลิกสัญญาณเดิม: ราคา Streaming ไม่สด");
-      return;
-    }
-    result.signal = feed.activeSignal;
-    result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
-  } else if (feed.activeSignal && Date.now() >= feed.activeUntil) {
-    feed.activeSignal = null;
-    feed.activeUntil = 0;
-  }
-
-  feed.analysis = {
-    ...result,
-    tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
-    lastTickPrice: feed.lastTick,
-    alertId: feed.alertId,
-    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null
-  };
+ const tickAge=feed.tickAt?(Date.now()-feed.tickAt)/1000:null;
+ const restFallback=["UNSUPPORTED","ERROR","TIMEOUT"].includes(feed.streamStatus);
+ const result=analyzeMarket(feed.candles,{now:Date.now(),tickAgeSeconds:tickAge,allowRestFallback:restFallback});
+ const candleId=result.lastCandleEpoch??null;
+ if(feed.preAlertCandle!==candleId){feed.preAlertCandle=candleId;feed.preAlertSignal=null;}
+ if(result.signal==="CALL"||result.signal==="PUT"){
+  if(feed.activeSignal&&Date.now()<feed.activeUntil){result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";}
+  else if(candleId!==null&&feed.signalCandle!==candleId){feed.activeSignal=result.signal;feed.activeUntil=Date.now()+SIGNAL_HOLD_SECONDS*1000;feed.signalCandle=candleId;feed.alertId=`${candleId}:${result.signal}`;}
+  else{result.signal="STANDBY";result.reason="ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน";}
+ }else if(feed.activeSignal&&Date.now()<feed.activeUntil){
+  const restFresh=restFallback&&Number.isFinite(result.ageSeconds)&&result.ageSeconds<=MAX_CANDLE_AGE_SECONDS;
+  const streamFresh=feed.tickAt&&Date.now()-feed.tickAt<=MAX_STREAM_AGE_SECONDS*1000;
+  if(!restFresh&&!streamFresh){feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=candleId;feed.preAlertSignal=null;feed.alertId=null;feed.analysis=standby("ยกเลิกสัญญาณเดิม: แหล่งข้อมูลราคาไม่สดหรือไม่ผ่าน Data Quality Gate");return;}
+  result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+ }else if(feed.activeSignal&&Date.now()>=feed.activeUntil){feed.activeSignal=null;feed.activeUntil=0;}
+ if(result.signal==="CALL"||result.signal==="PUT")feed.preAlertSignal=result.signal;
+ else if(!(feed.activeSignal&&Date.now()<feed.activeUntil))feed.preAlertSignal=null;
+ feed.analysis={...result,tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,signalExpiresAt:feed.activeSignal?new Date(feed.activeUntil).toISOString():null};
 }
 
 function applyTick(feed, price, epoch) {
