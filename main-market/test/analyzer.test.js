@@ -5,7 +5,15 @@ import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.
 import { analyzeMarket } from "../src/analyzer.js";
 
 const require = createRequire(import.meta.url);
-const { analyzeMarket: analyzeOriginalMarket } = require("../original-ai/engine/analyze-market.js");
+const { buildMarketContext } = require("../original-ai/scanner/market-context.js");
+const { routeStrategy } = require("../original-ai/engine/strategy-router.js");
+const { decide: decideOriginal } = require("../original-ai/engine/decision-engine-original.js");
+
+function originalDecision(candles) {
+  const context = buildMarketContext(candles);
+  const candidate = routeStrategy(context);
+  return decideOriginal(context, candidate);
+}
 
 function history(count = 220, variant = 0) {
   let price = 1.08;
@@ -27,10 +35,10 @@ test("Original AI data warm-up is 200 closed M1 candles with live-candle headroo
   assert.equal(MAX_CANDLES, 220);
 });
 
-test("Original AI alone decides CALL/PUT; historical simulation runs as a parallel advisory worker", () => {
+test("Original AI alone decides CALL/PUT; historical simulation runs in parallel and reaches its Decision Engine", () => {
   const candles = history();
   const options = { now: Date.now(), tickAgeSeconds: 0 };
-  const original = analyzeOriginalMarket(candles.slice(-MIN_CLOSED_CANDLES));
+  const original = originalDecision(candles.slice(-MIN_CLOSED_CANDLES));
   const result = analyzeMarket(candles, options);
   assert.equal(result.signal, original.signal);
   assert.equal(result.regime, original.regime);
@@ -38,6 +46,8 @@ test("Original AI alone decides CALL/PUT; historical simulation runs as a parall
   assert.ok(["READY", "LIMITED_SAMPLE"].includes(result.assistant.status));
   assert.ok(["AGREES", "CONFLICTS", "NO_COMPARISON"].includes(result.assistant.alignment));
   assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(result.assistant.executionMode));
+  assert.equal(result.assistantAlignment, result.assistant.alignment);
+  assert.equal(result.assistantHistoricalDirection, result.assistant.historicalDirection);
   assert.equal("confidence" in result.assistant, false);
 });
 

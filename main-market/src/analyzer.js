@@ -1,10 +1,12 @@
 import { createRequire } from "node:module";
 import { Worker } from "node:worker_threads";
-import { simulateHistoricalAnalogues } from "./historical-analogue.js";
 import { MIN_CLOSED_CANDLES, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS } from "./config.js";
 
 const require = createRequire(import.meta.url);
-const { analyzeMarket: analyzeOriginalMarket } = require("../original-ai/engine/analyze-market.js");
+const {
+  prepareMarket: prepareOriginalMarket,
+  finalizeMarket: finalizeOriginalMarket
+} = require("../original-ai/engine/analyze-market.js");
 let simulationCache = { key: null, result: null };
 
 function sourceGate(candles, options) {
@@ -117,9 +119,9 @@ function buildAssistant(simulation, originalSignal, executionMode) {
   };
 }
 
-// Original AI is evaluated on the main thread while historical simulation runs
-// in a worker thread. The assistant is cached per closed-candle history and can
-// never replace or override the Original AI's directional decision.
+// The original market-context and strategy routing run on the main thread while
+// the independent Historical Analogue worker runs. The original Decision Engine
+// receives the assistant context and remains the only CALL/PUT/STANDBY authority.
 export function analyzeMarket(candles, options = {}) {
   const gate = sourceGate(candles, options);
   const closed = gate.closed;
@@ -135,7 +137,7 @@ export function analyzeMarket(candles, options = {}) {
     }
   }
 
-  const original = analyzeOriginalMarket(closed.slice(-MIN_CLOSED_CANDLES));
+  const prepared = prepareOriginalMarket(closed.slice(-MIN_CLOSED_CANDLES));
 
   let simulation, executionMode;
   if (!gate.ready) {
@@ -151,8 +153,11 @@ export function analyzeMarket(candles, options = {}) {
     if (simulation.livePriceReady) simulationCache = { key, result: simulation };
   }
 
-  const signal = gate.ready ? original.signal : "STANDBY";
+  const assistantForDecision = buildAssistant(simulation, prepared.candidate?.signal || "STANDBY", executionMode);
+  const original = finalizeOriginalMarket(prepared, assistantForDecision);
   const assistant = buildAssistant(simulation, original.signal, executionMode);
+  const signal = gate.ready ? original.signal : "STANDBY";
+
   return {
     ...original,
     signal,
