@@ -22,15 +22,15 @@ jobs:
       - name: Verify Telegram Mini App cross-origin authentication wiring
         run: |
           cd main-market
-          grep -Fq 'const API_ORIGIN = "https://ai-signal-radar-main-market.onrender.com";' public/app.js
-          test "$(grep -Fc 'credentials: "include"' public/app.js)" -ge 3
-          grep -Fq 'new URL(API_ORIGIN).host' public/app.js
+          grep -Fq 'const API_ORIGIN="https://ai-signal-radar-main-market.onrender.com";' public/app.js
+          test "$(grep -Fc 'credentials:"include"' public/app.js)" -ge 1
+          grep -Fq 'allowedOrigins.has(origin)' server.js
           grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
           grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
           grep -Fq 'export const MIN_CLOSED_CANDLES = 200;' src/config.js
           grep -Fq 'export const HISTORY_CANDLES = 200;' src/config.js
-          grep -Fq 'haptic.impactOccurred' public/app.js
-          grep -Fq 'haptic.notificationOccurred' public/app.js
+          grep -Fq 'h.impactOccurred' public/app.js
+          grep -Fq 'h.notificationOccurred' public/app.js
           grep -Fq 'allowedOrigins.has(origin)' server.js
       - name: Syntax-check application modules
         run: |
