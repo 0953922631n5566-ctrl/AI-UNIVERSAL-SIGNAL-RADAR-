@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       from:
-        description: "UTC start date YYYY-MM-DD (both dates required; maximum 7 days)"
+        description: "UTC start date YYYY-MM-DD (both dates required; maximum 14 days)"
         required: false
         type: string
       to:
@@ -61,8 +61,21 @@ jobs:
           fi
       - name: Decode available ticks, aggregate M1 and enforce coverage
         run: npm run data:decode
-      - name: Run tick-level 10s, 20s and 30s backtests
+      - name: Run tick-level 10s, 20s and 30s backtests with chronological OOS evaluation
         run: npm run backtest:ticks
+      - name: Enforce non-empty chronological holdout
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('data/historical/reports/tick-backtest-report.json', 'utf8'));
+          for (const [horizon, result] of Object.entries(report.reports)) {
+            const oos = result.training?.outOfSample;
+            if (!oos || oos.samples < 50) {
+              throw new Error(`Horizon ${horizon}s has insufficient OOS samples: ${oos?.samples ?? 0}`);
+            }
+            console.log(`OOS ${horizon}s: ${oos.samples} samples; fakeout capture ${oos.fakeoutCapturePct}%; good-signal loss ${oos.goodSignalLossPct}%`);
+          }
+          NODE
       - name: Run M1 diagnostic backtest
         run: npm run backtest:m1 -- data/historical/EURUSD_M1.csv data/historical/reports/m1-backtest-report.json
       - name: Upload manifest, decoded data and backtest reports

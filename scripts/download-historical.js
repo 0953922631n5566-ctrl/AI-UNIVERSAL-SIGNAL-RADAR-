@@ -5,7 +5,7 @@ const { setTimeout: sleep } = require('node:timers/promises');
 const BASE='https://datafeed.dukascopy.com/datafeed/EURUSD';
 const RAW=path.resolve('data/historical/raw/EURUSD');
 const MANIFEST=path.resolve('data/historical/download-manifest.json');
-const MAX_DAYS=7, PAUSE_MS=Number(process.env.HISTORICAL_DOWNLOAD_PAUSE_MS||1000);
+const MAX_DAYS=14, PAUSE_MS=Number(process.env.HISTORICAL_DOWNLOAD_PAUSE_MS||1000);
 const MAX_RETRIES=Number(process.env.HISTORICAL_DOWNLOAD_RETRIES||8);
 const REQUEST_TIMEOUT_MS=Number(process.env.HISTORICAL_DOWNLOAD_TIMEOUT_MS||60000);
 const MIN_COVERAGE_PCT=Number(process.env.HISTORICAL_MIN_COVERAGE_PCT||50);
@@ -38,7 +38,7 @@ async function fetchHour(hour,force){
 }
 async function main(){
  const args=process.argv.slice(2),value=k=>{const i=args.indexOf(k);return i>=0?args[i+1]:null;},now=new Date();
- const end0=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()-1)),start0=new Date(end0);start0.setUTCDate(start0.getUTCDate()-6);
+ const end0=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),now.getUTCDate()-1)),start0=new Date(end0);start0.setUTCDate(start0.getUTCDate()-13);
  const from=dateArg(value('--from')||start0.toISOString().slice(0,10),'--from'),to=dateArg(value('--to')||end0.toISOString().slice(0,10),'--to');
  if(to<from)throw Error('--to must be on or after --from');if(Math.round((to-from)/86400000)+1>MAX_DAYS)throw Error('Range limited to '+MAX_DAYS+' days');
  fs.mkdirSync(RAW,{recursive:true});const counts={downloaded:0,cached:0,missingProvider:0,failedAfterRetries:0},missingHours=[],started=Date.now();

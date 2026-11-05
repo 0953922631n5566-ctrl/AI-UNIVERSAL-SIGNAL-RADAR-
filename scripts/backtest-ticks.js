@@ -122,8 +122,12 @@ const OPTIMIZER_GRID = Object.freeze({
 function bucket(value, edges) {
   if (typeof value === 'string') return value;
   if (!Number.isFinite(value)) return 'UNKNOWN';
-  for (let i = 0; i < edges.length; i++) if (value < edges[i]) return '<' + edges[i];
-  return '>=' + edges[edges.length - 1];
+  if (!edges.length) return 'ALL';
+  if (value <= edges[0]) return '<=' + edges[0];
+  for (let i = 1; i < edges.length; i++) {
+    if (value <= edges[i]) return '(' + edges[i - 1] + ',' + edges[i] + ']';
+  }
+  return '>' + edges[edges.length - 1];
 }
 
 function summarizeSegments(rows, field, edges) {
@@ -142,6 +146,51 @@ function summarizeSegments(rows, field, edges) {
       goodRatePct: items.length ? round(good / items.length * 100) : 0
     };
   });
+}
+
+function evaluateFilter(rows, params) {
+  if (!params || !rows.length) return {
+    samples: rows.length, blockedSignals: 0, retainedSignals: rows.length,
+    fakeoutCapturePct: null, goodSignalLossPct: null, fakeoutsBlocked: 0,
+    goodSignalsBlocked: 0, eligible: false
+  };
+  const fakeouts = rows.filter(x => x.fakeout).length;
+  const good = rows.filter(x => x.good).length;
+  let blockedSignals = 0, fakeoutsBlocked = 0, goodSignalsBlocked = 0;
+  for (const x of rows) {
+    const block = x.risk >= params.riskThreshold ||
+      (x.volatilityRatio >= params.volatilityThreshold && x.adx <= params.weakAdxMax) ||
+      (x.rangeAtr >= params.rangeAtrThreshold && x.adx <= params.weakAdxMax);
+    if (!block) continue;
+    blockedSignals++;
+    if (x.fakeout) fakeoutsBlocked++;
+    if (x.good) goodSignalsBlocked++;
+  }
+  const capture = fakeouts ? round(fakeoutsBlocked / fakeouts * 100) : null;
+  const loss = good ? round(goodSignalsBlocked / good * 100) : null;
+  return {
+    samples: rows.length, blockedSignals, retainedSignals: rows.length - blockedSignals,
+    fakeouts, good, fakeoutsBlocked, goodSignalsBlocked,
+    fakeoutCapturePct: capture, goodSignalLossPct: loss,
+    eligible: rows.length > 0 && good > 0 && loss <= 10
+  };
+}
+
+function splitRowsChronologically(rows) {
+  const days = [...new Set(rows.filter(x => Number.isFinite(x.time))
+    .map(x => new Date(x.time).toISOString().slice(0, 10)))].sort();
+  if (days.length < 2) return {
+    train: rows.slice(), test: [], trainDates: days, testDates: [],
+    warning: 'At least two distinct UTC dates are required for a chronological out-of-sample split.'
+  };
+  const splitAt = Math.ceil(days.length / 2);
+  const trainDays = new Set(days.slice(0, splitAt));
+  const train = rows.filter(x => trainDays.has(new Date(x.time).toISOString().slice(0, 10)));
+  const test = rows.filter(x => !trainDays.has(new Date(x.time).toISOString().slice(0, 10)));
+  return {
+    train, test, trainDates: days.slice(0, splitAt), testDates: days.slice(splitAt),
+    warning: null
+  };
 }
 
 function optimizeFilter(rows, grid = OPTIMIZER_GRID) {
@@ -230,7 +279,7 @@ function runTickBacktest(ticks, options = {}) {
         const ind = decision.indicators || {};
         const latest = history[history.length - 1];
         samples[horizon].push({
-          signal: decision.signal, risk: simulation.reversalRisk,
+          time: signalTime, signal: decision.signal, risk: simulation.reversalRisk,
           volatilityRatio: Number.isFinite(ind.volatilityRatio) ? ind.volatilityRatio : 1,
           adx: Number.isFinite(ind.adx) ? ind.adx : 0,
           rangeAtr: (latest.high - latest.low) / simulation.atr,
@@ -272,6 +321,27 @@ function runTickBacktest(ticks, options = {}) {
         byRangeAtr: summarizeSegments(rows, 'rangeAtr', [0.75, 1.0, 1.25, 1.5, 2.0]),
         byRegime: summarizeSegments(rows.map(x => ({ ...x, regimeCode: x.regime })), 'regimeCode', [])
       },
+      training: (() => {
+        const split = splitRowsChronologically(rows);
+        const optimization = optimizeFilter(split.train);
+        const selected = optimization.best[0] || null;
+        return {
+          trainSamples: split.train.length,
+          testSamples: split.test.length,
+          trainUtcDates: split.trainDates,
+          outOfSampleUtcDates: split.testDates,
+          splitWarning: split.warning,
+          optimization,
+          outOfSample: selected ? evaluateFilter(split.test, selected) : null,
+          selectedParameters: selected ? {
+            riskThreshold: selected.riskThreshold,
+            volatilityThreshold: selected.volatilityThreshold,
+            weakAdxMax: selected.weakAdxMax,
+            rangeAtrThreshold: selected.rangeAtrThreshold
+          } : null,
+          note: 'Parameters are optimized on the earlier training dates only, then evaluated unchanged on later, non-overlapping UTC dates. Do not promote parameters unless the out-of-sample sample is sufficiently large and independently reviewed.'
+        };
+      })(),
       optimization: optimizeFilter(rows)
     };
   }
@@ -316,4 +386,7 @@ if (require.main === module) {
   }
 }
 
-module.exports = { loadTicks, buildM1Candles, runTickBacktest, optimizeFilter, OPTIMIZER_GRID, HORIZONS, DEFAULT_THRESHOLDS };
+module.exports = {
+  loadTicks, buildM1Candles, runTickBacktest, optimizeFilter, evaluateFilter,
+  splitRowsChronologically, bucket, OPTIMIZER_GRID, HORIZONS, DEFAULT_THRESHOLDS
+};

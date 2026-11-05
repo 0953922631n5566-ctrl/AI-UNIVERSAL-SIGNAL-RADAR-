@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadTicks, buildM1Candles, runTickBacktest } = require('../scripts/backtest-ticks');
+const { loadTicks, buildM1Candles, runTickBacktest, bucket, splitRowsChronologically, evaluateFilter } = require('../scripts/backtest-ticks');
 
 function histTicks(count = 120) {
   const rows = [];
@@ -67,4 +67,42 @@ test('optimizer reports feature attribution and enforces good-signal-loss cap', 
   assert.ok(result.best.length > 0);
   assert.equal(result.best[0].fakeoutCapturePct, 100);
   assert.equal(result.best[0].goodSignalLossPct, 0);
+});
+
+
+test('attribution buckets are mutually exclusive with exact inclusive boundaries', () => {
+  const edges = [1, 1.5, 2];
+  assert.equal(bucket(1, edges), '<=1');
+  assert.equal(bucket(1.01, edges), '(1,1.5]');
+  assert.equal(bucket(1.5, edges), '(1,1.5]');
+  assert.equal(bucket(1.5001, edges), '(1.5,2]');
+  assert.equal(bucket(2, edges), '(1.5,2]');
+  assert.equal(bucket(2.01, edges), '>2');
+  assert.equal(bucket('TRENDING', edges), 'TRENDING');
+  assert.equal(bucket(NaN, edges), 'UNKNOWN');
+});
+
+test('chronological split keeps UTC dates disjoint and trains only on earlier dates', () => {
+  const rows = [];
+  for (let day = 1; day <= 4; day++) {
+    rows.push({ time: Date.parse(`2026-10-0${day}T12:00:00Z`), fakeout: day > 2, good: day <= 2 });
+  }
+  const split = splitRowsChronologically(rows);
+  assert.deepEqual(split.trainDates, ['2026-10-01', '2026-10-02']);
+  assert.deepEqual(split.testDates, ['2026-10-03', '2026-10-04']);
+  assert.equal(split.train.length, 2);
+  assert.equal(split.test.length, 2);
+  assert.ok(Math.max(...split.train.map(x => x.time)) < Math.min(...split.test.map(x => x.time)));
+});
+
+test('out-of-sample evaluation applies frozen parameters without re-optimization', () => {
+  const params = { riskThreshold: 0.5, volatilityThreshold: 1.5, weakAdxMax: 20, rangeAtrThreshold: 1.5 };
+  const holdout = [
+    { risk: 0.6, volatilityRatio: 1, adx: 30, rangeAtr: 1, fakeout: true, good: false },
+    { risk: 0.2, volatilityRatio: 1, adx: 30, rangeAtr: 1, fakeout: false, good: true }
+  ];
+  const result = evaluateFilter(holdout, params);
+  assert.equal(result.samples, 2);
+  assert.equal(result.fakeoutCapturePct, 100);
+  assert.equal(result.goodSignalLossPct, 0);
 });
