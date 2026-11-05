@@ -1,65 +1,20 @@
 'use strict';
-const test = require('node:test');
-const assert = require('node:assert/strict');
-const { analyzeMainMarket } = require('../engine/main-market-adapter');
-const { applySafetyGate } = require('../engine/safety-gate');
-const { ROUND16 } = require('../engine/round16-parameters');
-
-const candidate = { signal: 'CALL', score: 80, strategy: 'UPTREND', reason: 'Candidate' };
-const simulation = {
-  ready: true, status: 'READY', signal: 'CALL', candleTime: 60000,
-  riskScore: 0.5, volatilityRatio: 1.2, adx: 25, rangeAtrRatio: 1.1
-};
-
-test('Round 16 parameters are locked to requested values', () => {
-  assert.deepEqual(ROUND16, {
-    round: 16, evaluationIntervalMs: 30000, riskMax: 0.70,
-    volatilityRatioMax: 1.50, weakAdxMin: 22, rangeAtrRatioMax: 1.25
-  });
-});
-
-test('missing simulation forces CALL candidate to STANDBY', () => {
-  const out = applySafetyGate(candidate, { ready: false, status: 'NOT_CONFIGURED' }, 60000);
-  assert.equal(out.signal, 'STANDBY');
-  assert.equal(out.safetyGate.status, 'SIMULATION_NOT_READY');
-});
-
-test('valid simulation passes all Round 16 gates', () => {
-  const out = applySafetyGate(candidate, simulation, 60000);
-  assert.equal(out.signal, 'CALL');
-  assert.equal(out.safetyGate.passed, true);
-});
-
-test('simulation candle mismatch blocks directional output', () => {
-  const out = applySafetyGate(candidate, { ...simulation, candleTime: 120000 }, 60000);
-  assert.equal(out.signal, 'STANDBY');
-  assert.equal(out.safetyGate.status, 'CANDLE_MISMATCH');
-});
-
-test('simulation direction mismatch blocks directional output', () => {
-  const out = applySafetyGate(candidate, { ...simulation, signal: 'PUT' }, 60000);
-  assert.equal(out.signal, 'STANDBY');
-  assert.equal(out.safetyGate.status, 'DIRECTION_MISMATCH');
-});
-
-test('each Round 16 threshold blocks excessive risk, volatility and range or weak ADX', () => {
-  for (const patch of [
-    { riskScore: 0.71 }, { volatilityRatio: 1.51 },
-    { adx: 21.99 }, { rangeAtrRatio: 1.26 }
-  ]) {
-    const out = applySafetyGate(candidate, { ...simulation, ...patch }, 60000);
-    assert.equal(out.signal, 'STANDBY');
-    assert.equal(out.safetyGate.status, 'PARAMETER_BLOCKED');
-  }
-});
-
-test('live adapter fails closed while no simulation provider is connected', () => {
-  const candles = Array.from({ length: 200 }, (_, i) => {
-    const close = 1.1 + i * 0.00001;
-    return { time: i * 60000, open: close - 0.00001, high: close + 0.00002, low: close - 0.00002, close };
-  });
-  const out = analyzeMainMarket(candles);
-  assert.equal(out.signal, 'STANDBY');
-  assert.equal(out.simulation.ready, false);
-  assert.equal(out.signal, 'STANDBY');
-});
+const test=require('node:test'),assert=require('node:assert/strict');
+const{simulateNextCandle,atrAt,normalizedPattern}=require('../engine/future-simulation');
+const{analyzeMainMarket}=require('../engine/main-market-adapter');
+const{applySafetyGate}=require('../engine/safety-gate');
+const{ROUND16}=require('../engine/round16-parameters');
+function makeCandles(n=240,mode='mixed'){const a=[];let close=1.1;for(let i=0;i<n;i++){const step=mode==='up'?.00012:mode==='down'?-.00012:Math.sin(i*.73)*.00009;const open=close;close+=step;a.push({time:i*60000,open,high:Math.max(open,close)+.000035,low:Math.min(open,close)-.000035,close});}return a;}
+const candidate={signal:'CALL',score:80,strategy:'UPTREND',reason:'Candidate'};
+const valid={ready:true,status:'READY',signal:'CALL',candleTime:60000,riskScore:.5,volatilityRatio:1.2,adx:25,rangeAtrRatio:1.1};
+test('Round 16 parameters remain locked',()=>assert.deepEqual(ROUND16,{round:16,evaluationIntervalMs:30000,riskMax:.70,volatilityRatioMax:1.50,weakAdxMin:22,rangeAtrRatioMax:1.25}));
+test('historical simulation refuses insufficient history',()=>assert.equal(simulateNextCandle(makeCandles(60)).status,'INSUFFICIENT_HISTORY'));
+test('ATR and normalized analogue features use actual OHLC history',()=>{const c=makeCandles(100,'up');assert.ok(atrAt(c,99)>0);assert.equal(normalizedPattern(c,99,atrAt(c,99)).length,5);});
+test('simulation returns auditable one-candle historical analogue result',()=>{const c=makeCandles(),ind=require('../scanner/trend-scanner').scanTrend(c).indicators,out=simulateNextCandle(c,{indicators:ind});assert.equal(out.ready,true);assert.equal(out.model,'HISTORICAL_ANALOGUE_WALK_FORWARD');assert.equal(out.horizonCandles,1);assert.ok(out.sampleCount>=20);assert.ok(Number.isFinite(out.riskScore));assert.ok(Number.isFinite(out.expectedMoveAtr));});
+test('invalid historical chronology fails closed',()=>{const c=makeCandles(100);c[90].time=c[89].time;assert.equal(simulateNextCandle(c,{}).status,'INVALID_HISTORY');});
+test('missing simulation forces candidate to STANDBY',()=>{const o=applySafetyGate(candidate,{ready:false,status:'NOT_CONFIGURED'},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'SIMULATION_NOT_READY');});
+test('valid simulation passes all Round 16 gates',()=>{const o=applySafetyGate(candidate,valid,60000);assert.equal(o.signal,'CALL');assert.equal(o.safetyGate.passed,true);});
+test('mismatched candle blocks signal',()=>{const o=applySafetyGate(candidate,{...valid,candleTime:120000},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'CANDLE_MISMATCH');});
+test('opposite simulation direction blocks signal',()=>{const o=applySafetyGate(candidate,{...valid,signal:'PUT'},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'DIRECTION_MISMATCH');});
+test('each Round 16 threshold blocks an unsafe result',()=>{for(const patch of[{riskScore:.71},{volatilityRatio:1.51},{adx:21.99},{rangeAtrRatio:1.26}]){const o=applySafetyGate(candidate,{...valid,...patch},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'PARAMETER_BLOCKED');}});
+test('default adapter runs historical simulation and exposes diagnostics',()=>{const o=analyzeMainMarket(makeCandles());assert.ok(['CALL','PUT','STANDBY'].includes(o.signal));assert.equal(o.simulation.model,'HISTORICAL_ANALOGUE_WALK_FORWARD');assert.ok(o.simulation.sampleCount>=20);});
