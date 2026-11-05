@@ -6,7 +6,7 @@ const{applySafetyGate}=require('../engine/safety-gate');
 const{ROUND16}=require('../engine/round16-parameters');
 function makeCandles(n=240,mode='mixed'){const a=[];let close=1.1;for(let i=0;i<n;i++){const step=mode==='up'?.00012:mode==='down'?-.00012:Math.sin(i*.73)*.00009;const open=close;close+=step;a.push({time:i*60000,open,high:Math.max(open,close)+.000035,low:Math.min(open,close)-.000035,close});}return a;}
 const context={signal:'STANDBY',score:0,strategy:'NONE',regime:'UNCLEAR'};
-const valid={ready:true,status:'READY',signal:'CALL',candleTime:60000,riskScore:.2,volatilityRatio:1.8,adx:12,rangeAtrRatio:2.4,sampleCount:30,probabilityUp:.7,probabilityDown:.3,expectedMoveAtr:.12,projectedPrice:1.1001};
+const valid={ready:true,status:'READY',signal:'CALL',candleTime:60000,riskScore:.2,volatilityRatio:1.8,adx:12,rangeAtrRatio:2.4,sampleCount:30,probabilityUp:.7,probabilityDown:.3,expectedMoveAtr:.12,projectedPrice:1.1001,projectionBar:{time:120000,open:1.1,high:1.1002,low:1.0999,close:1.1001,synthetic:true,label:'FUTURE_PROJECTION_NOT_MARKET_DATA'}};
 test('Round 16 uses simulation-led adaptive profile',()=>assert.deepEqual(ROUND16,{round:16,evaluationIntervalMs:30000,minAnalogueCount:20,minDirectionalRate:.58,riskMax:.70,volatilityRatioMax:2.20}));
 test('historical simulation refuses insufficient history',()=>assert.equal(simulateNextCandle(makeCandles(60)).status,'INSUFFICIENT_HISTORY'));
 test('ATR and normalized analogue features use actual OHLC history',()=>{const c=makeCandles(100,'up');assert.ok(atrAt(c,99)>0);assert.equal(normalizedPattern(c,99,atrAt(c,99)).length,5);});
@@ -22,4 +22,4 @@ test('wrong projected direction blocks signal',()=>{const o=applySafetyGate(cont
 test('extreme volatility blocks signal',()=>{const o=applySafetyGate(context,{...valid,volatilityRatio:2.21},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'PARAMETER_BLOCKED');});
 test('low ADX and wide candle are diagnostics, not hard blockers',()=>{const o=applySafetyGate(context,{...valid,adx:8,rangeAtrRatio:4},60000);assert.equal(o.signal,'CALL');assert.equal(o.safetyGate.passed,true);});
 test('excessive adverse-outcome risk blocks signal',()=>{const o=applySafetyGate(context,{...valid,riskScore:.71},60000);assert.equal(o.signal,'STANDBY');assert.equal(o.safetyGate.status,'PARAMETER_BLOCKED');});
-test('default adapter runs historical simulation and exposes diagnostics',()=>{const o=analyzeMainMarket(makeCandles());assert.ok(['CALL','PUT','STANDBY'].includes(o.signal));assert.equal(o.simulation.model,'HISTORICAL_ANALOGUE_WALK_FORWARD');assert.ok(o.simulation.sampleCount>=20);});
+test('default adapter runs historical simulation and exposes diagnostics',()=>{const o=analyzeMainMarket(makeCandles());assert.ok(['CALL','PUT','STANDBY'].includes(o.signal));assert.equal(o.simulation.model,'HISTORICAL_ANALOGUE_WALK_FORWARD');assert.ok(o.simulation.sampleCount>=20);assert.equal(o.simulation.projectionBar.synthetic,true);});
