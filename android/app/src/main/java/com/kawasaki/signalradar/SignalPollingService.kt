@@ -89,7 +89,11 @@ class SignalPollingService : Service() {
             val reason = json.optString("reason", "")
             val price = if (json.isNull("price")) "--" else json.optString("price")
             val apiKeys = json.optJSONObject("apiKeys")?.toString() ?: "{}"
+            val simulation = json.optJSONObject("simulation") ?: JSONObject()
+            val projectionBar = simulation.optJSONObject("projectionBar")
             prefs.edit().putString("api_keys_summary", apiKeys)
+                .putString("projection_bar", projectionBar?.toString() ?: "{}")
+                .putString("simulation_summary", simulation.toString())
                 .putString("connection", if (status == "ONLINE") "ONLINE" else status)
                 .putString("signal", signal)
                 .putString("reason", reason)
