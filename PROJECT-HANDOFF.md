@@ -123,3 +123,13 @@ Branch: feature/server-price-extraction
 - Safety Gate response summary passes this projectionBar through to /api/market for app/UI use.
 - No forced CALL/PUT behavior was added. A weak directional lean alone is not treated as an actionable entry; no-edge, invalid/stale data, timestamp mismatch, or excessive risk remains STANDBY.
 - Test suite now asserts projection bar timestamp and OHLC construction. Verify CI and Render auto-deploy before claiming production availability.
+
+
+## Projection Bar API + Android integration follow-up (2026-11-05)
+- Fixed `engine/safety-gate.js` serialization so the synthetic `simulation.projectionBar` object survives into `GET /api/market`. It is explicitly tagged synthetic and `FUTURE_PROJECTION_NOT_MARKET_DATA`.
+- Added regression coverage that the projection bar survives the safety gate and that directional-frequency text is formatted as a percentage (e.g. 70.0%, not 0.7%).
+- Android polling now stores the returned projection bar and simulation JSON in SharedPreferences; MainActivity renders the next-M1 synthetic OHLC scenario and labels it as a model projection, not live market data.
+- Render service `ai-universal-signal-radar-main` is configured for automatic deploys from `feature/server-price-extraction`. The deploy containing the projection serialization fix was observed `live`; verify the latest follow-up commit's deploy separately.
+- APK build workflow for commit `4c41ca767005ba6a0316e7c49dae5b61c795001b` was observed in progress at the last check. Do not claim the new APK is ready until workflow success and artifact presence are verified.
+- Live API sample confirmed `simulation.projectionBar` present with OHLC, synthetic flag, and label. The same sample returned top-level `signal: STANDBY` because `signalWindowOpen` was false (outside the final 5 seconds of the M1 cycle); simulation direction was PUT with 60% historical analogue frequency and Safety Gate PASSED. This is a projection diagnostic, not permission to force an entry.
+- Physical Xiaomi 11T install/notification test remains unverified. Debug APK signing may differ from the installed package signature; do not promise in-place upgrade or data preservation.
