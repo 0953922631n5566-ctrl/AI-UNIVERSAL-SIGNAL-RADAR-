@@ -10,7 +10,9 @@ function analyzeMainMarket(candles,options={}){
  const runner=options.simulationRunner||((ctx)=>simulateNextCandle(ctx.candles,ctx.analysis));
  const simulation=readSimulationResult({market:'MAIN',symbol:'EUR/USD',timeframe:'M1',candles,analysis,parameters:ROUND16},runner);
  const gated=applySafetyGate(analysis,simulation,candleTime);
- return{...gated,parameters:{round:ROUND16.round,evaluationIntervalMs:ROUND16.evaluationIntervalMs,
-  riskMax:ROUND16.riskMax,volatilityRatioMax:ROUND16.volatilityRatioMax,weakAdxMin:ROUND16.weakAdxMin,rangeAtrRatioMax:ROUND16.rangeAtrRatioMax}};
+ return{...gated,regime:analysis.regime,regimeConfidence:analysis.regimeConfidence,
+  indicators:analysis.indicators,parameters:{round:ROUND16.round,evaluationIntervalMs:ROUND16.evaluationIntervalMs,
+  minAnalogueCount:ROUND16.minAnalogueCount,minDirectionalRate:ROUND16.minDirectionalRate,
+  riskMax:ROUND16.riskMax,volatilityRatioMax:ROUND16.volatilityRatioMax}};
 }
 module.exports={analyzeMainMarket};
