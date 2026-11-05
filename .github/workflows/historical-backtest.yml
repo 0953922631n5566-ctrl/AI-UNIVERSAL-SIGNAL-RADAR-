@@ -1,6 +1,9 @@
 name: Historical EURUSD Backtest
 
 on:
+  push:
+    branches:
+      - feature/future-simulation-engine
   workflow_dispatch:
     inputs:
       from:
