@@ -206,7 +206,7 @@ if (require.main === module) {
     report.generatedAt = new Date().toISOString();
     const output = JSON.stringify(report, null, 2);
     fs.mkdirSync(path.dirname(path.resolve(reportPath)), { recursive: true });
-    fs.writeFileSync(path.resolve(reportPath), output + '\\n');
+    fs.writeFileSync(path.resolve(reportPath), output + '\n');
     console.log(output);
     console.log('Report saved: ' + path.resolve(reportPath));
   } catch (error) {
