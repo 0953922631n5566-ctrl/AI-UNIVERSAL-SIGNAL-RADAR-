@@ -973,3 +973,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added regression tests for bullish and bearish threshold decisions.
 - This is an evidence score threshold, not a 53% measured win rate. Backtesting, paper-trading and out-of-sample validation are still required.
 - Android APK build is not available from this Main Market branch: this branch contains the Telegram Mini App/Node service and no Android Gradle project or APK build configuration. Do not claim an APK was built.
+
+
+## 2026-11-05 — Historical Analogue Simulation replaces the indicator decision engine
+
+- Supersedes the prior 53-point EMA/RSI/MACD/momentum evidence-score implementation. The active decision path is now Historical Analogue Simulation only.
+- Added `main-market/src/historical-analogue.js`: match the latest 8 closed M1 candles against earlier non-overlapping historical 8-candle patterns, rank matches by normalized shape distance, and simulate the next M1 candle using the immediately following candle after each analogue.
+- Initial implementation defaults: nearest 20 matches, minimum 12 valid analogues, 53% directional-share threshold, 1-candle M1 horizon. These are transparent initial parameters, not a claim of measured predictive accuracy.
+- CALL if upward analogue outcomes are at least 53%; PUT if downward analogue outcomes are at least 53%; otherwise STANDBY. The percentage is an analogue directional share, not a calibrated probability or verified win rate. Out-of-sample backtesting and paper trading remain necessary.
+- `src/analyzer.js` now delegates directly to the simulation module. No EMA, RSI, MACD, momentum score or regime score drives decisions.
+- Retained only data-quality/source checks: minimum 60 closed candles, valid positive OHLC, increasing timestamps, contiguous latest 8 M1 bars, latest-candle freshness, and a fresh Streaming tick or explicitly enabled fresh REST fallback.
+- Removed EMA21/trend-regime signal invalidation in `server.js`. A live signal is held stable for 40 seconds and is cleared only when the price source fails the data freshness gate.
+- Regression suite replaced old indicator expectations with analogue-engine, threshold semantics, malformed/stale data, legacy-code absence and HTTP smoke tests.
+- Deployment is not considered complete until Render reports the new commit as Live/succeeded and build logs show passing tests. Xiaomi 11T/Telegram behavior still requires physical device confirmation.
