@@ -1,6 +1,6 @@
 const API_ORIGIN="https://ai-signal-radar-main-market.onrender.com";
 const $=id=>document.getElementById(id);
-const PAIRS=["AUD/USD","EUR/USD","EUR/GBP","GBP/JPY","EUR/JPY","GBP/USD"];
+const PAIRS=["EUR/USD"];
 const tg=()=>window.Telegram?.WebApp;
 let authenticated=false,monitoring=false,selectedSymbol="EUR/USD",pollTimer=null,beatTimer=null,countdownTimer=null,audio=null,lastAlert="",sessionToken="";
 const alerted=new Set(),preAlerted=new Set();

@@ -1063,3 +1063,7 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Runtime startup log confirms port 10000, Twelve Data API key configured, 200 closed candles required, 200 history candles loaded per REST request, and REST refresh interval 180 seconds.
 - The app is deployed, but live EUR/USD tick/history reception and UI alerts still require an actual user session on the existing Telegram Mini App/APK. Do not claim handset validation until the user confirms it.
 - Historical analogue remains advisory: its directional share is not a calibrated probability, and it does not alter the Original AI's decision score or direction. Any future weighting change requires out-of-sample backtesting first.
+
+
+### 2026-11-06 — Pair scope consistency
+- The Telegram Mini App pair selector is restricted to `EUR/USD`, matching `SYMBOLS=["EUR/USD"]` in server configuration. This prevents presenting unsupported pairs in a EUR/USD-only Main Market release.
