@@ -960,3 +960,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Pair availability is not guaranteed merely because a pair appears in the selector: Twelve Data API key plan, market coverage, and quota determine support. Each selected pair is tested by REST fetch; failures display an explicit unsupported/error state. Do not claim all six are live-tested until each has returned valid candles and streaming data.
 - No broker order execution was added. The Mini App continues to display manual CALL/PUT/STANDBY only.
 - Remaining validation: check final backend deploy LIVE, verify /health reports six symbols, test each pair with the actual configured Twelve Data key, confirm REST history + live stream for each, and test selector/countdown/notifications inside Telegram on Android.
+
+
+## 2026-11-05 — Directional threshold 53 update
+
+- User requested lowering directional trigger threshold to 53 and reducing unnecessary STANDBY decisions.
+- Audited the active `main-market` branch: its current analyzer did not contain a Future Simulation module or a separate Adverse Risk Score. It is a transparent rule-based EMA/RSI/MACD/momentum analyzer; do not describe this change as a calibrated forecast probability or completed future-price simulation.
+- Added `DIRECTIONAL_THRESHOLD=53` in `main-market/src/config.js`.
+- Analyzer now calculates transparent bullish/bearish evidence scores (0–100) from EMA alignment, price vs EMA9, 3/5-bar momentum, last-three-bar direction, MACD histogram and RSI zone. CALL/PUT is considered when the respective score reaches 53 and exceeds the opposing score.
+- Removed soft regime/volatility/support-resistance/body-size vetoes from the final directional decision so strong directional evidence is not automatically blocked by HIGH_VOLATILITY, RANGING, REVERSAL or proximity to support/resistance. These metrics remain visible as context.
+- Hard data-integrity protections remain: 60 closed M1 candles, valid/ordered OHLC, recent consecutive bars, fresh candle data and fresh live tick (or explicitly allowed fresh REST fallback). Stale/missing/API-failed data remains STANDBY.
+- Added regression tests for bullish and bearish threshold decisions.
+- This is an evidence score threshold, not a 53% measured win rate. Backtesting, paper-trading and out-of-sample validation are still required.
+- Android APK build is not available from this Main Market branch: this branch contains the Telegram Mini App/Node service and no Android Gradle project or APK build configuration. Do not claim an APK was built.
