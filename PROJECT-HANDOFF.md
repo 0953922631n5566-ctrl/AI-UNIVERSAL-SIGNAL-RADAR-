@@ -1040,3 +1040,6 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The active analyzer adapter validates at least 200 completed M1 candles, positive/consistent OHLC values, strictly increasing timestamps, latest-candle age <= 180 seconds, and either a fresh Streaming tick (<= 25 seconds) or an explicitly enabled fresh REST fallback.
 - Any failed source/data-integrity gate forces top-level STANDBY before the Original AI decision can be exposed.
 - A worker timeout or assistant calculation failure does not block a valid Original AI decision; it only marks the assistant unavailable. This keeps the assistant from becoming a second decision authority.
+
+
+- CI rerun trigger after worker-thread/data-quality adapter update: 2026-11-06. Check latest GitHub Actions runs before merging or deploying.
