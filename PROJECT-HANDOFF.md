@@ -118,3 +118,10 @@ Branch: feature/server-price-extraction
 
 - Added `.github/workflows/historical-backtest.yml` with manual `workflow_dispatch`: runs `npm test`, downloads the requested UTC date range (or defaults to 30 days), decodes Tick + M1, runs both backtests, and uploads CSV/JSON outputs as a 14-day GitHub Actions artifact. This provides a cloud runner path; it has not yet been dispatched or completed.
 - Historical backtest workflow now also triggers on pushes to `feature/future-simulation-engine` (latest workflow commit `fc6fcea47767d0398e11acfa9bbe4a16bab9c1d8`). The latest commit status query still returned no CI statuses at check time; wait for the Actions run before claiming success.
+
+## Historical downloader retry hardening — 2026-11-05
+
+- GitHub Actions run `41950233738` passed all 39 Node tests but failed during the first historical download batch because Dukascopy returned HTTP 503 for one hourly BI5 file. Decode and backtests were skipped; this was a provider-side transient response, not a parser/test failure.
+- Updated `scripts/download-historical.js` in commit `7fa93fa49f8b7f2abbb0f263f8841a28285ac771`: retry transient network/timeout, HTTP 408/425/429 and 5xx failures up to 8 attempts; exponential backoff from 2s up to 60s; respect numeric Retry-After; use a 60s request timeout; increase default inter-request pause from 250ms to 1000ms. HTTP 404 remains a missing-hour result; permanent 4xx errors fail immediately. Existing downloaded files remain cached so reruns resume rather than redownload completed hours.
+- New workflow run triggered by this commit must be checked before claiming downloader, decoder, or backtest success. Accuracy, price-envelope coverage, and fakeout statistics remain unavailable until actual tick reports are produced and inspected.
+- Safety Gate remains OFF in production.
