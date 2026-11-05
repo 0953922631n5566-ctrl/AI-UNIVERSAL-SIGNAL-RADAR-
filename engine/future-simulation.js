@@ -38,7 +38,19 @@ function simulateNextCandle(candles,analysis={}){
   if(volatilityRatio>ROUND16.volatilityRatioMax)issues.push('Extreme volatility exceeds Round 16 limit');
   const expectedMovePrice=expectedMoveAtr*currentAtr;
   const projectedPrice=latest.close+expectedMovePrice;
-  return{ready:true,status:'READY',signal,candleTime:latest.time,currentPrice:latest.close,currentAtr,expectedMovePrice,projectedPrice,riskScore,volatilityRatio,adx:d.adx,rangeAtrRatio,
+  // Synthetic scenario candle for the next M1 interval; this is a model projection,
+  // not an observed market candle or a guarantee of the next traded OHLC.
+  const projectionRange=currentAtr*0.25;
+  const projectionBar={
+    time:latest.time+60000,
+    open:latest.close,
+    high:Math.max(latest.close,projectedPrice)+projectionRange,
+    low:Math.min(latest.close,projectedPrice)-projectionRange,
+    close:projectedPrice,
+    synthetic:true,
+    label:'FUTURE_PROJECTION_NOT_MARKET_DATA'
+  };
+  return{ready:true,status:'READY',signal,candleTime:latest.time,currentPrice:latest.close,currentAtr,expectedMovePrice,projectedPrice,projectionBar,riskScore,volatilityRatio,adx:d.adx,rangeAtrRatio,
     sampleCount:selected.length,probabilityUp,probabilityDown,expectedMoveAtr,
     medianMoveAtr:median(selected.map(x=>x.futureReturnAtr)),nearestAnalogueDistance:selected[0].distance,
     horizonCandles:1,model:'HISTORICAL_ANALOGUE_WALK_FORWARD',
