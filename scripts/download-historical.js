@@ -5,7 +5,9 @@ const { setTimeout: sleep } = require('node:timers/promises');
 const BASE = 'https://datafeed.dukascopy.com/datafeed/EURUSD';
 const RAW = path.resolve('data/historical/raw/EURUSD');
 const MAX_DAYS = 366;
-const PAUSE_MS = Number(process.env.HISTORICAL_DOWNLOAD_PAUSE_MS || 250);
+const PAUSE_MS = Number(process.env.HISTORICAL_DOWNLOAD_PAUSE_MS || 1000);
+const MAX_RETRIES = Number(process.env.HISTORICAL_DOWNLOAD_RETRIES || 8);
+const REQUEST_TIMEOUT_MS = Number(process.env.HISTORICAL_DOWNLOAD_TIMEOUT_MS || 60000);
 function dateArg(value, name) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '') || Number.isNaN(Date.parse(value + 'T00:00:00Z'))) throw new Error(name + ' must be YYYY-MM-DD');
   return new Date(value + 'T00:00:00Z');
@@ -19,19 +21,30 @@ async function fetchHour(hour, force) {
   if (!force && fs.existsSync(target) && fs.statSync(target).size > 0) return 'cached';
   const y = hour.getUTCFullYear(), m = pad(hour.getUTCMonth()), d = pad(hour.getUTCDate()), h = pad(hour.getUTCHours());
   const url = BASE + '/' + y + '/' + m + '/' + d + '/' + h + 'h_ticks.bi5';
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'AI-Universal-Signal-Radar historical research downloader' }, signal: AbortSignal.timeout(30000) });
+      const response = await fetch(url, { headers: { 'User-Agent': 'AI-Universal-Signal-Radar historical research downloader' }, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
       if (response.status === 404) return 'missing';
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      if (!response.ok) {
+        const error = new Error('HTTP ' + response.status);
+        error.status = response.status;
+        error.retryAfter = response.headers.get('retry-after');
+        throw error;
+      }
       const bytes = Buffer.from(await response.arrayBuffer());
       if (!bytes.length) return 'missing';
       fs.mkdirSync(path.dirname(target), { recursive: true });
       const temp = target + '.part'; fs.writeFileSync(temp, bytes); fs.renameSync(temp, target);
       return 'downloaded';
     } catch (error) {
-      if (attempt === 4) throw new Error(url + ': ' + error.message);
-      await sleep(attempt * 1000);
+      const status = Number(error.status || 0);
+      const retryable = !status || status === 408 || status === 425 || status === 429 || status >= 500;
+      if (!retryable || attempt === MAX_RETRIES) throw new Error(url + ': ' + error.message + ' (attempts=' + attempt + ')');
+      const retryAfterMs = error.retryAfter && /^\\d+$/.test(error.retryAfter) ? Number(error.retryAfter) * 1000 : 0;
+      const backoffMs = Math.min(60000, 2000 * (2 ** (attempt - 1)));
+      const waitMs = Math.max(retryAfterMs, backoffMs);
+      console.warn('Retry ' + attempt + '/' + MAX_RETRIES + ' in ' + waitMs + 'ms for ' + url + ' (' + error.message + ')');
+      await sleep(waitMs);
     }
   }
 }
