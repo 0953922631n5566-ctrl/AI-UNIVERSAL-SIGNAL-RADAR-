@@ -394,3 +394,19 @@ test("HTTP smoke test serves Mini App and accepts start, heartbeat and stop", as
     ]);
   }
 }, { timeout: 15000 });
+
+test("53-point directional threshold allows a clear bearish run to issue PUT", () => {
+  const result = analyzeMarket(makeMomentumCandles(-1), { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.metrics.directionalThreshold, 53);
+  assert.ok(result.metrics.bearishScore >= 53);
+  assert.ok(result.metrics.bearishScore > result.metrics.bullishScore);
+});
+
+test("53-point directional threshold allows a clear bullish run to issue CALL", () => {
+  const result = analyzeMarket(makeMomentumCandles(1), { tickAgeSeconds: 0 });
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.metrics.directionalThreshold, 53);
+  assert.ok(result.metrics.bullishScore >= 53);
+  assert.ok(result.metrics.bullishScore > result.metrics.bearishScore);
+});
