@@ -24,7 +24,7 @@ export function simulateHistoricalAnalogues(input,{now=Date.now(),tickAgeSeconds
  for(let s=0;s+n<cs;s++){if(!consecutive(c,s,n+1))continue;const a=c[s+n-1],b=c[s+n],move=(b.close-a.close)/a.close;if(move===0)continue;matches.push({d:dist(target,features(c,s,n)),up:move>0,move});}
  matches.sort((a,b)=>a.d-b.d);const chosen=matches.slice(0,ANALOGUE_TOP_K);
  const base={analogueCandidates:matches.length,analoguesUsed:chosen.length,patternCandles:n,forecastHorizonCandles:1,directionalThreshold:DIRECTIONAL_THRESHOLD};
- if(chosen.length<ANALOGUE_MIN_MATCHES)return fail(`Historical Analogues มีตัวอย่างที่ใช้ได้เพียง ${chosen.length}/${ANALOGUE_MIN_MATCHES} — ยังไม่พอตัดสินใจ`,{metrics:base,dataMode:stream?"STREAMING":"REST_FALLBACK",lastPrice:last.close,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age)});
+ if(chosen.length<ANALOGUE_MIN_MATCHES)return fail(`Historical Analogues มีตัวอย่างที่ใช้ได้เพียง ${chosen.length}/${ANALOGUE_MIN_MATCHES} — ยังไม่พอตัดสินใจ`,{metrics:base,dataMode:stream?"STREAMING":"REST_FALLBACK",livePriceReady:true,lastPrice:last.close,lastCandleEpoch:last.epoch,ageSeconds:Math.round(age)});
  const up=chosen.filter(x=>x.up).length,down=chosen.length-up,upPct=up/chosen.length*100,downPct=down/chosen.length*100;
  let signal="STANDBY",reason=`ผลจำลองยังไม่ถึงเกณฑ์ ${DIRECTIONAL_THRESHOLD}%`;
  if(upPct>=DIRECTIONAL_THRESHOLD&&upPct>downPct){signal="CALL";reason=`CALL: Historical Analogues ขาขึ้น ${upPct.toFixed(1)}% (เกณฑ์ ${DIRECTIONAL_THRESHOLD}%) จาก ${chosen.length} รูปแบบ`;}

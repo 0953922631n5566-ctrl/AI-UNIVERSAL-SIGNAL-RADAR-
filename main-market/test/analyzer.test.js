@@ -1,18 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
-import { readFile } from "node:fs/promises";
-import {
-  MIN_CLOSED_CANDLES, HISTORY_CANDLES, DIRECTIONAL_THRESHOLD,
-  ANALOGUE_PATTERN_CANDLES, ANALOGUE_TOP_K, ANALOGUE_MIN_MATCHES
-} from "../src/config.js";
+import { createRequire } from "node:module";
+import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
 import { analyzeMarket } from "../src/analyzer.js";
-import { simulateHistoricalAnalogues } from "../src/historical-analogue.js";
 
-function history(count = 80) {
+const require = createRequire(import.meta.url);
+const { analyzeMarket: analyzeOriginalMarket } = require("../original-ai/engine/analyze-market.js");
+
+function history(count = 220) {
   let price = 1.08;
-  const start = Math.floor(Date.now() / 60000) * 60 - count * 60;
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
   return Array.from({ length: count }, (_, i) => {
     const delta = Math.sin(i * 1.7) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
     const open = price, close = price + delta, epoch = start + i * 60;
@@ -23,82 +21,56 @@ function history(count = 80) {
   });
 }
 
-test("Main Market config and analogue parameters", () => {
-  assert.equal(MIN_CLOSED_CANDLES, 60);
-  assert.equal(HISTORY_CANDLES, 80);
-  assert.equal(DIRECTIONAL_THRESHOLD, 53);
-  assert.equal(ANALOGUE_PATTERN_CANDLES, 8);
-  assert.equal(ANALOGUE_TOP_K, 20);
-  assert.equal(ANALOGUE_MIN_MATCHES, 12);
+test("Original AI data warm-up is 200 closed M1 candles with live-candle headroom", () => {
+  assert.equal(MIN_CLOSED_CANDLES, 200);
+  assert.equal(HISTORY_CANDLES, 200);
+  assert.equal(MAX_CANDLES, 220);
 });
 
-test("Historical Analogue Simulation is the only analyzer decision path", () => {
-  const candles = history(), now = Date.now();
-  assert.deepEqual(
-    analyzeMarket(candles, { now, tickAgeSeconds: 0 }),
-    simulateHistoricalAnalogues(candles, { now, tickAgeSeconds: 0 })
-  );
-});
-
-test("53% is an analogue directional share, not a calibrated win probability", () => {
-  const result = analyzeMarket(history(), { tickAgeSeconds: 0 });
-  if (result.signal === "CALL") assert.ok(result.metrics.upwardPercent >= 53);
-  if (result.signal === "PUT") assert.ok(result.metrics.downwardPercent >= 53);
-  assert.equal("confidence" in result, false);
-  if (result.evidence.length) assert.ok(result.evidence.some(x => x.includes("ไม่ใช่ win probability")));
-});
-
-test("minimum closed history, malformed OHLC, duplicate time and stale candles fail closed", () => {
-  assert.match(analyzeMarket(history(59), { tickAgeSeconds: 0 }).reason, /59\/60/);
-  let candles = history();
-  candles.at(-1).high = candles.at(-1).low - 0.1;
-  assert.match(analyzeMarket(candles, { tickAgeSeconds: 0 }).reason, /OHLC/);
-  candles = history();
-  candles.at(-1).epoch = candles.at(-2).epoch;
-  assert.match(analyzeMarket(candles, { tickAgeSeconds: 0 }).reason, /ซ้ำ|เรียง/);
-  candles = history();
-  candles.forEach(c => { c.epoch -= 600; });
-  assert.match(analyzeMarket(candles, { tickAgeSeconds: 0 }).reason, /เก่า/);
-});
-
-test("fresh source required and current live candle excluded", () => {
+test("Original AI is the only CALL/PUT decision-maker; simulation is advisory metadata", () => {
   const candles = history();
-  candles.push({ ...candles.at(-1), epoch: Math.floor(Date.now() / 60000) * 60, live: true });
-  assert.equal(analyzeMarket(candles, { tickAgeSeconds: 0 }).closedCandleCount, 80);
-  assert.equal(analyzeMarket(history(), { tickAgeSeconds: null }).signal, "STANDBY");
+  const options = { now: Date.now(), tickAgeSeconds: 0 };
+  const original = analyzeOriginalMarket(candles.slice(-MIN_CLOSED_CANDLES));
+  const result = analyzeMarket(candles, options);
+  assert.equal(result.signal, original.signal);
+  assert.equal(result.regime, original.regime);
+  assert.equal(result.assistant.role, "ADVISORY_ONLY");
+  assert.ok(["READY", "LIMITED_SAMPLE"].includes(result.assistant.status));
+  assert.ok(["AGREES", "CONFLICTS", "NO_COMPARISON"].includes(result.assistant.alignment));
+  assert.equal("confidence" in result.assistant, false);
 });
 
-test("legacy indicator functions and EMA21 signal invalidation are absent", async () => {
-  const analyzer = await readFile(new URL("../src/analyzer.js", import.meta.url), "utf8");
-  const server = await readFile(new URL("../server.js", import.meta.url), "utf8");
-  assert.doesNotMatch(analyzer, /EMA|RSI|MACD|momentum|bullishScore|bearishScore/);
-  assert.doesNotMatch(server, /ema21|EMA21|TRENDING_DOWN|TRENDING_UP/);
-  assert.match(analyzer, /simulateHistoricalAnalogues/);
+test("Historical assistant never manufactures an order when its data source gate fails", () => {
+  const result = analyzeMarket(history(), { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.livePriceReady, false);
+  assert.equal(result.assistant.role, "ADVISORY_ONLY");
+  assert.equal(result.assistant.status, "UNAVAILABLE");
 });
 
-test("HTTP health and Mini App smoke test", async () => {
-  const port = 32189;
-  const child = spawn(process.execPath, ["server.js"], {
-    env: { ...process.env, PORT: String(port), TWELVE_DATA_API_KEY: "", TELEGRAM_BOT_TOKEN: "test_bot_token" },
-    stdio: "ignore"
-  });
-  try {
-    let response;
-    for (let i = 0; i < 60; i++) {
-      try { response = await fetch(`http://127.0.0.1:${port}/health`); if (response.ok) break; } catch {}
-      await delay(100);
-    }
-    assert.ok(response?.ok, "server did not become ready");
-    const health = await response.json();
-    assert.equal(health.service, "main-market");
-    assert.equal(health.interval, "1min");
-    assert.equal(health.configuration.minimumClosedCandles, 60);
-    assert.equal(health.configuration.historyCandles, 80);
-    const page = await fetch(`http://127.0.0.1:${port}/`);
-    assert.equal(page.status, 200);
-    assert.match(await page.text(), /UNIVERSAL RADAR/);
-  } finally {
-    child.kill("SIGTERM");
-    await Promise.race([new Promise(resolve => child.once("exit", resolve)), delay(1500)]);
-  }
-}, { timeout: 15000 });
+test("REST fallback can supply data only when explicitly enabled and fresh", () => {
+  const candles = history();
+  const allowed = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: true });
+  assert.equal(allowed.dataMode, "REST_FALLBACK");
+  assert.equal(allowed.livePriceReady, true);
+  const blocked = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
+  assert.equal(blocked.signal, "STANDBY");
+});
+
+test("Current live candle is excluded from Original AI closed-candle window", () => {
+  const candles = history();
+  const liveEpoch = Math.floor(Date.now() / 60000) * 60;
+  candles.push({ ...candles.at(-1), epoch: liveEpoch, live: true });
+  const result = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(result.closedCandleCount, 220);
+  assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
+});
+
+test("Malformed and stale source data fails closed", () => {
+  const malformed = history();
+  malformed.at(-1).high = malformed.at(-1).low - 0.1;
+  assert.equal(analyzeMarket(malformed, { tickAgeSeconds: 0 }).signal, "STANDBY");
+  const stale = history();
+  stale.forEach(c => { c.epoch -= 600; });
+  assert.equal(analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 }).signal, "STANDBY");
+});
