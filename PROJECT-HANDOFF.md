@@ -96,3 +96,11 @@ Branch: feature/server-price-extraction
 - Changes are isolated on `feature/future-simulation-engine`; production `main` and Render configuration were not changed. No deployment was initiated.
 - GitHub commits created for this update: `94a66947dd6ee1f292fc27ea95812b0f62501c76`, `f37a45dfe082a1c1c3ffad49ede81b7e4c932ce6`, `7fe47981acaa8c651394e0398307981afd8410a6`, `84530bcf88f31abc0d4acd8ce9752ff9518778bd`, `dfe29f8492da80852651ccb2c0ce03a33dac9982`, `df4c66b37779387c6bccfe4974c4158bead98bed`, `350d524f2ca3555520e8772e960b05ca88d03349`.
 - Verification status: source files and test definitions committed; the full `npm test` suite and GitHub Actions CI have not been run in this session. Treat the branch as implementation-complete but not test-verified.
+
+## Tick Backtest / Test Runner status — 2026-11-05
+
+- Added `.github/workflows/node-tests.yml` to run `npm ci` and `npm test` on pushes and pull requests targeting `feature/future-simulation-engine` (commit `e71e9869a610d4c1a93920e605142d189df31617`).
+- The GitHub commit status endpoint returned no statuses and the workflow-run lookup returned no runs for this commit at verification time. Therefore the suite is NOT confirmed passing.
+- A local checkout/test attempt could not run because this execution environment could not resolve `github.com`; no npm test result is claimed.
+- No actual EUR/USD tick CSV is available in the current conversation or repository checkout. The previously obtained HistData archives were EUR/USD M1 candle archives, which cannot validate 10/20/30-second bid/ask paths. `scripts/backtest-ticks.js` requires timestamp + bid + ask tick rows (HistData Generic ASCII `YYYYMMDD HHMMSS;bid;ask` or header-based CSV).
+- Real tick replay remains pending receipt of an actual EUR/USD tick dataset. Do not run the M1 archives through the tick parser or substitute synthetic fixtures as empirical results.
