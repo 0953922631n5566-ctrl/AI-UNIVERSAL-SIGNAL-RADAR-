@@ -197,21 +197,21 @@ function lowerBound(items, time) {
 }
 
 if (require.main === module) {
-  const input = process.argv[2];
-  if (!input) {
-    console.error('Usage: node scripts/backtest-ticks.js <EURUSD_TICKS.csv> [report.json]');
-    process.exitCode = 2;
-  } else {
-    try {
-      const ticks = loadTicks(fs.readFileSync(path.resolve(input), 'utf8'));
-      const report = runTickBacktest(ticks);
-      const output = JSON.stringify(report, null, 2);
-      if (process.argv[3]) fs.writeFileSync(path.resolve(process.argv[3]), `${output}\n`);
-      console.log(output);
-    } catch (error) {
-      console.error(`Tick backtest failed: ${error.message}`);
-      process.exitCode = 1;
-    }
+  const input = process.argv[2] || 'data/historical/EURUSD_ticks.csv';
+  const reportPath = process.argv[3] || 'data/historical/reports/tick-backtest-report.json';
+  try {
+    const ticks = loadTicks(fs.readFileSync(path.resolve(input), 'utf8'));
+    const report = runTickBacktest(ticks);
+    report.inputFile = path.resolve(input);
+    report.generatedAt = new Date().toISOString();
+    const output = JSON.stringify(report, null, 2);
+    fs.mkdirSync(path.dirname(path.resolve(reportPath)), { recursive: true });
+    fs.writeFileSync(path.resolve(reportPath), output + '\\n');
+    console.log(output);
+    console.log('Report saved: ' + path.resolve(reportPath));
+  } catch (error) {
+    console.error('Tick backtest failed: ' + error.message);
+    process.exitCode = 1;
   }
 }
 
