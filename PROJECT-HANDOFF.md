@@ -70,3 +70,13 @@ Branch: feature/server-price-extraction
 ## Secrets and retired integrations
 - Never print or commit API keys or tokens.
 - Telegram integration is retired and must not be reintroduced: no Telegram send function, bot token/chat ID settings, notification token, endpoint, or delivery path.
+
+
+## Round 16 Main Market Adapter + fail-closed Safety Gate (2026-11-05)
+- Added `engine/main-market-adapter.js` between the existing EUR/USD M1 analyzer and the server Decision Engine output.
+- Locked Round 16 profile in `engine/round16-parameters.js`: evaluation interval 30,000 ms; normalized risk maximum 0.70; volatility ratio maximum 1.50; minimum ADX 22; range/ATR maximum 1.25.
+- Added `engine/simulation-adapter.js` and `engine/safety-gate.js`. Directional CALL/PUT requires a real Simulation provider result marked ready, matching the same closed-candle timestamp and direction, with all four required numeric metrics inside the Round 16 limits. Missing, invalid, stale/mismatched, throwing, or disagreeing Simulation results fail closed to STANDBY.
+- No future-simulation provider currently exists in this branch; therefore the adapter intentionally returns NOT_CONFIGURED and the live API remains STANDBY until a real Simulation implementation is connected. No simulated or random data is invented.
+- Server `GET /api/market` continues to serve the existing Android polling client and now also returns `safetyGate`, `simulation`, and `parameters` diagnostics. The APK remains unchanged: approximately 1-second polling and local notification only; no FCM, OCR, MediaProjection, or image upload.
+- Existing Twelve Data multi-key rotation remains server-side through `TWELVE_DATA_KEYS` (comma-separated, up to the configured number of keys); keys are never returned to APK. Confirm the Render environment has all 10 values configured before asserting 10-key rotation is live.
+- Tests added in `tests/safety-gate.test.js` for fail-closed behavior, same-candle/direction confirmation, and each Round 16 threshold. Run `npm test` before deployment. Render deployment and physical Xiaomi notification behavior remain unverified until their respective checks complete.
