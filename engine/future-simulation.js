@@ -1,18 +1,14 @@
 'use strict';
 const { adx } = require('../indicators/adx');
 const { ROUND16 } = require('./round16-parameters');
-const LOOKBACK=5, ATR_PERIOD=14, MIN_ANALOGS=20, MAX_ANALOGS=30, MIN_DIRECTIONAL_RATE=0.58, EPSILON=1e-12;
+const LOOKBACK=5, ATR_PERIOD=14, MIN_ANALOGS=ROUND16.minAnalogueCount, MAX_ANALOGS=30, MIN_DIRECTIONAL_RATE=ROUND16.minDirectionalRate, EPSILON=1e-12;
 function trueRange(c,p){return Math.max(c.high-c.low,Math.abs(c.high-p),Math.abs(c.low-p));}
 function atrAt(c,end,n=ATR_PERIOD){if(end<n)return null;let s=0;for(let i=end-n+1;i<=end;i++)s+=trueRange(c[i],c[i-1].close);return s/n;}
 function normalizedPattern(c,end,atr){const a=[];for(let i=end-LOOKBACK+1;i<=end;i++)a.push((c[i].close-c[i-1].close)/Math.max(atr,EPSILON));return a;}
 function distance(a,b){let s=0;for(let i=0;i<a.length;i++)s+=(a[i]-b[i])**2;return Math.sqrt(s/a.length);}
 function median(a){const s=[...a].sort((x,y)=>x-y),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
 
-/**
- * Walk-forward historical analogue model. Finds similar five-candle paths
- * in earlier closed M1 candles and measures the next actual historical close.
- * It is an empirical scenario estimate, not a deterministic future-price claim.
- */
+/** Walk-forward analogue model using actual closed OHLC outcomes only. */
 function simulateNextCandle(candles,analysis={}){
   if(!Array.isArray(candles)||candles.length<80)return{ready:false,status:'INSUFFICIENT_HISTORY',reason:'Need at least 80 closed historical M1 candles'};
   const latest=candles.at(-1);
@@ -39,15 +35,13 @@ function simulateNextCandle(candles,analysis={}){
   const issues=[];
   if(signal==='STANDBY')issues.push('Historical analogues show no sufficient directional edge');
   if(riskScore>ROUND16.riskMax)issues.push('Historical adverse-outcome risk exceeds Round 16 limit');
-  if(volatilityRatio>ROUND16.volatilityRatioMax)issues.push('Current volatility ratio exceeds Round 16 limit');
-  if(d.adx<ROUND16.weakAdxMin)issues.push('ADX is below Round 16 minimum');
-  if(rangeAtrRatio>ROUND16.rangeAtrRatioMax)issues.push('Current candle range exceeds Round 16 Range/ATR limit');
+  if(volatilityRatio>ROUND16.volatilityRatioMax)issues.push('Extreme volatility exceeds Round 16 limit');
   const expectedMovePrice=expectedMoveAtr*currentAtr;
   const projectedPrice=latest.close+expectedMovePrice;
   return{ready:true,status:'READY',signal,candleTime:latest.time,currentPrice:latest.close,currentAtr,expectedMovePrice,projectedPrice,riskScore,volatilityRatio,adx:d.adx,rangeAtrRatio,
     sampleCount:selected.length,probabilityUp,probabilityDown,expectedMoveAtr,
     medianMoveAtr:median(selected.map(x=>x.futureReturnAtr)),nearestAnalogueDistance:selected[0].distance,
     horizonCandles:1,model:'HISTORICAL_ANALOGUE_WALK_FORWARD',
-    reason:issues.join('; ')||'Historical analogues support direction; awaiting Decision Engine agreement'};
+    reason:issues.join('; ')||'Historical analogues support the directional scenario'};
 }
 module.exports={simulateNextCandle,atrAt,normalizedPattern};
