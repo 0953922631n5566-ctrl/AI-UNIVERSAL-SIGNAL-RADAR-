@@ -986,3 +986,60 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Removed EMA21/trend-regime signal invalidation in `server.js`. A live signal is held stable for 40 seconds and is cleared only when the price source fails the data freshness gate.
 - Regression suite replaced old indicator expectations with analogue-engine, threshold semantics, malformed/stale data, legacy-code absence and HTTP smoke tests.
 - Deployment is not considered complete until Render reports the new commit as Live/succeeded and build logs show passing tests. Xiaomi 11T/Telegram behavior still requires physical device confirmation.
+
+
+## 2026-11-06 — Original AI restored as sole decision engine; Historical Analogue is advisory only
+
+### Branch and recovery record
+- Production baseline before this work: branch `main-market`, commit `8ed6d97d587bc3245a8fb5ef5e234b1096508446` (the latest Render Live commit observed before this change).
+- Safety copy created before implementation: `backup/main-market-before-original-ai-20261106`. The existing `main-market` branch was not deleted or overwritten.
+- Original AI source recovered from Git history at commit `d260d68368a91f07eb9ab65f2e305bb02f08a143`, branch `backup/symmetric-engine-stable`.
+- A separate recovery workspace branch was created: `integration/original-ai-historical-assistant`. The Render-compatible implementation branch is `feature/original-ai-historical-assistant-main-market`, based on the production Main Market branch so the Render build command `cd main-market && npm install` remains valid.
+
+### Exact Original AI source copy
+- The recovered, unmodified Original AI modules are copied under `main-market/original-ai/`:
+  - `engine/`: `analyze-market.js`, `decision-engine.js`, `strategy-router.js`, `signal-cache.js`.
+  - `scanner/`: market context and regime/trend scanner.
+  - `indicators/`: EMA, RSI, MACD, ADX, volatility, and support/resistance.
+  - `strategies/`: UPTREND, DOWNTREND, SIDEWAY, REVERSAL, and shared trend-continuation evaluator.
+  - `tests/`: original modular-engine regression tests.
+  - `server-original.js`: archived source server for provenance/reference; it is not the active Render HTTP server.
+  - `package.json`: marks this archived module subtree as CommonJS so the original source can be loaded safely from the active ESM Main Market app.
+- Provenance: these source trees and the archived server are reused from the Git tree at `d260d68368a91f07eb9ab65f2e305bb02f08a143`; they are not a new rewrite of the Original AI.
+
+### Active runtime wiring
+- Active Render HTTP/data/UI entry point remains `main-market/server.js` (Twelve Data REST + Streaming, authenticated Mini App, signal hold and alert lifecycle).
+- Active analyzer adapter is `main-market/src/analyzer.js`. It calls the recovered `main-market/original-ai/engine/analyze-market.js` for the final CALL/PUT/STANDBY decision.
+- `main-market/src/historical-analogue.js` runs separately and its output is attached as `result.assistant` with role `ADVISORY_ONLY`, historical direction, directional share, match counts, similarity distance, evidence, and agreement/conflict with the Original AI.
+- The assistant's CALL/PUT result is never copied into the top-level signal and never overrides the Original AI's decision. Historical directional share is explicitly not a calibrated win probability.
+- The only permitted non-Original-AI downgrade is the existing hard data-source quality gate: if neither a fresh Streaming tick nor an explicitly permitted fresh REST fallback is available, top-level signal is forced to STANDBY.
+- Historical analogue insufficient-match output is marked source-ready when the freshness/source checks passed; lack of analogue matches must not veto an otherwise valid Original AI decision.
+
+### Data and operating scope
+- Main Market only: EUR/USD, M1, Twelve Data. No OTC, OCR, 8xTrade, or broker auto-execution.
+- Original scanner needs 200 completed M1 candles for EMA200/regime context. Config is therefore set to `MIN_CLOSED_CANDLES=200`, `HISTORY_CANDLES=200`, and `MAX_CANDLES=220` to retain room for the in-progress live candle.
+- REST refresh cadence remains 180 seconds; increasing outputsize changes historical depth, not the polling cadence. Verify actual Twelve Data plan entitlement/quota before assuming the 200-bar request is available.
+- Historical analogue uses the latest 8 closed M1 candles, up to 20 nearest historical patterns, at least 12 usable matches, and a one-candle historical outcome. Its share is advisory context only.
+
+### Quality gates and delivery status
+- Regression tests were rewritten to assert that the Original AI remains the only directional decision-maker, source failures fail closed, and the simulator is advisory only.
+- This change is not considered delivered until the new branch passes `npm test` and syntax checks, then Render reports the deployment Live. The existing production service remains on `main-market` until those gates pass.
+- No Xiaomi 11T physical-device test is implied by a successful server build. Validate API status, Mini App display, alert timing, sound, vibration, and 40-second signal hold on the handset after deployment.
+- Any future change that lets historical analogue scores alter the Original AI decision must be separately backtested out-of-sample and documented; do not silently convert the assistant into a second decision engine.
+
+
+### 2026-11-06 — True parallel execution for the Historical Assistant
+- The active adapter now starts `src/historical-analogue-worker.js` in a Node Worker Thread, then evaluates the Original AI on the main thread while the assistant calculates independently.
+- A SharedArrayBuffer/Atomics handoff returns the assistant result with a 5-second timeout. The assistant result is cached by closed-candle history signature and source mode, avoiding repeated worker creation for unchanged M1 history.
+- Assistant metadata exposes `executionMode` (`PARALLEL_WORKER_THREAD`, `CACHED_WORKER_RESULT`, or a blocked/unavailable state) and measured worker time.
+- Worker failure or insufficient analogue matches does not veto or replace the Original AI decision. Only the hard market-data freshness gate may force the top-level signal to STANDBY.
+- The worker is computation-only: no network, API calls, broker actions, timers, or external side effects.
+
+
+### 2026-11-06 — Data-quality gate hardening
+- The active analyzer adapter validates at least 200 completed M1 candles, positive/consistent OHLC values, strictly increasing timestamps, latest-candle age <= 180 seconds, and either a fresh Streaming tick (<= 25 seconds) or an explicitly enabled fresh REST fallback.
+- Any failed source/data-integrity gate forces top-level STANDBY before the Original AI decision can be exposed.
+- A worker timeout or assistant calculation failure does not block a valid Original AI decision; it only marks the assistant unavailable. This keeps the assistant from becoming a second decision authority.
+
+
+- CI rerun trigger after worker-thread/data-quality adapter update: 2026-11-06. Check latest GitHub Actions runs before merging or deploying.

@@ -1,9 +1,11 @@
 export const SYMBOLS = Object.freeze(["EUR/USD"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
-export const MIN_CLOSED_CANDLES = 60;
-export const HISTORY_CANDLES = 80;
-export const MAX_CANDLES = 100;
+// Original AI regime scanner needs 200 completed M1 candles for EMA200/ADX context.
+export const MIN_CLOSED_CANDLES = 200;
+export const HISTORY_CANDLES = 200;
+// Keep room for the in-progress live candle without evicting required closed history.
+export const MAX_CANDLES = 220;
 export const REST_SYNC_SECONDS = 180;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
@@ -15,7 +17,6 @@ export function resolveSymbol(value) {
   const normalized = normalizeSymbol(value);
   return SYMBOLS.find(symbol => normalizeSymbol(symbol) === normalized) ?? null;
 }
-// Transitional aliases used by existing service/test imports during the rewrite.
 export const MIN_CANDLES = MIN_CLOSED_CANDLES;
 export const DEFAULT_SYMBOLS = Object.freeze([DEFAULT_SYMBOL]);
 
