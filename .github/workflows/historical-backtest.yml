@@ -22,6 +22,10 @@ jobs:
   historical-backtest:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      HISTORICAL_MIN_COVERAGE_PCT: "50"
+      HISTORICAL_MIN_TICKS: "100"
+      HISTORICAL_MIN_M1_CANDLES: "202"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +41,7 @@ jobs:
         run: npm install
       - name: Run full test suite
         run: npm test
-      - name: Download historical EURUSD ticks
+      - name: Download historical EURUSD ticks (skip failed hours)
         env:
           FROM_DATE: ${{ inputs.from }}
           TO_DATE: ${{ inputs.to }}
@@ -50,17 +54,18 @@ jobs:
             echo "Provide both from and to dates, or leave both blank."
             exit 2
           fi
-      - name: Decode ticks and aggregate M1 candles
+      - name: Decode available ticks, aggregate M1 and enforce coverage
         run: npm run data:decode
-      - name: Run tick-level backtest
+      - name: Run tick-level 10s, 20s and 30s backtests
         run: npm run backtest:ticks
       - name: Run M1 diagnostic backtest
         run: npm run backtest:m1 -- data/historical/EURUSD_M1.csv data/historical/reports/m1-backtest-report.json
-      - name: Upload historical data and reports
+      - name: Upload manifest, decoded data and backtest reports
         uses: actions/upload-artifact@v4
         with:
           name: eurusd-historical-backtest
           path: |
+            data/historical/download-manifest.json
             data/historical/EURUSD_ticks.csv
             data/historical/EURUSD_M1.csv
             data/historical/reports/*.json

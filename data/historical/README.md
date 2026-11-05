@@ -1,15 +1,12 @@
 # Historical EUR/USD research data
 
 ## Source and formats
-- Primary source: Dukascopy public historical datafeed, hourly EUR/USD BI5 tick files.
-- Raw files are stored under data/historical/raw/EURUSD/YYYY/MM-1/DD/HHh_ticks.bi5.
-- The downloader uses UTC dates and zero-based months in the provider URL.
-- The decoder expects 20-byte big-endian records (milliseconds from hour start, ask, bid, ask volume, bid volume), LZMA-Alone compressed. EUR/USD prices are scaled by 100000.
-- Missing hours (weekends/holidays) are counted as missing, not fabricated. Existing non-empty raw files are reused.
+- Dukascopy public historical EUR/USD hourly BI5 tick files; UTC dates and zero-based month path.
+- BI5 records are 20-byte big-endian values (ms from hour start, ask, bid, ask volume, bid volume), LZMA-Alone; price scale 100000.
+- Raw files are stored under `data/historical/raw/EURUSD/YYYY/MM-1/DD/HHh_ticks.bi5`.
+- HTTP 404/empty files and exhausted per-hour failures are recorded in `data/historical/download-manifest.json`; downloader continues to later hours and does not fabricate missing quotes.
 
-## Prepare a bounded sample
-Node.js 18+ and Python 3 with standard-library lzma are required.
-
+## Commands
 ```bash
 npm run data:download -- --from 2025-01-06 --to 2025-01-10
 npm run data:decode
@@ -17,23 +14,15 @@ npm run backtest:ticks
 npm run backtest:m1 -- data/historical/EURUSD_M1.csv data/historical/reports/m1-report.json
 npm test
 ```
+Downloader defaults to the previous 30 complete UTC days, max 366 days. Existing files are reused. Retryable network/timeout, HTTP 408/425/429 and 5xx errors receive exponential retries; after exhaustion that hour is marked missing and the next hour is attempted. Set `HISTORICAL_DOWNLOAD_PAUSE_MS`, `HISTORICAL_DOWNLOAD_RETRIES`, or `HISTORICAL_DOWNLOAD_TIMEOUT_MS` to tune requests.
 
-The downloader defaults to the previous 30 complete UTC days and limits each run to 366 days. Use smaller date ranges first. Set HISTORICAL_DOWNLOAD_PAUSE_MS to adjust request spacing. Use --force to re-fetch cached hours.
+## Coverage gate and outputs
+- `HISTORICAL_MIN_COVERAGE_PCT` defaults to 50% of expected Monday-Friday hours; weekends are excluded.
+- Decoder independently counts valid BI5 files and enforces `HISTORICAL_MIN_TICKS=100` and `HISTORICAL_MIN_M1_CANDLES=202`.
+- Decoder writes `data/historical/reports/decode-report.json`; if coverage/data minimums fail, it exits non-zero but retains decoded CSVs and report.
+- Tick replay produces separate 10s/20s/30s buckets in `tick-backtest-report.json`. Always inspect sample counts; a zero-sample horizon is not an accuracy result.
+- M1 replay is a coarse next-M1-candle diagnostic and cannot validate intraminute projections.
+- Workflow artifact contains download manifest, CSVs and JSON reports.
 
-The decoder creates:
-- EURUSD_ticks.csv: timestamp (UTC), bid, ask
-- EURUSD_M1.csv: bid OHLC bars aggregated from the same ticks
-
-The tick replay defaults to EURUSD_ticks.csv and writes data/historical/reports/tick-backtest-report.json. It evaluates 10/20/30-second bid/ask excursions, not profitability.
-
-## Important limitations
-- This is a research data pipeline, not a live feed and not Twelve Data.
-- The data represents Dukascopy's quote stream; it may differ from the user's broker in spread, liquidity, execution, and timestamps.
-- The M1 output is aggregated from bid ticks and cannot validate intraminute outcomes.
-- The existing tick harness requires at least 200 completed M1 candles before it can begin producing directional samples; a few days may produce no eligible samples.
-- Downloaded raw files and generated CSV/report files are ignored by Git because they can be very large.
-- Always inspect date coverage, tick counts, missing hours, spread distribution, and report sample counts before interpreting results.
-- Synthetic unit tests validate code paths only. They are not empirical accuracy measurements.
-
-## Safety policy
-The Future Simulation Safety Gate remains research-only and disabled in production. Do not enable it until the full npm test suite passes in CI, a sufficiently large real tick dataset has been replayed, out-of-sample results are reviewed, and falseout capture versus good-signal loss is accepted explicitly. No accuracy or profitability percentage should be reported without a defined, independently checked metric.
+## Limitations and safety
+This is a research pipeline, not Twelve Data or the user's broker feed. Dukascopy spread, liquidity, execution and timestamps may differ. M1 bars aggregated from bid ticks cannot validate 10/20/30s outcomes. Inspect coverage, corrupt/missing hours, tick counts, spread distribution and sample counts. Synthetic tests are not empirical results. Safety Gate remains research-only and OFF in production until real tick replay and out-of-sample review are complete. Do not claim accuracy or profitability without independently checked metrics.

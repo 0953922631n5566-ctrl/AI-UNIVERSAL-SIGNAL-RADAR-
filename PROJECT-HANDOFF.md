@@ -125,3 +125,14 @@ Branch: feature/server-price-extraction
 - Updated `scripts/download-historical.js` in commit `7fa93fa49f8b7f2abbb0f263f8841a28285ac771`: retry transient network/timeout, HTTP 408/425/429 and 5xx failures up to 8 attempts; exponential backoff from 2s up to 60s; respect numeric Retry-After; use a 60s request timeout; increase default inter-request pause from 250ms to 1000ms. HTTP 404 remains a missing-hour result; permanent 4xx errors fail immediately. Existing downloaded files remain cached so reruns resume rather than redownload completed hours.
 - New workflow run triggered by this commit must be checked before claiming downloader, decoder, or backtest success. Accuracy, price-envelope coverage, and fakeout statistics remain unavailable until actual tick reports are produced and inspected.
 - Safety Gate remains OFF in production.
+
+
+## Historical downloader resilience and coverage gate — 2026-11-05
+
+- Downloader now records HTTP 404/empty responses as provider-missing and records per-hour failures after retry exhaustion as `failedAfterRetries`, then continues to the next hour. Existing non-empty hourly files remain cached/resumable.
+- Writes `data/historical/download-manifest.json` with requested dates, per-status hour counts, missing-hour details and coverage. Coverage denominator counts Monday-Friday hours only; weekends are excluded.
+- Default coverage gate is 50% (`HISTORICAL_MIN_COVERAGE_PCT`). Below-threshold download retains raw files/manifest but fails the workflow rather than treating thin data as sufficient.
+- Decoder skips individual corrupt BI5 files, reports them in `data/historical/reports/decode-report.json`, and enforces minimum 100 ticks and 202 M1 candles plus the coverage threshold. Thresholds are configurable through environment variables.
+- Workflow runs full Node tests, downloader, decoder gate, tick replay at 10s/20s/30s, M1 diagnostic, and uploads manifest, CSVs and JSON reports. Per-horizon sample counts must be checked; zero samples do not establish accuracy.
+- Dukascopy outages can still reduce coverage. Green means configured coverage and minimum data volume were met, not that the provider had zero missing hours or the strategy is profitable.
+- Production Render and Safety Gate were not changed. Safety Gate remains OFF.
