@@ -42,7 +42,7 @@ function simulateNextCandle(candles,analysis={}){
   if(volatilityRatio>ROUND16.volatilityRatioMax)issues.push('Current volatility ratio exceeds Round 16 limit');
   if(d.adx<ROUND16.weakAdxMin)issues.push('ADX is below Round 16 minimum');
   if(rangeAtrRatio>ROUND16.rangeAtrRatioMax)issues.push('Current candle range exceeds Round 16 Range/ATR limit');
-  return{ready:true,status:'READY',signal,candleTime:latest.time,riskScore,volatilityRatio,adx:d.adx,rangeAtrRatio,
+  const expectedMovePrice=expectedMoveAtr*currentAtr;\n  const projectedPrice=latest.close+expectedMovePrice;\n  return{ready:true,status:'READY',signal,candleTime:latest.time,currentPrice:latest.close,currentAtr,expectedMovePrice,projectedPrice,riskScore,volatilityRatio,adx:d.adx,rangeAtrRatio,
     sampleCount:selected.length,probabilityUp,probabilityDown,expectedMoveAtr,
     medianMoveAtr:median(selected.map(x=>x.futureReturnAtr)),nearestAnalogueDistance:selected[0].distance,
     horizonCandles:1,model:'HISTORICAL_ANALOGUE_WALK_FORWARD',
