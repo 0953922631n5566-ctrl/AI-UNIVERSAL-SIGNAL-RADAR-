@@ -1,0 +1,4 @@
+# Large generated historical market datasets; keep them out of Git.
+data/historical/raw/
+data/historical/*.csv
+data/historical/reports/
