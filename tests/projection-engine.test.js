@@ -58,3 +58,14 @@ test('invalid or insufficient data fails closed', () => {
   assert.equal(simulateFuture(broken).status, 'UNAVAILABLE');
   assert.equal(projectFuture(null).status, 'UNAVAILABLE');
 });
+
+test('Decision Engine adapter adds projections without rewriting its signal', () => {
+  const { analyzeMarket } = require('../engine/analyze-market');
+  const { analyzeWithProjection } = require('../simulation/decision-adapter');
+  const rows = candles(220);
+  const baseline = analyzeMarket(rows);
+  const integrated = analyzeWithProjection(rows);
+  assert.equal(integrated.signal, baseline.signal);
+  assert.equal(integrated.projectionMode, 'DIAGNOSTIC_ONLY');
+  assert.ok(integrated.projection);
+});
