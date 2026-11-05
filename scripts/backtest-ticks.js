@@ -342,7 +342,7 @@ function runTickBacktest(ticks, options = {}) {
           note: 'Parameters are optimized on the earlier training dates only, then evaluated unchanged on later, non-overlapping UTC dates. Do not promote parameters unless the out-of-sample sample is sufficiently large and independently reviewed.'
         };
       })(),
-      optimization: optimizeFilter(rows)
+      optimizationNote: 'The full-sample optimizer is intentionally disabled to prevent training/holdout leakage. Use training.optimization only; evaluate its frozen parameters in training.outOfSample.'
     };
   }
   return {

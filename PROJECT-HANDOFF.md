@@ -154,3 +154,13 @@ Branch: feature/server-price-extraction
 - Added a unit test proving the optimizer can capture a deliberately separable fakeout cluster while respecting the 10% good-signal-loss cap.
 - Commits: `018c5ef20e93fce112a54ed77ccc21e6b70ea4e8` (optimizer + attribution); `b5130853fe67e04c6b60180fb04fa1b0a2be6152` (categorical segment grouping fix); `cf45069d448b7f0dd3c172a4c99a14ef1ef3a147` (optimizer test).
 - The optimization does NOT change production thresholds or wire the Safety Gate into signal publication. Safety Gate remains OFF; no Render deploy was initiated. Wait for the next Historical EURUSD Backtest workflow run and inspect the uploaded artifact before selecting any parameter.
+
+
+## Attribution binning and chronological out-of-sample validation — 2026-11-05
+- Fixed numeric attribution buckets in `scripts/backtest-ticks.js` to use mutually exclusive intervals: first bucket is `<= first edge`, intermediate buckets are `(previous edge, current edge]`, and final bucket is `> last edge`. Categorical regimes remain categorical; non-finite values remain UNKNOWN.
+- Tick samples now retain their UTC signal timestamp. Each horizon is split chronologically by distinct UTC date: earlier dates form the training set, later dates form a disjoint holdout set. Parameter optimization runs on training rows only; the selected frozen parameter set is evaluated on the later holdout without re-optimization. The full-sample optimizer output is disabled to prevent accidental leakage.
+- Historical downloader/workflow range is now up to 14 calendar days (default: latest 14 completed UTC dates), enabling a separate later 7-day holdout rather than reusing only the prior 7-day sample. Workflow requires at least 50 OOS samples per horizon or fails closed.
+- Added tests for exact bucket boundaries, mutually exclusive intervals, chronological date separation, and frozen-parameter holdout evaluation.
+- Commit: `d54c26f24252b192d76e2934f2091c389ecc9a74` (initial implementation); follow-up commit records the leakage guard and handoff.
+- GitHub Actions run #14 / `42008378751` and Node Tests #78 / `42008378552` were triggered by the implementation commit. Their terminal results must be checked before reporting the backtest as verified.
+- This remains research-only. OOS results from a single 14-day period are preliminary, not proof of stable performance or profitability. Safety Gate remains OFF; no Render deployment or production parameter change is authorized.
