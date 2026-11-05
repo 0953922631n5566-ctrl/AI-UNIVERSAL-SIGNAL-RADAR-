@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const path = require('node:path');
-const { analyzeMarket } = require('./engine/analyze-market');
+const { analyzeMainMarket } = require('./engine/main-market-adapter');
 const { createSignalCache } = require('./engine/signal-cache');
 
 const app = express();
@@ -92,7 +92,7 @@ function macd(values) {
   return { line:fast-slow, signal, histogram:signal===null?null:(fast-slow)-signal };
 }
 function analyze(candles) {
-  return analyzeMarket(candles);
+  return analyzeMainMarket(candles);
 }
 async function fetchCandles(force=false) {
   const now=Date.now();
@@ -173,7 +173,9 @@ function publicState(candles) {
     regimeConfidence:analysis.regimeConfidence||0,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
     price:latest.close,dataAgeMs:Math.max(0,age),candleTime:new Date(latest.time).toISOString(),
     countdownSeconds,signalWindowOpen,
-    signalExpiresAt:visible?.expiresAt||null,indicators:analysis.indicators||null};
+    signalExpiresAt:visible?.expiresAt||null,indicators:analysis.indicators||null,
+    safetyGate:analysis.safetyGate||{status:'UNKNOWN',passed:false},
+    simulation:analysis.simulation||{ready:false,status:'UNKNOWN'},parameters:analysis.parameters||null};
 }
 app.get('/health',(_req,res)=>res.json(connectionStatus()));
 app.get('/api/connection',(_req,res)=>res.json(connectionStatus()));
