@@ -2,7 +2,7 @@
 const { ROUND16 } = require('./round16-parameters');
 function simulationSummary(s){
  if(!s)return{ready:false,status:'NOT_READY'};
- const fields=['signal','sampleCount','probabilityUp','probabilityDown','currentPrice','currentAtr','expectedMovePrice','projectedPrice','expectedMoveAtr','medianMoveAtr','nearestAnalogueDistance','horizonCandles','model','riskScore','volatilityRatio','adx','rangeAtrRatio'];
+ const fields=['projectionBar','signal','sampleCount','probabilityUp','probabilityDown','currentPrice','currentAtr','expectedMovePrice','projectedPrice','expectedMoveAtr','medianMoveAtr','nearestAnalogueDistance','horizonCandles','model','riskScore','volatilityRatio','adx','rangeAtrRatio'];
  const out={ready:s.ready===true,status:s.status||'NOT_READY'};
  for(const k of fields)if(Number.isFinite(s[k])||typeof s[k]==='string')out[k]=s[k];
  out.reason=s.reason||'';return out;
