@@ -6,7 +6,7 @@ function features(c,s,n){
  const scale=Math.sqrt(mean(r.map(x=>x*x)))||1e-9;
  return [...r.map(x=>Math.max(-5,Math.min(5,x/scale))),...w.flatMap(x=>{const z=Math.max(x.high-x.low,1e-12);return [(x.close-x.open)/z,(x.close-x.low)/z];})];
 }
-function dist(a,b){return Math.sqrt(mean(a.map((x,i)=>(x-b[i])**2));}
+function dist(a,b){return Math.sqrt(mean(a.map((x,i)=>(x-b[i])**2)));}
 function fail(reason,extra={}){return {signal:"STANDBY",reason,metrics:null,evidence:[],dataMode:"UNAVAILABLE",...extra};}
 export function simulateHistoricalAnalogues(input,{now=Date.now(),tickAgeSeconds=null,allowRestFallback=false}={}){
  if(!Array.isArray(input))return fail("ไม่มีข้อมูลแท่งเทียน");
