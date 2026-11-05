@@ -1043,3 +1043,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 
 - CI rerun trigger after worker-thread/data-quality adapter update: 2026-11-06. Check latest GitHub Actions runs before merging or deploying.
+
+
+### 2026-11-06 — Production deployment confirmation
+- PR #23 was merged into `main-market`; merge commit: `014e4184d8debb844c5aef984ca11b86039f4ba9`.
+- Render service `ai-signal-radar-main-market` deployed that commit successfully: deploy `dep-dbmh5e67bikc739u9330`, status `live`; Render build and deploy events both reported success.
+- Startup log confirms the active process is listening on port 10000, Twelve Data API key is configured, and runtime config is `minimumClosedCandles: 200`, `historyCandles: 200`, REST refresh 180 seconds.
+- GitHub Actions on the final implementation head `956b7696d852461d1a9bec16149677799ba9fc1a` passed both Main Market Checks and Main Market v2 Rewrite Checks. The test suite includes Original AI authority, worker-thread assistant, REST fallback, stale/malformed data, and signal enum checks.
+- Existing Telegram Mini App/APK does not need a new binary for these backend changes. User-device validation is still pending: open the existing app, verify Twelve Data actually supplies fresh EUR/USD history/streaming, wait for 200 closed M1 candles to preload, and inspect CALL/PUT/STANDBY behavior plus alerts on the Xiaomi 11T.
+- Important limitation: Historical Simulation currently reports advisory direction, sample share, match count and alignment. It does not alter the Original AI's CALL/PUT decision until a separate out-of-sample backtest justifies calibrated weighting. Do not describe the historical share as a win rate.
