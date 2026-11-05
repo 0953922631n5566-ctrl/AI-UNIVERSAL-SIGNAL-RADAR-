@@ -67,7 +67,7 @@ class SignalPollingService : Service() {
             return
         }
         try {
-            val json = URL("$base/api/market").openConnection().let { raw ->
+            val json = URL("$base/api/market/original").openConnection().let { raw ->
                 val conn = raw as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.connectTimeout = 2000
