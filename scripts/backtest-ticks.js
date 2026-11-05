@@ -110,6 +110,87 @@ function scorePath(signal, entryTick, pathTicks, atr) {
 
 function round(n) { return Math.round(n * 100) / 100; }
 
+const OPTIMIZER_GRID = Object.freeze({
+  riskThresholds: [0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80],
+  volatilityThresholds: [1.25, 1.50, 1.75, 2.00],
+  weakAdxThresholds: [18, 20, 22, 25],
+  rangeAtrThresholds: [1.25, 1.50, 1.75, 2.00],
+  maxGoodSignalLossPct: 10,
+  minSamples: 50
+});
+
+function bucket(value, edges) {
+  if (!Number.isFinite(value)) return 'UNKNOWN';
+  for (let i = 0; i < edges.length; i++) if (value < edges[i]) return '<' + edges[i];
+  return '>=' + edges[edges.length - 1];
+}
+
+function summarizeSegments(rows, field, edges) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = bucket(row[field], edges);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.entries()].map(([segment, items]) => {
+    const fakeouts = items.filter(x => x.fakeout).length;
+    const good = items.filter(x => x.good).length;
+    return {
+      segment, samples: items.length, fakeouts, good,
+      fakeoutRatePct: items.length ? round(fakeouts / items.length * 100) : 0,
+      goodRatePct: items.length ? round(good / items.length * 100) : 0
+    };
+  });
+}
+
+function optimizeFilter(rows, grid = OPTIMIZER_GRID) {
+  const fakeouts = rows.filter(x => x.fakeout).length;
+  const good = rows.filter(x => x.good).length;
+  const candidates = [];
+  for (const riskThreshold of grid.riskThresholds) {
+    for (const volatilityThreshold of grid.volatilityThresholds) {
+      for (const weakAdxMax of grid.weakAdxThresholds) {
+        for (const rangeAtrThreshold of grid.rangeAtrThresholds) {
+          let blocked = 0, blockedFakeouts = 0, blockedGood = 0;
+          for (const x of rows) {
+            const block = x.risk >= riskThreshold ||
+              (x.volatilityRatio >= volatilityThreshold && x.adx <= weakAdxMax) ||
+              (x.rangeAtr >= rangeAtrThreshold && x.adx <= weakAdxMax);
+            if (block) {
+              blocked++;
+              if (x.fakeout) blockedFakeouts++;
+              if (x.good) blockedGood++;
+            }
+          }
+          const capture = fakeouts ? round(blockedFakeouts / fakeouts * 100) : 0;
+          const loss = good ? round(blockedGood / good * 100) : 0;
+          candidates.push({
+            riskThreshold, volatilityThreshold, weakAdxMax, rangeAtrThreshold,
+            blockedSignals: blocked, retainedSignals: rows.length - blocked,
+            fakeoutsBlocked: blockedFakeouts, fakeoutCapturePct: capture,
+            goodSignalsBlocked: blockedGood, goodSignalLossPct: loss,
+            eligible: rows.length >= grid.minSamples && loss <= grid.maxGoodSignalLossPct
+          });
+        }
+      }
+    }
+  }
+  const eligible = candidates.filter(x => x.eligible);
+  eligible.sort((a, b) =>
+    b.fakeoutCapturePct - a.fakeoutCapturePct ||
+    a.goodSignalLossPct - b.goodSignalLossPct ||
+    a.blockedSignals - b.blockedSignals
+  );
+  return {
+    objective: 'Maximize fakeout capture subject to good-signal loss <= ' + grid.maxGoodSignalLossPct + '%',
+    minSamples: grid.minSamples,
+    candidatesEvaluated: candidates.length,
+    eligibleCandidates: eligible.length,
+    best: eligible.slice(0, 10),
+    warning: 'Grid search is exploratory and can overfit this short sample. Confirm the selected parameters on a separate out-of-sample date range before use.'
+  };
+}
+
 function runTickBacktest(ticks, options = {}) {
   const thresholds = options.thresholds || DEFAULT_THRESHOLDS;
   const horizons = options.horizons || HORIZONS;
@@ -144,7 +225,18 @@ function runTickBacktest(ticks, options = {}) {
         continue;
       }
       const outcome = scorePath(decision.signal, entryTick, window, simulation.atr);
-      if (outcome) samples[horizon].push({ signal: decision.signal, risk: simulation.reversalRisk, ...outcome });
+      if (outcome) {
+        const ind = decision.indicators || {};
+        const latest = history[history.length - 1];
+        samples[horizon].push({
+          signal: decision.signal, risk: simulation.reversalRisk,
+          volatilityRatio: Number.isFinite(ind.volatilityRatio) ? ind.volatilityRatio : 1,
+          adx: Number.isFinite(ind.adx) ? ind.adx : 0,
+          rangeAtr: (latest.high - latest.low) / simulation.atr,
+          regime: decision.regime || 'UNKNOWN',
+          ...outcome
+        });
+      }
     }
   }
 
@@ -171,7 +263,15 @@ function runTickBacktest(ticks, options = {}) {
           goodSignalLossPct: good ? round(blockedGood / good * 100) : null,
           fakeoutsRemaining: fakeouts - blockedFakeouts
         };
-      })
+      }),
+      attribution: {
+        byRisk: summarizeSegments(rows, 'risk', [0.40, 0.50, 0.60, 0.70, 0.80]),
+        byVolatilityRatio: summarizeSegments(rows, 'volatilityRatio', [1.0, 1.25, 1.5, 1.75, 2.0]),
+        byAdx: summarizeSegments(rows, 'adx', [15, 18, 20, 25, 30]),
+        byRangeAtr: summarizeSegments(rows, 'rangeAtr', [0.75, 1.0, 1.25, 1.5, 2.0]),
+        byRegime: summarizeSegments(rows.map(x => ({ ...x, regimeCode: x.regime })), 'regimeCode', [])
+      },
+      optimization: optimizeFilter(rows)
     };
   }
   return {
@@ -215,4 +315,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { loadTicks, buildM1Candles, runTickBacktest, HORIZONS, DEFAULT_THRESHOLDS };
+module.exports = { loadTicks, buildM1Candles, runTickBacktest, optimizeFilter, OPTIMIZER_GRID, HORIZONS, DEFAULT_THRESHOLDS };
