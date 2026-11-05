@@ -20,3 +20,6 @@ export const MIN_CANDLES = MIN_CLOSED_CANDLES;
 export const DEFAULT_SYMBOLS = Object.freeze([DEFAULT_SYMBOL]);
 
 export const DIRECTIONAL_THRESHOLD = 53;
+export const ANALOGUE_PATTERN_CANDLES = 8;
+export const ANALOGUE_TOP_K = 20;
+export const ANALOGUE_MIN_MATCHES = 12;
