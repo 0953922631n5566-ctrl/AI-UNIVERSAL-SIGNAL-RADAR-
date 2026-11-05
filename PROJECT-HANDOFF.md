@@ -144,3 +144,13 @@ Branch: feature/server-price-extraction
 - M1 diagnostic now passes only the latest 200 completed candles to each analysis/simulation call, rather than repeatedly passing the entire prefix of the dataset. This removes unnecessary growth in per-iteration work while preserving no-lookahead behavior.
 - Historical workflow has a 90-minute job timeout and a branch-scoped concurrency group with `cancel-in-progress: true`; a newer run on this branch supersedes an older in-progress run. Verify the prior run's terminal `cancelled` state before reporting cancellation as complete.
 - CI/test status and empirical results must be read from the new run's logs and uploaded artifact. Do not claim accuracy or profitability based on successful execution alone. Safety Gate remains OFF; no Render deployment or production wiring is authorized.
+
+
+## Fakeout Attribution & Parameter Optimization — 2026-11-05
+- Extended `scripts/backtest-ticks.js` to retain only decision-time features for each eligible signal: reversal risk, volatility ratio, ADX, latest candle range / ATR, and detected regime. Outcome labels still use only subsequent bid/ask ticks; features remain based on the preceding 200 completed M1 candles.
+- Each 10s/20s/30s report now includes fakeout/good-signal rates segmented by reversal-risk, volatility-ratio, ADX, range/ATR and regime buckets. This is intended to expose where fakeouts cluster rather than assuming one global risk threshold explains them.
+- Added a 512-combination exploratory grid: reversal-risk threshold, volatility threshold, weak-ADX ceiling, and range/ATR threshold. Candidate rule blocks when risk exceeds threshold OR (volatility ratio exceeds its threshold AND ADX is weak) OR (latest range/ATR exceeds its threshold AND ADX is weak).
+- Optimizer ranks candidates by highest fakeout capture, then lowest good-signal loss, and marks eligible only when sample count >=50 and good-signal loss <=10%. It reports top 10 eligible candidates and warns that the same short sample is not out-of-sample validation.
+- Added a unit test proving the optimizer can capture a deliberately separable fakeout cluster while respecting the 10% good-signal-loss cap.
+- Commits: `018c5ef20e93fce112a54ed77ccc21e6b70ea4e8` (optimizer + attribution); `b5130853fe67e04c6b60180fb04fa1b0a2be6152` (categorical segment grouping fix); `cf45069d448b7f0dd3c172a4c99a14ef1ef3a147` (optimizer test).
+- The optimization does NOT change production thresholds or wire the Safety Gate into signal publication. Safety Gate remains OFF; no Render deploy was initiated. Wait for the next Historical EURUSD Backtest workflow run and inspect the uploaded artifact before selecting any parameter.
