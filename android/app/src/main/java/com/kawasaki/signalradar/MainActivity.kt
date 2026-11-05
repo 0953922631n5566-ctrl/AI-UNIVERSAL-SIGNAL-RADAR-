@@ -74,15 +74,18 @@ private fun MinimalRadarScreen() {
     var soundEnabled by remember { mutableStateOf(prefs.getBoolean("alert_sound_enabled", true)) }
     var saved by remember { mutableStateOf("Server URL ที่บันทึกไว้") }
     var apiSummary by remember { mutableStateOf(prefs.getString("api_keys_summary", "{}") ?: "{}") }
+    var projectionBarJson by remember { mutableStateOf(prefs.getString("projection_bar", "{}") ?: "{}") }
     DisposableEffect(prefs) {
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == "api_keys_summary") apiSummary = prefs.getString("api_keys_summary", "{}") ?: "{}"
+            if (key == "projection_bar") projectionBarJson = prefs.getString("projection_bar", "{}") ?: "{}"
             if (key == "monitoring_enabled") monitoring = prefs.getBoolean("monitoring_enabled", false)
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val api = remember(apiSummary) { runCatching { JSONObject(apiSummary) }.getOrDefault(JSONObject()) }
+    val projection = remember(projectionBarJson) { runCatching { JSONObject(projectionBarJson) }.getOrDefault(JSONObject()) }
     val keyRows = remember(apiSummary) {
         val arr = api.optJSONArray("keys") ?: JSONArray()
         (0 until arr.length()).map { arr.getJSONObject(it) }
@@ -115,6 +118,30 @@ private fun MinimalRadarScreen() {
                         else -> Color.LightGray
                     }
                     Text("Key #${item.optInt("index")}: $st", color = tint, fontSize = 13.sp)
+                }
+                if (projection.optBoolean("synthetic", false)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF17263A)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text("FUTURE PROJECTION · NEXT M1", color = Color(0xFF20D68A), fontSize = 14.sp)
+                            Text("แท่งจำลองจาก Historical Simulation · ไม่ใช่ราคาตลาดจริง", color = Color(0xFFFFC46B), fontSize = 11.sp)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "O ${projection.optDouble("open", 0.0)}   H ${projection.optDouble("high", 0.0)}",
+                                color = Color.White, fontSize = 13.sp
+                            )
+                            Text(
+                                "L ${projection.optDouble("low", 0.0)}   C ${projection.optDouble("close", 0.0)}",
+                                color = Color.White, fontSize = 13.sp
+                            )
+                            Text("Projection label: ${projection.optString("label", "N/A")}", color = Color(0xFF91A3B9), fontSize = 10.sp)
+                        }
+                    }
+                } else {
+                    Text("Future Projection: รอข้อมูลจำลอง", color = Color(0xFF91A3B9), fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(22.dp))
                 Button(
