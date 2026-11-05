@@ -18,3 +18,4 @@ export function resolveSymbol(value) {
 // Transitional aliases used by existing service/test imports during the rewrite.
 export const MIN_CANDLES = MIN_CLOSED_CANDLES;
 export const DEFAULT_SYMBOLS = Object.freeze([DEFAULT_SYMBOL]);
+\nexport const DIRECTIONAL_THRESHOLD = 53;\n
