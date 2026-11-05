@@ -8,10 +8,15 @@
     "start": "node server.js",
     "test": "node --test",
     "backtest:m1": "node scripts/backtest-m1.js",
-    "backtest:ticks": "node scripts/backtest-ticks.js"
+    "backtest:ticks": "node scripts/backtest-ticks.js",
+    "data:download": "node scripts/download-historical.js",
+    "data:decode": "python3 scripts/decode-dukascopy-bi5.py",
+    "data:prepare": "npm run data:download && npm run data:decode"
   },
   "dependencies": {
     "express": "^4.21.2"
   },
-  "engines": { "node": "18.x" }
+  "engines": {
+    "node": "18.x"
+  }
 }
