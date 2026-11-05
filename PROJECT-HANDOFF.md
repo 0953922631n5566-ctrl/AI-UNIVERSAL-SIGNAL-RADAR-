@@ -106,3 +106,12 @@ Branch: feature/server-price-extraction
 - Android polling client is configured to call `/api/market/original`; this APK is explicitly the ORIGINAL MODE client. The UI, background polling, local notifications, sound switch, duplicate suppression, and server URL setting are retained.
 - APK version bumped to 1.4.0 / versionCode 8. Build artifact is a debug-signed test APK, not a Play Store release-signed package.
 - Verify server tests, Android Actions build, Render deployment, and then live GET /api/market/original before telling the user it is ready. Physical Xiaomi 11T alert delivery still requires device testing.
+
+
+## Round 16 Simulation-led tuning (2026-11-05)
+- Future Simulation is now the primary source of CALL/PUT direction on GET /api/market. The original analyzer remains as regime, score, and indicator context; its separate CALL/PUT or STANDBY decision no longer vetoes a valid Simulation direction.
+- Round 16 now requires at least 20 real historical analogues, directional frequency >=58%, a matching signed expected move, adverse-outcome risk <=0.70, and volatility ratio <=2.20.
+- Removed ADX >=22 and candle Range/ATR <=1.25 as hard Safety Gate blockers. ADX and Range/ATR remain visible diagnostics; they do not independently suppress a Simulation-led signal.
+- Hard blocks remain for invalid/unready history, candle timestamp mismatch, no directional edge, insufficient analogue count, inconsistent direction/expected move, excessive adverse-outcome risk, and extreme volatility.
+- This tuning makes the simulation primary and reduces indicator vetoes; it does not guarantee more signals, accuracy, or profit. When analogue frequency is below 58% or expected move has no directional sign, STANDBY remains correct.
+- Updated safety-gate tests cover Simulation overriding the original analyzer's STANDBY/opposite direction and the relaxed ADX/range rules. CI and Render deployment must be checked before production status is claimed.
