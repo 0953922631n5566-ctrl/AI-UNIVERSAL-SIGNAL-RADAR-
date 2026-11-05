@@ -1,0 +1,65 @@
+name: Historical EURUSD Backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      from:
+        description: "UTC start date YYYY-MM-DD (leave blank for default 30-day window)"
+        required: false
+        type: string
+      to:
+        description: "UTC end date YYYY-MM-DD (leave blank for default 30-day window)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  historical-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Node dependencies
+        run: npm install
+      - name: Run full test suite
+        run: npm test
+      - name: Download historical EURUSD ticks
+        env:
+          FROM_DATE: ${{ inputs.from }}
+          TO_DATE: ${{ inputs.to }}
+        run: |
+          if [ -n "$FROM_DATE" ] && [ -n "$TO_DATE" ]; then
+            npm run data:download -- --from "$FROM_DATE" --to "$TO_DATE"
+          elif [ -z "$FROM_DATE" ] && [ -z "$TO_DATE" ]; then
+            npm run data:download
+          else
+            echo "Provide both from and to dates, or leave both blank."
+            exit 2
+          fi
+      - name: Decode ticks and aggregate M1 candles
+        run: npm run data:decode
+      - name: Run tick-level backtest
+        run: npm run backtest:ticks
+      - name: Run M1 diagnostic backtest
+        run: npm run backtest:m1 -- data/historical/EURUSD_M1.csv data/historical/reports/m1-backtest-report.json
+      - name: Upload historical data and reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: eurusd-historical-backtest
+          path: |
+            data/historical/EURUSD_ticks.csv
+            data/historical/EURUSD_M1.csv
+            data/historical/reports/*.json
+          if-no-files-found: error
+          retention-days: 14
