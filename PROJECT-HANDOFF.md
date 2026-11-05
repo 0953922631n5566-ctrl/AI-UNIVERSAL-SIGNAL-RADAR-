@@ -1067,3 +1067,9 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 ### 2026-11-06 — Pair scope consistency
 - The Telegram Mini App pair selector is restricted to `EUR/USD`, matching `SYMBOLS=["EUR/USD"]` in server configuration. This prevents presenting unsupported pairs in a EUR/USD-only Main Market release.
+
+
+### 2026-11-06 — Source-copy clarification and current code release
+- Clarification to the initial recovery note: the recovered Original AI tree was first copied verbatim. During PR #24, the active `engine/analyze-market.js` and `engine/decision-engine.js` were extended only to prepare/finalize context and expose historical-assistant alignment diagnostics. Their exact pre-integration versions are retained as `analyze-market-original.js` and `decision-engine-original.js`. Scanner, indicators, strategy router, and strategy modules remain the recovered source.
+- Regression parity compares the final signal against the exact original `decision-engine-original.js` under the same candle input; the historical assistant does not change score thresholds or signal rules.
+- Current functional release commit `a72ac6fa2a9c2f90b4dfcae7367a7992ce7001d6` restricts the Mini App pair selector to EUR/USD and was deployed Live as `dep-dbmh7snf3r2c73fqf06g`; Render postinstall reported 27 tests passed, 0 failed.
