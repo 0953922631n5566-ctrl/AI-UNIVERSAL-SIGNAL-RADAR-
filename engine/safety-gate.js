@@ -29,7 +29,7 @@ function applySafetyGate(decision,simulation,candleTime){
  if(!Number.isFinite(simulation.riskScore)||simulation.riskScore>p.riskMax)fail.push('Adverse-outcome risk exceeds limit');
  if(!Number.isFinite(simulation.volatilityRatio)||simulation.volatilityRatio>p.volatilityRatioMax)fail.push('Extreme volatility exceeds 2.20');
  if(fail.length)return standby(base,simulation,fail.join('; '),'PARAMETER_BLOCKED');
- return{...base,signal:simulation.signal,reason:'Future Simulation primary direction accepted: '+directionalRate.toFixed(1)+'% historical analogue frequency',score:Math.round(directionalRate*100),strategy:'FUTURE_SIMULATION',
+ return{...base,signal:simulation.signal,reason:'Future Simulation primary direction accepted: '+(directionalRate*100).toFixed(1)+'% historical analogue frequency',score:Math.round(directionalRate*100),strategy:'FUTURE_SIMULATION',
   safetyGate:{status:'PASSED',passed:true,mode:'SIMULATION_PRIMARY'},simulation:simulationSummary(simulation)};
 }
 module.exports={applySafetyGate,simulationSummary};
