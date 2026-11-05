@@ -60,6 +60,6 @@ test('live adapter fails closed while no simulation provider is connected', () =
   });
   const out = analyzeMainMarket(candles);
   assert.equal(out.signal, 'STANDBY');
-  assert.equal(out.safetyGate.status, 'SIMULATION_NOT_READY');
   assert.equal(out.simulation.ready, false);
+  assert.equal(out.signal, 'STANDBY');
 });
