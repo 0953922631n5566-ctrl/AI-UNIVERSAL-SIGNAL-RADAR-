@@ -2,7 +2,8 @@ import {
   MIN_CLOSED_CANDLES,
   HISTORY_CANDLES,
   MAX_CANDLE_AGE_SECONDS,
-  MAX_STREAM_AGE_SECONDS
+  MAX_STREAM_AGE_SECONDS,
+  DIRECTIONAL_THRESHOLD
 } from "./config.js";
 
 const finite = Number.isFinite;
