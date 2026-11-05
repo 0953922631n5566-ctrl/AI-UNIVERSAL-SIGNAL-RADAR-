@@ -2,6 +2,7 @@
 const express = require('express');
 const path = require('node:path');
 const { analyzeMainMarket } = require('./engine/main-market-adapter');
+const { analyzeMarket } = require('./engine/analyze-market');
 const { createSignalCache } = require('./engine/signal-cache');
 
 const app = express();
@@ -20,9 +21,10 @@ app.use(express.json({ limit: '8kb', strict: true }));
 app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html' }));
 
 let cache = { at: 0, candles: null, error: null };
-const signalAnalysisCache = createSignalCache();
-let lastSignalCandle = null;
-let activeSignal = null;
+const signalRuntime = {
+  enhanced: { analysisCache: createSignalCache(), lastSignalCandle: null, activeSignal: null },
+  original: { analysisCache: createSignalCache(), lastSignalCandle: null, activeSignal: null }
+};
 let keyCursor = 0;
 let lastLoggedMarketError = '';
 let lastLoggedMarketErrorAt = 0;
@@ -94,6 +96,9 @@ function macd(values) {
 function analyze(candles) {
   return analyzeMainMarket(candles);
 }
+function analyzeOriginal(candles) {
+  return analyzeMarket(candles);
+}
 async function fetchCandles(force=false) {
   const now=Date.now();
   if(!force&&cache.candles&&now-cache.at<CACHE_MS)return cache;
@@ -145,51 +150,65 @@ function candleCountdownSeconds(now = Date.now()) {
   const elapsedMs = now % 60000;
   return Math.max(1, Math.ceil((60000 - elapsedMs) / 1000));
 }
-function publicState(candles) {
+function publicState(candles, mode='enhanced') {
+  const runtime = signalRuntime[mode] || signalRuntime.enhanced;
+  const analyzer = mode === 'original' ? analyzeOriginal : analyze;
   const now=Date.now(), latest=candles.at(-1), age=now-latest.time-60000;
   const countdownSeconds=candleCountdownSeconds(now);
   const fresh=age<=MAX_STALE_MS && age>=-60000;
-  if(!fresh)return { ...connectionStatus(),signal:'STANDBY',regime:'UNCLEAR',score:0,
+  if(!fresh)return { ...connectionStatus(),analysisMode:mode.toUpperCase(),signal:'STANDBY',regime:'UNCLEAR',score:0,
     reason:'ข้อมูลแท่งเทียนล่าช้าหรือไม่สดใหม่',price:latest.close,dataAgeMs:Math.max(0,age),
     candleTime:new Date(latest.time).toISOString(),countdownSeconds,signalExpiresAt:null,
     signalWindowOpen:false };
   const candleId=latest.time;
   // Compute indicators + regime + selected strategy once per closed candle in process RAM.
-  const cachedAnalysis=signalAnalysisCache.get(candleId);
-  const analysis=cachedAnalysis || signalAnalysisCache.set(candleId,analyze(candles));
-  if(analysis.signal!=='STANDBY' && lastSignalCandle!==candleId){
-    lastSignalCandle=candleId;
+  const cachedAnalysis=runtime.analysisCache.get(candleId);
+  const analysis=cachedAnalysis || runtime.analysisCache.set(candleId,analyzer(candles));
+  if(analysis.signal!=='STANDBY' && runtime.lastSignalCandle!==candleId){
+    runtime.lastSignalCandle=candleId;
     // Keep the closed-candle decision available until the final 5 seconds
     // of the current M1 candle; do not expose it early.
-    activeSignal={...analysis,candleTime:candleId,
+    runtime.activeSignal={...analysis,candleTime:candleId,
       expiresAt:now+((countdownSeconds-1)*1000)+10000};
   }
-  if(activeSignal&&now>=activeSignal.expiresAt)activeSignal=null;
+  if(runtime.activeSignal&&now>=runtime.activeSignal.expiresAt)runtime.activeSignal=null;
   const signalWindowOpen=countdownSeconds<=5;
-  const visible=signalWindowOpen&&activeSignal&&activeSignal.candleTime===candleId?activeSignal:null;
+  const visible=signalWindowOpen&&runtime.activeSignal&&runtime.activeSignal.candleTime===candleId?runtime.activeSignal:null;
 
-  return {...connectionStatus(),signal:visible?.signal||'STANDBY',
+  return {...connectionStatus(),analysisMode:mode.toUpperCase(),signal:visible?.signal||'STANDBY',
     regime:analysis.regime,strategy:visible?.strategy||analysis.strategy||'NONE',
     regimeConfidence:analysis.regimeConfidence||0,score:visible?.score??analysis.score,reason:visible?.reason||analysis.reason,
     price:latest.close,dataAgeMs:Math.max(0,age),candleTime:new Date(latest.time).toISOString(),
     countdownSeconds,signalWindowOpen,
     signalExpiresAt:visible?.expiresAt||null,indicators:analysis.indicators||null,
-    safetyGate:analysis.safetyGate||{status:'UNKNOWN',passed:false},
-    simulation:analysis.simulation||{ready:false,status:'UNKNOWN'},parameters:analysis.parameters||null};
+    safetyGate:analysis.safetyGate||{status:mode==='original'?'NOT_APPLIED':'UNKNOWN',passed:false},
+    simulation:analysis.simulation||{ready:false,status:mode==='original'?'NOT_APPLIED':'UNKNOWN'},parameters:analysis.parameters||null};
 }
 app.get('/health',(_req,res)=>res.json(connectionStatus()));
 app.get('/api/connection',(_req,res)=>res.json(connectionStatus()));
-app.get('/api/market',async(_req,res)=>{
-  try{const data=await fetchCandles();res.set('Cache-Control','no-store');res.json(publicState(data.candles));}
-  catch(error){if(error.message!==lastLoggedMarketError||Date.now()-lastLoggedMarketErrorAt>30000){console.error('Market data unavailable:',error.message);lastLoggedMarketError=error.message;lastLoggedMarketErrorAt=Date.now();}
-    res.status(503).json({...connectionStatus(),status:'DEGRADED',signal:'STANDBY',regime:'UNCLEAR',score:0,
+async function serveMarket(mode,res) {
+  try {
+    const data=await fetchCandles();
+    res.set('Cache-Control','no-store');
+    res.json(publicState(data.candles,mode));
+  } catch(error) {
+    if(error.message!==lastLoggedMarketError||Date.now()-lastLoggedMarketErrorAt>30000) {
+      console.error('Market data unavailable:',error.message);
+      lastLoggedMarketError=error.message;
+      lastLoggedMarketErrorAt=Date.now();
+    }
+    res.status(503).json({...connectionStatus(),analysisMode:mode.toUpperCase(),status:'DEGRADED',
+      signal:'STANDBY',regime:'UNCLEAR',score:0,
       reason:error.message==='TWELVE_DATA_API_KEYS_MISSING'?'Twelve Data API keys are not configured':error.message==='ALL_API_KEYS_DEPLETED'?'All API Keys Depleted':error.message==='ALL_API_KEYS_UNAVAILABLE'?'All API Keys Unavailable':'Market data unavailable · '+error.message,
-      price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});}
-});
+      price:null,dataAgeMs:null,countdownSeconds:candleCountdownSeconds(),signalWindowOpen:candleCountdownSeconds()<=5});
+  }
+}
+app.get('/api/market',(_req,res)=>serveMarket('enhanced',res));
+app.get('/api/market/original',(_req,res)=>serveMarket('original',res));
 app.use((error,_req,res,_next)=>{
   if(error?.type==='entity.too.large')return res.status(413).json({error:'REQUEST_TOO_LARGE'});
   if(error instanceof SyntaxError)return res.status(400).json({error:'INVALID_JSON'});
   console.error(error);res.status(500).json({error:'INTERNAL_SERVER_ERROR'});
 });
 if(require.main===module)app.listen(PORT,'0.0.0.0',()=>console.log('AI Signal Radar EUR/USD M1 listening on '+PORT));
-module.exports={app,analyze,ema,rsi,macd,connectionStatus,apiKeySummary,configuredKeys};
+module.exports={app,analyze,analyzeOriginal,publicState,ema,rsi,macd,connectionStatus,apiKeySummary,configuredKeys};
