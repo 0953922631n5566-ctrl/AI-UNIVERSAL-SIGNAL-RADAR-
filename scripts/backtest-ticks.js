@@ -52,7 +52,7 @@ function loadTicks(text) {
   const ticks = [];
   for (let row = hasHeader ? 1 : 0; row < lines.length; row++) {
     const cols = splitLine(lines[row], delimiter);
-    if (cols.length < (hasHeader ? Math.max(ti, bi, ai) : 3) + 1) continue;
+    if (cols.length < (hasHeader ? Math.max(ti, bi, ai) + 1 : 3)) continue;
     const tick = {
       time: parseTimestamp(cols[hasHeader ? ti : 0]),
       bid: Number(cols[hasHeader ? bi : 1]),
