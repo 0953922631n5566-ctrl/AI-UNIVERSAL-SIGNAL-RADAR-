@@ -1034,3 +1034,9 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Assistant metadata exposes `executionMode` (`PARALLEL_WORKER_THREAD`, `CACHED_WORKER_RESULT`, or a blocked/unavailable state) and measured worker time.
 - Worker failure or insufficient analogue matches does not veto or replace the Original AI decision. Only the hard market-data freshness gate may force the top-level signal to STANDBY.
 - The worker is computation-only: no network, API calls, broker actions, timers, or external side effects.
+
+
+### 2026-11-06 — Data-quality gate hardening
+- The active analyzer adapter validates at least 200 completed M1 candles, positive/consistent OHLC values, strictly increasing timestamps, latest-candle age <= 180 seconds, and either a fresh Streaming tick (<= 25 seconds) or an explicitly enabled fresh REST fallback.
+- Any failed source/data-integrity gate forces top-level STANDBY before the Original AI decision can be exposed.
+- A worker timeout or assistant calculation failure does not block a valid Original AI decision; it only marks the assistant unavailable. This keeps the assistant from becoming a second decision authority.

@@ -17,8 +17,25 @@ function sourceGate(candles, options) {
   const stream = Number.isFinite(options.tickAgeSeconds) &&
     options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= MAX_STREAM_AGE_SECONDS;
   const rest = options.allowRestFallback === true && ageSeconds <= MAX_CANDLE_AGE_SECONDS;
+  const enough = closed.length >= MIN_CLOSED_CANDLES;
+  const window = closed.slice(-MIN_CLOSED_CANDLES);
+  const validOHLC = enough && window.every(c =>
+    [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+    c.low > 0 && c.close > 0 &&
+    c.high >= Math.max(c.open, c.close) &&
+    c.low <= Math.min(c.open, c.close) &&
+    c.high >= c.low
+  );
+  const ordered = window.every((c, i) => i === 0 || c.epoch > window[i - 1].epoch);
+  const reason = !enough ? `Insufficient closed M1 candles (${closed.length}/${MIN_CLOSED_CANDLES})`
+    : !validOHLC ? "Invalid OHLC candle data"
+    : !ordered ? "Candle timestamps are not strictly increasing"
+    : ageSeconds > MAX_CANDLE_AGE_SECONDS ? "Latest closed candle is stale"
+    : !stream && !rest ? "No fresh Streaming tick or permitted fresh REST fallback"
+    : null;
   return {
-    ready: Boolean(last && ageSeconds <= MAX_CANDLE_AGE_SECONDS && (stream || rest)),
+    ready: !reason,
+    reason,
     mode: stream ? "STREAMING" : rest ? "REST_FALLBACK" : "UNAVAILABLE",
     ageSeconds: Number.isFinite(ageSeconds) ? ageSeconds : null,
     lastCandleEpoch: last?.epoch ?? null,
@@ -44,11 +61,12 @@ function startSimulationWorker(candles, options) {
   const worker = new Worker(new URL("./historical-analogue-worker.js", import.meta.url), {
     workerData: { candles, options, signalBuffer, resultBuffer }
   });
+  worker.on("error", () => {});
   return { worker, state, resultBuffer, startedAt: Date.now() };
 }
 
 function finishSimulationWorker(job) {
-  const wait = Atomics.wait(job.state, 0, 0, 5000);
+  const wait = Atomics.wait(job.state, 0, 0, 3000);
   if (wait === "timed-out") {
     void job.worker.terminate();
     return { signal: "STANDBY", reason: "Historical assistant worker timed out", livePriceReady: false, evidence: [], metrics: null, executionMs: Date.now() - job.startedAt };
@@ -117,12 +135,11 @@ export function analyzeMarket(candles, options = {}) {
     }
   }
 
-  // This work runs while the independent historical assistant worker is active.
   const original = analyzeOriginalMarket(closed.slice(-MIN_CLOSED_CANDLES));
 
   let simulation, executionMode;
   if (!gate.ready) {
-    simulation = { signal: "STANDBY", reason: "No fresh Streaming tick or permitted fresh REST fallback", livePriceReady: false, evidence: [], metrics: null };
+    simulation = { signal: "STANDBY", reason: gate.reason, livePriceReady: false, evidence: [], metrics: null };
     executionMode = "SOURCE_BLOCKED";
   } else if (cachedSimulation) {
     simulation = cachedSimulation;
@@ -139,7 +156,7 @@ export function analyzeMarket(candles, options = {}) {
   return {
     ...original,
     signal,
-    reason: gate.ready ? original.reason : simulation.reason,
+    reason: gate.ready ? original.reason : gate.reason,
     assistant,
     lastCandleEpoch: gate.lastCandleEpoch,
     dataMode: gate.mode,
