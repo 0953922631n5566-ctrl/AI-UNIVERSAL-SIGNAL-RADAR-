@@ -27,8 +27,8 @@ jobs:
           grep -Fq 'new URL(API_ORIGIN).host' public/app.js
           grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
           grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
-          grep -Fq 'export const MIN_CLOSED_CANDLES = 60;' src/config.js
-          grep -Fq 'export const HISTORY_CANDLES = 80;' src/config.js
+          grep -Fq 'export const MIN_CLOSED_CANDLES = 200;' src/config.js
+          grep -Fq 'export const HISTORY_CANDLES = 200;' src/config.js
           grep -Fq 'haptic.impactOccurred' public/app.js
           grep -Fq 'haptic.notificationOccurred' public/app.js
           grep -Fq 'allowedOrigins.has(origin)' server.js
