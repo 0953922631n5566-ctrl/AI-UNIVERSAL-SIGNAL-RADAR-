@@ -7,21 +7,26 @@ on:
   workflow_dispatch:
     inputs:
       from:
-        description: "UTC start date YYYY-MM-DD (leave blank for default 30-day window)"
+        description: "UTC start date YYYY-MM-DD (both dates required; maximum 7 days)"
         required: false
         type: string
       to:
-        description: "UTC end date YYYY-MM-DD (leave blank for default 30-day window)"
+        description: "UTC end date YYYY-MM-DD (both dates required; maximum 7 days)"
         required: false
         type: string
 
 permissions:
   contents: read
 
+# A newer run on this branch supersedes an older, potentially stuck run.
+concurrency:
+  group: historical-backtest-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   historical-backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 90
     env:
       HISTORICAL_MIN_COVERAGE_PCT: "50"
       HISTORICAL_MIN_TICKS: "100"

@@ -136,3 +136,11 @@ Branch: feature/server-price-extraction
 - Workflow runs full Node tests, downloader, decoder gate, tick replay at 10s/20s/30s, M1 diagnostic, and uploads manifest, CSVs and JSON reports. Per-horizon sample counts must be checked; zero samples do not establish accuracy.
 - Dukascopy outages can still reduce coverage. Green means configured coverage and minimum data volume were met, not that the provider had zero missing hours or the strategy is profitable.
 - Production Render and Safety Gate were not changed. Safety Gate remains OFF.
+
+
+## Fast & Accurate Historical Backtest Phase — 2026-11-05
+- Historical downloader scope is reduced from 30 days to the latest 7 complete UTC days by default; custom date ranges are capped at 7 days. Existing hourly BI5 files within the selected window remain reusable.
+- Tick-level EUR/USD backtests remain the primary evaluation at 10s, 20s and 30s. The M1 next-candle diagnostic is supplementary and is not evidence for intraminute performance.
+- M1 diagnostic now passes only the latest 200 completed candles to each analysis/simulation call, rather than repeatedly passing the entire prefix of the dataset. This removes unnecessary growth in per-iteration work while preserving no-lookahead behavior.
+- Historical workflow has a 90-minute job timeout and a branch-scoped concurrency group with `cancel-in-progress: true`; a newer run on this branch supersedes an older in-progress run. Verify the prior run's terminal `cancelled` state before reporting cancellation as complete.
+- CI/test status and empirical results must be read from the new run's logs and uploaded artifact. Do not claim accuracy or profitability based on successful execution alone. Safety Gate remains OFF; no Render deployment or production wiring is authorized.

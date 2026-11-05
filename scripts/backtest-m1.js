@@ -8,6 +8,7 @@ const { analyzeMarket } = require('../engine/analyze-market');
 const { simulateFuture } = require('../simulation/future-simulation-engine');
 
 const DEFAULT_THRESHOLDS = [0.55, 0.60, 0.65, 0.70, 0.72, 0.75, 0.80];
+const HISTORY_WINDOW_CANDLES = 200;
 
 function splitCsvLine(line, delimiter = ',') {
   const out = []; let value = ''; let quoted = false;
@@ -87,7 +88,7 @@ function runM1Backtest(candles, thresholds = DEFAULT_THRESHOLDS) {
   if (!Array.isArray(candles) || candles.length < 202) throw new Error('At least 202 candles are required');
   const samples = [];
   for (let i = 199; i < candles.length - 1; i++) {
-    const history = candles.slice(0, i + 1); // strictly no future candle in the feature window
+    const history = candles.slice(Math.max(0, i - HISTORY_WINDOW_CANDLES + 1), i + 1); // bounded 200-candle window; strictly no future candle
     const next = candles[i + 1];
     if (next.time - candles[i].time !== 60000) continue; // avoid weekend/session gaps
     const decision = analyzeMarket(history);
@@ -127,6 +128,7 @@ function runM1Backtest(candles, thresholds = DEFAULT_THRESHOLDS) {
     mode: 'M1_NEXT_CANDLE_RANGE_DIAGNOSTIC',
     warning: 'This M1 replay does not validate 10/20/30-second outcomes or prove profitability.',
     candleCount: candles.length,
+    featureWindowCandles: HISTORY_WINDOW_CANDLES,
     evaluatedDirectionalSignals: samples.length,
     baseline: { fakeouts, good, neutral },
     thresholds: rows
@@ -152,4 +154,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { loadCandles, runM1Backtest, DEFAULT_THRESHOLDS };
+module.exports = { loadCandles, runM1Backtest, DEFAULT_THRESHOLDS, HISTORY_WINDOW_CANDLES };

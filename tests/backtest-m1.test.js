@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadCandles, runM1Backtest } = require('../scripts/backtest-m1');
+const { loadCandles, runM1Backtest, HISTORY_WINDOW_CANDLES } = require('../scripts/backtest-m1');
 
 function csv(count = 205) {
   const lines = ['datetime,open,high,low,close'];
@@ -41,4 +41,10 @@ test('M1 replay labels itself as next-candle diagnostic and reports threshold gr
   assert.equal(report.mode, 'M1_NEXT_CANDLE_RANGE_DIAGNOSTIC');
   assert.equal(report.thresholds.length, 2);
   assert.match(report.warning, /does not validate 10\/20\/30-second/);
+});
+
+test('M1 diagnostic uses a bounded 200-candle feature window',()=>{
+ const report=runM1Backtest(loadCandles(csv(230)),[0.6]);
+ assert.equal(HISTORY_WINDOW_CANDLES,200);
+ assert.equal(report.featureWindowCandles,200);
 });
