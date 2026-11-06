@@ -80,3 +80,15 @@ For every future inspection, investigation, test, build, deployment, configurati
 
 ## Next task
 Continue with a read-only runtime trace of `feature/original-ai-historical-assistant-main-market` versus `main-market`. Identify the actual active entry points and call graph, resolve the 60-versus-64 threshold path, verify the advisory-only boundary, and test the one-candle-on/one-candle-standby rule. Do not delete or overwrite any existing project material.
+
+
+## 2026-11-06 — Active Original AI core simplified
+
+- Branch changed: `main-market`; repository: `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`.
+- Active files changed: `main-market/original-ai/engine/analyze-market.js` and `main-market/original-ai/engine/decision-engine.js`.
+- The active analyzer preserves the adapter exports required by `main-market/src/analyzer.js`, but calls the Original Decision Engine without injecting Historical Analogue into its decision context.
+- The active decision engine restores the original standalone implementation and retains `MIN_SCORE=60`, volatility blocking, and support/resistance checks.
+- Historical Analogue remains advisory metadata only; it cannot affect the top-level decision.
+- Backup snapshots `analyze-market-original.js` and `decision-engine-original.js` remain untouched. No unrelated engine, strategy, data source, APK, server, or branch was deleted.
+- VERIFIED: source-level interface compatibility by inspection of the active `src/analyzer.js` import/call sites and new CommonJS exports.
+- NOT TESTED: automated tests/CI, Render deployment, live API behavior, APK build, and physical-device validation.
