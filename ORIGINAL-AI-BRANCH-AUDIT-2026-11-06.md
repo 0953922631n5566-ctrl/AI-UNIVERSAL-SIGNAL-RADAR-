@@ -122,3 +122,14 @@ Continue with a read-only runtime trace of `feature/original-ai-historical-assis
 - Workflow job `test`: **33 passed / 0 failed**; historical conflict-check tests and REST fallback tests passed.
 - Append-only handoff/audit commits: `97c6bfdc9929a9d1dffd14360d3b23b65bec0327`, `b906400bbe95931ea43bb3a17088787e8ecf6c4c`.
 - This does not verify Render deployment, live price feed, APK build/install, or device behavior.
+
+
+## 2026-11-06 — Android FCM and backend-owned monitoring source change
+
+- Timezone: Asia/Bangkok. Branch: `main-market`. Source implementation through commit `9bc47b9617e31f539e18d372926af2eb0fca2360`.
+- Inspected: `main-market/server.js`, `main-market/package.json`, Android root/app Gradle files, manifest, `MainActivity.java`, Twelve Data key-pool module, and `.github/workflows/android-apk.yml`.
+- Changed: Firebase Admin sender configured only by `FIREBASE_SERVICE_ACCOUNT_JSON`; dispatch on newly-created CALL/PUT alert IDs only; Android FCM SDK/topic subscription/notification permission/channel; server-owned scanner no longer stopped by client disconnect; startup auto-start defaults on unless `AUTO_START_MONITORING=false`.
+- VERIFIED by source review: Admin private key not committed; missing Admin secret returns NOT_CONFIGURED; scanner stop is no longer tied to WebSocket client count/lease expiration; APK package/version identity preserved and incremented to versionCode 3.
+- Deployment observations at inspection: Render service is `srv-dbjls149v7es73ag0k4g`, branch `main-market`, auto-deploy on commit. The first deploy attempts for intermediate commits failed or were superseded while later commits were being pushed; a subsequent commit reached Live and the newest deploy was queued/building. Terminal result still requires rechecking.
+- NOT TESTED: GitHub Actions completion/artifact, Gradle build outcome, Firebase Admin credential initialization/delivery, device notification runtime, and live data.
+- Required secret: add `FIREBASE_SERVICE_ACCOUNT_JSON` to Render Environment. User has not supplied the Admin service-account credential; keep it out of chat/GitHub/APK. Client `google-services.json` is a separate, public app configuration.
