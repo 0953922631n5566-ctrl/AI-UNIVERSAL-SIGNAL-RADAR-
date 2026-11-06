@@ -1582,3 +1582,30 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` snapshot at `2026-11-06T15:48:22.714Z` returned an active `PUT` / `DOWNTREND` candidate with score 90, ADX 37.27, -DI 22.54 > +DI 10.26, MACD histogram negative, RSI 28.15, M5 `UNCLEAR`, API ONLINE, and tick age 1s. This is direct evidence that a bearish M1 setup can be retained while M5 is transitioning; it is a live snapshot, not a performance validation.
 - The snapshot explicitly retained `signalReleaseValidated=false` / `RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED`. Manual-only use remains required; no claim of predictive edge or OOS validation.
 - No APK build workflow was invoked for this backend-only request. Android sources and APK artifacts were not changed.
+
+
+## 2026-11-06 — Signal timing, compact overlay, anti-duplicate, Build 16
+
+### Backend timing and dispatch
+- Added `src/signal-timing.js` with a strict M1 pre-close window: dispatch eligibility only from 5.0 to 3.0 seconds before the current live candle closes.
+- Server runs a 250ms timing check while monitoring. A candidate must still pass the existing Original AI/data-quality pipeline and have a Streaming tick no older than 5 seconds; if the feed is stale or no tick arrives in the window, it skips the signal rather than sending late.
+- FCM dispatch is claimed once per candle and guarded by a 55-second server cooldown. The data-only FCM message remains Android high priority. FCM network delivery latency is external and cannot be guaranteed to arrive at an exact millisecond.
+- Public signal API now exposes `signalTimingWindowSeconds: [5, 3]`.
+- Added tests for the 5s/3s boundaries, tick freshness, per-candle dedupe, and cooldown.
+
+### Android UI and duplicate suppression
+- Replaced the large full-screen floating overlay with a compact top-edge banner showing only arrow/direction, pair, and price. System overlay uses `FLAG_NOT_TOUCHABLE` so chart touches pass through; when overlay permission is unavailable while the app is foreground, a compact in-app top banner is used instead.
+- Android fallback polling tightened from 15s to 5s; FCM remains the primary near-real-time delivery path.
+- `SignalAlertDispatcher` now persists a cross-channel 55-second cooldown plus a 10-minute same-alert-ID dedupe window. This prevents the same FCM and polling event from producing duplicate feedback/popups.
+- Master ON/OFF and existing CALL/PUT sound/vibration preferences are preserved.
+
+### Build and verification
+- Android `versionCode=16`, `versionName=1.11.0`.
+- Build workflow run `42250062010` succeeded on source commit `cf5a847da49a0dcb13249d5925b4613519c4be85`; Gradle build, APK existence, apksigner verification, SHA-256 generation, and artifact upload all passed.
+- Artifact ID: `13520700204`; artifact link: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42250062010/artifacts/13520700204
+- APK SHA-256: `df62e84d04f104374169f97b22706a87da2eb0d6cf9f31cb9794c76fd2fcd589`.
+- Main Market Checks run `42250051197` passed 45/45 tests for timing helper and related backend changes; run `42249799349` passed the full suite on the Android UI source commit. A final Main Market Checks run was also queued for the 55s Android cooldown source commit.
+- Render deployment `dep-dbmvoe7rkulc73eqa8vg` reached `live` on commit `cf5a847da49a0dcb13249d5925b4613519c4be85`. Live `/health` returned `ok:true`, Firebase Admin configured, and Twelve Data pool 10/10 available. Live public signal was STANDBY due incomplete DOWNTREND confirmation (score 35); this is not a signal-timing failure.
+- The APK is **debug-signed**, not signed with a persistent production keystore. Compared with the prior Build 15 debug APK artifact, the debug certificate SHA-256 differs; Android may reject an in-place update over that prior APK. For upgrade-in-place continuity, configure a persistent release keystore through protected GitHub Actions secrets and build a release-signed APK. Do not commit a keystore or passwords to the repository.
+- No physical Xiaomi/Android device test has been performed. Signal timing is gated on fresh Streaming ticks and FCM transport; end-to-end on-device receipt timing remains to be verified.
+- Signal release remains rule-based/manual-only; `signalReleaseValidated=false` and out-of-sample validation remains outstanding.
