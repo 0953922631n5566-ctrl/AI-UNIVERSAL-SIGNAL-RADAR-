@@ -198,19 +198,25 @@ function centralDispatcher(results, regime) {
   }
   return { signal: winner, score, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
 }
-async function evaluateAllEngines(marketData) {
-  const settled = await Promise.allSettled(ENGINES.map(engine => Promise.resolve().then(() => engine(marketData))));
+async function evaluateEngineBatch(marketData, engineList = ENGINES) {
+  const settled = await Promise.allSettled(engineList.map(engine => Promise.resolve().then(() => engine(marketData))));
   const results = settled.map((item, idx) => item.status === 'fulfilled'
     ? item.value
-    : result(ENGINES[idx].name || `engine_${idx + 1}`, 'NO_SIGNAL', 0, 0, `Engine failure: ${item.reason?.message || 'unknown'}`, false));
+    : result(engineList[idx].engineName || engineList[idx].name || `engine_${idx + 1}`,
+      'NO_SIGNAL', 0, 0, `Engine failure: ${item.reason?.message || 'unknown'}`, false));
+  return { results, fulfilled: settled.filter(x => x.status === 'fulfilled').length,
+    failed: settled.filter(x => x.status === 'rejected').length };
+}
+async function evaluateAllEngines(marketData) {
+  const batch = await evaluateEngineBatch(marketData);
+  const results = batch.results;
   const decision = centralDispatcher(results, marketData?.regime);
   return { ...decision, engineResults: results, engineSummary: {
-    total: results.length, fulfilled: settled.filter(x => x.status === 'fulfilled').length,
-    failed: settled.filter(x => x.status === 'rejected').length,
+    total: results.length, fulfilled: batch.fulfilled, failed: batch.failed,
     safetyVeto: !results.some(r => r.engine === 'safety_noise_guard' && r.validity && !r.reason.startsWith('VETO:'))
   }};
 }
-module.exports = { evaluateAllEngines, centralDispatcher, runTrendBreakoutEngine,
+module.exports = { evaluateAllEngines, evaluateEngineBatch, centralDispatcher, runTrendBreakoutEngine,
   runTrendContinuationEngine, runPinBarReversalEngine, runCandlestickPatternEngine,
   runRangeBoundSwingEngine, runCompressionSqueezeEngine, runMomentumDivergenceEngine,
   runVolumeOrderFlowEngine, runPullbackRetestEngine, runSafetyNoiseGuard };
