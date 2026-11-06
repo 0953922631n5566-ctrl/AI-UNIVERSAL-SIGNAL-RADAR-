@@ -27,11 +27,11 @@ public final class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);getWindow().setStatusBarColor(android.graphics.Color.rgb(7,17,13));getWindow().setNavigationBarColor(android.graphics.Color.rgb(7,17,13));
-        createNotificationChannels();startRadarService();
+        createNotificationChannels();if(prefs().getBoolean("systemEnabled",true)){startRadarService();updatePushSubscription(true);}else{stopRadarService();updatePushSubscription(false);}
         webView=new WebView(this);webView.setBackgroundColor(android.graphics.Color.rgb(7,17,13));WebSettings s=webView.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(false);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         webView.addJavascriptInterface(new RadarBridge(),"AndroidBridge");
         webView.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){Uri u=r.getUrl(),b=Uri.parse(serverUrl());if("https".equalsIgnoreCase(u.getScheme())&&b.getHost()!=null&&b.getHost().equalsIgnoreCase(u.getHost()))return false;if("https".equalsIgnoreCase(u.getScheme()))startActivity(new Intent(Intent.ACTION_VIEW,u));return true;}});
-        setContentView(webView);FirebaseMessaging.getInstance().subscribeToTopic("main-market-signals").addOnSuccessListener(x->Log.i("RadarFCM","Subscribed")).addOnFailureListener(e->Log.w("RadarFCM","Subscribe failed",e));
+        setContentView(webView);
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},4102);
         webView.loadUrl(DEFAULT_SERVER+"/control");
     }
@@ -77,7 +77,30 @@ public final class MainActivity extends Activity {
     }
     private int dp(float value){return (int)(value*getResources().getDisplayMetrics().density+.5f);}
 
-    private void startRadarService(){Intent i=new Intent(this,RadarPollingService.class);if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O)startForegroundService(i);else startService(i);}
+    private void startRadarService(){
+        if(!prefs().getBoolean("systemEnabled",true))return;
+        Intent i=new Intent(this,RadarPollingService.class);
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O)startForegroundService(i);else startService(i);
+    }
+    private void stopRadarService(){
+        stopService(new Intent(this,RadarPollingService.class));
+        NotificationManager manager=getSystemService(NotificationManager.class);
+        if(manager!=null)manager.cancelAll();
+    }
+    private void updatePushSubscription(boolean enabled){
+        if(enabled)FirebaseMessaging.getInstance().subscribeToTopic("main-market-signals")
+            .addOnSuccessListener(x->Log.i("RadarFCM","Subscribed"))
+            .addOnFailureListener(e->Log.w("RadarFCM","Subscribe failed",e));
+        else FirebaseMessaging.getInstance().unsubscribeFromTopic("main-market-signals")
+            .addOnSuccessListener(x->Log.i("RadarFCM","Unsubscribed while Master OFF"))
+            .addOnFailureListener(e->Log.w("RadarFCM","Unsubscribe failed",e));
+    }
+    private void applyMasterSwitch(boolean enabled){
+        prefs().edit().putBoolean("systemEnabled",enabled).commit();
+        if(enabled){startRadarService();updatePushSubscription(true);}
+        else{updatePushSubscription(false);stopRadarService();}
+        Log.i("RadarMaster","Master switch "+(enabled?"ON":"OFF"));
+    }
     private void createNotificationChannels(){
         if(Build.VERSION.SDK_INT<26)return;NotificationManager m=getSystemService(NotificationManager.class);if(m==null)return;
         createChannel(m,"signal_sv_v3",true,true);createChannel(m,"signal_s_v3",true,false);
@@ -98,7 +121,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public void saveClientToken(String v){}
         @JavascriptInterface public String getPreference(String n){if("soundEnabled".equals(n)||"vibrationEnabled".equals(n)||"systemEnabled".equals(n))return Boolean.toString(prefs().getBoolean(n,true));return "";}
         @JavascriptInterface public void setPreference(String n,String v){if(!"soundEnabled".equals(n)&&!"vibrationEnabled".equals(n)&&!"systemEnabled".equals(n))return;prefs().edit().putBoolean(n,Boolean.parseBoolean(v)).apply();}
-        @JavascriptInterface public void setSystemEnabled(boolean enabled){prefs().edit().putBoolean("systemEnabled",enabled).apply();}
+        @JavascriptInterface public void setSystemEnabled(boolean enabled){runOnUiThread(()->applyMasterSwitch(enabled));}
         @JavascriptInterface public void testSound(){runOnUiThread(()->{try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,85);t.startTone(ToneGenerator.TONE_PROP_ACK,250);webView.postDelayed(t::release,400);}catch(Exception e){Log.w("RadarUI","Sound test failed",e);}});}
         @JavascriptInterface public void testVibration(){runOnUiThread(()->{try{Vibrator v=(Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null&&v.hasVibrator()){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createWaveform(new long[]{0,180,70,180,70,320},-1));else v.vibrate(new long[]{0,180,70,180,70,320},-1);}}catch(Exception e){Log.w("RadarUI","Vibration test failed",e);}});}
     }
