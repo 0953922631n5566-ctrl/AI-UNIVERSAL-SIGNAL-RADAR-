@@ -35,3 +35,41 @@ test("Trend continuation can pass at 40 when two independent evidence checks ali
   assert.equal(result.score, 40);
   assert.equal(result.signal, "CALL");
 });
+
+
+const { classifyTrendRegime, MIN_TREND_ADX } = require("../original-ai/scanner/trend-scanner.js");
+
+test("first-step regime threshold is ADX 16", () => {
+  assert.equal(MIN_TREND_ADX, 16);
+});
+
+test("two of three bullish EMA relationships plus directional DI are enough at ADX 16", () => {
+  const result = classifyTrendRegime({
+    bullishAlignment: 2, bearishAlignment: 1, adx: 16,
+    plusDI: 24, minusDI: 15
+  });
+  assert.equal(result.regime, "UPTREND");
+});
+
+test("two of three bearish EMA relationships plus directional DI are enough at ADX 16", () => {
+  const result = classifyTrendRegime({
+    bullishAlignment: 1, bearishAlignment: 2, adx: 16,
+    plusDI: 13, minusDI: 22
+  });
+  assert.equal(result.regime, "DOWNTREND");
+});
+
+test("weak ADX, one EMA relationship, or conflicting DI does not classify a trend", () => {
+  assert.equal(classifyTrendRegime({
+    bullishAlignment: 3, bearishAlignment: 0, adx: 15.99,
+    plusDI: 24, minusDI: 12
+  }), null);
+  assert.equal(classifyTrendRegime({
+    bullishAlignment: 1, bearishAlignment: 2, adx: 20,
+    plusDI: 24, minusDI: 12
+  }), null);
+  assert.equal(classifyTrendRegime({
+    bullishAlignment: 2, bearishAlignment: 1, adx: 20,
+    plusDI: 12, minusDI: 24
+  }), null);
+});
