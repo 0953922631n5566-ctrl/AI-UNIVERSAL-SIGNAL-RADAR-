@@ -1164,3 +1164,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Job `test` completed successfully: **33 tests passed, 0 failed**. This includes the new historical conflict/safety behavior and REST fallback compatibility.
 - The handoff and audit append-only documentation were then updated in commits `97c6bfdc9929a9d1dffd14360d3b23b65bec0327` and `b906400bbe95931ea43bb3a17088787e8ecf6c4c`.
 - CI verifies source/tests only. Render deployment, live EUR/USD streaming, APK build/install, and Xiaomi 11T runtime remain **NOT VERIFIED**.
+
+
+## 2026-11-06 — Native Firebase Push and server-owned scanner implementation
+
+- Timezone: Asia/Bangkok. Active branch: `main-market`. Source implementation through commit `9bc47b9617e31f539e18d372926af2eb0fca2360`.
+- Firebase project/app already registered: project `ai-universal-signal-radar`, Android package `com.kawasaki.signalradar`, Firebase Android app ID `1:114251926094:android:e13a500afb0c7a8c6b511f`. The supplied client config is stored at `main-market/android/app/google-services.json`; it is not the Admin service-account credential.
+- Android changes: Google Services plugin, Firebase Messaging SDK, versionCode 3 / versionName 1.2.0, notification permission/channel, topic subscription `main-market-signals`, and native CALL/PUT notification rendering with red/green accent and alert-ID deduplication.
+- Backend changes: Firebase Admin sender in `main-market/src/push-notifications.js`; new CALL/PUT alert IDs dispatch a push to the shared topic. STANDBY is excluded. The Admin credential is read only from `FIREBASE_SERVICE_ACCOUNT_JSON`.
+- Scanner lifecycle: removed automatic stop on WebSocket/HTTP client disconnect; server startup auto-starts EUR/USD monitoring unless `AUTO_START_MONITORING=false`. Explicit Stop remains available for the running process. This does not make a Free Render instance immune to platform sleep/suspension; keep-alive and live service health still require verification.
+- Required Render configuration: set `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase Admin service-account JSON as a secret. Never paste its private key into chat or commit it. Also confirm `TWELVE_DATA_API_KEYS` is populated; the prior health checkpoint reported zero configured keys.
+- VERIFIED by source review: Android FCM code/config, server-side Admin sender, server-owned monitoring lifecycle, and syntax check command inclusion are committed.
+- NOT YET VERIFIED: latest Render deployment terminal state, GitHub Actions APK artifact, Firebase Admin initialization, FCM delivery to a real device, Android 13+ notification permission, Xiaomi 11T background behavior, and live EUR/USD feed.
