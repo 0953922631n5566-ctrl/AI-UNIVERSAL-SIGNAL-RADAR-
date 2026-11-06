@@ -40,7 +40,7 @@ test('strong CALL can pass nearby resistance only with full momentum confirmatio
   assert.equal(decide(ctx, { strategy: 'UPTREND', signal: 'CALL', score: 80 }).signal, 'CALL');
 });
 test('volatility expansion and weak countertrend evidence block a candidate', () => {
-  const ctx = { regime: 'DOWNTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 2.5, nearSupport: true, adx: 24, nearResistance: false, adx: 31, minusDI: 30, plusDI: 10, macdHistogram: -.0003, rsi: 38 } };
+  const ctx = { regime: 'DOWNTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 2.5, nearSupport: true, adx: 24, nearResistance: false, minusDI: 30, plusDI: 10, macdHistogram: -.0003, rsi: 38 } };
   assert.equal(decide(ctx, { strategy: 'DOWNTREND', signal: 'PUT', score: 100 }).signal, 'STANDBY');
 });
 test('downtrend strategy recognizes strong bearish continuation', () => {
