@@ -1157,3 +1157,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200` — REST fallback test compatibility.
 - CI run #237 (`42165434619`) failed because one existing REST fallback test still expected the old `ADVISORY_ONLY` label; the 2 new integration tests and all other tests passed. The assertion was updated in commit `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200`; CI run #238 is the verification run and must be checked before claiming test success.
 - NOT YET VERIFIED: CI run #238 outcome at time of this entry; Render deployment/live EUR/USD feed; APK build/install; physical Xiaomi 11T behavior; historical model's out-of-sample predictive value. The 53%/12-analogue eligibility and score-80 override are conservative engineering gates, not empirically optimized trading parameters.
+
+### CI verification — historical assistant integration — 2026-11-06
+
+- Main Market Checks run #238 (`42165482287`) completed **success** for commit `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200`.
+- Job `test` completed successfully: **33 tests passed, 0 failed**. This includes the new historical conflict/safety behavior and REST fallback compatibility.
+- The handoff and audit append-only documentation were then updated in commits `97c6bfdc9929a9d1dffd14360d3b23b65bec0327` and `b906400bbe95931ea43bb3a17088787e8ecf6c4c`.
+- CI verifies source/tests only. Render deployment, live EUR/USD streaming, APK build/install, and Xiaomi 11T runtime remain **NOT VERIFIED**.
