@@ -1416,3 +1416,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - `6562eb44559dbd346b43ac5b0cbe441f93523d33` — exact ADX 14 boundary fixtures.
 - GitHub Actions test for latest source commit was queued at the last check; Render auto-deploy status and live health/streaming verification are pending. Record only confirmed outcomes after polling.
 - This remains rule-based manual decision support, not validated predictive accuracy or profitability. No broker execution.
+
+
+### Verification checkpoint — second-stage tuning (2026-11-06 12:31 UTC)
+
+- GitHub Actions Main Market `test` check for commit `6562eb44559dbd346b43ac5b0cbe441f93523d33`: completed SUCCESS.
+- Render deploy for source/test commit `b1c96628958e5905e775bd078c4ed5e40fcff949`: status LIVE (`dep-dbmsgkkq5q8c7399afd0`). This deploy includes the score 35 decision engine, ADX 14 scanner and updated threshold tests.
+- Live `/health`: `ok:true`; service main-market; EUR/USD / 1min; Original AI only; signal runtime lock false; Firebase Admin configured; Twelve Data API pool 10/10 available; 200 closed-candle requirement retained.
+- Live `/api/public/signal`: `ok:true`; API ONLINE; dataMode STREAMING; tickAgeSeconds 1 at the latest check; 200 closed candles; monitoring true. A currently held PUT/DOWNTREND signal was being retained within its configured 40-second hold window. This is a momentary runtime observation, not evidence that the new thresholds alone generated it.
+- Render log lines were not directly inspected in this checkpoint; streaming was verified from the live signal endpoint fields. Do not claim direct log inspection.
+- Documentation-only handoff commit `715748c47a0fd66764180ed3279ddeae34fb76f2` was queued for auto-deploy at the last poll; it does not alter runtime code. Source code deploy above is LIVE.
+- Threshold tuning is rule-based only; no OOS predictive accuracy or profitability claim. Manual decision support only; no broker execution.
