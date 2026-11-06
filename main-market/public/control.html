@@ -7,11 +7,17 @@
 <section class="card"><div class="toggle"><span>เสียงแจ้งเตือน</span><input id="sound" type="checkbox" checked></div><div class="toggle"><span>สั่นแจ้งเตือน</span><input id="vibrate" type="checkbox" checked></div><div style="display:flex;gap:8px;margin-top:12px"><button class="small" id="testSound">ทดสอบเสียง</button><button class="small" id="testVibrate">ทดสอบสั่น</button></div></section>
 <div class="footer">เฝ้าระวังเบื้องหลัง · ไม่ต้องเปิดหน้าจอแอป</div><div id="status" class="footer">กำลังเชื่อมต่อ Render…</div></main>
 <script>
-const $=id=>document.getElementById(id),bridge=window.AndroidBridge||null;let enabled=true;
+const $=id=>document.getElementById(id),bridge=window.AndroidBridge||null;let enabled=true,refreshTimer=null;
 function pref(n,d=true){try{return bridge?.getPreference?.(n)??String(d)}catch(e){return String(d)}}
 function paint(p){const m=p.market||p,s=(m.signal||"STANDBY").toUpperCase();$("api").textContent="API "+(m.apiStatus||"OFFLINE");$("signal").textContent=s;$("signal").className="signal "+(["CALL","PUT"].includes(s)?s:"STANDBY");$("price").textContent=m.price||m.lastPrice||"--";$("time").textContent=m.analyzedAt||m.updatedAt||"--";$("reason").textContent=m.reason||m.statusMessage||"ไม่มีเหตุผลจากระบบ";const pool=m.apiPool||{},items=pool.keyStates||[],total=pool.configuredCount||0,ready=pool.availableCount||0;$("summary").textContent="API Keys ทั้งหมด: "+total+" | พร้อมใช้: "+ready+" | หมดโควตา: "+Math.max(0,total-ready);$("keys").replaceChildren();for(let n=1;n<=10;n++){const x=items.find(v=>v.number===n),row=document.createElement("div"),name=document.createElement("span"),state=document.createElement("b");row.className="key";name.textContent="Key #"+n;state.textContent=x?.status||"NOT CONFIGURED";state.className=x?.status==="ACTIVE"?"active":x?.status==="READY"?"ready":"cool";row.append(name,state);$("keys").append(row)}}
-function setEnabled(v){enabled=v;bridge?.setSystemEnabled?.(v);$("system").textContent=v?"● SYSTEM ON":"○ SYSTEM OFF";$("system").classList.toggle("off",!v);$("status").textContent=v?"เปิดรับสัญญาณเบื้องหลังแล้ว":"ปิดการรับสัญญาณบนอุปกรณ์แล้ว"}
+function setEnabled(v){
+ enabled=Boolean(v);bridge?.setSystemEnabled?.(enabled);
+ $("system").textContent=enabled?"● MASTER ON · กำลังเฝ้าระวัง":"○ MASTER OFF · หยุดทั้งหมด";
+ $("system").classList.toggle("off",!enabled);$("system").setAttribute("aria-pressed",String(enabled));
+ if(enabled){$("api").textContent="กำลังเริ่มระบบ…";$("signal").textContent="STANDBY";$("signal").className="signal STANDBY";$("reason").textContent="กำลังเริ่มบริการเฝ้าระวัง";$("status").textContent="MASTER ON · เริ่มบริการเบื้องหลังและรับสัญญาณ";refresh();if(!refreshTimer)refreshTimer=setInterval(refresh,5000);}
+ else{if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}$("api").textContent="MONITORING PAUSED";$("signal").textContent="PAUSED";$("signal").className="signal STANDBY";$("price").textContent="—";$("time").textContent="—";$("reason").textContent="ปิดระบบทั้งหมดแล้ว · ไม่มีการ Polling หรือ Foreground Service บนอุปกรณ์";$("summary").textContent="ระบบพักการทำงาน";$("keys").replaceChildren();$("status").textContent="MASTER OFF · บริการเบื้องหลัง, การแจ้งเตือน และการเชื่อมต่อของแอปถูกหยุด";}
+}
 $("system").onclick=()=>setEnabled(!enabled);$("sound").checked=pref("soundEnabled")!=="false";$("vibrate").checked=pref("vibrationEnabled")!=="false";$("sound").onchange=()=>bridge?.setPreference?.("soundEnabled",String($("sound").checked));$("vibrate").onchange=()=>bridge?.setPreference?.("vibrationEnabled",String($("vibrate").checked));$("testSound").onclick=()=>bridge?.testSound?.();$("testVibrate").onclick=()=>bridge?.testVibration?.();setEnabled(pref("systemEnabled")!=="false");
 async function refresh(){try{const r=await fetch("/api/public/signal",{cache:"no-store"});if(!r.ok)throw Error("HTTP "+r.status);paint(await r.json());$("status").textContent="เชื่อมต่อ Render สำเร็จ"}catch(e){$("api").textContent="API OFFLINE";$("status").textContent="เชื่อมต่อไม่สำเร็จ · "+e.message}}
-refresh();setInterval(refresh,5000);
+if(enabled){refresh();refreshTimer=setInterval(refresh,5000);}
 </script></body></html>
