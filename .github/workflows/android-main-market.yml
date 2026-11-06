@@ -1,4 +1,4 @@
-name: Signal Radar PRO Main Market APK
+name: Signal Radar PRO v1.11.0 Build 16 Main Market APK
 
 on:
   workflow_dispatch:
@@ -49,13 +49,16 @@ jobs:
       - name: Verify APK exists
         run: test -s main-market/android/app/build/outputs/apk/debug/app-debug.apk
 
+      - name: Verify APK signature
+        run: "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose main-market/android/app/build/outputs/apk/debug/app-debug.apk
+
       - name: Generate SHA-256
         run: sha256sum main-market/android/app/build/outputs/apk/debug/app-debug.apk > main-market/android/app/build/outputs/apk/debug/SHA256SUMS.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: signal-radar-pro-main-market-debug-apk
+          name: signal-radar-pro-v1.11.0-build-16-debug-signed-apk
           path: |
             main-market/android/app/build/outputs/apk/debug/app-debug.apk
             main-market/android/app/build/outputs/apk/debug/SHA256SUMS.txt
