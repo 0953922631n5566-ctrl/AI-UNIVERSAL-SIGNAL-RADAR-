@@ -125,7 +125,7 @@ public final class RadarPollingService extends Service {
         Notification n=b.setSmallIcon(R.drawable.ic_stat_signal)
             .setContentTitle((call?"↑ CALL":"↓ PUT")+" · "+symbol)
             .setContentText("ราคา "+price+" · "+reason)
-            .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\\n"+reason))
+            .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
             .setColor(call?Color.rgb(0,205,88):Color.rgb(255,45,65))
             .setContentIntent(pi).setCategory(Notification.CATEGORY_EVENT)
             .setAutoCancel(true).setDefaults(0).build();
@@ -178,7 +178,7 @@ public final class RadarPollingService extends Service {
         String m1=countdown(nextM1CloseAt,now);
         String m5=m5Countdown(now);
         boolean live=isActuallyLive();
-        String headline=live?"LIVE":("ONLINE".equals(latestApiStatus)?"REST ONLY":("CONNECTING".equals(latestApiStatus)?"CONNECTING":"OFFLINE"));
+        String headline=live?"Live":("ONLINE".equals(latestApiStatus)?"REST ONLY":("CONNECTING".equals(latestApiStatus)?"CONNECTING":"OFFLINE"));
         int color=live?Color.rgb(0,205,88):("ONLINE".equals(latestApiStatus)?Color.rgb(245,166,35):Color.rgb(107,114,128));
         String title=headline+" · SIGNAL RADAR PRO";
         String body=latestSymbol+"  "+latestPrice+"  ·  M1 "+m1+"  ·  M5 "+m5;
@@ -188,7 +188,7 @@ public final class RadarPollingService extends Service {
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this).setPriority(Notification.PRIORITY_LOW);
         return b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,live?"LIVE":"…"))
             .setContentTitle(title).setContentText(body)
-            .setStyle(new Notification.BigTextStyle().setBigContentTitle(title).bigText(body+"\\n"+detail))
+            .setStyle(new Notification.BigTextStyle().setBigContentTitle(title).bigText(body+"\n"+detail))
             .setSubText(detail).setColor(color).setContentIntent(pi)
             .setCategory(Notification.CATEGORY_SERVICE).setOnlyAlertOnce(true).setOngoing(true).build();
     }
