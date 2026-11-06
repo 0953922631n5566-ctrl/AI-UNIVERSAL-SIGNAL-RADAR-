@@ -1043,3 +1043,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 
 - CI rerun trigger after worker-thread/data-quality adapter update: 2026-11-06. Check latest GitHub Actions runs before merging or deploying.
+
+
+## 2026-11-06 — Append-only audit policy and Original AI branch inspection checkpoint
+
+- Existing documentation and historical records are preserved; no existing report or project document is to be deleted as part of routine work.
+- The repository contains dated historical notes that describe different architectures. In particular, older Telegram Mini App notes are superseded by later Android APK direct-client notes. Keep historical entries intact and append dated corrections instead of silently rewriting history.
+- A detailed read-only source comparison and its limits are recorded in `ORIGINAL-AI-BRANCH-AUDIT-2026-11-06.md`.
+- Mandatory for every future inspection/test/build/deploy/edit: record date/time and timezone, branch, commit SHA, scope, exact files/endpoints/workflows inspected, evidence, test results, and unresolved items. Classify each result as VERIFIED, FAILED, NOT TESTED, or INCONCLUSIVE.
+- Before updating any existing document, fetch its latest content and SHA; preserve all content and append a dated entry. Never replace the complete handoff with a shortened summary. Do not delete any report, README, handoff, source, workflow, or branch unless the user explicitly names what to delete.
+- After every material task, update this handoff and the audit record, commit the change, and report the commit SHA/URL plus what remains unverified.
+- Next audit task: read-only runtime call-graph trace for Original AI vs Historical Assistant; resolve `MIN_SCORE=60` versus archived `THRESHOLD=64`; verify the advisory-only boundary and one-candle-on/one-candle-standby behavior. No source change is authorized by this note.
