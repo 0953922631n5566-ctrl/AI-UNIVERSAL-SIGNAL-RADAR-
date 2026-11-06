@@ -11,6 +11,7 @@ import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { sendSignalPush, firebaseAdminStatus } from "./src/push-notifications-v2.js";
+import { canDispatchSignal } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
@@ -37,7 +38,8 @@ function newFeed(symbol) {
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
     preAlertSignal: null, preAlertCandle: null,
-    alertId: null, dataLocked: false
+    alertId: null, dataLocked: false,
+    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
 
@@ -49,6 +51,7 @@ let restTimer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
+let signalTimer = null;
 let globalLockMessage = null;
 const controlRequests = new Map();
 
@@ -147,6 +150,7 @@ function clearTimers() {
   clearInterval(restTimer); restTimer = null;
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
+  clearInterval(signalTimer); signalTimer = null;
   clearTimeout(retryTimer); retryTimer = null;
 }
 
@@ -185,25 +189,107 @@ function classifyError(error) {
 }
 
 function evaluate(feed) {
- const tickAge=feed.tickAt?(Date.now()-feed.tickAt)/1000:null;
- const restFallback=feed.restStatus==="READY" && (!feed.tickAt || tickAge===null || tickAge>MAX_STREAM_AGE_SECONDS);
- const rawResult=analyzeMarket(feed.candles,{now:Date.now(),tickAgeSeconds:tickAge,allowRestFallback:restFallback});
- const result=applySignalReleaseGate(rawResult);
- const candleId=result.lastCandleEpoch??null;
- if(feed.preAlertCandle!==candleId){feed.preAlertCandle=candleId;feed.preAlertSignal=null;}
- if(result.signal==="CALL"||result.signal==="PUT"){
-  if(feed.activeSignal&&Date.now()<feed.activeUntil){result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";}
-  else if(candleId!==null&&feed.signalCandle!==candleId){feed.activeSignal=result.signal;feed.activeUntil=Date.now()+SIGNAL_HOLD_SECONDS*1000;feed.signalCandle=candleId;feed.alertId=`${candleId}:${result.signal}`;}
-  else{result.signal="STANDBY";result.reason="ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน";}
- }else if(feed.activeSignal&&Date.now()<feed.activeUntil){
-  const restFresh=restFallback&&Number.isFinite(result.ageSeconds)&&result.ageSeconds<=MAX_CANDLE_AGE_SECONDS;
-  const streamFresh=feed.tickAt&&Date.now()-feed.tickAt<=MAX_STREAM_AGE_SECONDS*1000;
-  if(!restFresh&&!streamFresh){feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=candleId;feed.preAlertSignal=null;feed.alertId=null;feed.analysis=standby("ยกเลิกสัญญาณเดิม: แหล่งข้อมูลราคาไม่สดหรือไม่ผ่าน Data Quality Gate");return;}
-  result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
- }else if(feed.activeSignal&&Date.now()>=feed.activeUntil){feed.activeSignal=null;feed.activeUntil=0;}
- if(result.signal==="CALL"||result.signal==="PUT")feed.preAlertSignal=result.signal;
- else if(!(feed.activeSignal&&Date.now()<feed.activeUntil))feed.preAlertSignal=null;
- feed.analysis={...result,tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,signalExpiresAt:feed.activeSignal?new Date(feed.activeUntil).toISOString():null};
+ const now = Date.now();
+ const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
+ const restFallback = feed.restStatus === "READY" &&
+   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
+ const rawResult = analyzeMarket(feed.candles, {
+   now, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ });
+ const result = applySignalReleaseGate(rawResult);
+ const currentCandle = feed.candles.at(-1);
+ const triggerCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
+ const timingEligible = triggerCandleEpoch !== null && canDispatchSignal({
+   candleEpoch: triggerCandleEpoch, tickAt: feed.tickAt, now,
+   lastDispatchedAt: feed.lastDispatchedAt,
+   lastDispatchedCandle: feed.lastDispatchedCandle
+ });
+ const analysisCandleId = result.lastCandleEpoch ?? null;
+ if (feed.preAlertCandle !== analysisCandleId) {
+   feed.preAlertCandle = analysisCandleId;
+   feed.preAlertSignal = null;
+ }
+
+ if (result.signal === "CALL" || result.signal === "PUT") {
+   if (feed.activeSignal && now < feed.activeUntil) {
+     result.signal = feed.activeSignal;
+     result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+   } else if (timingEligible && feed.signalCandle !== triggerCandleEpoch) {
+     feed.activeSignal = result.signal;
+     feed.activeUntil = now + SIGNAL_HOLD_SECONDS * 1000;
+     feed.signalCandle = triggerCandleEpoch;
+     feed.alertId = `${triggerCandleEpoch}:${result.signal}`;
+   } else {
+     result.signal = "STANDBY";
+     result.reason = triggerCandleEpoch === null
+       ? "รอแท่ง M1 ปัจจุบันและราคา Streaming สด"
+       : tickAge === null || tickAge > 5
+         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในหน้าต่างก่อนปิดแท่ง"
+         : feed.signalCandle === triggerCandleEpoch
+           ? "ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน"
+           : "รอหน้าต่างส่งสัญญาณ 3–5 วินาทีก่อนปิดแท่ง M1";
+   }
+ } else if (feed.activeSignal && now < feed.activeUntil) {
+   const restFresh = restFallback && Number.isFinite(result.ageSeconds) &&
+     result.ageSeconds <= MAX_CANDLE_AGE_SECONDS;
+   const streamFresh = feed.tickAt && now - feed.tickAt <= MAX_STREAM_AGE_SECONDS * 1000;
+   if (!restFresh && !streamFresh) {
+     feed.activeSignal = null;
+     feed.activeUntil = 0;
+     feed.signalCandle = triggerCandleEpoch;
+     feed.preAlertSignal = null;
+     feed.alertId = null;
+     feed.analysis = standby("ยกเลิกสัญญาณเดิม: แหล่งข้อมูลราคาไม่สดหรือไม่ผ่าน Data Quality Gate");
+     return;
+   }
+   result.signal = feed.activeSignal;
+   result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+ } else if (feed.activeSignal && now >= feed.activeUntil) {
+   feed.activeSignal = null;
+   feed.activeUntil = 0;
+ }
+
+ if (result.signal === "CALL" || result.signal === "PUT") feed.preAlertSignal = result.signal;
+ else if (!(feed.activeSignal && now < feed.activeUntil)) feed.preAlertSignal = null;
+
+ feed.analysis = {
+   ...result,
+   tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
+   lastTickPrice: feed.lastTick,
+   alertId: feed.alertId,
+   signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
+   signalTimingWindowSeconds: [5, 3]
+ };
+}
+
+function dispatchSignalIfReady(feed) {
+ const signal = feed.activeSignal;
+ const candleEpoch = feed.signalCandle;
+ if (!signal || !["CALL", "PUT"].includes(signal) || !feed.alertId) return;
+ const now = Date.now();
+ if (!canDispatchSignal({
+   candleEpoch, tickAt: feed.tickAt, now,
+   lastDispatchedAt: feed.lastDispatchedAt,
+   lastDispatchedCandle: feed.lastDispatchedCandle
+ })) return;
+ if (feed.lastDispatchedAlertId === feed.alertId) return;
+
+ // Claim the candle and 60-second cooldown before the asynchronous FCM call.
+ feed.lastDispatchedAt = now;
+ feed.lastDispatchedCandle = candleEpoch;
+ feed.lastDispatchedAlertId = feed.alertId;
+ const alertId = feed.alertId;
+ const payload = {
+   symbol: feed.symbol, signal, alertId,
+   price: feed.lastTick, reason: feed.analysis?.reason || "M1 pre-close signal"
+ };
+ console.info("[signal] pre-close dispatch claimed", {
+   alertId, candleEpoch, secondsBeforeClose: ((candleEpoch + 60) * 1000 - now) / 1000
+ });
+ void sendSignalPush(payload).then(result => {
+   if (result.sent) console.info("[push] signal notification sent", alertId);
+   else console.warn("[push] signal notification not sent", alertId, result.reason || "UNKNOWN");
+ }).catch(error => console.warn("[push] delivery failed", alertId, error.message));
 }
 
 function applyTick(feed, price, epoch) {
@@ -230,21 +316,7 @@ function applyTick(feed, price, epoch) {
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
-  const previousAlertId = feed.alertId;
   evaluate(feed);
-  if (feed.alertId && feed.alertId !== previousAlertId &&
-      ["CALL", "PUT"].includes(feed.analysis?.signal)) {
-    void sendSignalPush({
-      symbol: feed.symbol,
-      signal: feed.analysis.signal,
-      alertId: feed.alertId,
-      price: feed.lastTick,
-      reason: feed.analysis.reason
-    }).then(result => {
-      if (result.sent) console.info("[push] signal notification sent", feed.alertId);
-      else if (result.reason === "NOT_CONFIGURED") console.warn("[push] Firebase Admin is not configured");
-    }).catch(error => console.warn("[push] delivery failed", error.message));
-  }
   publish();
 }
 
@@ -304,6 +376,23 @@ function startRestTimer() {
   restTimer = setInterval(() => {
     syncSelected().catch(error => console.error("[radar] REST sync", error.message));
   }, REST_SYNC_SECONDS * 1000);
+}
+
+function startSignalTimer() {
+  if (signalTimer) clearInterval(signalTimer);
+  // 250ms cadence keeps dispatch inside the 3–5s pre-close window; actual
+  // eligibility also requires a Streaming tick no older than five seconds.
+  signalTimer = setInterval(() => {
+    if (!monitoring) return;
+    const feed = feeds.get(selectedSymbol);
+    const current = feed?.candles.at(-1);
+    if (!current?.live) return;
+    const remainingMs = (current.epoch + 60) * 1000 - Date.now();
+    if (remainingMs < 3000 || remainingMs > 5000) return;
+    evaluate(feed);
+    dispatchSignalIfReady(feed);
+    publish();
+  }, 250);
 }
 
 function startWatchdog() {
@@ -483,6 +572,7 @@ async function start(symbolValue) {
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
   startWatchdog();
+  startSignalTimer();
   publish();
   await syncSelected({ force: true });
   if (monitoring) startStream();
