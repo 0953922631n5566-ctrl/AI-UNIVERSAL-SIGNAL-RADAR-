@@ -50,7 +50,7 @@ jobs:
         run: test -s main-market/android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Verify APK signature
-        run: "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose main-market/android/app/build/outputs/apk/debug/app-debug.apk
+        run: "$ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose main-market/android/app/build/outputs/apk/debug/app-debug.apk"
 
       - name: Generate SHA-256
         run: sha256sum main-market/android/app/build/outputs/apk/debug/app-debug.apk > main-market/android/app/build/outputs/apk/debug/SHA256SUMS.txt
