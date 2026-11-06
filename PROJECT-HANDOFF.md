@@ -1176,3 +1176,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Required Render configuration: set `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase Admin service-account JSON as a secret. Never paste its private key into chat or commit it. Also confirm `TWELVE_DATA_API_KEYS` is populated; the prior health checkpoint reported zero configured keys.
 - VERIFIED by source review: Android FCM code/config, server-side Admin sender, server-owned monitoring lifecycle, and syntax check command inclusion are committed.
 - NOT YET VERIFIED: latest Render deployment terminal state, GitHub Actions APK artifact, Firebase Admin initialization, FCM delivery to a real device, Android 13+ notification permission, Xiaomi 11T background behavior, and live EUR/USD feed.
+
+
+## 2026-11-06 — Render scanner startup fix and Android APK artifact verification
+
+- Removed the final stale `httpLeaseUntil` assignment in `stop()`; before this fix the startup scanner failed with `httpLeaseUntil is not defined` despite Render showing the web service as Live.
+- Fix commit: `e90a09a67ad2da626a3aaf521e8ef9c2004e1f06`.
+- Render deploy `dep-dbmn9amc6qcc73ba6ha0` completed with status `live` on the configured Main Market service.
+- Verified startup logs: `autoStartMonitoring: true`, 10 Twelve Data API keys configured, EUR/USD REST history loaded with 200 candles. Health endpoint returns `ok: true`, EUR/USD, 1min, pool configuredCount=10 / availableCount=10 / activeKeyNumber=1 / no last failure.
+- Remaining runtime gap: logs confirm `firebaseAdminConfigured: false`; push sender correctly reports Firebase Admin is not configured. No real push can be delivered until Render secret `FIREBASE_SERVICE_ACCOUNT_JSON` is added.
+- Android workflow run #60, run ID `42174756240`, commit `c1345adc1e4c83b092ecdd94d81b0d673d955117`: all steps succeeded including `Build debug APK` and `upload-artifact`. Artifact ID `13483311110`, artifact name `Kawasaki-Signal-Radar-APK`, 2,430,172-byte ZIP, expires 2026-12-06.
+- Downloaded and inspected APK: `app-debug.apk`, 2,581,313 bytes, SHA-256 `b257826e634b5f3890cfe2cb33db8ddc380667e6b6f15f177ffa1795e3573d1d`; classes.dex set contains Firebase Messaging SDK, `MainActivity`, `RadarMessagingService`, topic `main-market-signals`, and channel `market_signals`. This is a debug build, not a production release-signed APK.
+- Note: APK artifact commit predates the backend-only stale lease fix, but Android source was unchanged after that build. The server fix does not require a new APK build.
+- Firebase Admin key was generated in a remote browser but could not be transferred securely to Render by browser automation. Do not treat it as configured. The user must create/download a key in their own browser and add its JSON as the Render secret; never paste the private key into chat.
+- Not yet tested: actual device install, Android 13+ permission response, notification delivery, Xiaomi HyperOS background delivery, or long-running behavior on Render Free plan.
