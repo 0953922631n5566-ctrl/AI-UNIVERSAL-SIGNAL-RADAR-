@@ -3,73 +3,77 @@ import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { decide, MIN_SCORE } = require("../original-ai/engine/decision-engine.js");
+const { decide, MIN_SCORE, MIN_TREND_ADX } = require("../original-ai/engine/decision-engine.js");
 const { evaluateTrendContinuation } = require("../original-ai/strategies/trend-continuation.js");
+const { classifyTrendRegime, MIN_TREND_ADX: SCANNER_ADX, buildHigherTimeframeContext } =
+  require("../original-ai/scanner/trend-scanner.js");
 
-test("Original AI candidate threshold is 35 and score 34 remains standby", () => {
-  assert.equal(MIN_SCORE, 35);
+test("strict decision threshold is 60 and trend entry requires ADX 22", () => {
+  assert.equal(MIN_SCORE, 60);
+  assert.equal(MIN_TREND_ADX, 22);
   const context = {
     regime: "UPTREND",
+    higherTimeframe: { direction: "CALL" },
     indicators: {
-      adx: 18, plusDI: 25, minusDI: 12, macdHistogram: 0.0002,
+      adx: 22, plusDI: 25, minusDI: 12, macdHistogram: 0.0002,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false
     }
   };
-  assert.equal(decide(context, { signal: "CALL", score: 35, strategy: "UPTREND" }).signal, "CALL");
-  assert.equal(decide(context, { signal: "CALL", score: 34, strategy: "UPTREND" }).signal, "STANDBY");
+  assert.equal(decide(context, { signal: "CALL", score: 60, strategy: "UPTREND" }).signal, "CALL");
+  assert.equal(decide(context, { signal: "CALL", score: 59, strategy: "UPTREND" }).signal, "STANDBY");
+  assert.equal(decide({ ...context, indicators: { ...context.indicators, adx: 21.99 } },
+    { signal: "CALL", score: 80, strategy: "UPTREND" }).signal, "STANDBY");
 });
 
-test("Trend continuation can pass at 40 when two independent evidence checks align", () => {
-  const previous = { open: 1.0, high: 1.12, low: 0.98, close: 1.05 };
-  const latest = { open: 1.0, high: 1.4, low: 0.99, close: 1.1 };
+test("M5 disagreement and missing M5 confirmation fail closed", () => {
+  const context = {
+    regime: "UPTREND",
+    higherTimeframe: { direction: "PUT" },
+    indicators: { adx: 30, plusDI: 28, minusDI: 10, macdHistogram: 0.0004,
+      rsi: 60, volatilityRatio: 1, nearResistance: false, nearSupport: false }
+  };
+  const candidate = { signal: "CALL", score: 100, strategy: "UPTREND" };
+  assert.equal(decide(context, candidate).signal, "STANDBY");
+  assert.equal(decide({ ...context, higherTimeframe: undefined }, candidate).signal, "STANDBY");
+});
+
+test("sideways market is blocked even when a strategy reports a high score", () => {
+  const result = decide({
+    regime: "SIDEWAY",
+    higherTimeframe: { direction: "CALL" },
+    indicators: { volatilityRatio: 1, nearSupport: true, nearResistance: false }
+  }, { signal: "CALL", score: 100, strategy: "SIDEWAY" });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /Sideways/);
+});
+
+test("trend continuation requires six-way high-quality evidence and score 60", () => {
+  const previous = { open: 1.0, high: 1.03, low: 0.99, close: 1.02 };
+  const latest = { open: 1.0, high: 1.12, low: 0.99, close: 1.10 };
   const result = evaluateTrendContinuation({
-    candles: [previous, latest],
-    latest,
-    indicators: {
-      adx: 18, plusDI: 10, minusDI: 20, rsi: 30,
-      macdHistogram: -0.001, ema9: 1.05
-    }
+    candles: [previous, latest], latest,
+    indicators: { adx: 22, plusDI: 25, minusDI: 12, rsi: 60,
+      macdHistogram: 0.001, ema9: 1.05 }
   }, "CALL");
-  // ADX and pullback/reclaim are the two qualifying checks; weak candle flow
-  // and unaligned momentum keep the score at the new minimum.
-  assert.equal(result.score, 40);
   assert.equal(result.signal, "CALL");
+  assert.ok(result.score >= 60);
 });
 
-
-const { classifyTrendRegime, MIN_TREND_ADX } = require("../original-ai/scanner/trend-scanner.js");
-
-test("second-step regime threshold is ADX 14", () => {
-  assert.equal(MIN_TREND_ADX, 14);
-});
-
-test("two of three bullish EMA relationships plus directional DI are enough at ADX 14", () => {
-  const result = classifyTrendRegime({
-    bullishAlignment: 2, bearishAlignment: 1, adx: 14,
-    plusDI: 24, minusDI: 15
+test("M5 context is derived from M1 history without another market-data request", () => {
+  const candles = Array.from({ length: 200 }, (_, i) => {
+    const close = 1.08 + i * 0.00002;
+    return { time: i * 60000, open: close - 0.00001, high: close + 0.00002,
+      low: close - 0.00002, close };
   });
-  assert.equal(result.regime, "UPTREND");
+  const m5 = buildHigherTimeframeContext(candles);
+  assert.equal(m5.candleCount, 40);
+  assert.equal(m5.direction, "CALL");
 });
 
-test("two of three bearish EMA relationships plus directional DI are enough at ADX 16", () => {
-  const result = classifyTrendRegime({
-    bullishAlignment: 1, bearishAlignment: 2, adx: 14,
-    plusDI: 13, minusDI: 22
-  });
-  assert.equal(result.regime, "DOWNTREND");
-});
-
-test("weak ADX, one EMA relationship, or conflicting DI does not classify a trend", () => {
-  assert.equal(classifyTrendRegime({
-    bullishAlignment: 3, bearishAlignment: 0, adx: 13.99,
-    plusDI: 24, minusDI: 12
-  }), null);
-  assert.equal(classifyTrendRegime({
-    bullishAlignment: 1, bearishAlignment: 2, adx: 20,
-    plusDI: 24, minusDI: 12
-  }), null);
-  assert.equal(classifyTrendRegime({
-    bullishAlignment: 2, bearishAlignment: 1, adx: 20,
-    plusDI: 12, minusDI: 24
-  }), null);
+test("trend regime classification requires ADX 18 and aligned M5 direction", () => {
+  assert.equal(SCANNER_ADX, 18);
+  const base = { bullishAlignment: 2, bearishAlignment: 1, adx: 18, plusDI: 24, minusDI: 15 };
+  assert.equal(classifyTrendRegime({ ...base, higherTimeframe: { direction: "CALL" } }).regime, "UPTREND");
+  assert.equal(classifyTrendRegime({ ...base, higherTimeframe: { direction: "PUT" } }), null);
+  assert.equal(classifyTrendRegime({ ...base, adx: 17.99, higherTimeframe: { direction: "CALL" } }), null);
 });
