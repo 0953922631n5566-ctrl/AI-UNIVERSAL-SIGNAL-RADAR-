@@ -1373,3 +1373,21 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render startup log at 2026-11-06T11:36:00Z still reports `firebaseAdminConfigured: false`. FCM server push is not enabled. Configure `FIREBASE_SERVICE_ACCOUNT_JSON` as a Render Environment secret using the Firebase service-account JSON; do not commit it or paste the private key into chat. After setting, redeploy and verify startup reports true and a genuine new CALL/PUT logs successful push delivery.
 - Android channel V2 code and APK are built, but actual Xiaomi 11T install, update-signature compatibility, notification permission, native sound/vibration, tray persistence, heads-up presentation and background FCM delivery have not been device-tested. Android controls exact heads-up display duration; app keeps signal notifications in the tray until dismissed but cannot force a 10-second expanded banner.
 - No out-of-sample predictive validation, profitability claim, or broker execution is implied. Manual signal decision support only.
+
+
+## 2026-11-06 — First-step relaxation of Original AI market regime scanner
+
+- User approved a cautious first reduction in the minimum trend-classification threshold, prioritizing more usable opportunities without turning weak/conflicting evidence into directional signals.
+- Updated `main-market/original-ai/scanner/trend-scanner.js`:
+  - Trend ADX minimum lowered from 18 to 16 (exported as `MIN_TREND_ADX`).
+  - Trend regime now requires at least 2 of 3 EMA relationships (EMA9/21, EMA21/50, EMA50/200) to align, plus matching directional DI. The prior scanner required all 3 EMA relationships.
+  - Reversal classification still requires the prior full EMA alignment plus structure break and momentum shift.
+  - Sideway classification remains ADX below 18 with compressed EMA spread.
+  - 200 closed-candle minimum, finite-indicator validation, DI direction confirmation, volatility gates in the decision engine, strategy entry evidence, freshness/API gates and STANDBY fail-closed behavior remain unchanged.
+  - Scanner reports the actual EMA alignment count in indicator output and its regime reason.
+- Added boundary coverage to `main-market/test/original-ai-thresholds.test.js`: ADX 16 + 2/3 EMA alignment + matching DI accepts trend; ADX below 16, only 1/3 alignment, or opposing DI remains unclassified.
+- Commits:
+  - `7545e18eb691e4ca8e2081da546a860b31d330b7` — scanner adjustment.
+  - `77acb5691d193cd6e9273a8cff05a771fc80ca53` — threshold boundary tests.
+- This is a rule-classification relaxation, not proof of accuracy or profitability. Existing 40-point candidate threshold and entry confirmations are unchanged. OOS validation remains outstanding; manual decision support only.
+- Verification/deployment status must be updated after the current branch build and Render auto-deploy are checked. Do not infer CALL/PUT availability or predictive accuracy from the lower scanner threshold alone.
