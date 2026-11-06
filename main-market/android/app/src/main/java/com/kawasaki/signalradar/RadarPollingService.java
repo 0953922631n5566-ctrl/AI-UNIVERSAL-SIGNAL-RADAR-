@@ -43,7 +43,11 @@ public final class RadarPollingService extends Service {
             if(!getSharedPreferences("radar_app_settings",MODE_PRIVATE).getBoolean("systemEnabled",true)){
                 stopSelf();return;
             }
-            JSONObject root=fetchSignal(), market=root.optJSONObject("market");
+            JSONObject root=fetchSignal();
+            // Master OFF may be pressed while the HTTP request is in flight.
+            // Drop its result before any alert, UI update or follow-up work.
+            if(!isSystemEnabled())return;
+            JSONObject market=root.optJSONObject("market");
             if(market==null)market=root;
             String signal=market.optString("signal","STANDBY").toUpperCase();
             if(!"CALL".equals(signal)&&!"PUT".equals(signal))signal="STANDBY";
@@ -57,7 +61,14 @@ public final class RadarPollingService extends Service {
                 lastAlertKey=key;showSignal(signal,symbol,price,reason,key);
             }
             updateStatus("API "+market.optString("apiStatus","ONLINE")+" · Background monitoring active");
-        }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
+        }catch(Exception e){
+            if(!isSystemEnabled())return;
+            Log.w(TAG,"Signal polling failed",e);
+            updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");
+        }
+    }
+    private boolean isSystemEnabled(){
+        return getSharedPreferences("radar_app_settings",MODE_PRIVATE).getBoolean("systemEnabled",true);
     }
     private JSONObject fetchSignal()throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(SERVER+"/api/public/signal").openConnection();activeConnection=c;
