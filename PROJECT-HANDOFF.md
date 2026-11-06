@@ -1308,3 +1308,23 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Android version 1.6.0 / versionCode 8; package identity remains `com.kawasaki.signalradar` to preserve update compatibility (debug signing key compatibility still must be tested on device).
 - Limitations: Android 15 limits dataSync foreground services to six cumulative hours per 24-hour period. This is not guaranteed perpetual polling. FCM remains the preferred always-on delivery path, but backend Firebase Admin was previously observed as unconfigured. Android 13+ notification permission and Xiaomi HyperOS autostart/battery settings are required. Force-stop/offline states prevent guaranteed delivery.
 - Verified: source committed, CI build succeeded, artifact downloaded and extracted, APK SHA-256 computed. Not verified: physical Xiaomi 11T installation/update, notification permission behavior, live background polling, HyperOS long-running behavior, or actual CALL/PUT alert delivery. No profitability/OOS validation claim; manual decision support only, no broker execution.
+
+
+## 2026-11-06 — Strategy threshold tuning and dynamic Android notification badges
+
+- User explicitly approved implementation on branch `main-market`.
+- Backend changes:
+  - `main-market/original-ai/engine/decision-engine.js`: `MIN_SCORE` lowered from 60 to 40; strong-trend momentum ADX threshold aligned from 20 to 18.
+  - `main-market/original-ai/strategies/trend-continuation.js`: candidate eligibility lowered from score 60 to 40; existing ADX evidence threshold remains 18.
+  - `main-market/original-ai/scanner/trend-scanner.js`: UPTREND/DOWNTREND regime ADX threshold lowered from 20 to 18.
+  - Historical conflict protection (opposing direction blocks candidates below 80), volatility blocks (>2.8 hard block; >2.2 without strong momentum), data freshness, 200-candle requirements, and other safety gates remain unchanged.
+  - `main-market/src/push-notifications-v2.js`: FCM data payload now includes `signalBadge`, `signalColor`, and `notificationTag`; CALL green `#16A34A`, PUT red `#DC2626`. STANDBY remains intentionally silent and is not sent as a push alert.
+- Android changes:
+  - `RadarPollingService.java` now updates the ongoing foreground notification with CALL/PUT/STANDBY title, color and a generated colored large-icon badge (green up arrow, red down arrow, gray standby dash); signal alerts also use a stable dynamic notification tag and matching large icon.
+  - `RadarPushService.java` reads backend badge/color/tag fields with safe color fallbacks and renders a matching large-icon badge; it continues to ignore STANDBY pushes.
+  - Android package/application ID remains `com.kawasaki.signalradar`; version bumped from 1.6.0/versionCode 8 to 1.7.0/versionCode 9 to enable an in-place update where signing keys match.
+- Commits in order: `996f4d6876025e8ae1bf310ea26a37ddb4da9cb1`, `ac9aff6aa1b17e4a085af8b2869356d4c8636151`, `66f10ff1f95b93e2bc1824ebd25e9eae29ff728a`, `6dc2c71f3e7e47c1d7bc2f366913a660b258f0db`, `1b8b327297998ca5bd3cd44d2069cc35a8fb3c84`, `18c17db80255e18ed52514e4e754766a82915d0b`, `8a12a3835f7581d185578c62ee2a3e3211a9413a`.
+- Verification still required: Main Market unit tests, Android Gradle assembleDebug, artifact download and APK hash verification, Render deployment and live health check, physical Xiaomi/HyperOS notification rendering and background delivery. Do not claim any of these until observed.
+- Android status-bar small icons remain subject to Android's monochrome system rendering; the colored large-icon badge and notification accent provide the distinct visual cue in the notification shade. The persistent foreground notification carries the live signal state.
+- Existing operational blocker remains: Render previously reported `firebaseAdminConfigured:false`; server-side FCM delivery requires `FIREBASE_SERVICE_ACCOUNT_JSON` to be configured securely in Render. Local Android polling/foreground notification state is independent of FCM, subject to OS background execution limits.
+- Strategy thresholds are rule tuning only, not evidence of predictive edge. Out-of-sample validation is incomplete; manual decision support only; no broker execution.
