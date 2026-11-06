@@ -14,8 +14,8 @@ function recentClosedCandles() {
   });
 }
 
-test("fresh REST-only candles pass source gate only when fallback is explicitly enabled", () => {
-  const result = analyzeMarket(recentClosedCandles(), {
+test("fresh REST-only candles pass source gate only when fallback is explicitly enabled", async () => {
+  const result = await analyzeMarket(recentClosedCandles(), {
     now: Date.now(), tickAgeSeconds: null, allowRestFallback: true
   });
   assert.equal(result.dataMode, "REST_FALLBACK");
@@ -24,8 +24,8 @@ test("fresh REST-only candles pass source gate only when fallback is explicitly 
   assert.equal("assistant" in result, false);
 });
 
-test("REST-only candles remain STANDBY when fallback is not enabled", () => {
-  const result = analyzeMarket(recentClosedCandles(), {
+test("REST-only candles remain STANDBY when fallback is not enabled", async () => {
+  const result = await analyzeMarket(recentClosedCandles(), {
     now: Date.now(), tickAgeSeconds: null, allowRestFallback: false
   });
   assert.equal(result.signal, "STANDBY");
