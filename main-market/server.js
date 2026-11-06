@@ -24,7 +24,7 @@ const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-06-pure-original-ai-v3";
+const VERSION = "2026-11-06-multi-engine-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -188,12 +188,12 @@ function classifyError(error) {
   return "TRANSIENT";
 }
 
-function evaluate(feed) {
+async function evaluate(feed) {
  const now = Date.now();
  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- const rawResult = analyzeMarket(feed.candles, {
+ const rawResult = await analyzeMarket(feed.candles, {
    now, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
  const result = applySignalReleaseGate(rawResult);
@@ -316,8 +316,7 @@ function applyTick(feed, price, epoch) {
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
-  evaluate(feed);
-  publish();
+  void evaluate(feed).then(publish).catch(error => console.error("[radar] tick analysis failed", error.message));
 }
 
 async function syncSelected({ force = false } = {}) {
@@ -343,7 +342,7 @@ async function syncSelected({ force = false } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
-      evaluate(feed);
+      await evaluate(feed);
       console.info("[radar] REST ready", {
         symbol: selectedSymbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
@@ -382,22 +381,28 @@ function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
   // 250ms cadence keeps dispatch inside the 3–5s pre-close window; actual
   // eligibility also requires a Streaming tick no older than five seconds.
-  signalTimer = setInterval(() => {
-    if (!monitoring) return;
+  let evaluationBusy = false;
+  signalTimer = setInterval(async () => {
+    if (!monitoring || evaluationBusy) return;
     const feed = feeds.get(selectedSymbol);
     const current = feed?.candles.at(-1);
     if (!current?.live) return;
     const remainingMs = (current.epoch + 60) * 1000 - Date.now();
     if (remainingMs < 3000 || remainingMs > 5000) return;
-    evaluate(feed);
-    dispatchSignalIfReady(feed);
-    publish();
+    evaluationBusy = true;
+    try {
+      await evaluate(feed);
+      dispatchSignalIfReady(feed);
+      publish();
+    } catch (error) {
+      console.error("[radar] timed analysis failed", error.message);
+    } finally { evaluationBusy = false; }
   }, 250);
 }
 
 function startWatchdog() {
   if (watchdogTimer) clearInterval(watchdogTimer);
-  watchdogTimer = setInterval(() => {
+  watchdogTimer = setInterval(async () => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
     if (feed.tickAt && Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000) {
@@ -405,15 +410,15 @@ function startWatchdog() {
       feed.activeUntil = 0;
       feed.analysis = standby("ราคา Streaming ไม่อัปเดตเกิน 25 วินาที");
       if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "TIMEOUT";
-      evaluate(feed);
+      await evaluate(feed);
     } else if (!feed.tickAt && feed.streamStatus === "SUBSCRIBING" &&
         Date.now() - feed.subscribeAt > 25000) {
       feed.streamStatus = "TIMEOUT";
       feed.streamMessage = "ยังไม่ได้รับราคา Streaming ภายใน 25 วินาที";
-      evaluate(feed);
+      await evaluate(feed);
     } else if (["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus)) {
       // REST fallback has no tick events; keep the 40-second signal hold and expiry accurate.
-      evaluate(feed);
+      await evaluate(feed);
     }
     publish();
   }, 5000);
@@ -695,6 +700,8 @@ app.get("/api/public/signal", (_req, res) => {
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
+      engineResults: state.engineResults || null,
+      engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
       signalValidationNote: state.signalValidationNote,
@@ -716,7 +723,7 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "ANDROID_CLIENT", configured: Boolean(CLIENT_TOKEN) },
-    architecture: { decisionEngine: "ORIGINAL_AI_ONLY", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_ORIGINAL_AI" },
+    architecture: { decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       ...firebaseAdminStatus(),
