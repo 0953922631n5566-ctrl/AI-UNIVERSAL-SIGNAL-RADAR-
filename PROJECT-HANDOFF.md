@@ -1127,3 +1127,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The two `*-original.js` snapshots are retained for rollback/provenance; they are not active runtime modules. No scanner, indicator, strategy, Twelve Data, source gate, APK, or server files were deleted.
 - VERIFIED by source review: active analyzer adapter still exports `prepareMarket` and `finalizeMarket`; active decision engine no longer contains assistant-dependent decision logic.
 - NOT TESTED in this GitHub edit session: local `npm test`, build, CI workflows, Render deployment/live feed, APK build/install, and physical Xiaomi 11T behavior. Do not infer these from a successful source commit.
+
+
+### Verification follow-up — 2026-11-06
+
+- Compatibility follow-up commit: `3a05d984500cbbf3a1ba3022ff06653a9db69d01`. The analyzer adapter now retains legacy top-level `assistantAlignment` and `assistantHistoricalDirection` diagnostics for existing API/tests, while the Decision Engine remains independent of assistant input.
+- GitHub Actions Main Market Checks run #233: `42164410306`, completed **success** for commit `3a05d984500cbbf3a1ba3022ff06653a9db69d01`. This supersedes the two immediately preceding failed runs (#231/#232), whose single failing assertion expected the legacy `assistantAlignment` diagnostic field.
+- Scope of successful CI: Main Market Checks workflow. This is not proof of Render deployment, live Twelve Data streaming, APK build/install, or Xiaomi 11T behavior.
+- Current source state: two active engine files carry the Original AI analysis/decision flow; Historical Analogue is metadata only. The `*-original.js` files remain as rollback copies.
