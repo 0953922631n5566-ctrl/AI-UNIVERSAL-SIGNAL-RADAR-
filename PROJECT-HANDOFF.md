@@ -1452,3 +1452,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - APK SHA-256: `281d724aa52e7004455b909b4e17e824a867ad8e98b22381c23213019dbc35d1`.
 - The independent Main Market Checks workflow for commit `1d4f94766cd0b44acef011b792b005606dd7099f` also completed SUCCESS.
 - Build success confirms compilation and artifact generation, not successful real FCM delivery, sound output, vibration, heads-up presentation, or animated popup behavior on Xiaomi 11T. Those require a physical-device test with notification permission and channel settings enabled.
+
+
+### FCM Android channel alignment — 2026-11-06
+
+- Audit found the backend FCM payload still named the old Android channel `market_signal_alerts_v2`, while the APK now creates `signal_sv_v3`. Corrected `main-market/src/push-notifications.js` to send Android notifications on `signal_sv_v3` in commit `09534a088da50436d36db5829ca499e56d7336f9`.
+- This alignment is required for FCM background notifications to use the newly created high-importance channel and its sound/vibration settings. Main Market Checks for this commit completed SUCCESS.
+- Render auto-deploy for this backend channel-alignment commit was queued/building at the time of this note; re-check its final state before claiming LIVE.
+- APK artifact remains the successful build from commit `1d4f94766cd0b44acef011b792b005606dd7099f`; this backend-only change does not require another APK build.
