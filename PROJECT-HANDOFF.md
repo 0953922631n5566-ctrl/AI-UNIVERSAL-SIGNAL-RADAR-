@@ -1073,3 +1073,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Clarification to the initial recovery note: the recovered Original AI tree was first copied verbatim. During PR #24, the active `engine/analyze-market.js` and `engine/decision-engine.js` were extended only to prepare/finalize context and expose historical-assistant alignment diagnostics. Their exact pre-integration versions are retained as `analyze-market-original.js` and `decision-engine-original.js`. Scanner, indicators, strategy router, and strategy modules remain the recovered source.
 - Regression parity compares the final signal against the exact original `decision-engine-original.js` under the same candle input; the historical assistant does not change score thresholds or signal rules.
 - Current functional release commit `a72ac6fa2a9c2f90b4dfcae7367a7992ce7001d6` restricts the Mini App pair selector to EUR/USD and was deployed Live as `dep-dbmh7snf3r2c73fqf06g`; Render postinstall reported 27 tests passed, 0 failed.
+
+
+## 2026-11-06 — Android APK direct-client architecture (supersedes older UI/auth notes)
+
+- **Project usage: this project is used directly through the Android APK on the mobile phone only. Telegram is no longer used.** Any older historical notes in this handoff that describe a Telegram Mini App, bot menu, initData, or Telegram authentication are obsolete and must not be reintroduced.
+- Active branch: `main-market`. Backend URL: `https://ai-signal-radar-main-market.onrender.com`.
+- Architecture remains Original AI (the sole Decision Engine) working with Historical Simulation (separate advisory Worker Thread). The simulator never overrides Original AI decisions; data-quality gates remain fail-closed.
+- Backend authentication is a dedicated Android client credential (`ANDROID_CLIENT_TOKEN`) exchanged at `POST /api/auth` for an expiring Bearer session. Never embed the server credential in the APK. Store it encrypted with Android Keystore; send it only over HTTPS. `/api/state` and `/api/control` require the expiring Bearer session.
+- APK is a native Android WebView shell loading the same-origin HTTPS Main Market UI. This avoids cross-origin CORS for the APK and keeps the market engine server-side. Mobile UI polls authenticated state while the backend maintains its Twelve Data upstream stream.
+- APK build workflow: `.github/workflows/android-apk.yml`; artifact path: `main-market/android/app/build/outputs/apk/debug/app-debug.apk`.
+- Manual trading only; no broker order execution. Main Market EUR/USD M1, Twelve Data, non-OTC.
+- Validate GitHub Actions, Render deployment, `/health`, authenticated device pairing, API state, real Twelve Data streaming and Xiaomi 11T installation separately. A successful APK build does not prove real-device or live-feed validation.
