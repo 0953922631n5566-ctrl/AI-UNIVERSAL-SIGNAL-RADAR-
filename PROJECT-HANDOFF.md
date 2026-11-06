@@ -1256,3 +1256,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - User must grant Android 13+ notification permission and ensure HyperOS allows notifications/background data and does not restrict the app's battery/autostart behavior. Android force-stop prevents FCM delivery until app is launched again; no app can guarantee delivery while force-stopped or offline.
 - Build, live push delivery, background/closed-app delivery, and physical Xiaomi 11T testing are pending until verified. Do not claim a push has been delivered until an actual device test confirms it.
 - No broker execution; only genuine Original AI CALL/PUT candidates are eligible for push. No STANDBY push and no fabricated signals.
+
+
+### 2026-11-06 — Android APK 1.4.0 build and Firebase sender blocker
+
+- Android APK workflow Build #71 succeeded: run `42192241783`, job `127806819439`, commit `209a2697aa8a7d7ddbb7fdf9133232ab9fd65445`. Gradle `assembleDebug` and `upload-artifact` both completed successfully.
+- Artifact ID `13490287784`, name `Kawasaki-Signal-Radar-APK`, size 2,428,975 bytes (ZIP); extracted APK size 2,580,271 bytes. SHA-256 of extracted APK: `dd0269f6b4f82552dfee6c32dc5d2c66d3586df946bd6df45da27d21cea39e56`.
+- Android version source: 1.4.0 / versionCode 5. The APK is available as `MainMarket-Radar-v1.4.0.apk` in the task's generated file output.
+- Android source checks in Main Market Checks #278 (commit c218f41) and #277 (commit 209a269) completed successfully. Render deployment for push payload changes at commit `c218f411c964cd63d2850c9031b628500e64d5f0` reached LIVE as deploy `dep-dbmpg547j7js73bevf70`; a later docs-only handoff commit was updating at the last poll.
+- CRITICAL blocker: Render startup log at 2026-11-06T09:05:36Z reports `firebaseAdminConfigured: false`; logs also previously showed `[push] Firebase Admin is not configured`. Therefore backend cannot yet send FCM, even though Android APK, Firebase client config, topic subscription and notification UI are built. Do not claim end-to-end push is live.
+- Required external step: set Render environment variable `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase Admin SDK service-account JSON in Render Dashboard (Environment) and redeploy. Do not commit or paste private key into GitHub. Once set, verify startup log `firebaseAdminConfigured: true` and a successful `[push] signal notification sent` log for a genuine new CALL/PUT.
+- After setting server credentials, install APK 1.4.0, grant Android notification permission, open it once to subscribe to topic, then test background delivery. Xiaomi HyperOS battery/autostart restrictions may delay notifications; app force-stop/offline conditions prevent guaranteed delivery.
+- Physical device notification delivery has not yet been tested. No floating window or screen-overlay permission is used.
