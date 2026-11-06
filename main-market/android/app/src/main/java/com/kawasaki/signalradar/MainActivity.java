@@ -16,7 +16,7 @@ import android.security.keystore.KeyProperties;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
-import java.util.Base64;
+import android.util.Base64;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -83,8 +83,8 @@ public final class MainActivity extends Activity {
                 String ivText = prefs.getString(TOKEN + "_iv", null);
                 String cipherText = prefs.getString(TOKEN, null);
                 if (ivText == null || cipherText == null) return "";
-                byte[] iv = Base64.getDecoder().decode(ivText);
-                byte[] encrypted = Base64.getDecoder().decode(cipherText);
+                byte[] iv = Base64.decode(ivText, Base64.NO_WRAP);
+                byte[] encrypted = Base64.decode(cipherText, Base64.NO_WRAP);
                 Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
                 cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), new GCMParameterSpec(128, iv));
                 return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
@@ -104,8 +104,8 @@ public final class MainActivity extends Activity {
                 byte[] encrypted = cipher.doFinal(token.getBytes(StandardCharsets.UTF_8));
                 android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
                 prefs.edit()
-                    .putString(TOKEN + "_iv", Base64.getEncoder().encodeToString(cipher.getIV()))
-                    .putString(TOKEN, Base64.getEncoder().encodeToString(encrypted))
+                    .putString(TOKEN + "_iv", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP))
+                    .putString(TOKEN, Base64.encodeToString(encrypted, Base64.NO_WRAP))
                     .apply();
             } catch (Exception e) {
                 throw new IllegalStateException("Unable to store device credential securely", e);
