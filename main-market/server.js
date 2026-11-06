@@ -23,7 +23,7 @@ const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-06-android-direct-v1-standby-gate";
+const VERSION = "2026-11-06-original-ai-candidate-v2";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -80,7 +80,7 @@ function publicFeed(feed) {
     LOCKED: globalLockMessage || feed.restMessage,
     DATA_ERROR: feed.restMessage,
     SUPPORTED: "REST และ Streaming พร้อมรับข้อมูลสด",
-    REST_ONLY: "REST ใช้ได้ แต่ยังไม่มีราคา Streaming สด — ปิด CALL/PUT",
+    REST_ONLY: "REST พร้อม · ใช้แท่ง M1 ปิดล่าสุดวิเคราะห์ได้ แต่ยังไม่มีราคา Streaming สด",
     STALE: "ราคา Streaming เก่าเกินกำหนด — ปิด CALL/PUT",
     CHECKING: "กำลังตรวจสอบประวัติข้อมูลจาก Twelve Data"
   };
@@ -131,7 +131,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: SIGNAL_RELEASE_VALIDATED ? "UNLOCKED_AFTER_EVALUATION" : "LOCKED_PENDING_EVALUATION",
+    signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus()
   };
 }
@@ -186,16 +186,10 @@ function classifyError(error) {
 
 function evaluate(feed) {
  const tickAge=feed.tickAt?(Date.now()-feed.tickAt)/1000:null;
- const restFallback=["UNSUPPORTED","ERROR","TIMEOUT"].includes(feed.streamStatus);
+ const restFallback=feed.restStatus==="READY" && (!feed.tickAt || tickAge===null || tickAge>MAX_STREAM_AGE_SECONDS);
  const rawResult=analyzeMarket(feed.candles,{now:Date.now(),tickAgeSeconds:tickAge,allowRestFallback:restFallback});
  const result=applySignalReleaseGate(rawResult);
  const candleId=result.lastCandleEpoch??null;
- if(!SIGNAL_RELEASE_VALIDATED){
-  feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=candleId;
-  feed.preAlertCandle=candleId;feed.preAlertSignal=null;feed.alertId=null;
-  feed.analysis={...result,tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:null,signalExpiresAt:null};
-  return;
- }
  if(feed.preAlertCandle!==candleId){feed.preAlertCandle=candleId;feed.preAlertSignal=null;}
  if(result.signal==="CALL"||result.signal==="PUT"){
   if(feed.activeSignal&&Date.now()<feed.activeUntil){result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";}
