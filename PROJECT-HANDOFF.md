@@ -1243,3 +1243,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` verified real streaming data and 200 closed candles. At the check time Original AI output was STANDBY, regime UNCLEAR, reason `Conflicting or weak market evidence`; this is a genuine market decision, not the removed technical release lock.
 - Browser test of `/signal` confirmed API ONLINE, price 1.11836, 201/200 closed candles, regime UNCLEAR, and the gray STANDBY panel with the real analyzer reason. This is a server/browser test, not a physical Xiaomi 11T device test.
 - Independent out-of-sample validation remains incomplete. Signals are transparent rule-based manual decision support, not a proven profitable strategy. No broker execution is enabled. Device installation and on-device alert behavior remain to be tested.
+
+
+## 2026-11-06 — Colored background CALL/PUT push notification implementation
+
+- Android app already had Firebase Messaging topic subscription (`main-market-signals`) and `RadarMessagingService`; backend already called `sendSignalPush` only when a new per-candle CALL/PUT alert ID is created. STANDBY is not pushed.
+- Updated Android notification channel to `market_signal_alerts_v2` (new ID so Android does not retain the old channel's immutable settings), high importance, default sound and vibration.
+- Added monochrome small status-bar notification icon `android/app/src/main/res/drawable/ic_stat_signal.xml`, set Firebase default notification channel/icon metadata, and included icon + green/red color in the FCM Android notification payload.
+- Foreground message handler now creates a colored CALL/PUT notification and tapping it opens MainActivity. When app is backgrounded or closed normally, FCM notification payload is displayed by Android; no floating window, overlay permission, or open WebView is required.
+- Bumped Android version to 1.4.0 / versionCode 5. GitHub Actions Android APK workflow triggers from Android path changes on branch main-market.
+- Firebase Android project config exists in repository for package `com.kawasaki.signalradar`, project ID `ai-universal-signal-radar`. Backend sender still requires Render `FIREBASE_SERVICE_ACCOUNT_JSON`; no secret value was read or changed. Verify Render startup log says firebaseAdminConfigured=true and confirm `[push] signal notification sent` after a genuine new CALL/PUT.
+- User must grant Android 13+ notification permission and ensure HyperOS allows notifications/background data and does not restrict the app's battery/autostart behavior. Android force-stop prevents FCM delivery until app is launched again; no app can guarantee delivery while force-stopped or offline.
+- Build, live push delivery, background/closed-app delivery, and physical Xiaomi 11T testing are pending until verified. Do not claim a push has been delivered until an actual device test confirms it.
+- No broker execution; only genuine Original AI CALL/PUT candidates are eligible for push. No STANDBY push and no fabricated signals.
