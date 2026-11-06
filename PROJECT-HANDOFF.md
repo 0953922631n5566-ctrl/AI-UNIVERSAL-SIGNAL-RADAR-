@@ -1295,3 +1295,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render logs continue to report `firebaseAdminConfigured: false`; end-to-end FCM background delivery is not yet available until `FIREBASE_SERVICE_ACCOUNT_JSON` is set securely in Render. Do not claim push delivery verified.
 - Control page's Future Projection panel currently explicitly says no verified projection is available; it does not invent OHLC values. Connecting real Historical Simulation output is pending.
 - No physical Xiaomi 11T installation/device test has been performed. Notification permission, app background delivery, and user toggle behavior need device verification.
+
+
+## 2026-11-06 — Android zero-configuration polling APK 1.6.0
+
+- Branch: `main-market`; implementation commit: `6404cc0d2700a5bef56b5d7cfe77fa6be696625d`.
+- Replaced the Android control page with a compact zero-configuration dashboard. Render host is fixed in the app; no URL or device-token entry is shown. The dashboard reads `/api/public/signal`, displays the sanitized API pool states for up to ten configured slots, signal, price, timestamp and Original AI reason.
+- Added `RadarPollingService`, an Android dataSync foreground service started at app launch, polling `/api/public/signal` every 15 seconds. It keeps running when the activity is dismissed (subject to Android/HyperOS limits), supports local SYSTEM ON/OFF and sound/vibration preferences, and emits deduplicated CALL/PUT notifications only. STANDBY is silent.
+- Added INTERNET, ACCESS_NETWORK_STATE, VIBRATE, WAKE_LOCK, FOREGROUND_SERVICE, FOREGROUND_SERVICE_DATA_SYNC and POST_NOTIFICATIONS permissions. Existing FCM client subscription remains in place.
+- Android APK Build #78 succeeded: GitHub Actions run `42202832053`, job `127842085312`, source commit above. Gradle Build debug APK and upload-artifact steps both completed successfully.
+- Artifact ID `13495601608`, name `Kawasaki-Signal-Radar-APK`, ZIP size 2,435,641 bytes, expires 2026-12-06. Extracted `app-debug.apk` size 2,587,133 bytes; SHA-256 `bdcf6d22797a5ebfbf452e92ade6c4ffda45371f4e4219f24616990f3a3463c8`.
+- Android version 1.6.0 / versionCode 8; package identity remains `com.kawasaki.signalradar` to preserve update compatibility (debug signing key compatibility still must be tested on device).
+- Limitations: Android 15 limits dataSync foreground services to six cumulative hours per 24-hour period. This is not guaranteed perpetual polling. FCM remains the preferred always-on delivery path, but backend Firebase Admin was previously observed as unconfigured. Android 13+ notification permission and Xiaomi HyperOS autostart/battery settings are required. Force-stop/offline states prevent guaranteed delivery.
+- Verified: source committed, CI build succeeded, artifact downloaded and extracted, APK SHA-256 computed. Not verified: physical Xiaomi 11T installation/update, notification permission behavior, live background polling, HyperOS long-running behavior, or actual CALL/PUT alert delivery. No profitability/OOS validation claim; manual decision support only, no broker execution.
