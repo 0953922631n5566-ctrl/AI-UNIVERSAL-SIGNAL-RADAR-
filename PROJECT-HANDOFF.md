@@ -1222,3 +1222,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Commits: manifest label `e69558fb7041fa622929ab0db5e0312488efe6d6`; Gradle project name `118237af40bc7008cbb9f04a0af29c363dca2835`.
 - VERIFIED by source inspection/edit: display name changed; package/applicationId and Firebase package match remain unchanged.
 - NOT YET VERIFIED: Android workflow triggered by these commits, fresh APK artifact, signature compatibility with the APK already installed on the user's phone, installation/update on Xiaomi 11T, and launcher label after install. A debug APK can update only an existing install signed with the same debug signing key.
+
+
+## 2026-11-06 — Original AI candidate release and REST candle fallback correction
+
+- Removed the hard-coded server-side CALL/PUT-to-STANDBY release lock. The validation flag now reports that out-of-sample validation is not complete; it no longer suppresses genuine Original AI candidates.
+- Original AI remains the only signal authority. Existing decision thresholds, regime checks, momentum confirmation, support/resistance checks, historical-analogue conflict guard, closed-candle requirements, and freshness/data-quality checks remain active. No signal is fabricated or forced.
+- Fixed REST fallback selection: when 200 closed M1 candles are loaded and the Streaming tick is absent/stale, the analyzer may use REST candles only while the latest closed candle remains within the configured 180-second freshness window. This avoids waiting for the Streaming status enum to become ERROR/TIMEOUT before evaluating valid REST history.
+- UI now discloses that output is a rule-based manual candidate and has not completed independent out-of-sample validation. No profitability claim is made; broker execution remains disabled.
+- Android version bumped to 1.3.0 / versionCode 4 to trigger a fresh APK build. APK build, test results, Render deployment, and device test remain pending until verified.
