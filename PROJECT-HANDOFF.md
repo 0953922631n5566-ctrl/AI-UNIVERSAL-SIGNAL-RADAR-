@@ -1572,3 +1572,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - `fcfbba87183f74c32975f7719fc92197199f9cdb` — modular-engine tests
 - Verification and Render deployment must be recorded after the latest source commit. Do not claim all tests or production deployment succeeded until the corresponding CI run and Render deploy are confirmed.
 - This is rule-based signal calibration, not proof of predictive edge; `signalReleaseValidated=false` / out-of-sample validation limitations remain unchanged.
+
+
+### Verification result — 2026-11-06 15:48 UTC
+
+- Final Main Market Checks workflow run `42246355884` on commit `2b1a6e64fea210a7802cfa32fc6091e55bf9e388` completed successfully; both dependency installation/postinstall checks and the full `npm test` step passed.
+- Render deployment `dep-dbmvd7puqbhc73b7dg50` for the same commit reached `live` at `2026-11-06T15:48:23Z`.
+- Live `/health` returned `ok:true`; Android client auth and Firebase Admin were configured; Twelve Data pool reported 10 configured/available keys.
+- Live `/api/public/signal` snapshot at `2026-11-06T15:48:22.714Z` returned an active `PUT` / `DOWNTREND` candidate with score 90, ADX 37.27, -DI 22.54 > +DI 10.26, MACD histogram negative, RSI 28.15, M5 `UNCLEAR`, API ONLINE, and tick age 1s. This is direct evidence that a bearish M1 setup can be retained while M5 is transitioning; it is a live snapshot, not a performance validation.
+- The snapshot explicitly retained `signalReleaseValidated=false` / `RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED`. Manual-only use remains required; no claim of predictive edge or OOS validation.
+- No APK build workflow was invoked for this backend-only request. Android sources and APK artifacts were not changed.
