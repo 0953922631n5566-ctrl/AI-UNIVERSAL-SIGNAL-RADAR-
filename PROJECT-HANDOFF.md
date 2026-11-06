@@ -1282,3 +1282,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Future Projection card currently states that no verified projection is available; it does not fabricate OHLC values. Hooking up the existing Historical Simulation output remains separate work.
 - Pending verification: Render deploy, unit tests, Android build artifact, install/device UI, notification permission and background CALL/PUT delivery. Do not claim these until verified.
 - Firebase Admin backend still requires Render `FIREBASE_SERVICE_ACCOUNT_JSON`. Without it, push delivery is not available regardless of APK build.
+
+
+### 2026-11-06 — APK 1.5.0 build and live deployment verification
+
+- Android APK Build #75 succeeded: run `42193779490`, job `127811856045`, source commit `c5243dd8fc7e239172941436b07eecea93669054`. Gradle assembleDebug and artifact upload completed.
+- Artifact ID `13491017215`, ZIP size 2,432,176 bytes; extracted `app-debug.apk` size 2,583,454 bytes. SHA-256: `0f03f26fe253fc0beddbec2eb624a1e19f1c043a9dcdeb47d4e45a6339d4701f`. Local verified copy: `/mnt/data/MainMarket-Radar-v1.5.0.apk`.
+- Main Market Checks for source commit c5243dd completed successfully (run `42193779501`, npm install + npm test).
+- Render latest deploy at checkpoint is LIVE: `dep-dbmplpd494ic73aa135g`, commit `d60ec9e179baf04104455f598bb9db4597638c69`.
+- Live `/control` route responds with the requested dashboard structure. Live `/api/public/signal` returned API ONLINE, monitoring true, EUR/USD streaming supported, 201 closed candles, and safe per-slot statuses for 10/10 configured keys (Key #1 ACTIVE, #2–#10 READY); no API credential values are exposed.
+- At the live API check, actual market state was PUT / DOWNTREND at price 1.11747. This is a time-specific live observation and not a guarantee or backtest result.
+- Render logs continue to report `firebaseAdminConfigured: false`; end-to-end FCM background delivery is not yet available until `FIREBASE_SERVICE_ACCOUNT_JSON` is set securely in Render. Do not claim push delivery verified.
+- Control page's Future Projection panel currently explicitly says no verified projection is available; it does not invent OHLC values. Connecting real Historical Simulation output is pending.
+- No physical Xiaomi 11T installation/device test has been performed. Notification permission, app background delivery, and user toggle behavior need device verification.
