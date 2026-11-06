@@ -1105,3 +1105,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live health currently reports Android client auth configured, but API pool configuredCount=0 and availableCount=0. Therefore the failover code is deployed, but it is not yet operational against provider data until the 10 Twelve Data keys are entered in Render as `TWELVE_DATA_API_KEYS`.
 - APK workflow run #50 succeeded for Android versionCode 2 / versionName 1.1.0. Artifact: `Kawasaki-Signal-Radar-APK`, SHA-256 of extracted APK: `613429cf6f6ca2244db2fe6d07244bf9167f57daac4ce3a2854d87ddcac226aa`. This is a CI-built debug APK; physical Xiaomi 11T installation remains unverified.
 - Preserve the existing `ANDROID_CLIENT_TOKEN`; live health confirms it is already configured. The Android WebView default URL is the production Main Market URL. Existing device pairing token remains encrypted in app storage when the app is updated without clearing its data.
+
+
+## 2026-11-06 — Append-only audit policy and Original AI branch inspection checkpoint
+
+- Existing documentation and historical records are preserved; no existing report or project document is to be deleted as part of routine work.
+- The repository contains dated historical notes that describe different architectures. In particular, older Telegram Mini App notes are superseded by later Android APK direct-client notes. Keep historical entries intact and append dated corrections instead of silently rewriting history.
+- A detailed read-only source comparison and its limits are recorded in `ORIGINAL-AI-BRANCH-AUDIT-2026-11-06.md`.
+- Mandatory for every future inspection/test/build/deploy/edit: record date/time and timezone, branch, commit SHA, scope, exact files/endpoints/workflows inspected, evidence, test results, and unresolved items. Classify each result as VERIFIED, FAILED, NOT TESTED, or INCONCLUSIVE.
+- Before updating any existing document, fetch its latest content and SHA; preserve all content and append a dated entry. Never replace the complete handoff with a shortened summary. Do not delete any report, README, handoff, source, workflow, or branch unless the user explicitly names what to delete.
+- After every material task, update this handoff and the audit record, commit the change, and report the commit SHA/URL plus what remains unverified.
+- Next audit task: read-only runtime call-graph trace for Original AI vs Historical Assistant; resolve `MIN_SCORE=60` versus archived `THRESHOLD=64`; verify the advisory-only boundary and one-candle-on/one-candle-standby behavior. No source change is authorized by this note.
