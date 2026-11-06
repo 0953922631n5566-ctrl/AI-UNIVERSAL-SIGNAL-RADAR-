@@ -10,7 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { sendSignalPush } from "./src/push-notifications-v2.js";
+import { sendSignalPush, firebaseAdminStatus } from "./src/push-notifications-v2.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
@@ -626,6 +626,7 @@ app.get("/health", (_req, res) => {
     architecture: { decisionEngine: "ORIGINAL_AI_ONLY", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_ORIGINAL_AI" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
+      ...firebaseAdminStatus(),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
