@@ -612,6 +612,7 @@ app.get("/api/public/signal", (_req, res) => {
     }
   });
 });
+app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "index.html")); });
 app.get("/app.js", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "app.js")); });
