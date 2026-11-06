@@ -32,8 +32,18 @@ Target app version: Android `1.11.0`, build code 14
 - Debug APK signing keys are not stable across GitHub Actions runs. In-place installation may require uninstalling the previous debug APK unless a stable release keystore is configured and approved.
 
 ## Verification checklist
-- [ ] GitHub Node test suite passes on PR and merge.
-- [ ] Android Gradle build succeeds; apksigner verifies; SHA-256 recorded.
-- [ ] Render deploy reaches live and health endpoint is checked.
+- [x] GitHub Node test suite passes on PR #28 and follow-up PR #29; both checks succeeded.
+- [x] Android Gradle build succeeds; CI apksigner verification succeeds; SHA-256 recorded: `f9ccfaddde7bf159cc631bf014a3553f392ee5def7970ca9a62db35b7fe9da8c`.
+- [x] Render deploy is live at commit `a5cbc64a2d65e8a2cc31d2c94f7bd69d0a6f5e3a`; `/health`, `/control`, and `/api/public/signal` were externally checked; the public API returns M5 direction and indicator fields.
 - [ ] Xiaomi 11T tests: CALL/PUT overlay, STANDBY silence, duplicate suppression, Master OFF/ON lifecycle, and sound/vibration toggles.
 - [ ] Chronological historical backtest and out-of-sample validation before describing strategy performance.
+
+## Final CI / deployment record — 2026-11-06
+- PR #28 merged as `92fa2c4d5a21e43c2b72ce5f2559d11dba6fdec8` (strict score/ADX gates, locally derived M5 confirmation, sideways lockout, Android polling cancellation guard, APK build code 14).
+- PR #29 merged as `a5cbc64a2d65e8a2cc31d2c94f7bd69d0a6f5e3a` (public API M5 fields and dashboard threshold label).
+- Render deployment `dep-dbmtt5ff3r2c73arj4bg` reached `live` on service `srv-dbjls149v7es73ag0k4g`.
+- Health endpoint confirmed `ok:true`; Firebase Admin configured; Twelve Data pool configured with 10/10 available keys.
+- Public signal endpoint returned `higherTimeframe.direction=PUT` with 39 complete M5 bars, EMA9/EMA21 and close; this was a live sample at verification time, not a permanent market direction.
+- Android APK workflow run `42230085391`, artifact `13506849020`, build code 14 / versionName 1.11.0; Gradle build and CI apksigner verification succeeded.
+- Downloaded APK SHA-256: `f9ccfaddde7bf159cc631bf014a3553f392ee5def7970ca9a62db35b7fe9da8c`.
+- Android APK still uses ephemeral debug signing; if the installed build has a different signing certificate, uninstall it before installing this artifact.
