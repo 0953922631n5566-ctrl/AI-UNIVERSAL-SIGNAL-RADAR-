@@ -1427,3 +1427,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render log lines were not directly inspected in this checkpoint; streaming was verified from the live signal endpoint fields. Do not claim direct log inspection.
 - Documentation-only handoff commit `715748c47a0fd66764180ed3279ddeae34fb76f2` was queued for auto-deploy at the last poll; it does not alter runtime code. Source code deploy above is LIVE.
 - Threshold tuning is rule-based only; no OOS predictive accuracy or profitability claim. Manual decision support only; no broker execution.
+
+
+## Android Signal Radar PRO alert UX and notification update — 2026-11-06
+
+- Scope: Android APK source under `main-market/android`, branch `main-market`; backend signal logic and Main branch are not changed.
+- APK version set to 1.9.0 / versionCode 11 in commit `1d4f94766cd0b44acef011b792b005606dd7099f`.
+- Commit `7e7311a7b02371a377f5f7b8b8b8eede47bc05f9`: MainActivity now registers its visible foreground instance and can show a custom in-app CALL/PUT dialog. CALL uses a green upward motif; PUT uses a red downward motif. The card has a dark glass-style gradient, large direction text, animated fade/scale entrance, and a pulsing colored border. Animation is confined to the dialog card and is cancelled on dismissal.
+- Commit `ebe1ec0ebe7e0affb505b5a11d7f2d9e531ed354`: the 15-second polling receiver dispatches the same dialog while the Activity is visible and continues to publish a high-importance notification for background delivery.
+- Commit `756826c15309b7c380c583fb241e07c5960ac07b`: FCM data messages dispatch the same in-app dialog when the Activity is visible and retain the native notification path when backgrounded.
+- Commit `f85ec784db588d96e2fe9bc3089b6177fc3157b8`: manifest default FCM channel moved to `signal_sv_v3`.
+- Alert channels were versioned from `*_v2` to `*_v3` because Android notification-channel sound/vibration settings are immutable after channel creation. New channels use IMPORTANCE_HIGH, default notification sound, public lock-screen visibility and the CALL/PUT vibration pattern `[0,180,70,180,70,320]`. The app cannot force volume above the user's system notification volume or bypass Do Not Disturb; channel-level user settings and Xiaomi HyperOS policies remain authoritative.
+- Important delivery boundary: custom animated dialog appears only while Signal Radar PRO is foreground/visible. Android background-activity launch restrictions prohibit silently opening this dialog over another app. In the background the app relies on high-priority heads-up/system notifications; heads-up display depends on Android channel settings, notification permission, DND, and Xiaomi HyperOS policy. No overlay permission or DND bypass is requested or silently enabled.
+- Xiaomi 11T device validation is still pending. User may need to allow notifications, enable the new Signal Radar PRO v3 channel sound/vibration, permit Autostart/background operation, and set battery mode to unrestricted. Do not claim physical-device playback, haptics, or overlay testing without a real device test.
+- GitHub Actions APK build was triggered by source pushes; at documentation update time, the Main Market APK workflow was still running. Record the final run conclusion, artifact ID/download URL, and SHA-256 only after confirming the workflow completed successfully. No APK is claimed built or device-tested yet.
