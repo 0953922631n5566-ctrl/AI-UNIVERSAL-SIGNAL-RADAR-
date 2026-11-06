@@ -177,26 +177,29 @@ function centralDispatcher(results, regime) {
   const safety = results.find(r => r.engine === 'safety_noise_guard');
   if (!safety || !safety.validity || safety.reason.startsWith('VETO:'))
     return { signal: 'STANDBY', score: 0, strategy: 'SAFETY_VETO', reason: safety?.reason || 'VETO: Safety engine unavailable', engineResults: results };
-  const votes = { CALL: 0, PUT: 0 }, raw = { CALL: 0, PUT: 0 }, engines = { CALL: [], PUT: [] };
+  const votes = { CALL: 0, PUT: 0 }, confidenceVotes = { CALL: 0, PUT: 0 }, engines = { CALL: [], PUT: [] };
   for (const r of results) {
     if (!r.validity || !DIRECTIONS.has(r.direction)) continue;
     const weight = WEIGHTS[r.engine] || 0;
-    votes[r.direction] += weight * r.score * (r.confidence / 100);
-    raw[r.direction] += r.score;
+    votes[r.direction] += weight * r.score;
+    confidenceVotes[r.direction] += weight * r.confidence;
     engines[r.direction].push(r.engine);
   }
   const winner = votes.CALL === votes.PUT ? null : votes.CALL > votes.PUT ? 'CALL' : 'PUT';
   const loser = winner === 'CALL' ? 'PUT' : 'CALL';
   if (!winner) return { signal: 'STANDBY', score: 0, strategy: 'MULTI_ENGINE', reason: 'No directional engine consensus', engineResults: results };
   const total = votes.CALL + votes.PUT, margin = total > 0 ? (votes[winner] - votes[loser]) / total : 0;
-  const supportCount = engines[winner].length, score = clamp(Math.round(votes[winner] / Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0))));
+  const supportCount = engines[winner].length;
+  const winningWeight = Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0));
+  const score = clamp(Math.round(votes[winner] / winningWeight));
+  const confidence = clamp(Math.round(confidenceVotes[winner] / winningWeight));
   if (supportCount < 2 || score < 55 || margin < 0.22) {
-    return { signal: 'STANDBY', score, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
+    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
   }
   if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing')) {
-    return { signal: 'STANDBY', score, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
+    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
   }
-  return { signal: winner, score, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
+  return { signal: winner, score, confidence, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
 }
 async function evaluateEngineBatch(marketData, engineList = ENGINES) {
   const settled = await Promise.allSettled(engineList.map(engine => Promise.resolve().then(() => engine(marketData))));
