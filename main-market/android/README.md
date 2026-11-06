@@ -1,8 +1,7 @@
 # Kawasaki Signal Radar Android APK
 
-- Native Android WebView shell for the Main Market client.
-- Loads only the HTTPS Main Market backend origin.
-- The device credential is encrypted with an AES-GCM key held by Android Keystore; it is not compiled into the APK.
-- On first launch, enter the device connection credential supplied by the project operator.
-- Backend sessions are short-lived Bearer tokens; the credential is sent only over HTTPS.
-- Build: `gradle assembleDebug` from this directory (JDK 17, Android SDK 35).
+- Opens `https://ai-signal-radar-main-market.onrender.com/signal` automatically.
+- No URL, device ID, pairing token, or manual server configuration is required.
+- Reads the public Main Market signal endpoint over HTTPS.
+- Subscribes to Firebase topic `main-market-signals` for push notifications.
+- Build: `gradle assembleDebug` (JDK 17, Android SDK 35).
