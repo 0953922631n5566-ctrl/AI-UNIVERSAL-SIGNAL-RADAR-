@@ -1535,3 +1535,20 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - APK SHA-256: `7dad18d1a82f60fb51f615aaf7db8590103b8d2a3c29c5c200e3e22915040a5c`.
 - Merged-branch APK signing certificate SHA-256 fingerprint: `8A3CFA C5764FAF693E240FA0E846E55CF4CF53E82B5E6085CFFFD4B34803DD22` (spaces omitted in the certificate's raw fingerprint: `8A:3C:FA:C5:76:4F:AF:69:3E:24:0F:A0:E8:46:E5:5C:F4:CF:53:E8:2B:5E:60:85:CF:FF:D4:B3:48:03:DD:22`).
 - This official merged-branch certificate also differs from the v1.10.0 run #95 certificate. The uninstall/reinstall warning above therefore still applies.
+
+
+## 2026-11-06 — Signal Radar PRO v1.11.0 balanced calibration / Android notification build
+
+- Branch: `main-market`; repository: `0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-`.
+- Backend decision floor: `MIN_SCORE = 45`.
+- Trend ADX thresholds aligned at 18 across decision engine, trend scanner, and trend-continuation strategy. Trend-continuation now uses a weighted 100-point directional evidence score with a 45-point strategy floor; ADX >= 18 remains an independent hard gate.
+- Strict fail-closed protections retained: SIDEWAY/RANGING candidates are blocked; directional entries require M5 agreement; DI/MACD/RSI momentum, volatility, support/resistance and source-freshness checks remain active.
+- Android persistent monitoring notification: header uses `Live` only when API is ONLINE, support status is SUPPORTED, and tick age is <=25s; body displays symbol, latest price, and M1/M5 countdown. Notification text line breaks corrected.
+- Existing Master ON/OFF lifecycle, anti-duplicate alert dispatcher, CALL/PUT overlay colors, sound and vibration paths were preserved; source inspected, not physically device-tested in this run.
+- Render service `ai-signal-radar-main-market`: deployment of backend changes was triggered; latest commit at this checkpoint: `7f190cf02cef2d0500cd3bec1090987139c313f9`. Check Render deployment status before further edits.
+- GitHub Main Market Checks: latest run `42242224606` completed successfully; Render test log showed `41/41` tests passing on the preceding strategy implementation commit.
+- Android build source commit: `936ba41f1d4bc3c0b0a8c0c49e40bc796cb3389c`. Build workflow `42241924890` succeeded; `apksigner verify` returned `Verifies`.
+- APK artifact: [Signal-Radar-PRO-v1.11.0-APK](https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42241924890/artifacts/13517331037) (artifact ID `13517331037`, expires 2026-12-06).
+- APK SHA-256: `2ee1392ae5c0beb813623b5a569d61cb8b6f9065d6223b227ba48af09038130d`.
+- Important versioning note: `app/build.gradle` already had `versionName 1.11.0` and `versionCode 15` before this run. Do not downgrade to requested Build 14/versionCode 14; keep monotonic versionCode for Android upgrades. This CI workflow produces a debug-signed APK (signature verified), not a release-key-signed APK.
+- Live API verification at 2026-11-06 15:20 UTC: `/health` returned `ok:true`, Firebase Admin configured, Android client auth configured, and 10 Twelve Data keys configured. `/api/public/signal` returned API ONLINE with tick age 3s and 201 closed candles; signal was STANDBY because M5 direction was UNCLEAR. `signalReleaseValidated=false` / `RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED` remains explicit; do not represent signals as out-of-sample validated.
