@@ -74,3 +74,18 @@ test("Central dispatcher holds when the Safety Noise Guard result is absent", ()
   assert.equal(out.signal, "STANDBY");
   assert.match(out.reason, /VETO:/);
 });
+
+test("Promise.allSettled isolates one failed engine and preserves successful results", async () => {
+  const engineList = [
+    Object.assign(() => ({ engine: "healthy_a", direction: "NO_SIGNAL", score: 0, confidence: 0, reason: "none", validity: true }), { engineName: "healthy_a" }),
+    Object.assign(() => { throw new Error("simulated strategy failure"); }, { engineName: "broken_engine" }),
+    Object.assign(() => ({ engine: "healthy_b", direction: "NO_SIGNAL", score: 0, confidence: 0, reason: "none", validity: true }), { engineName: "healthy_b" })
+  ];
+  const batch = await engines.evaluateEngineBatch(sidewayFixture(), engineList);
+  assert.equal(batch.results.length, 3);
+  assert.equal(batch.fulfilled, 2);
+  assert.equal(batch.failed, 1);
+  assert.equal(batch.results[1].direction, "NO_SIGNAL");
+  assert.equal(batch.results[1].validity, false);
+  assert.match(batch.results[1].reason, /simulated strategy failure/);
+});
