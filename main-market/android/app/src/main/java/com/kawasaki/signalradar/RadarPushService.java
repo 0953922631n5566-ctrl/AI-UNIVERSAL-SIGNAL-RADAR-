@@ -28,11 +28,11 @@ public final class RadarPushService extends FirebaseMessagingService {
         if (alertId.equals(seen.getString("last_alert_id", ""))) return;
         boolean sound = prefs.getBoolean("soundEnabled", true);
         boolean vibration = prefs.getBoolean("vibrationEnabled", true);
-        String channel = sound ? (vibration ? "signal_sv" : "signal_s") : (vibration ? "signal_v" : "signal_silent");
+        String channel = sound ? (vibration ? "signal_sv_v2" : "signal_s_v2") :
+            (vibration ? "signal_v_v2" : "signal_silent_v2");
         ensureChannel(channel, sound, vibration);
         boolean call = "CALL".equals(signal);
-        int fallbackColor = call ? Color.rgb(22,163,74) : Color.rgb(220,38,38);
-        int color = parseColor(message.getData().get("signalColor"), fallbackColor);
+        int color = parseColor(message.getData().get("signalColor"), call ? Color.rgb(22,163,74) : Color.rgb(220,38,38));
         String glyph = call ? "↑" : "↓";
         String badge = message.getData().getOrDefault("signalBadge", call ? "CALL" : "PUT");
         String title = message.getData().getOrDefault("title", badge + (call ? " · สัญญาณขาขึ้น" : " · สัญญาณขาลง"));
@@ -40,10 +40,9 @@ public final class RadarPushService extends FirebaseMessagingService {
         String notificationTag = message.getData().getOrDefault("notificationTag", alertId);
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channel) : new Notification.Builder(this);
         Notification notification = builder.setSmallIcon(R.drawable.ic_stat_signal)
-            .setLargeIcon(badgeIcon(color, glyph))
-            .setContentTitle(title).setContentText(body)
-            .setStyle(new Notification.BigTextStyle().bigText(body))
-            .setColor(color).setAutoCancel(true)
+            .setLargeIcon(badgeIcon(color, glyph)).setContentTitle(title).setContentText(body)
+            .setStyle(new Notification.BigTextStyle().bigText(body)).setColor(color)
+            .setAutoCancel(false)
             .setContentIntent(PendingIntent.getActivity(this, alertId.hashCode(),
                 new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP),
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)))
@@ -57,27 +56,22 @@ public final class RadarPushService extends FirebaseMessagingService {
         if (value == null || value.isEmpty()) return fallback;
         try { return Color.parseColor(value); } catch (IllegalArgumentException ignored) { return fallback; }
     }
-
     private Bitmap badgeIcon(int color, String glyph) {
         Bitmap bitmap = Bitmap.createBitmap(112, 112, Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        paint.setColor(color);
-        canvas.drawCircle(56, 56, 54, paint);
-        paint.setColor(Color.WHITE);
-        paint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        paint.setTextAlign(Paint.Align.CENTER);
-        paint.setTextSize(62);
+        Canvas canvas = new Canvas(bitmap); Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(color); canvas.drawCircle(56, 56, 54, paint);
+        paint.setColor(Color.WHITE); paint.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
+        paint.setTextAlign(Paint.Align.CENTER); paint.setTextSize(62);
         Paint.FontMetrics metrics = paint.getFontMetrics();
         canvas.drawText(glyph, 56, 56 - (metrics.ascent + metrics.descent) / 2, paint);
         return bitmap;
     }
-
     private void ensureChannel(String id, boolean sound, boolean vibration) {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null || manager.getNotificationChannel(id) != null) return;
         NotificationChannel channel = new NotificationChannel(id, "Main Market Signal Alerts", NotificationManager.IMPORTANCE_HIGH);
+        channel.setDescription("CALL/PUT alert with native sound and vibration");
         channel.enableVibration(vibration);
         if (vibration) channel.setVibrationPattern(new long[]{0,220,90,220});
         if (sound) channel.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
