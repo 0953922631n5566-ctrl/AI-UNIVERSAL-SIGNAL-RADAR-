@@ -592,6 +592,27 @@ app.use(express.json({ limit: "8kb" }));
 function noCache(res) {
   res.setHeader("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
 }
+app.get("/api/public/signal", (_req, res) => {
+  noCache(res);
+  const state = snapshot();
+  res.json({
+    ok: true,
+    service: "main-market",
+    updatedAt: new Date().toISOString(),
+    market: {
+      symbol: state.symbol, signal: state.signal, regime: state.regime,
+      reason: state.reason, evidence: state.evidence, metrics: state.metrics,
+      price: state.lastTickPrice, analyzedAt: state.analyzedAt,
+      apiStatus: state.apiStatus, supportStatus: state.supportStatus,
+      statusMessage: state.statusMessage, dataMode: state.dataMode,
+      ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
+      closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
+      nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
+      signalReleaseValidated: state.signalReleaseValidated,
+      signalReleaseStatus: state.signalReleaseStatus, monitoring: state.monitoring
+    }
+  });
+});
 app.get("/", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "index.html")); });
 app.get("/app.js", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "app.js")); });
 app.get("/styles.css", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "styles.css")); });
