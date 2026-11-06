@@ -1552,3 +1552,23 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - APK SHA-256: `2ee1392ae5c0beb813623b5a569d61cb8b6f9065d6223b227ba48af09038130d`.
 - Important versioning note: `app/build.gradle` already had `versionName 1.11.0` and `versionCode 15` before this run. Do not downgrade to requested Build 14/versionCode 14; keep monotonic versionCode for Android upgrades. This CI workflow produces a debug-signed APK (signature verified), not a release-key-signed APK.
 - Live API verification at 2026-11-06 15:20 UTC: `/health` returned `ok:true`, Firebase Admin configured, Android client auth configured, and 10 Twelve Data keys configured. `/api/public/signal` returned API ONLINE with tick age 3s and 201 closed candles; signal was STANDBY because M5 direction was UNCLEAR. `signalReleaseValidated=false` / `RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED` remains explicit; do not represent signals as out-of-sample validated.
+
+
+## 2026-11-06 — Backend bidirectional M1/M5 calibration (no APK build)
+
+- User requested backend-only balanced CALL/PUT calibration on `main-market`; no Android source or APK workflow was touched or invoked.
+- Preserved `MIN_SCORE = 45`, trend `ADX >= 18`, and hard SIDEWAY/RANGING => STANDBY behavior.
+- Trend regime classification now uses closed-M1 EMA alignment, ADX and DI to identify UPTREND/DOWNTREND even while M5 is transitional/UNCLEAR. M5 remains calculated from existing M1 history without extra market-data requests.
+- Decision engine now treats M5 UNCLEAR/missing as transitional context rather than an automatic veto, while requiring M1 directional ADX/DI/MACD/RSI confirmation. A clearly opposing M5 trend still requires exceptional M1 evidence (ADX >= 25, candidate score >= 65, and volume ratio >= 1 when volume is available).
+- CALL and PUT continuation use mirrored candle-flow, DI, MACD, RSI and pullback/reclaim rules. Added optional tick/real volume ratio evidence symmetrically; missing FX volume is not fabricated or used as an automatic veto, while observed weak volume (<0.75 ratio) blocks strong-momentum override.
+- Retained volatility guard: ratio > 2.8 always blocks; ratio > 2.0 requires strong directional momentum. Sideways/ranging hard block remains ahead of candidate evaluation.
+- Added/updated tests for CALL and PUT acceptance during M5 transition, countertrend M5 exception thresholds, symmetric continuation scoring, and M1-led regime classification.
+- Source commits:
+  - `5ed6f18c2e5de345d9e9b51d579a2d380601291a` — decision engine
+  - `c4dd46006bbb79f40dd71b48b32d2ab58b6434bc` — trend continuation
+  - `15839899be31dcc0d73bc1da11184c9bdd1163b9` — trend scanner / optional volume ratio
+  - `10227bf5bedbfefc1ddc3512761a320d36be9194` — threshold tests
+  - `641e11a50c5eb8050ce452b1b66f2ff155f954c9` — analyzer tests
+  - `fcfbba87183f74c32975f7719fc92197199f9cdb` — modular-engine tests
+- Verification and Render deployment must be recorded after the latest source commit. Do not claim all tests or production deployment succeeded until the corresponding CI run and Render deploy are confirmed.
+- This is rule-based signal calibration, not proof of predictive edge; `signalReleaseValidated=false` / out-of-sample validation limitations remain unchanged.
