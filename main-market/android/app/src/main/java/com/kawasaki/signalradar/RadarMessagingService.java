@@ -4,6 +4,8 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
+import android.app.PendingIntent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Build;
@@ -57,6 +59,9 @@ public final class RadarMessagingService extends FirebaseMessagingService {
             .setColor(color)
             .setAutoCancel(true)
             .setPriority(Notification.PRIORITY_HIGH)
+            .setContentIntent(PendingIntent.getActivity(this, alertId.hashCode(),
+                new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0)))
             .setDefaults(Notification.DEFAULT_SOUND | Notification.DEFAULT_VIBRATE)
             .build();
 
