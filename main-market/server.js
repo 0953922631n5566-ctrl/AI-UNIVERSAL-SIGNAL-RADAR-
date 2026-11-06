@@ -9,10 +9,11 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { sendSignalPush } from "./src/push-notifications.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
-  SIGNAL_HOLD_SECONDS, CLIENT_LEASE_SECONDS, resolveSymbol
+  SIGNAL_HOLD_SECONDS, resolveSymbol
 } from "./src/config.js";
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -47,7 +48,6 @@ let restTimer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
-let httpLeaseUntil = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
 
@@ -226,7 +226,21 @@ function applyTick(feed, price, epoch) {
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
+  const previousAlertId = feed.alertId;
   evaluate(feed);
+  if (feed.alertId && feed.alertId !== previousAlertId &&
+      ["CALL", "PUT"].includes(feed.analysis?.signal)) {
+    void sendSignalPush({
+      symbol: feed.symbol,
+      signal: feed.analysis.signal,
+      alertId: feed.alertId,
+      price: feed.lastTick,
+      reason: feed.analysis.reason
+    }).then(result => {
+      if (result.sent) console.info("[push] signal notification sent", feed.alertId);
+      else if (result.reason === "NOT_CONFIGURED") console.warn("[push] Firebase Admin is not configured");
+    }).catch(error => console.warn("[push] delivery failed", error.message));
+  }
   publish();
 }
 
@@ -455,7 +469,6 @@ async function start(symbolValue) {
   stop(false);
   selectedSymbol = symbol;
   monitoring = true;
-  httpLeaseUntil = Date.now() + CLIENT_LEASE_SECONDS * 1000;
   globalLockMessage = null;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
@@ -480,7 +493,6 @@ async function select(symbolValue) {
   clearInterval(heartbeatTimer); heartbeatTimer = null;
   clearTimeout(retryTimer); retryTimer = null;
   selectedSymbol = symbol;
-  httpLeaseUntil = wasMonitoring ? Date.now() + CLIENT_LEASE_SECONDS * 1000 : 0;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
   feed.lastTick = null;
@@ -619,7 +631,6 @@ app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res
     } else if (body.action === "select") {
       if (!await select(body.symbol)) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้" });
     } else if (body.action === "heartbeat") {
-      if (monitoring) httpLeaseUntil = Date.now() + CLIENT_LEASE_SECONDS * 1000;
     } else if (body.action === "stop") stop();
     else return res.status(400).json({ ok: false, error: "ไม่รองรับคำสั่งนี้" });
     noCache(res);
@@ -629,14 +640,6 @@ app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res
     res.status(500).json({ ok: false, error: error.message || "คำสั่งไม่สำเร็จ" });
   }
 });
-
-setInterval(() => {
-  if (monitoring && wss.clients.size === 0 && httpLeaseUntil &&
-      Date.now() > httpLeaseUntil) {
-    console.warn("[radar] Android client lease expired; stopping scanner");
-    stop();
-  }
-}, 5000);
 
 server.on("upgrade", (req, socket, head) => {
   const origin = req.headers.origin;
@@ -667,15 +670,8 @@ wss.on("connection", socket => {
   socket.on("message", raw => {
     let message;
     try { message = JSON.parse(raw.toString()); } catch { return; }
-    if (message.action === "heartbeat" && monitoring) {
-      httpLeaseUntil = Date.now() + CLIENT_LEASE_SECONDS * 1000;
-    }
   });
-  socket.on("close", () => {
-    setTimeout(() => {
-      if (monitoring && wss.clients.size === 0 && Date.now() > httpLeaseUntil) stop();
-    }, CLIENT_LEASE_SECONDS * 1000 + 1000);
-  });
+  socket.on("close", () => {});
 });
 
 server.listen(PORT, () => {
@@ -685,10 +681,17 @@ server.listen(PORT, () => {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
+    firebaseAdminConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
     restRefreshSeconds: REST_SYNC_SECONDS
   });
+  if (process.env.AUTO_START_MONITORING !== "false") {
+    setTimeout(() => {
+      start(DEFAULT_SYMBOL).catch(error => console.error("[radar] startup scanner failed", error.message));
+    }, 1000);
+  }
 });
 
 setInterval(() => {
