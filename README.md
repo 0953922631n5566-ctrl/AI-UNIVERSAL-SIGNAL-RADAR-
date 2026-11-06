@@ -1,16 +1,27 @@
 # AI UNIVERSAL SIGNAL RADAR — MAIN MARKET
 
-This branch is an isolated Twelve Data / EUR/USD Telegram Mini App. The Android/OCR project on `main` is preserved unchanged.
+This project is operated directly through the Android APK on mobile devices only. It does not use Telegram.
 
-- EUR/USD only, Non-OTC, 1-minute candles.
-- Twelve Data REST history plus optional live price WebSocket.
-- Situation-aware regimes: trend, range, high volatility, reversal, unclear.
-- Evidence: EMA, RSI, MACD, price action, support/resistance and volatility.
-- CALL / PUT / STANDBY only. No broker order execution and no Telegram chat messages.
-- Start/stop monitoring in Mini App; stream closes when final Mini App client disconnects.
+- Original AI is the sole Decision Engine.
+- Historical Simulation runs alongside it in a separate advisory Worker Thread; it never overrides Original AI.
+- EUR/USD only, real Non-OTC market, 1-minute candles.
+- Twelve Data REST history plus server-side live price WebSocket.
+- CALL / PUT / STANDBY only. Manual decision support; no broker order execution.
+- The Android APK loads the same-origin HTTPS client and stores the device credential encrypted with Android Keystore.
 
-Render: branch `main-market`, build `cd main-market && npm install`, start `cd main-market && npm start`, Singapore, Free plan. Set `TWELVE_DATA_API_KEY` only as a Render environment secret.
+## Backend
 
-Twelve Data Basic currently lists 8 API credits/minute and 800/day; one `/time_series` symbol costs 1 credit. 120-second resync is approximately 720 requests/day when continuously active. WebSocket access must be verified for the account; REST fallback is used and stale data forces STANDBY.
+- Branch: `main-market`
+- URL: https://ai-signal-radar-main-market.onrender.com
+- Render build: `cd main-market && npm install`
+- Render start: `cd main-market && npm start`
+- Configure `TWELVE_DATA_API_KEY` and `ANDROID_CLIENT_TOKEN` as Render environment secrets only. Never put either secret in source code or the APK.
 
-The decision logic is a transparent heuristic, not a trained model or proven profitable strategy. Validate on historical and paper data before relying on signals.
+## Android APK
+
+- Project: `main-market/android`
+- Build workflow: `.github/workflows/android-apk.yml`
+- First launch requires the device connection credential; the APK stores it with Android Keystore and exchanges it for an expiring Bearer session over HTTPS.
+- Build locally from the Android project directory with JDK 17, Gradle 8.9 and Android SDK 35.
+
+The decision logic is a transparent rule-based engine, not a proven profitable strategy. Validate live feeds and signal behavior on the target device before relying on signals.
