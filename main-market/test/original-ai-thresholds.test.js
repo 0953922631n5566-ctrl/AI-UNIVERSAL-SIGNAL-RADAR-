@@ -6,8 +6,8 @@ const require = createRequire(import.meta.url);
 const { decide, MIN_SCORE } = require("../original-ai/engine/decision-engine.js");
 const { evaluateTrendContinuation } = require("../original-ai/strategies/trend-continuation.js");
 
-test("Original AI candidate threshold is 40 and score 39 remains standby", () => {
-  assert.equal(MIN_SCORE, 40);
+test("Original AI candidate threshold is 35 and score 34 remains standby", () => {
+  assert.equal(MIN_SCORE, 35);
   const context = {
     regime: "UPTREND",
     indicators: {
@@ -15,8 +15,8 @@ test("Original AI candidate threshold is 40 and score 39 remains standby", () =>
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false
     }
   };
-  assert.equal(decide(context, { signal: "CALL", score: 40, strategy: "UPTREND" }).signal, "CALL");
-  assert.equal(decide(context, { signal: "CALL", score: 39, strategy: "UPTREND" }).signal, "STANDBY");
+  assert.equal(decide(context, { signal: "CALL", score: 35, strategy: "UPTREND" }).signal, "CALL");
+  assert.equal(decide(context, { signal: "CALL", score: 34, strategy: "UPTREND" }).signal, "STANDBY");
 });
 
 test("Trend continuation can pass at 40 when two independent evidence checks align", () => {
@@ -39,11 +39,11 @@ test("Trend continuation can pass at 40 when two independent evidence checks ali
 
 const { classifyTrendRegime, MIN_TREND_ADX } = require("../original-ai/scanner/trend-scanner.js");
 
-test("first-step regime threshold is ADX 16", () => {
-  assert.equal(MIN_TREND_ADX, 16);
+test("second-step regime threshold is ADX 14", () => {
+  assert.equal(MIN_TREND_ADX, 14);
 });
 
-test("two of three bullish EMA relationships plus directional DI are enough at ADX 16", () => {
+test("two of three bullish EMA relationships plus directional DI are enough at ADX 14", () => {
   const result = classifyTrendRegime({
     bullishAlignment: 2, bearishAlignment: 1, adx: 16,
     plusDI: 24, minusDI: 15
@@ -61,7 +61,7 @@ test("two of three bearish EMA relationships plus directional DI are enough at A
 
 test("weak ADX, one EMA relationship, or conflicting DI does not classify a trend", () => {
   assert.equal(classifyTrendRegime({
-    bullishAlignment: 3, bearishAlignment: 0, adx: 15.99,
+    bullishAlignment: 3, bearishAlignment: 0, adx: 13.99,
     plusDI: 24, minusDI: 12
   }), null);
   assert.equal(classifyTrendRegime({
