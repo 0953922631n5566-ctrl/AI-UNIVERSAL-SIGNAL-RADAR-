@@ -2,7 +2,7 @@ package com.kawasaki.signalradar;
 
 import android.app.*;
 import android.content.*;
-import android.graphics.Color;
+import android.graphics.*;
 import android.os.*;
 import android.util.Log;
 import org.json.JSONObject;
@@ -23,7 +23,7 @@ public final class RadarPollingService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         createStatusChannel();
-        startForeground(NOTIFICATION_ID,statusNotification("เฝ้าระวัง EUR/USD · MAIN MARKET · M1"));
+        startForeground(NOTIFICATION_ID,statusNotification("STANDBY · กำลังเริ่มเฝ้าระวัง EUR/USD"));
         PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
         if(pm!=null){wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"SignalRadar:Polling");wakeLock.setReferenceCounted(false);wakeLock.acquire(10*60*1000L);}
         executor=Executors.newSingleThreadScheduledExecutor();
@@ -39,16 +39,17 @@ public final class RadarPollingService extends Service {
             JSONObject root=fetchSignal(), market=root.optJSONObject("market");
             if(market==null)market=root;
             String signal=market.optString("signal","STANDBY").toUpperCase();
+            if(!"CALL".equals(signal)&&!"PUT".equals(signal))signal="STANDBY";
             String reason=market.optString("reason","กำลังประเมินข้อมูลตลาด");
             String price=market.optString("price",market.optString("lastPrice","--"));
             String expiry=market.optString("signalExpiresAt","");
             String symbol=market.optString("symbol","EUR/USD");
             String key=symbol+"|"+signal+"|"+expiry;
             if(("CALL".equals(signal)||"PUT".equals(signal))&&!expiry.isEmpty()&&!key.equals(lastAlertKey)){
-                lastAlertKey=key;showSignal(signal,symbol,price,reason);
+                lastAlertKey=key;showSignal(signal,symbol,price,reason,key);
             }
             updateStatus("API "+market.optString("apiStatus","ONLINE")+" · "+signal+" · "+price);
-        }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
+        }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
     }
     private JSONObject fetchSignal()throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(SERVER+"/api/public/signal").openConnection();
@@ -62,19 +63,31 @@ public final class RadarPollingService extends Service {
             JSONObject j=new JSONObject(b.toString());if(!j.optBoolean("ok",false))throw new IllegalStateException("API not ready");return j;
         }finally{c.disconnect();}
     }
-    private void showSignal(String signal,String symbol,String price,String reason){
+    private void showSignal(String signal,String symbol,String price,String reason,String tag){
         SharedPreferences p=getSharedPreferences("radar_app_settings",MODE_PRIVATE);
         boolean sound=p.getBoolean("soundEnabled",true),vibration=p.getBoolean("vibrationEnabled",true);
         String channel=sound?(vibration?"signal_sv":"signal_s"):(vibration?"signal_v":"signal_silent");
         ensureAlertChannel(channel,sound,vibration);boolean call="CALL".equals(signal);
+        int color=call?Color.rgb(22,163,74):Color.rgb(220,38,38);
+        String badge=call?"↑ CALL":"↓ PUT";
         Intent i=new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi=PendingIntent.getActivity(this,signal.hashCode(),i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,channel):new Notification.Builder(this);
-        Notification n=b.setSmallIcon(R.drawable.ic_stat_signal).setContentTitle((call?"CALL":"PUT")+" · "+symbol)
-            .setContentText("ราคา "+price+" · "+reason).setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
-            .setColor(call?Color.rgb(22,163,74):Color.rgb(220,38,38)).setContentIntent(pi).setAutoCancel(true)
+        Notification n=b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,call?"↑":"↓"))
+            .setContentTitle(badge+" · "+symbol).setContentText("ราคา "+price+" · "+reason)
+            .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
+            .setColor(color).setContentIntent(pi).setAutoCancel(true)
             .setDefaults((sound?Notification.DEFAULT_SOUND:0)|(vibration?Notification.DEFAULT_VIBRATE:0)).build();
-        NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify((int)(System.currentTimeMillis()/1000),n);
+        NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(tag,tag.hashCode(),n);
+    }
+    private Bitmap badgeIcon(int color,String glyph){
+        Bitmap bitmap=Bitmap.createBitmap(112,112,Bitmap.Config.ARGB_8888);
+        Canvas canvas=new Canvas(bitmap);Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(color);canvas.drawCircle(56,56,54,paint);
+        paint.setColor(Color.WHITE);paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));
+        paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(glyph.length()>1?34:62);
+        Paint.FontMetrics fm=paint.getFontMetrics();canvas.drawText(glyph,56,56-(fm.ascent+fm.descent)/2,paint);
+        return bitmap;
     }
     private void createStatusChannel(){
         if(Build.VERSION.SDK_INT<26)return;NotificationManager m=getSystemService(NotificationManager.class);
@@ -92,8 +105,14 @@ public final class RadarPollingService extends Service {
     }
     private Notification statusNotification(String s){
         Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,6401,i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
+        boolean call=s.contains("CALL"),put=s.contains("PUT");
+        int color=call?Color.rgb(22,163,74):put?Color.rgb(220,38,38):Color.rgb(107,114,128);
+        String glyph=call?"↑":put?"↓":"—";
+        String title=call?"CALL · SIGNAL RADAR PRO":put?"PUT · SIGNAL RADAR PRO":"STANDBY · SIGNAL RADAR PRO";
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
-        return b.setSmallIcon(R.drawable.ic_stat_signal).setContentTitle("SIGNAL RADAR PRO").setContentText(s).setContentIntent(pi).setOngoing(true).build();
+        return b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,glyph))
+            .setContentTitle(title).setContentText(s).setStyle(new Notification.BigTextStyle().bigText(s))
+            .setColor(color).setContentIntent(pi).setOngoing(true).build();
     }
     private void updateStatus(String s){NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(NOTIFICATION_ID,statusNotification(s));}
     @Override public void onDestroy(){if(executor!=null)executor.shutdownNow();if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();super.onDestroy();}
