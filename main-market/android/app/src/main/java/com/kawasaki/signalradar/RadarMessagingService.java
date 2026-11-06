@@ -17,7 +17,7 @@ import com.google.firebase.messaging.RemoteMessage;
 
 public final class RadarMessagingService extends FirebaseMessagingService {
     private static final String TAG = "RadarFCM";
-    private static final String CHANNEL_ID = "market_signals";
+    private static final String CHANNEL_ID = "market_signal_alerts_v2";
     private static final String TOPIC = "main-market-signals";
     private static final String PREFS = "radar_push_state";
     private static final String LAST_ALERT = "last_alert_id";
