@@ -45,7 +45,7 @@ test("second-step regime threshold is ADX 14", () => {
 
 test("two of three bullish EMA relationships plus directional DI are enough at ADX 14", () => {
   const result = classifyTrendRegime({
-    bullishAlignment: 2, bearishAlignment: 1, adx: 16,
+    bullishAlignment: 2, bearishAlignment: 1, adx: 14,
     plusDI: 24, minusDI: 15
   });
   assert.equal(result.regime, "UPTREND");
@@ -53,7 +53,7 @@ test("two of three bullish EMA relationships plus directional DI are enough at A
 
 test("two of three bearish EMA relationships plus directional DI are enough at ADX 16", () => {
   const result = classifyTrendRegime({
-    bullishAlignment: 1, bearishAlignment: 2, adx: 16,
+    bullishAlignment: 1, bearishAlignment: 2, adx: 14,
     plusDI: 13, minusDI: 22
   });
   assert.equal(result.regime, "DOWNTREND");
