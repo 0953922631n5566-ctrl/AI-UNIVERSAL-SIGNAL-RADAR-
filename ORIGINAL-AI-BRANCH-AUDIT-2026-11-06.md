@@ -92,3 +92,11 @@ Continue with a read-only runtime trace of `feature/original-ai-historical-assis
 - Backup snapshots `analyze-market-original.js` and `decision-engine-original.js` remain untouched. No unrelated engine, strategy, data source, APK, server, or branch was deleted.
 - VERIFIED: source-level interface compatibility by inspection of the active `src/analyzer.js` import/call sites and new CommonJS exports.
 - NOT TESTED: automated tests/CI, Render deployment, live API behavior, APK build, and physical-device validation.
+
+
+### Verification follow-up — 2026-11-06
+
+- Initial adapter commits caused Main Market Checks runs #231 and #232 to fail one existing analyzer assertion: top-level `assistantAlignment` was missing. All other 31/32 tests passed in the first run.
+- Fixed compatibility by exposing assistant alignment/direction as output diagnostics only; no assistant values are passed into the Original Decision Engine.
+- Main Market Checks run #233 (`42164410306`) completed **success** on commit `3a05d984500cbbf3a1ba3022ff06653a9db69d01`.
+- Render deployment, live Twelve Data stream, APK build/install, and physical-device behavior remain **NOT TESTED** in this audit follow-up.
