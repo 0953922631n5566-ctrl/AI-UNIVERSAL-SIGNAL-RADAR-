@@ -7,7 +7,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { analyzeMarket: analyzeOriginal, prepareMarket, finalizeMarket } =
   require("../original-ai/engine/analyze-market.js");
-const { decide, MIN_SCORE, hasStrongTrendMomentum } =
+const { decide, MIN_SCORE, MIN_TREND_ADX, hasStrongTrendMomentum } =
   require("../original-ai/engine/decision-engine.js");
 
 function history(count = 220) {
@@ -40,6 +40,7 @@ test("Original AI is the sole decision path and returns the direct engine result
   assert.equal(routed.score, direct.score);
   assert.equal(routed.livePriceReady, true);
   assert.equal(routed.dataMode, "STREAMING");
+  assert.ok(routed.higherTimeframe);
   assert.equal("assistant" in routed, false);
   assert.equal("historicalDirection" in routed, false);
 });
@@ -54,27 +55,34 @@ test("Original engine API ignores any legacy assistant argument", () => {
   assert.deepEqual(finalizeMarket(prepareMarket(candles)), direct);
 });
 
-test("Decision engine accepts score 35 while strong-trend confirmation remains ADX 18", () => {
-  assert.equal(MIN_SCORE, 35);
+test("Decision engine uses strict score and ADX thresholds plus higher timeframe agreement", () => {
+  assert.equal(MIN_SCORE, 60);
+  assert.equal(MIN_TREND_ADX, 22);
   const base = {
     regime: "UPTREND",
-    indicators: { adx: 18, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
+    higherTimeframe: { direction: "CALL" },
+    indicators: { adx: 22, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
   };
-  const candidate = { signal: "CALL", score: 35, strategy: "UPTREND", reason: "valid" };
+  const candidate = { signal: "CALL", score: 60, strategy: "UPTREND", reason: "valid" };
   assert.equal(decide(base, candidate).signal, "CALL");
-  assert.equal(decide(base, { ...candidate, score: 34 }).signal, "STANDBY");
+  assert.equal(decide(base, { ...candidate, score: 59 }).signal, "STANDBY");
   assert.equal(hasStrongTrendMomentum(base, candidate), true);
-  assert.equal(hasStrongTrendMomentum({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate), false);
+  assert.equal(hasStrongTrendMomentum({ ...base, higherTimeframe: { direction: "PUT" } }, candidate), false);
+});
+
+test("Sideways market is always blocked, even with an attractive candidate score", () => {
+  const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "CALL" },
+    indicators: { volatilityRatio: 1, nearSupport: true, nearResistance: false } };
+  assert.equal(decide(ctx, { signal: "CALL", score: 100, strategy: "SIDEWAY" }).signal, "STANDBY");
 });
 
 test("Volatility safety gate still blocks extreme and unsupported high volatility", () => {
-  const candidate = { signal: "CALL", score: 70, strategy: "UPTREND", reason: "candidate" };
-  const ctx = { regime: "UPTREND", indicators: { adx: 10, plusDI: 20, minusDI: 10,
-    macdHistogram: 0.0001, rsi: 55, volatilityRatio: 2.3,
-    nearResistance: false, nearSupport: false } };
-  assert.equal(decide(ctx, candidate).signal, "STANDBY");
-  assert.match(decide(ctx, candidate).reason, /volatility/i);
+  const candidate = { signal: "CALL", score: 100, strategy: "UPTREND", reason: "candidate" };
+  const ctx = { regime: "UPTREND", higherTimeframe: { direction: "CALL" },
+    indicators: { adx: 30, plusDI: 30, minusDI: 10, macdHistogram: 0.0001,
+      rsi: 55, volatilityRatio: 2.3, nearResistance: false, nearSupport: false } };
+  assert.equal(decide(ctx, candidate).signal, "CALL");
   assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2.81 } }, candidate).signal, "STANDBY");
 });
 
