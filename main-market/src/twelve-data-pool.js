@@ -13,8 +13,7 @@ function parseConfiguredKeys(env = process.env) {
       const value = JSON.parse(raw);
       parsed = Array.isArray(value) ? value : [value];
     } catch {
-      parsed = raw.split(/[,
-;]+/);
+      parsed = raw.split(/[,;\s]+/);
     }
   }
   if (!parsed.length) {
