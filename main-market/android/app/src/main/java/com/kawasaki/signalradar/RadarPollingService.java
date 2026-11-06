@@ -86,7 +86,7 @@ public final class RadarPollingService extends Service {
         Notification n=b.setSmallIcon(R.drawable.ic_stat_signal)
             .setContentTitle((call?"↑ CALL":"↓ PUT")+" · "+symbol)
             .setContentText("ราคา "+price+" · "+reason)
-            .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\\n"+reason))
+            .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
             .setColor(call?Color.rgb(0,205,88):Color.rgb(255,45,65))
             .setContentIntent(pi).setCategory(Notification.CATEGORY_EVENT)
             .setAutoCancel(true).setDefaults(0).build();
@@ -129,10 +129,9 @@ public final class RadarPollingService extends Service {
     }
     private Notification statusNotification(String s){
         Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,6401,i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
-        boolean call=s.contains("CALL"),put=s.contains("PUT");
-        int color=call?Color.rgb(22,163,74):put?Color.rgb(220,38,38):Color.rgb(107,114,128);
-        String glyph=call?"↑":put?"↓":"—";
-        String title=call?"CALL · SIGNAL RADAR PRO":put?"PUT · SIGNAL RADAR PRO":"STANDBY · SIGNAL RADAR PRO";
+        int color=Color.rgb(107,114,128);
+        String glyph="•";
+        String title="RADAR ACTIVE · SIGNAL RADAR PRO";
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,glyph))
             .setContentTitle(title).setContentText("Background monitoring is running")
