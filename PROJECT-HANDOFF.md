@@ -1441,3 +1441,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Important delivery boundary: custom animated dialog appears only while Signal Radar PRO is foreground/visible. Android background-activity launch restrictions prohibit silently opening this dialog over another app. In the background the app relies on high-priority heads-up/system notifications; heads-up display depends on Android channel settings, notification permission, DND, and Xiaomi HyperOS policy. No overlay permission or DND bypass is requested or silently enabled.
 - Xiaomi 11T device validation is still pending. User may need to allow notifications, enable the new Signal Radar PRO v3 channel sound/vibration, permit Autostart/background operation, and set battery mode to unrestricted. Do not claim physical-device playback, haptics, or overlay testing without a real device test.
 - GitHub Actions APK build was triggered by source pushes; at documentation update time, the Main Market APK workflow was still running. Record the final run conclusion, artifact ID/download URL, and SHA-256 only after confirming the workflow completed successfully. No APK is claimed built or device-tested yet.
+
+
+### Android 1.9.0 build verification — 2026-11-06 12:54 UTC
+
+- Latest APK source commit used for build: `1d4f94766cd0b44acef011b792b005606dd7099f` (versionCode 11 / versionName 1.9.0).
+- Main Market APK workflow run `42221069740` completed SUCCESS. JDK 17, Gradle setup, Android SDK installation, `:app:assembleDebug`, APK existence check, SHA-256 generation, and artifact upload all completed successfully.
+- Artifact ID: `13504205689`; name: `signal-radar-pro-main-market-debug-apk`; expires 2026-11-20.
+- Downloaded and inspected the uploaded ZIP in the assistant runtime. It contains `app-debug.apk` (2,592,892 bytes) and `SHA256SUMS.txt`.
+- APK SHA-256: `281d724aa52e7004455b909b4e17e824a867ad8e98b22381c23213019dbc35d1`.
+- The independent Main Market Checks workflow for commit `1d4f94766cd0b44acef011b792b005606dd7099f` also completed SUCCESS.
+- Build success confirms compilation and artifact generation, not successful real FCM delivery, sound output, vibration, heads-up presentation, or animated popup behavior on Xiaomi 11T. Those require a physical-device test with notification permission and channel settings enabled.
