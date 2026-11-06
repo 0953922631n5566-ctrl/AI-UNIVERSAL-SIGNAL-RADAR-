@@ -21,7 +21,7 @@ test("fresh REST-only candles pass source gate only when fallback is explicitly 
   assert.equal(result.dataMode, "REST_FALLBACK");
   assert.equal(result.livePriceReady, true);
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
-  assert.equal(result.assistant.role, "ADVISORY_AND_SAFETY_CHECK");
+  assert.equal("assistant" in result, false);
 });
 
 test("REST-only candles remain STANDBY when fallback is not enabled", () => {
