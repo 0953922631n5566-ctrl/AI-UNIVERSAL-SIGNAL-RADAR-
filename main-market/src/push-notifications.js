@@ -53,7 +53,7 @@ export async function sendSignalPush({ symbol, signal, alertId, price, reason })
       android: {
         priority: "high",
         notification: {
-          channelId: "market_signal_alerts_v2",
+          channelId: "signal_sv_v3",
           icon: "ic_stat_signal",
           color,
           tag: String(alertId),
