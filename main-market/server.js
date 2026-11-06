@@ -596,6 +596,8 @@ app.get("/api/public/signal", (_req, res) => {
     market: {
       symbol: state.symbol, signal: state.signal, regime: state.regime,
       reason: state.reason, evidence: state.evidence, metrics: state.metrics,
+      score: state.score, strategy: state.strategy, indicators: state.indicators,
+      higherTimeframe: state.higherTimeframe || null,
       price: state.lastTickPrice, analyzedAt: state.analyzedAt,
       apiStatus: state.apiStatus, supportStatus: state.supportStatus,
       statusMessage: state.statusMessage, dataMode: state.dataMode,
