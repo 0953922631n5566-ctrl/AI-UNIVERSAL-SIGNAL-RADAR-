@@ -361,6 +361,7 @@ function startStream() {
       const price = Number(message.price);
       const timestamp = Number(message.timestamp);
       if (finite(price) && price > 0 && finite(timestamp) && timestamp > 0) {
+        twelveDataKeyPool.markSuccess(apiKey);
         applyTick(feed, price, timestamp);
       }
       return;
@@ -411,10 +412,14 @@ function startStream() {
     feed.streamStatus = "ERROR";
     feed.streamMessage = error.message;
     twelveDataKeyPool.markFailure(apiKey, { kind: "TRANSIENT", message: error.message });
+    upstream = null;
+    clearInterval(heartbeatTimer); heartbeatTimer = null;
+    try { socket.close(); } catch {}
     feed.activeSignal = null;
     feed.activeUntil = 0;
     evaluate(feed);
     publish();
+    if (monitoring) retryTimer = setTimeout(startStream, 1000);
   });
 
   socket.on("close", () => {
