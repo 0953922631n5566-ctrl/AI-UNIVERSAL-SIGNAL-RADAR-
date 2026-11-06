@@ -1116,3 +1116,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Before updating any existing document, fetch its latest content and SHA; preserve all content and append a dated entry. Never replace the complete handoff with a shortened summary. Do not delete any report, README, handoff, source, workflow, or branch unless the user explicitly names what to delete.
 - After every material task, update this handoff and the audit record, commit the change, and report the commit SHA/URL plus what remains unverified.
 - Next audit task: read-only runtime call-graph trace for Original AI vs Historical Assistant; resolve `MIN_SCORE=60` versus archived `THRESHOLD=64`; verify the advisory-only boundary and one-candle-on/one-candle-standby behavior. No source change is authorized by this note.
+
+
+## 2026-11-06 — Original AI core simplified to two active engine files
+
+- Branch: `main-market`. Scope: active Original AI engine only; Main Market data pipeline, source-quality gate, Historical Analogue worker, server, Android client, and deployment configuration were not intentionally changed.
+- Replaced active `main-market/original-ai/engine/analyze-market.js` with a compatibility adapter that preserves the `prepareMarket` / `finalizeMarket` interface required by `src/analyzer.js`, while restoring the original prepare-context → route-strategy → decide flow.
+- Replaced active `main-market/original-ai/engine/decision-engine.js` with the original standalone decision logic from `decision-engine-original.js` (MIN_SCORE=60; original volatility and support/resistance gates).
+- Historical Analogue remains available as a separate advisory output. Its result is attached as `assistant` metadata with `role: ADVISORY_ONLY` and alignment information; it is not injected into the decision context and cannot influence CALL/PUT/STANDBY, score, or decision gates.
+- The two `*-original.js` snapshots are retained for rollback/provenance; they are not active runtime modules. No scanner, indicator, strategy, Twelve Data, source gate, APK, or server files were deleted.
+- VERIFIED by source review: active analyzer adapter still exports `prepareMarket` and `finalizeMarket`; active decision engine no longer contains assistant-dependent decision logic.
+- NOT TESTED in this GitHub edit session: local `npm test`, build, CI workflows, Render deployment/live feed, APK build/install, and physical Xiaomi 11T behavior. Do not infer these from a successful source commit.
