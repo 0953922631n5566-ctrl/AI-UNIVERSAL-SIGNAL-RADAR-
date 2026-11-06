@@ -44,7 +44,7 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
   const candle = out.engineResults.find(x => x.engine === "candlestick_pattern");
   assert.equal(range.direction, "CALL");
   assert.equal(candle.direction, "CALL");
-  assert.equal(out.signal, "CALL");
+  assert.equal(out.signal, "CALL", JSON.stringify(out.engineResults));
   assert.equal(out.strategy, "RANGE_BOUND_SWING");
 });
 
