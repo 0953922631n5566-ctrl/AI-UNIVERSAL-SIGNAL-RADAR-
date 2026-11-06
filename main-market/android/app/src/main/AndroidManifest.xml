@@ -6,7 +6,7 @@
     <application
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
-        android:label="Kawasaki Signal Radar"
+        android:label="Signal Radar PRO"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:supportsRtl="true">
         <meta-data android:name="com.google.firebase.messaging.default_notification_channel_id" android:value="market_signals" />
