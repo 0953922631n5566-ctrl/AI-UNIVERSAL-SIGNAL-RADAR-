@@ -55,7 +55,7 @@ test("Original engine API ignores any legacy assistant argument", () => {
   assert.deepEqual(finalizeMarket(prepareMarket(candles)), direct);
 });
 
-test("Decision engine uses strict score and ADX thresholds plus higher timeframe agreement", () => {
+test("Decision engine uses strict score and ADX thresholds with M1 momentum during M5 transition", () => {
   assert.equal(MIN_SCORE, 45);
   assert.equal(MIN_TREND_ADX, 18);
   const base = {
@@ -68,7 +68,13 @@ test("Decision engine uses strict score and ADX thresholds plus higher timeframe
   assert.equal(decide(base, candidate).signal, "CALL");
   assert.equal(decide(base, { ...candidate, score: 44 }).signal, "STANDBY");
   assert.equal(hasStrongTrendMomentum(base, candidate), true);
-  assert.equal(hasStrongTrendMomentum({ ...base, higherTimeframe: { direction: "PUT" } }, candidate), false);
+  assert.equal(hasStrongTrendMomentum({ ...base, higherTimeframe: { direction: "PUT" } }, candidate), true);
+  assert.equal(decide({ ...base, higherTimeframe: { direction: "UNCLEAR" } }, candidate).signal, "CALL");
+  const bearish = { regime: "DOWNTREND", higherTimeframe: { direction: "UNCLEAR" }, indicators: {
+    adx: 25, plusDI: 10, minusDI: 30, macdHistogram: -0.0001, rsi: 40,
+    volatilityRatio: 1, nearResistance: false, nearSupport: false
+  }};
+  assert.equal(decide(bearish, { signal: "PUT", score: 65, strategy: "DOWNTREND" }).signal, "PUT");
   assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate).signal, "STANDBY");
 });
 
