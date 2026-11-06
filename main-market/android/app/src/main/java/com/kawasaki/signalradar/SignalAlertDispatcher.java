@@ -15,7 +15,7 @@ public final class SignalAlertDispatcher {
     private static final Object LOCK = new Object();
     private static final String PREFS = "radar_alert_dedupe";
     private static final long SAME_ALERT_DEDUPE_MS = 10 * 60 * 1000L;
-    private static final long GLOBAL_COOLDOWN_MS = 60 * 1000L;
+    private static final long GLOBAL_COOLDOWN_MS = 55 * 1000L;
 
     private SignalAlertDispatcher() {}
 
