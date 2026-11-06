@@ -99,15 +99,22 @@ function buildAssistant(simulation, originalSignal, executionMode) {
   const alignment = !["CALL", "PUT"].includes(originalSignal) ||
       !["CALL", "PUT"].includes(historicalDirection) ? "NO_COMPARISON"
     : originalSignal === historicalDirection ? "AGREES" : "CONFLICTS";
+  const status = simulation.livePriceReady ? (up === null ? "LIMITED_SAMPLE" : "READY") : "UNAVAILABLE";
+  const analogueCount = metrics.analoguesUsed ?? 0;
+  const decisionReady = status === "READY" &&
+    ["CALL", "PUT"].includes(historicalDirection) &&
+    Number.isFinite(directionalSharePercent) &&
+    directionalSharePercent >= 53 && analogueCount >= 12;
   return {
-    role: "ADVISORY_ONLY",
-    status: simulation.livePriceReady ? (up === null ? "LIMITED_SAMPLE" : "READY") : "UNAVAILABLE",
+    role: "ADVISORY_AND_SAFETY_CHECK",
+    status,
+    decisionReady,
     executionMode,
     executionMs: simulation.executionMs ?? null,
     historicalDirection,
     directionalSharePercent,
     alignment,
-    analogueCount: metrics.analoguesUsed ?? 0,
+    analogueCount,
     candidateCount: metrics.analogueCandidates ?? 0,
     patternCandles: metrics.patternCandles ?? 8,
     forecastHorizonCandles: metrics.forecastHorizonCandles ?? 1,
