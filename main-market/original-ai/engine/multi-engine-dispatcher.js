@@ -196,7 +196,7 @@ function centralDispatcher(results, regime) {
   if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing')) {
     return { signal: 'STANDBY', score, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
   }
-  return { signal: winner, score, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : 'MULTI_ENGINE', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
+  return { signal: winner, score, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
 }
 async function evaluateAllEngines(marketData) {
   const settled = await Promise.allSettled(ENGINES.map(engine => Promise.resolve().then(() => engine(marketData))));
