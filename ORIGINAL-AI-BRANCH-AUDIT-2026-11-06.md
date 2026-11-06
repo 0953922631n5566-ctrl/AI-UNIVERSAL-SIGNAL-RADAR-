@@ -115,3 +115,10 @@ Continue with a read-only runtime trace of `feature/original-ai-historical-assis
 - CI run #237 failed solely on a stale role-label assertion in `rest-fallback.test.js`; this was corrected in the last listed commit. Run #238 is pending final verification at the time of this audit entry.
 - Important limitation: the historical analogue share is not a calibrated win probability. The 53%/12-match eligibility and score-80 override are provisional safety thresholds; they require walk-forward/out-of-sample backtesting before treating them as optimal.
 - Render deploy, live market feed, APK build/install, and physical-device validation are NOT TESTED in this change.
+
+### CI verification — historical assistant integration — 2026-11-06
+
+- Run #238 (`42165482287`) completed **success** on code commit `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200`.
+- Workflow job `test`: **33 passed / 0 failed**; historical conflict-check tests and REST fallback tests passed.
+- Append-only handoff/audit commits: `97c6bfdc9929a9d1dffd14360d3b23b65bec0327`, `b906400bbe95931ea43bb3a17088787e8ecf6c4c`.
+- This does not verify Render deployment, live price feed, APK build/install, or device behavior.
