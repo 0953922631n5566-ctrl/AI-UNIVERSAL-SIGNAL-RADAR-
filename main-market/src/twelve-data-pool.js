@@ -89,6 +89,11 @@ export class TwelveDataKeyPool {
       configuredCount: this.keys.length,
       availableCount,
       activeKeyNumber: activeKey ? this.keys.indexOf(activeKey) + 1 : null,
+      keyStates: this.keys.map((credential, index) => {
+        const until = this.cooldowns.get(credential) || 0;
+        const available = until <= now;
+        return { number: index + 1, status: !available ? "COOLDOWN" : credential === activeKey ? "ACTIVE" : "READY", available, cooldownRemainingMs: Math.max(0, until - now), failures: this.failures.get(credential) || 0 };
+      }),
       rotation: this.keys.length > 1 ? "FAILOVER_POOL" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
       lastFailure: this.lastError ? { kind: this.lastError.kind, message: this.lastError.message } : null
     };
