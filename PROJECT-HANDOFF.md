@@ -1085,3 +1085,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - APK build workflow: `.github/workflows/android-apk.yml`; artifact path: `main-market/android/app/build/outputs/apk/debug/app-debug.apk`.
 - Manual trading only; no broker order execution. Main Market EUR/USD M1, Twelve Data, non-OTC.
 - Validate GitHub Actions, Render deployment, `/health`, authenticated device pairing, API state, real Twelve Data streaming and Xiaomi 11T installation separately. A successful APK build does not prove real-device or live-feed validation.
+
+
+## 2026-11-06 — Twelve Data API Pool / Failover and Android package refresh
+
+- Added `src/twelve-data-pool.js` for server-side API-key pool management. Configuration accepts `TWELVE_DATA_API_KEYS` as a JSON array or comma/semicolon/whitespace-separated list, individual `TWELVE_DATA_API_KEY_1` through `TWELVE_DATA_API_KEY_10`, and the legacy single `TWELVE_DATA_API_KEY` as a compatibility fallback.
+- REST candle fetches now try available keys in rotation. Rate-limit/quota failures place the failing key into a 15-minute cooldown; auth/permission failures use a 60-minute cooldown; transient/provider failures use a 30-second cooldown. The next eligible key is tried automatically. Pair/plan/insufficient-history errors are not incorrectly treated as key failures.
+- Streaming uses the current eligible key and rotates after provider auth/quota errors or connection errors. The first valid price tick marks that key healthy. No API key values are included in the health response, public state, or Android UI.
+- `/health` and authenticated state now expose only safe pool metadata: configured count, available count, active key position, and rotation mode. The app displays API KEYS available/configured (for example, 10/10); it never displays the credentials themselves.
+- Added tests for key-pool rotation, cooldown promotion, and REST quota failover. CI is the required verification gate; a commit is not considered deployed until the latest checks pass and Render is Live.
+- Render configuration required: set `TWELVE_DATA_API_KEYS` to the 10 existing keys as a JSON array in the service's Environment (or use numbered variables). Keep `ANDROID_CLIENT_TOKEN` separate and preserve the existing token so paired devices do not need to be re-paired. Never place provider keys in source control or the APK.
+- Android MainActivity already defaults to `https://ai-signal-radar-main-market.onrender.com/`. Bumped Android versionCode to 2 and versionName to 1.1.0 to produce a fresh package; this remains a WebView client that loads the live backend. The APK workflow must pass before providing an artifact link.
+- Device authentication still requires the existing paired credential to be present in Android Keystore. A successful CI build does not prove physical Xiaomi 11T installation or live API streaming.
