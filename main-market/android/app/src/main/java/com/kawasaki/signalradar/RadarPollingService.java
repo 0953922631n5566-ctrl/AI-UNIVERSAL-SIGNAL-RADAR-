@@ -66,7 +66,7 @@ public final class RadarPollingService extends Service {
     private void showSignal(String signal,String symbol,String price,String reason,String tag){
         SharedPreferences p=getSharedPreferences("radar_app_settings",MODE_PRIVATE);
         boolean sound=p.getBoolean("soundEnabled",true),vibration=p.getBoolean("vibrationEnabled",true);
-        String channel=sound?(vibration?"signal_sv":"signal_s"):(vibration?"signal_v":"signal_silent");
+        String channel=sound?(vibration?"signal_sv_v2":"signal_s_v2"):(vibration?"signal_v_v2":"signal_silent_v2");
         ensureAlertChannel(channel,sound,vibration);boolean call="CALL".equals(signal);
         int color=call?Color.rgb(22,163,74):Color.rgb(220,38,38);
         String badge=call?"↑ CALL":"↓ PUT";
@@ -76,7 +76,7 @@ public final class RadarPollingService extends Service {
         Notification n=b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,call?"↑":"↓"))
             .setContentTitle(badge+" · "+symbol).setContentText("ราคา "+price+" · "+reason)
             .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
-            .setColor(color).setContentIntent(pi).setAutoCancel(true)
+            .setColor(color).setContentIntent(pi).setAutoCancel(false)
             .setDefaults((sound?Notification.DEFAULT_SOUND:0)|(vibration?Notification.DEFAULT_VIBRATE:0)).build();
         NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(tag,tag.hashCode(),n);
     }
@@ -99,6 +99,7 @@ public final class RadarPollingService extends Service {
         if(Build.VERSION.SDK_INT<26)return;NotificationManager m=getSystemService(NotificationManager.class);
         if(m==null||m.getNotificationChannel(id)!=null)return;
         NotificationChannel c=new NotificationChannel(id,"Main Market Signal Alerts",NotificationManager.IMPORTANCE_HIGH);
+        c.setDescription("CALL/PUT alert with native sound and vibration");
         c.enableVibration(vibration);if(vibration)c.setVibrationPattern(new long[]{0,220,90,220});
         if(sound)c.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build());else c.setSound(null,null);
         m.createNotificationChannel(c);
