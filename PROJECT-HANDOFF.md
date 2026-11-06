@@ -1358,3 +1358,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Important platform behavior: Android controls the exact Heads-up banner duration; app code cannot guarantee a banner remains expanded for 10 seconds. Signal notifications are non-auto-cancel and remain in the notification tray until dismissed. Channel sound/vibration may still be overridden by user OS settings, DND, notification permission, or HyperOS restrictions.
 - FCM server credentials remain unconfigured in the last verified checkpoint. Do not add service-account JSON to Git. Set `FIREBASE_SERVICE_ACCOUNT_JSON` through the Render service's Environment secret interface only; user must supply/import the private service-account JSON through that secure UI. No private key is present in this handoff.
 - Build/test/deploy/device verification is pending for the commits above. Record exact CI run, APK artifact/hash, Render deploy result, and device test separately after verification.
+
+
+### Final verification — Signal Radar PRO v1.8.0
+
+- Final branch HEAD for this batch: `d7b92db4f5858235bc60f245cf82fac4c2d719db`.
+- GitHub Main Market Checks run `42211234170`: SUCCESS; `npm install` and `npm test` both passed. Render build logs for the successful backend deploy show 38 tests passed / 0 failed.
+- Render deploy `dep-dbmrmplfbbac73bjdgs0`: LIVE on branch `main-market`, source commit `d7b92db4f5858235bc60f245cf82fac4c2d719db`; application startup confirmed at port 10000.
+- GitHub Actions APK run `42211333061`: SUCCESS. Workflow `.github/workflows/android-main-market.yml`, job `127870411956`; Gradle ` :app:assembleDebug `, APK existence check, SHA-256 generation, and artifact upload all succeeded.
+- APK: Signal Radar PRO v1.8.0, versionCode 10, applicationId `com.kawasaki.signalradar`.
+- Artifact ID `13498384695`, artifact name `signal-radar-pro-main-market-debug-apk`, expires 2026-11-20.
+- Extracted APK size: 2,588,462 bytes. APK SHA-256: `be66208d3f0b66147f0205e8ce57f883bb5736beb5b5c89b137b075a55cc3f6a`. Build ZIP SHA-256: `372eb686226b82ee3b039d6ed1f3568956f3b23745e80a8f5b903f3883974bf4`.
+- The downloaded build artifact was extracted and its APK checksum independently matched the SHA256SUMS.txt included in the artifact.
+- Render startup log at 2026-11-06T11:36:00Z still reports `firebaseAdminConfigured: false`. FCM server push is not enabled. Configure `FIREBASE_SERVICE_ACCOUNT_JSON` as a Render Environment secret using the Firebase service-account JSON; do not commit it or paste the private key into chat. After setting, redeploy and verify startup reports true and a genuine new CALL/PUT logs successful push delivery.
+- Android channel V2 code and APK are built, but actual Xiaomi 11T install, update-signature compatibility, notification permission, native sound/vibration, tray persistence, heads-up presentation and background FCM delivery have not been device-tested. Android controls exact heads-up display duration; app keeps signal notifications in the tray until dismissed but cannot force a 10-second expanded banner.
+- No out-of-sample predictive validation, profitability claim, or broker execution is implied. Manual signal decision support only.
