@@ -8,20 +8,20 @@ const { evaluateTrendContinuation } = require("../original-ai/strategies/trend-c
 const { classifyTrendRegime, MIN_TREND_ADX: SCANNER_ADX, buildHigherTimeframeContext } =
   require("../original-ai/scanner/trend-scanner.js");
 
-test("strict decision threshold is 60 and trend entry requires ADX 22", () => {
-  assert.equal(MIN_SCORE, 60);
-  assert.equal(MIN_TREND_ADX, 22);
+test("strict decision threshold is 45 and trend entry requires ADX 18", () => {
+  assert.equal(MIN_SCORE, 45);
+  assert.equal(MIN_TREND_ADX, 18);
   const context = {
     regime: "UPTREND",
     higherTimeframe: { direction: "CALL" },
     indicators: {
-      adx: 22, plusDI: 25, minusDI: 12, macdHistogram: 0.0002,
+      adx: 18, plusDI: 25, minusDI: 12, macdHistogram: 0.0002,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false
     }
   };
-  assert.equal(decide(context, { signal: "CALL", score: 60, strategy: "UPTREND" }).signal, "CALL");
-  assert.equal(decide(context, { signal: "CALL", score: 59, strategy: "UPTREND" }).signal, "STANDBY");
-  assert.equal(decide({ ...context, indicators: { ...context.indicators, adx: 21.99 } },
+  assert.equal(decide(context, { signal: "CALL", score: 45, strategy: "UPTREND" }).signal, "CALL");
+  assert.equal(decide(context, { signal: "CALL", score: 44, strategy: "UPTREND" }).signal, "STANDBY");
+  assert.equal(decide({ ...context, indicators: { ...context.indicators, adx: 17.99 } },
     { signal: "CALL", score: 80, strategy: "UPTREND" }).signal, "STANDBY");
 });
 
@@ -52,7 +52,7 @@ test("trend continuation requires six-way high-quality evidence and score 60", (
   const latest = { open: 1.0, high: 1.12, low: 0.99, close: 1.10 };
   const result = evaluateTrendContinuation({
     candles: [previous, latest], latest,
-    indicators: { adx: 22, plusDI: 25, minusDI: 12, rsi: 60,
+    indicators: { adx: 18, plusDI: 25, minusDI: 12, rsi: 60,
       macdHistogram: 0.001, ema9: 1.05 }
   }, "CALL");
   assert.equal(result.signal, "CALL");
