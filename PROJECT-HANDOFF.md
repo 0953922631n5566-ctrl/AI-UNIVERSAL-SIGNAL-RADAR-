@@ -1520,3 +1520,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Verify CALL/PUT while the app is foregrounded and while a separate trading app is foregrounded; verify sound and haptics with both toggles enabled and disabled.
 - Verify Master OFF stops the local polling service, foreground notification, wake lock and FCM topic subscription; verify Master ON restarts monitoring.
 - CI build/signature verification does not prove real-device overlay permission behavior, physical sound/haptics, or battery usage. Do not describe those as device-tested until the handset test is performed.
+
+
+### v1.11.0 install/update signing compatibility note — 2026-11-06
+- The v1.10.0 APK from Android APK Build run #95 (artifact 13504057943) is debug-signed with certificate SHA-256 fingerprint `4D60BB75F60F002947A4CB51B0099883EB9B1BF062D4CAD84BA81A8D06F0EA00`.
+- The v1.11.0 APK from Android APK Build run #97 (artifact 13506447052) is debug-signed with a different auto-generated certificate SHA-256 fingerprint `AA691E303987C3B0038137AB9622B5560331AEBEDBE7E59CD72FF8BD7A76610B`.
+- These are different signing identities. Android will not install v1.11.0 as an in-place update over an app signed by the v1.10.0 run #95 key. The user must uninstall the older debug APK before installing v1.11.0 unless the original v1.10 signing keystore is recovered and used. Uninstalling clears local app preferences; the current app defaults Master ON and re-subscribes to the FCM topic on launch.
+- The previous GitHub Actions debug keystore is not included in the APK artifact or repository, and its private key cannot be reconstructed from the APK certificate. Do not claim seamless update compatibility. For future releases, configure a stable protected signing keystore after the user chooses the signing-key migration path.
