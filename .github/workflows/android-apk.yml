@@ -30,9 +30,17 @@ jobs:
         run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         run: gradle -p main-market/android assembleDebug
+      - name: Verify APK and SHA-256
+        run: |
+          APK="main-market/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          sha256sum "$APK" | tee main-market/android/app/build/outputs/apk/debug/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: Kawasaki-Signal-Radar-APK
-          path: main-market/android/app/build/outputs/apk/debug/app-debug.apk
+          name: Signal-Radar-PRO-v1.11.0-APK
+          path: |
+            main-market/android/app/build/outputs/apk/debug/app-debug.apk
+            main-market/android/app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
