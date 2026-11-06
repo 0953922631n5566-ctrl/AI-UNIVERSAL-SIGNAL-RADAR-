@@ -1527,3 +1527,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The v1.11.0 APK from Android APK Build run #97 (artifact 13506447052) is debug-signed with a different auto-generated certificate SHA-256 fingerprint `AA691E303987C3B0038137AB9622B5560331AEBEDBE7E59CD72FF8BD7A76610B`.
 - These are different signing identities. Android will not install v1.11.0 as an in-place update over an app signed by the v1.10.0 run #95 key. The user must uninstall the older debug APK before installing v1.11.0 unless the original v1.10 signing keystore is recovered and used. Uninstalling clears local app preferences; the current app defaults Master ON and re-subscribes to the FCM topic on launch.
 - The previous GitHub Actions debug keystore is not included in the APK artifact or repository, and its private key cannot be reconstructed from the APK certificate. Do not claim seamless update compatibility. For future releases, configure a stable protected signing keystore after the user chooses the signing-key migration path.
+
+
+### Post-merge production-branch APK build — 2026-11-06
+- Android APK Build run #102 (run ID `42228132365`) completed successfully against merged production commit `f880694ee2e2e6c2df464704755e99be457e9f87`.
+- Official merged-branch artifact ID: `13507235829`; artifact name `Signal-Radar-PRO-v1.11.0-APK`.
+- APK SHA-256: `7dad18d1a82f60fb51f615aaf7db8590103b8d2a3c29c5c200e3e22915040a5c`.
+- Merged-branch APK signing certificate SHA-256 fingerprint: `8A3CFA C5764FAF693E240FA0E846E55CF4CF53E82B5E6085CFFFD4B34803DD22` (spaces omitted in the certificate's raw fingerprint: `8A:3C:FA:C5:76:4F:AF:69:3E:24:0F:A0:E8:46:E5:5C:F4:CF:53:E8:2B:5E:60:85:CF:FF:D4:B3:48:03:DD:22`).
+- This official merged-branch certificate also differs from the v1.10.0 run #95 certificate. The uninstall/reinstall warning above therefore still applies.
