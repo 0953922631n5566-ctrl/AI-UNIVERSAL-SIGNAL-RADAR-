@@ -603,7 +603,11 @@ app.get("/api/public/signal", (_req, res) => {
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalReleaseValidated: state.signalReleaseValidated,
-      signalReleaseStatus: state.signalReleaseStatus, monitoring: state.monitoring
+      signalReleaseStatus: state.signalReleaseStatus,
+      signalValidationNote: state.signalValidationNote,
+      lastPrice: state.lastPrice,
+      lastTickPrice: state.lastTickPrice,
+      monitoring: state.monitoring
     }
   });
 });
@@ -628,7 +632,8 @@ app.get("/health", (_req, res) => {
       streamingRequiredForSignals: false,
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-      signalReleaseStatus: SIGNAL_RELEASE_VALIDATED ? "UNLOCKED_AFTER_EVALUATION" : "LOCKED_PENDING_EVALUATION"
+      signalRuntimeLock: false,
+      signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED"
     }
   });
 });
