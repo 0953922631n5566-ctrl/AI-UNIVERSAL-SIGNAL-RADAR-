@@ -19,7 +19,7 @@ function hasStrongTrendMomentum(ctx, candidate) {
 
 function standby(ctx, candidate, reason) {
   return { signal: 'STANDBY', regime: ctx?.regime || 'UNCLEAR',
-    score: candidate?.score || 0, reason,
+    score: candidate?.score || 0, confidence: candidate?.confidence || 0, reason,
     strategy: candidate?.strategy || ctx?.regime || 'NONE',
     engineResults: candidate?.engineResults || null, engineSummary: candidate?.engineSummary || null };
 }
