@@ -23,7 +23,7 @@ const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-06-original-ai-candidate-v2";
+const VERSION = "2026-11-06-pure-original-ai-v3";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -623,7 +623,7 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "ANDROID_CLIENT", configured: Boolean(CLIENT_TOKEN) },
-    architecture: { decisionEngine: "ORIGINAL_AI", historicalSimulation: "PARALLEL_WORKER_THREAD", simulationRole: "ADVISORY_ONLY" },
+    architecture: { decisionEngine: "ORIGINAL_AI_ONLY", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_ORIGINAL_AI" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
