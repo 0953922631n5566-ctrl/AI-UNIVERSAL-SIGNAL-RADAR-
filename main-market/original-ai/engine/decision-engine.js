@@ -26,8 +26,22 @@ function standby(ctx, candidate, reason) {
 function decide(ctx, candidate) {
   if (!ctx || ctx.regime === 'UNCLEAR' || !ctx.indicators)
     return standby(ctx, candidate, ctx?.reason || 'Market context unavailable');
-  if (ctx.regime === 'SIDEWAY' || ctx.regime === 'RANGING')
-    return standby(ctx, candidate, 'Sideways/choppy regime; directional entry blocked');
+  if (ctx.regime === 'SIDEWAY' || ctx.regime === 'RANGING') {
+    const rangeVote = candidate?.strategy === 'RANGE_BOUND_SWING' &&
+      candidate?.engineResults?.some(r => r.engine === 'range_bound_swing' &&
+        r.direction === candidate.signal && r.validity);
+    const i = ctx.indicators || {};
+    const rangeSafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 1.8 &&
+      (candidate?.signal === 'CALL'
+        ? i.nearSupport === true && Number.isFinite(i.rsi) && i.rsi <= 45
+        : i.nearResistance === true && Number.isFinite(i.rsi) && i.rsi >= 55);
+    const safetyPass = candidate?.engineResults?.some(r =>
+      r.engine === 'safety_noise_guard' && r.validity && r.reason.startsWith('PASS:'));
+    if (!rangeVote || !rangeSafe || !safetyPass || !['CALL', 'PUT'].includes(candidate?.signal) ||
+        !Number.isFinite(candidate?.score) || candidate.score < 55)
+      return standby(ctx, candidate, 'SIDEWAY hold: Range-Bound Swing confirmation and safety checks are required');
+    return { ...candidate, regime: ctx.regime };
+  }
   if (!candidate || !['CALL', 'PUT'].includes(candidate.signal) ||
       !Number.isFinite(candidate.score) || candidate.score < MIN_SCORE)
     return standby(ctx, candidate, candidate?.reason || `Candidate score below strict minimum (${MIN_SCORE})`);
