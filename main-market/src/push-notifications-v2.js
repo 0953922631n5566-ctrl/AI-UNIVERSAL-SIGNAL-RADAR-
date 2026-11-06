@@ -2,6 +2,7 @@ import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 
 const TOPIC = "main-market-signals";
+const EXPECTED_FIREBASE_PROJECT_ID = "ai-universal-signal-radar";
 const SIGNAL_PRESENTATION = {
   CALL: { color: "#16A34A", badge: "CALL", title: "CALL · สัญญาณขาขึ้น" },
   PUT: { color: "#DC2626", badge: "PUT", title: "PUT · สัญญาณขาลง" },
@@ -18,13 +19,28 @@ function client() {
   if (!raw) return null;
   try {
     const account = JSON.parse(raw);
-    const app = getApps()[0] || initializeApp({ credential: cert(account) });
+    if (account.type !== "service_account" || account.project_id !== EXPECTED_FIREBASE_PROJECT_ID ||
+        !account.client_email || !account.private_key) {
+      console.error("[push] Firebase service account is invalid or belongs to a different Firebase project");
+      return null;
+    }
+    const app = getApps()[0] || initializeApp({ credential: cert(account), projectId: EXPECTED_FIREBASE_PROJECT_ID });
     messaging = getMessaging(app);
     return messaging;
   } catch (error) {
     console.error("[push] Firebase Admin initialization failed:", error.message);
     return null;
   }
+}
+
+export function firebaseAdminStatus() {
+  const sender = client();
+  return {
+    firebaseAdminConfigured: Boolean(sender),
+    credentialPresent: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    expectedProjectId: EXPECTED_FIREBASE_PROJECT_ID,
+    topic: TOPIC
+  };
 }
 
 export async function sendSignalPush({ symbol, signal, alertId, price, reason }) {
