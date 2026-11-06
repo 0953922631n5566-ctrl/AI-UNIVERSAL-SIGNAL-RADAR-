@@ -9,6 +9,7 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { sendSignalPush } from "./src/push-notifications.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -22,7 +23,7 @@ const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-06-android-direct-v1";
+const VERSION = "2026-11-06-android-direct-v1-standby-gate";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -129,6 +130,8 @@ function snapshot() {
     onlineCount: data.apiStatus === "ONLINE" ? 1 : 0,
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
+    signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
+    signalReleaseStatus: SIGNAL_RELEASE_VALIDATED ? "UNLOCKED_AFTER_EVALUATION" : "LOCKED_PENDING_EVALUATION",
     apiPool: twelveDataKeyPool.publicStatus()
   };
 }
@@ -184,8 +187,15 @@ function classifyError(error) {
 function evaluate(feed) {
  const tickAge=feed.tickAt?(Date.now()-feed.tickAt)/1000:null;
  const restFallback=["UNSUPPORTED","ERROR","TIMEOUT"].includes(feed.streamStatus);
- const result=analyzeMarket(feed.candles,{now:Date.now(),tickAgeSeconds:tickAge,allowRestFallback:restFallback});
+ const rawResult=analyzeMarket(feed.candles,{now:Date.now(),tickAgeSeconds:tickAge,allowRestFallback:restFallback});
+ const result=applySignalReleaseGate(rawResult);
  const candleId=result.lastCandleEpoch??null;
+ if(!SIGNAL_RELEASE_VALIDATED){
+  feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=candleId;
+  feed.preAlertCandle=candleId;feed.preAlertSignal=null;feed.alertId=null;
+  feed.analysis={...result,tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:null,signalExpiresAt:null};
+  return;
+ }
  if(feed.preAlertCandle!==candleId){feed.preAlertCandle=candleId;feed.preAlertSignal=null;}
  if(result.signal==="CALL"||result.signal==="PUT"){
   if(feed.activeSignal&&Date.now()<feed.activeUntil){result.signal=feed.activeSignal;result.reason="ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";}
@@ -600,7 +610,9 @@ app.get("/health", (_req, res) => {
       historyCandles: HISTORY_CANDLES,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: false,
-      restFallbackEnabled: true
+      restFallbackEnabled: true,
+      signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
+      signalReleaseStatus: SIGNAL_RELEASE_VALIDATED ? "UNLOCKED_AFTER_EVALUATION" : "LOCKED_PENDING_EVALUATION"
     }
   });
 });
@@ -681,6 +693,7 @@ server.listen(PORT, () => {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
     firebaseAdminConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
