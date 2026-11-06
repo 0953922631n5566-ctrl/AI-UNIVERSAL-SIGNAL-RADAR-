@@ -54,16 +54,16 @@ test("Original engine API ignores any legacy assistant argument", () => {
   assert.deepEqual(finalizeMarket(prepareMarket(candles)), direct);
 });
 
-test("Decision engine keeps minimum score at 40 and ADX threshold at 18", () => {
-  assert.equal(MIN_SCORE, 40);
+test("Decision engine accepts score 35 while strong-trend confirmation remains ADX 18", () => {
+  assert.equal(MIN_SCORE, 35);
   const base = {
     regime: "UPTREND",
     indicators: { adx: 18, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
   };
-  const candidate = { signal: "CALL", score: 40, strategy: "UPTREND", reason: "valid" };
+  const candidate = { signal: "CALL", score: 35, strategy: "UPTREND", reason: "valid" };
   assert.equal(decide(base, candidate).signal, "CALL");
-  assert.equal(decide(base, { ...candidate, score: 39 }).signal, "STANDBY");
+  assert.equal(decide(base, { ...candidate, score: 34 }).signal, "STANDBY");
   assert.equal(hasStrongTrendMomentum(base, candidate), true);
   assert.equal(hasStrongTrendMomentum({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate), false);
 });
