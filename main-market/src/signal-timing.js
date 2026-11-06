@@ -1,6 +1,6 @@
 export const SIGNAL_PRE_CLOSE_MIN_MS = 3000;
 export const SIGNAL_PRE_CLOSE_MAX_MS = 5000;
-export const SIGNAL_DISPATCH_COOLDOWN_MS = 60000;
+export const SIGNAL_DISPATCH_COOLDOWN_MS = 55000;
 export const SIGNAL_MAX_TICK_AGE_MS = 5000;
 
 export function isSignalPreCloseWindow(candleEpoch, now = Date.now()) {
