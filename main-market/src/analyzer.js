@@ -55,7 +55,8 @@ export async function analyzeMarket(candles, options = {}) {
   }
 
   const decision = await analyzeMarketMulti(gate.closed.slice(-MIN_CLOSED_CANDLES), {
-    now, tickAgeSeconds: options.tickAgeSeconds, allowRestFallback: rest, ageSeconds
+    now: options.now, tickAgeSeconds: options.tickAgeSeconds,
+    allowRestFallback: gate.mode === "REST_FALLBACK", ageSeconds: gate.ageSeconds
   });
   return {
     ...decision,
