@@ -553,6 +553,8 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true, service: "main-market", version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
+    authentication: { mode: "ANDROID_CLIENT", configured: Boolean(CLIENT_TOKEN) },
+    architecture: { decisionEngine: "ORIGINAL_AI", historicalSimulation: "PARALLEL_WORKER_THREAD", simulationRole: "ADVISORY_ONLY" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: Boolean(API_KEY),
