@@ -1,0 +1,18 @@
+{
+  "project_info": {
+    "project_number": "114251926094",
+    "project_id": "ai-universal-signal-radar",
+    "storage_bucket": "ai-universal-signal-radar.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:114251926094:android:e13a500afb0c7a8c6b511f",
+        "android_client_info": { "package_name": "com.kawasaki.signalradar" }
+      },
+      "api_key": [{ "current_key": "AIzaSyCPc71peXXhSp0CJvSo82EqmgnrKx6l_M8" }],
+      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+    }
+  ],
+  "configuration_version": "1"
+}
