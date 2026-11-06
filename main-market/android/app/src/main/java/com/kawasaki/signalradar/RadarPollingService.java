@@ -19,22 +19,29 @@ public final class RadarPollingService extends Service {
     private ScheduledExecutorService executor;
     private PowerManager.WakeLock wakeLock;
     private volatile String lastAlertKey="";
+    private volatile HttpURLConnection activeConnection;
 
     @Override public void onCreate() {
         super.onCreate();
         createStatusChannel();
-        startForeground(NOTIFICATION_ID,statusNotification("STANDBY · กำลังเริ่มเฝ้าระวัง EUR/USD"));
-        PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
-        if(pm!=null){wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"SignalRadar:Polling");wakeLock.setReferenceCounted(false);wakeLock.acquire(10*60*1000L);}
-        executor=Executors.newSingleThreadScheduledExecutor();
-        executor.scheduleWithFixedDelay(this::pollSafely,0,15,TimeUnit.SECONDS);
     }
-    @Override public int onStartCommand(Intent intent,int flags,int startId){return START_STICKY;}
+    @Override public int onStartCommand(Intent intent,int flags,int startId){
+        boolean enabled=getSharedPreferences("radar_app_settings",MODE_PRIVATE).getBoolean("systemEnabled",true);
+        if(!enabled){stopSelf(startId);return START_NOT_STICKY;}
+        if(executor==null){
+            startForeground(NOTIFICATION_ID,statusNotification("LIVE · กำลังเฝ้าระวัง EUR/USD"));
+            PowerManager pm=(PowerManager)getSystemService(POWER_SERVICE);
+            if(pm!=null){wakeLock=pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"SignalRadar:Polling");wakeLock.setReferenceCounted(false);wakeLock.acquire(10*60*1000L);}
+            executor=Executors.newSingleThreadScheduledExecutor();
+            executor.scheduleWithFixedDelay(this::pollSafely,0,15,TimeUnit.SECONDS);
+        }
+        return START_NOT_STICKY;
+    }
 
     private void pollSafely(){
         try{
             if(!getSharedPreferences("radar_app_settings",MODE_PRIVATE).getBoolean("systemEnabled",true)){
-                updateStatus("SYSTEM OFF · ปิดการรับสัญญาณบนอุปกรณ์");return;
+                stopSelf();return;
             }
             JSONObject root=fetchSignal(), market=root.optJSONObject("market");
             if(market==null)market=root;
@@ -52,7 +59,7 @@ public final class RadarPollingService extends Service {
         }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
     }
     private JSONObject fetchSignal()throws Exception{
-        HttpURLConnection c=(HttpURLConnection)new URL(SERVER+"/api/public/signal").openConnection();
+        HttpURLConnection c=(HttpURLConnection)new URL(SERVER+"/api/public/signal").openConnection();activeConnection=c;
         c.setRequestMethod("GET");c.setConnectTimeout(10000);c.setReadTimeout(10000);c.setUseCaches(false);c.setRequestProperty("Accept","application/json");
         try{
             int code=c.getResponseCode();InputStream in=code>=200&&code<300?c.getInputStream():c.getErrorStream();
@@ -61,7 +68,7 @@ public final class RadarPollingService extends Service {
             while((line=r.readLine())!=null)b.append(line);r.close();
             if(code<200||code>=300)throw new IllegalStateException("HTTP "+code);
             JSONObject j=new JSONObject(b.toString());if(!j.optBoolean("ok",false))throw new IllegalStateException("API not ready");return j;
-        }finally{c.disconnect();}
+        }finally{activeConnection=null;c.disconnect();}
     }
     private void showSignal(String signal,String symbol,String price,String reason,String tag){
         SharedPreferences p=getSharedPreferences("radar_app_settings",MODE_PRIVATE);
@@ -117,6 +124,14 @@ public final class RadarPollingService extends Service {
             .setColor(color).setContentIntent(pi).setOngoing(true).build();
     }
     private void updateStatus(String s){NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(NOTIFICATION_ID,statusNotification(s));}
-    @Override public void onDestroy(){if(executor!=null)executor.shutdownNow();if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();super.onDestroy();}
+    @Override public void onDestroy(){
+        if(executor!=null){executor.shutdownNow();executor=null;}
+        HttpURLConnection connection=activeConnection;if(connection!=null){connection.disconnect();activeConnection=null;}
+        if(wakeLock!=null&&wakeLock.isHeld())wakeLock.release();wakeLock=null;
+        stopForeground(true);
+        NotificationManager manager=getSystemService(NotificationManager.class);if(manager!=null)manager.cancel(NOTIFICATION_ID);
+        Log.i(TAG,"Monitoring service stopped; polling executor and wake lock released");
+        super.onDestroy();
+    }
     @Override public IBinder onBind(Intent i){return null;}
 }
