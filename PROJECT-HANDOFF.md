@@ -1338,3 +1338,23 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render startup still reports `firebaseAdminConfigured:false` and `[push] Firebase Admin is not configured`. FCM server push delivery is therefore NOT operational until the service-account JSON is securely configured in Render. Android local foreground polling and colored persistent status notification are independent of FCM, subject to Android/HyperOS background limits.
 - APK artifact downloaded and extracted in the build environment; SHA-256 independently calculated. Physical installation/update, debug signing-key compatibility, Xiaomi 11T visual rendering, and real background notification delivery remain unverified.
 - Latest deliverable: Signal Radar PRO v1.7.0, versionCode 9, package `com.kawasaki.signalradar`. The Android small status-bar icon remains subject to Android monochrome rendering; green/red/gray large-icon badges and notification accent are shown in the notification shade.
+
+
+## 2026-11-06 — Pure Original AI and Android notification channel V2 implementation
+
+- User approved direct implementation on branch `main-market`; branch `main` remains untouched.
+- Backend commits:
+  - `a1a16faddd3fe6e4da5fd97c43d3e5c52b9eae1a`: replaced `main-market/src/analyzer.js` worker orchestration with source/data-quality validation followed by the Original AI prepare/finalize pipeline. No historical worker is imported, created, awaited, cached, or consulted.
+  - `cd02af22aedc3cc88684ee89e7adb787b4f9cfc4`: removed historical assistant metadata/injection from `original-ai/engine/analyze-market.js`; legacy second argument is ignored.
+  - `a3b817aace3a5599316530407d928a9dfcf97684`: removed historical-direction conflict blocking from the active decision engine. MIN_SCORE remains 40, ADX threshold remains 18, volatility ratio blocks remain >2.8 hard and >2.2 without strong momentum; support/resistance and UNCLEAR guards remain.
+  - `dbee53dd5c2c9e87be0e460e37a72b220401b3ee`: rewrote analyzer tests for direct Original AI ownership, score/ADX/volatility gates, freshness and candle validation.
+  - `2f5409a42cc1942675a2b358e24efad9cb6fe875`: health metadata reports ORIGINAL_AI_ONLY and historical worker BYPASSED.
+- Android commits:
+  - `fa851cb3b65c677aca3efe3951645de75b85383b`: polling notifications use versioned V2 sound/vibration channel IDs, color-coded CALL/PUT/standby ongoing badge, and non-auto-cancel signal tray notifications.
+  - `43bc37d3528d96c4299196501f7d0a48c253d25a`: FCM handler uses the same V2 channels and persistent CALL/PUT notification presentation.
+  - `ea01017eb37367ef280fc9fb31cc15fbb5bc675f`: creates all four V2 notification channels at HIGH importance with native sound/vibration settings.
+  - `de7a6623608b1038302ea045d08759172602d151`: Firebase default channel metadata now points to `signal_sv_v2`.
+  - `84ce896d5c562b4d2c2857b2458c181b8ea53e30`: APK version 1.8.0 / versionCode 10; package ID unchanged.
+- Important platform behavior: Android controls the exact Heads-up banner duration; app code cannot guarantee a banner remains expanded for 10 seconds. Signal notifications are non-auto-cancel and remain in the notification tray until dismissed. Channel sound/vibration may still be overridden by user OS settings, DND, notification permission, or HyperOS restrictions.
+- FCM server credentials remain unconfigured in the last verified checkpoint. Do not add service-account JSON to Git. Set `FIREBASE_SERVICE_ACCOUNT_JSON` through the Render service's Environment secret interface only; user must supply/import the private service-account JSON through that secure UI. No private key is present in this handoff.
+- Build/test/deploy/device verification is pending for the commits above. Record exact CI run, APK artifact/hash, Render deploy result, and device test separately after verification.
