@@ -607,7 +607,8 @@ app.get("/api/public/signal", (_req, res) => {
       signalValidationNote: state.signalValidationNote,
       lastPrice: state.lastPrice,
       lastTickPrice: state.lastTickPrice,
-      monitoring: state.monitoring
+      monitoring: state.monitoring,
+      apiPool: state.apiPool
     }
   });
 });
