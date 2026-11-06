@@ -51,11 +51,12 @@ public final class RadarPollingService extends Service {
             String price=market.optString("price",market.optString("lastPrice","--"));
             String expiry=market.optString("signalExpiresAt","");
             String symbol=market.optString("symbol","EUR/USD");
-            String key=symbol+"|"+signal+"|"+expiry;
+            String key=market.optString("alertId","");
+            if(key.isEmpty())key=symbol+"|"+signal+"|"+expiry;
             if(("CALL".equals(signal)||"PUT".equals(signal))&&!expiry.isEmpty()&&!key.equals(lastAlertKey)){
                 lastAlertKey=key;showSignal(signal,symbol,price,reason,key);
             }
-            updateStatus("API "+market.optString("apiStatus","ONLINE")+" · "+signal+" · "+price);
+            updateStatus("API "+market.optString("apiStatus","ONLINE")+" · Background monitoring active");
         }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
     }
     private JSONObject fetchSignal()throws Exception{
@@ -71,22 +72,36 @@ public final class RadarPollingService extends Service {
         }finally{activeConnection=null;c.disconnect();}
     }
     private void showSignal(String signal,String symbol,String price,String reason,String tag){
-        SharedPreferences p=getSharedPreferences("radar_app_settings",MODE_PRIVATE);
-        boolean sound=p.getBoolean("soundEnabled",true),vibration=p.getBoolean("vibrationEnabled",true);
-        String channel=sound?(vibration?"signal_sv_v3":"signal_s_v3"):(vibration?"signal_v_v3":"signal_silent_v3");
-        ensureAlertChannel(channel,sound,vibration);boolean call="CALL".equals(signal);
-        int color=call?Color.rgb(22,163,74):Color.rgb(220,38,38);
-        String badge=call?"↑ CALL":"↓ PUT";
+        if(!SignalAlertDispatcher.claimAndFeedback(this,tag,signal))return;
+        boolean visibleInApp=MainActivity.showSignalPopupIfVisible(this,signal,symbol,price,reason);
+        boolean displayed=visibleInApp||SignalOverlayController.show(this,signal,symbol,price,reason);
+        if(displayed)return;
+        ensureFallbackChannel();
         Intent i=new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pi=PendingIntent.getActivity(this,signal.hashCode(),i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
-        Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,channel):new Notification.Builder(this);
-        MainActivity.showSignalPopupIfVisible(this,signal,symbol,price,reason);
-        Notification n=b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,call?"↑":"↓"))
-            .setContentTitle(badge+" · "+symbol).setContentText("ราคา "+price+" · "+reason)
+        PendingIntent pi=PendingIntent.getActivity(this,tag.hashCode(),i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
+        Notification.Builder b=Build.VERSION.SDK_INT>=26
+            ?new Notification.Builder(this,"signal_overlay_fallback_v1_11")
+            :new Notification.Builder(this).setPriority(Notification.PRIORITY_MAX);
+        boolean call="CALL".equals(signal);
+        Notification n=b.setSmallIcon(R.drawable.ic_stat_signal)
+            .setContentTitle((call?"↑ CALL":"↓ PUT")+" · "+symbol)
+            .setContentText("ราคา "+price+" · "+reason)
             .setStyle(new Notification.BigTextStyle().bigText("ราคา "+price+"\n"+reason))
-            .setColor(color).setContentIntent(pi).setAutoCancel(false)
-            .setDefaults((sound?Notification.DEFAULT_SOUND:0)|(vibration?Notification.DEFAULT_VIBRATE:0)).build();
-        NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(tag,tag.hashCode(),n);
+            .setColor(call?Color.rgb(0,205,88):Color.rgb(255,45,65))
+            .setContentIntent(pi).setCategory(Notification.CATEGORY_EVENT)
+            .setAutoCancel(true).setDefaults(0).build();
+        NotificationManager m=getSystemService(NotificationManager.class);
+        if(m!=null)m.notify(tag,tag.hashCode(),n);
+    }
+    private void ensureFallbackChannel(){
+        if(Build.VERSION.SDK_INT<26)return;
+        NotificationManager m=getSystemService(NotificationManager.class);
+        if(m==null||m.getNotificationChannel("signal_overlay_fallback_v1_11")!=null)return;
+        NotificationChannel c=new NotificationChannel("signal_overlay_fallback_v1_11",
+            "Signal Radar PRO · Overlay fallback",NotificationManager.IMPORTANCE_HIGH);
+        c.setDescription("Fallback CALL/PUT alert when floating overlay permission is unavailable");
+        c.enableVibration(false);c.setSound(null,null);c.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        m.createNotificationChannel(c);
     }
     private Bitmap badgeIcon(int color,String glyph){
         Bitmap bitmap=Bitmap.createBitmap(112,112,Bitmap.Config.ARGB_8888);
@@ -114,13 +129,12 @@ public final class RadarPollingService extends Service {
     }
     private Notification statusNotification(String s){
         Intent i=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,6401,i,PendingIntent.FLAG_UPDATE_CURRENT|(Build.VERSION.SDK_INT>=23?PendingIntent.FLAG_IMMUTABLE:0));
-        boolean call=s.contains("CALL"),put=s.contains("PUT");
-        int color=call?Color.rgb(22,163,74):put?Color.rgb(220,38,38):Color.rgb(107,114,128);
-        String glyph=call?"↑":put?"↓":"—";
-        String title=call?"CALL · SIGNAL RADAR PRO":put?"PUT · SIGNAL RADAR PRO":"STANDBY · SIGNAL RADAR PRO";
+        int color=Color.rgb(107,114,128);
+        String glyph="•";
+        String title="RADAR ACTIVE · SIGNAL RADAR PRO";
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,glyph))
-            .setContentTitle(title).setContentText(s).setStyle(new Notification.BigTextStyle().bigText(s))
+            .setContentTitle(title).setContentText("Background monitoring is running")
             .setColor(color).setContentIntent(pi).setOngoing(true).build();
     }
     private void updateStatus(String s){NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(NOTIFICATION_ID,statusNotification(s));}

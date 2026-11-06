@@ -35,14 +35,15 @@ public final class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},4102);
         webView.loadUrl(DEFAULT_SERVER+"/control");
     }
-    @Override protected void onResume(){super.onResume();activeActivity=this;}
+    @Override protected void onResume(){super.onResume();activeActivity=this;if(webView!=null)webView.postDelayed(()->webView.evaluateJavascript("window.refreshOverlayPermission && window.refreshOverlayPermission()",null),250);}
     @Override protected void onPause(){if(activeActivity==this)activeActivity=null;super.onPause();}
     @Override protected void onDestroy(){if(activeActivity==this)activeActivity=null;if(activeSignalDialog!=null&&activeSignalDialog.isShowing())activeSignalDialog.dismiss();super.onDestroy();}
 
-    public static void showSignalPopupIfVisible(Context context,String signal,String symbol,String price,String reason){
+    public static boolean showSignalPopupIfVisible(Context context,String signal,String symbol,String price,String reason){
         MainActivity activity=activeActivity;
-        if(activity==null||activity.isFinishing()||activity.isDestroyed())return;
+        if(activity==null||activity.isFinishing()||activity.isDestroyed())return false;
         activity.runOnUiThread(()->{if(!activity.isFinishing()&&!activity.isDestroyed())activity.showSignalPopup(signal,symbol,price,reason);});
+        return true;
     }
     private void showSignalPopup(String signal,String symbol,String price,String reason){
         if(!"CALL".equals(signal)&&!"PUT".equals(signal))return;
@@ -51,11 +52,13 @@ public final class MainActivity extends Activity {
         int deep=call?Color.rgb(7,57,39):Color.rgb(73,16,25);
         LinearLayout card=new LinearLayout(this);card.setOrientation(LinearLayout.VERTICAL);card.setGravity(Gravity.CENTER);
         card.setPadding(dp(24),dp(26),dp(24),dp(22));
-        GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(13,25,28),deep,Color.rgb(9,16,22)});
+        GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.TL_BR,call
+            ?new int[]{Color.rgb(0,205,88),Color.rgb(0,132,62),Color.rgb(0,74,42)}
+            :new int[]{Color.rgb(255,45,65),Color.rgb(195,0,34),Color.rgb(92,0,22)});
         bg.setCornerRadius(dp(26));bg.setStroke(dp(2),accent);card.setBackground(bg);card.setElevation(dp(18));
         TextView eyebrow=new TextView(this);eyebrow.setText("SIGNAL RADAR PRO  •  LIVE ALERT");eyebrow.setTextColor(Color.rgb(195,211,215));eyebrow.setTextSize(11);eyebrow.setLetterSpacing(.12f);eyebrow.setGravity(Gravity.CENTER);
         TextView glyph=new TextView(this);glyph.setText(call?"↗":"↘");glyph.setTextColor(Color.WHITE);glyph.setTextSize(58);glyph.setTypeface(Typeface.DEFAULT,Typeface.BOLD);glyph.setGravity(Gravity.CENTER);
-        TextView direction=new TextView(this);direction.setText(call?"CALL":"PUT");direction.setTextColor(accent);direction.setTextSize(42);direction.setTypeface(Typeface.DEFAULT,Typeface.BOLD);direction.setGravity(Gravity.CENTER);
+        TextView direction=new TextView(this);direction.setText(call?"CALL":"PUT");direction.setTextColor(Color.WHITE);direction.setTextSize(48);direction.setTypeface(Typeface.DEFAULT,Typeface.BOLD);direction.setGravity(Gravity.CENTER);
         TextView subtitle=new TextView(this);subtitle.setText(call?"UPWARD MOMENTUM":"DOWNWARD MOMENTUM");subtitle.setTextColor(Color.WHITE);subtitle.setTextSize(12);subtitle.setTypeface(Typeface.DEFAULT,Typeface.BOLD);subtitle.setGravity(Gravity.CENTER);
         TextView pair=new TextView(this);pair.setText(symbol+"   ·   "+price);pair.setTextColor(Color.WHITE);pair.setTextSize(19);pair.setTypeface(Typeface.DEFAULT,Typeface.BOLD);pair.setGravity(Gravity.CENTER);pair.setPadding(0,dp(16),0,dp(8));
         TextView detail=new TextView(this);detail.setText(reason==null?"":reason);detail.setTextColor(Color.rgb(204,216,220));detail.setTextSize(13);detail.setGravity(Gravity.CENTER);detail.setMaxLines(3);
@@ -83,6 +86,7 @@ public final class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O)startForegroundService(i);else startService(i);
     }
     private void stopRadarService(){
+        SignalOverlayController.dismiss(this);
         stopService(new Intent(this,RadarPollingService.class));
         NotificationManager manager=getSystemService(NotificationManager.class);
         if(manager!=null)manager.cancelAll();
@@ -95,6 +99,12 @@ public final class MainActivity extends Activity {
             .addOnSuccessListener(x->Log.i("RadarFCM","Unsubscribed while Master OFF"))
             .addOnFailureListener(e->Log.w("RadarFCM","Unsubscribe failed",e));
     }
+    private boolean hasOverlayPermission(){return SignalOverlayController.hasPermission(this);}
+    private void openOverlayPermissionSettings(){
+        if(hasOverlayPermission())return;
+        try{startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));}
+        catch(Exception e){Log.w("RadarOverlay","Could not open overlay permission settings",e);}
+    }
     private void applyMasterSwitch(boolean enabled){
         prefs().edit().putBoolean("systemEnabled",enabled).commit();
         if(enabled){startRadarService();updatePushSubscription(true);}
@@ -105,6 +115,7 @@ public final class MainActivity extends Activity {
         if(Build.VERSION.SDK_INT<26)return;NotificationManager m=getSystemService(NotificationManager.class);if(m==null)return;
         createChannel(m,"signal_sv_v3",true,true);createChannel(m,"signal_s_v3",true,false);
         createChannel(m,"signal_v_v3",false,true);createChannel(m,"signal_silent_v3",false,false);
+        createChannel(m,"signal_overlay_fallback_v1_11",false,false);
     }
     private void createChannel(NotificationManager m,String id,boolean sound,boolean vibration){
         if(m.getNotificationChannel(id)!=null)return;
@@ -122,6 +133,8 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public String getPreference(String n){if("soundEnabled".equals(n)||"vibrationEnabled".equals(n)||"systemEnabled".equals(n))return Boolean.toString(prefs().getBoolean(n,true));return "";}
         @JavascriptInterface public void setPreference(String n,String v){if(!"soundEnabled".equals(n)&&!"vibrationEnabled".equals(n)&&!"systemEnabled".equals(n))return;prefs().edit().putBoolean(n,Boolean.parseBoolean(v)).apply();}
         @JavascriptInterface public void setSystemEnabled(boolean enabled){runOnUiThread(()->applyMasterSwitch(enabled));}
+        @JavascriptInterface public String hasOverlayPermission(){return Boolean.toString(MainActivity.this.hasOverlayPermission());}
+        @JavascriptInterface public void requestOverlayPermission(){runOnUiThread(()->openOverlayPermissionSettings());}
         @JavascriptInterface public void testSound(){runOnUiThread(()->{try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,85);t.startTone(ToneGenerator.TONE_PROP_ACK,250);webView.postDelayed(t::release,400);}catch(Exception e){Log.w("RadarUI","Sound test failed",e);}});}
         @JavascriptInterface public void testVibration(){runOnUiThread(()->{try{Vibrator v=(Vibrator)getSystemService(VIBRATOR_SERVICE);if(v!=null&&v.hasVibrator()){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createWaveform(new long[]{0,180,70,180,70,320},-1));else v.vibrate(new long[]{0,180,70,180,70,320},-1);}}catch(Exception e){Log.w("RadarUI","Vibration test failed",e);}});}
     }
