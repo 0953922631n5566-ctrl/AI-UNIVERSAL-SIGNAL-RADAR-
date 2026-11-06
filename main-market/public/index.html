@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#07110d">
   <title>UNIVERSAL RADAR · MAIN MARKET</title>
-  <link rel="stylesheet" href="/styles.css?v=20261102-v5">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/styles.css?v=20261106-android-v1">
 </head>
 <body>
   <main class="shell">
@@ -15,11 +14,17 @@
       <div id="connection" class="status offline"><span></span> OFFLINE</div>
     </header>
 
+    <section id="pairing" class="pairing" hidden>
+      <b>เชื่อมต่ออุปกรณ์</b>
+      <p id="pairingMessage">กรอกรหัสเชื่อมต่ออุปกรณ์เพื่อเริ่มใช้งาน</p>
+      <input id="clientToken" type="password" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="รหัสเชื่อมต่ออุปกรณ์">
+      <button id="connectDevice" class="primary" type="button">เชื่อมต่อเซิร์ฟเวอร์</button>
+    </section>
+
     <section class="toolbar">
       <label class="pair-field"><span>คู่เงิน · MANUAL</span>
         <select id="pairSelect" disabled>
-          <option>AUD/USD</option><option selected>EUR/USD</option><option>EUR/GBP</option>
-          <option>GBP/JPY</option><option>EUR/JPY</option><option>GBP/USD</option>
+          <option selected>EUR/USD</option>
         </select>
       </label>
       <div class="time-field"><span>TIMEFRAME</span><b>M1 <small>· 1 นาที</small></b></div>
@@ -27,7 +32,7 @@
 
     <section id="feed" class="feed">
       <div class="feed-title"><span id="feedDot"></span><b id="feedTitle">กำลังตรวจสอบการเชื่อมต่อ</b></div>
-      <p id="apiMessage" role="status" aria-live="polite">กำลังยืนยัน Telegram และเตรียมข้อมูลตลาด</p>
+      <p id="apiMessage" role="status" aria-live="polite">รอการเชื่อมต่ออุปกรณ์</p>
       <div class="feed-meta"><span id="restStatus">REST · —</span><span id="streamStatus">STREAM · —</span><span id="candleCount">CANDLES · 0/60</span></div>
     </section>
 
@@ -71,6 +76,6 @@
     <p id="testStatus" class="test-status">แตะปุ่มทดสอบเพื่อตรวจอุปกรณ์</p>
     <footer><b>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</b><span id="updatedAt">ยังไม่มีข้อมูล</span></footer>
   </main>
-  <script src="/app.js?v=20261102-v5"></script>
+  <script src="/app.js?v=20261106-android-v1"></script>
 </body>
 </html>
