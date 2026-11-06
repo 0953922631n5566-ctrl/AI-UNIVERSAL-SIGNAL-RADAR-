@@ -42,7 +42,6 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
   const out = await engines.evaluateAllEngines(sidewayFixture());
   const range = out.engineResults.find(x => x.engine === "range_bound_swing");
   const candle = out.engineResults.find(x => x.engine === "candlestick_pattern");
-  console.log("ENGINE_DIAG", JSON.stringify({ signal: out.signal, score: out.score, reason: out.reason, summary: out.engineSummary, results: out.engineResults }));
   assert.equal(range.direction, "CALL");
   assert.equal(candle.direction, "CALL");
   assert.equal(out.signal, "CALL", JSON.stringify(out.engineResults));
