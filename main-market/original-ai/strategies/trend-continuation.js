@@ -1,6 +1,6 @@
 'use strict';
 
-const MIN_CONTINUATION_ADX = 22;
+const MIN_CONTINUATION_ADX = 18;
 const MIN_CONTINUATION_SCORE = 60;
 
 function evaluateTrendContinuation(x, direction) {
