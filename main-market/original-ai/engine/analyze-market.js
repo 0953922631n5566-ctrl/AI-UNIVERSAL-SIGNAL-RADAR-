@@ -10,8 +10,6 @@ function prepareMarket(candles) {
   return { context, candidate };
 }
 
-// Historical Analogue is metadata only. It is deliberately not passed into
-// decide(), so it cannot alter the Original AI's signal, score, or safety gates.
 function buildAssistantMetadata(assistant, signal) {
   if (!assistant) return null;
   const historical = assistant.historicalDirection || 'INSUFFICIENT_SAMPLE';
@@ -19,14 +17,25 @@ function buildAssistantMetadata(assistant, signal) {
     ['CALL', 'PUT'].includes(historical);
   return {
     ...assistant,
-    role: 'ADVISORY_ONLY',
+    role: 'ADVISORY_AND_SAFETY_CHECK',
     alignment: comparable ? (signal === historical ? 'AGREES' : 'CONFLICTS') : 'NO_COMPARISON'
   };
 }
 
 function finalizeMarket(prepared, assistant = null) {
-  const context = prepared?.context || {};
+  const originalContext = prepared?.context || {};
   const candidate = prepared?.candidate || null;
+  // Only a validated, sufficiently sampled historical result enters the Original AI.
+  // The Decision Engine can use it as a conservative conflict check; it cannot generate signals.
+  const context = {
+    ...originalContext,
+    historicalAssistant: assistant?.decisionReady === true ? {
+      decisionReady: true,
+      direction: assistant.historicalDirection,
+      directionalSharePercent: assistant.directionalSharePercent,
+      analogueCount: assistant.analogueCount
+    } : null
+  };
   const decision = decide(context, candidate);
   const assistantMetadata = buildAssistantMetadata(assistant, decision.signal);
   return {
@@ -35,7 +44,6 @@ function finalizeMarket(prepared, assistant = null) {
     indicators: context.indicators || null,
     regimeConfidence: context.confidence || 0,
     assistant: assistantMetadata,
-    // Compatibility diagnostics for existing API/tests; never used to decide the signal.
     assistantAlignment: assistantMetadata?.alignment || 'NO_COMPARISON',
     assistantHistoricalDirection: assistantMetadata?.historicalDirection || 'INSUFFICIENT_SAMPLE'
   };
