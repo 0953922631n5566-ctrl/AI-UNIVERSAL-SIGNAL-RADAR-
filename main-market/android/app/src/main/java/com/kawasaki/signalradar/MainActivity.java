@@ -28,12 +28,18 @@ public final class MainActivity extends Activity {
     private void startRadarService(){Intent i=new Intent(this,RadarPollingService.class);if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O)startForegroundService(i);else startService(i);}
     private void createNotificationChannels(){
         if(Build.VERSION.SDK_INT<26)return;NotificationManager m=getSystemService(NotificationManager.class);if(m==null)return;
-        createChannel(m,"signal_sv",true,true);createChannel(m,"signal_s",true,false);createChannel(m,"signal_v",false,true);createChannel(m,"signal_silent",false,false);
+        createChannel(m,"signal_sv_v2",true,true);createChannel(m,"signal_s_v2",true,false);
+        createChannel(m,"signal_v_v2",false,true);createChannel(m,"signal_silent_v2",false,false);
     }
     private void createChannel(NotificationManager m,String id,boolean sound,boolean vibration){
-        if(m.getNotificationChannel(id)!=null)return;NotificationChannel c=new NotificationChannel(id,"Main Market "+id,NotificationManager.IMPORTANCE_HIGH);
-        c.setDescription("CALL and PUT alerts. Sound and vibration follow in-app settings.");c.enableVibration(vibration);if(vibration)c.setVibrationPattern(new long[]{0,220,90,220});
-        if(sound)c.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());else c.setSound(null,null);m.createNotificationChannel(c);
+        if(m.getNotificationChannel(id)!=null)return;
+        NotificationChannel c=new NotificationChannel(id,"Main Market "+id,NotificationManager.IMPORTANCE_HIGH);
+        c.setDescription("CALL and PUT alerts with native sound and vibration preferences.");
+        c.enableVibration(vibration);
+        if(vibration)c.setVibrationPattern(new long[]{0,220,90,220});
+        if(sound)c.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build());
+        else c.setSound(null,null);
+        m.createNotificationChannel(c);
     }
     public final class RadarBridge{
         @JavascriptInterface public String getServerUrl(){return DEFAULT_SERVER;}
