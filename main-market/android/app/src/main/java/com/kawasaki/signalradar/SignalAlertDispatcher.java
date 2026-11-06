@@ -14,7 +14,8 @@ import android.util.Log;
 public final class SignalAlertDispatcher {
     private static final Object LOCK = new Object();
     private static final String PREFS = "radar_alert_dedupe";
-    private static final long DEDUPE_WINDOW_MS = 10 * 60 * 1000L;
+    private static final long SAME_ALERT_DEDUPE_MS = 10 * 60 * 1000L;
+    private static final long GLOBAL_COOLDOWN_MS = 60 * 1000L;
 
     private SignalAlertDispatcher() {}
 
@@ -29,7 +30,10 @@ public final class SignalAlertDispatcher {
             String previous = seen.getString("last_alert_id", "");
             long previousAt = seen.getLong("last_alert_at", 0L);
             long now = System.currentTimeMillis();
-            if (alertId.equals(previous) && now - previousAt < DEDUPE_WINDOW_MS) return false;
+            if (alertId.equals(previous) && now - previousAt < SAME_ALERT_DEDUPE_MS) return false;
+            // FCM and foreground polling share this persistent gate: only one
+            // CALL/PUT feedback event is allowed in any 60-second candle cycle.
+            if (previousAt > 0L && now - previousAt < GLOBAL_COOLDOWN_MS) return false;
             if (!seen.edit().putString("last_alert_id", alertId).putLong("last_alert_at", now).commit()) {
                 Log.w("RadarAlert", "Could not persist alert dedupe marker");
             }
