@@ -31,6 +31,6 @@ $("sound").addEventListener("change",()=>setPref("soundEnabled",$("sound").check
 $("testSound").onclick=()=>{try{bridge?.testSound?.();$("state").textContent="ทดสอบเสียงแล้ว"}catch(e){$("state").textContent=e.message}};
 $("testVibrate").onclick=()=>{try{bridge?.testVibration?.();$("state").textContent="ทดสอบสั่นแล้ว"}catch(e){$("state").textContent=e.message}};
 $("system").onclick=toggleSystem;$("connect").onclick=async()=>{token=$("token").value.trim();if(await connect())await refresh()};
-$("saveUrl").onclick=()=>{let v=$("serverUrl").value.trim().replace(/\/+$/,"");if(!/^https:\/\//i.test(v)){ $("urlStatus").textContent="ต้องใช้ HTTPS URL";return}bridge?.saveServerUrl?.(v);base=v;$("urlStatus").textContent="บันทึกแล้ว · กำลังเชื่อมต่อ";session="";refresh()};
+$("saveUrl").onclick=()=>{let v=$("serverUrl").value.trim().replace(/\/+$/,"");if(!/^https:\/\//i.test(v)){ $("urlStatus").textContent="ต้องใช้ HTTPS URL";return}bridge?.saveServerUrl?.(v);$("urlStatus").textContent="บันทึกแล้ว · กำลังเปิดเซิร์ฟเวอร์ใหม่";session="";location.href=v+"/control"};
 (async()=>{const saved=bridge?.getServerUrl?.();if(saved)base=saved;$("serverUrl").value=base;token=bridge?.getClientToken?.()||"";syncPrefs();if(token)await connect();else $("auth").classList.add("show");await refresh();setInterval(refresh,5000)})();
 </script></body></html>
