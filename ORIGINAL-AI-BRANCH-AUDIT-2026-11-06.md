@@ -100,3 +100,18 @@ Continue with a read-only runtime trace of `feature/original-ai-historical-assis
 - Fixed compatibility by exposing assistant alignment/direction as output diagnostics only; no assistant values are passed into the Original Decision Engine.
 - Main Market Checks run #233 (`42164410306`) completed **success** on commit `3a05d984500cbbf3a1ba3022ff06653a9db69d01`.
 - Render deployment, live Twelve Data stream, APK build/install, and physical-device behavior remain **NOT TESTED** in this audit follow-up.
+
+
+## 2026-11-06 — Historical assistant decision-support integration
+
+- Branch: `main-market`; active runtime trace:
+  `src/analyzer.js` → `historical-analogue-worker.js` / `historical-analogue.js` in parallel with Original `prepareMarket` → validated assistant context → `finalizeMarket` → active `decision-engine.js`.
+- The historical assistant is now more than display metadata: it can provide a secondary conflict check inside the Original AI decision context, but it is not allowed to originate or reverse a directional signal.
+- Eligibility requires a fresh/ready simulation, a directional result (CALL/PUT), at least 53% directional share, and at least 12 matched analogues. Insufficient/unavailable evidence is ignored by the decision engine.
+- Conflict policy: if the assistant direction opposes the Original AI candidate and the candidate score is below 80, return STANDBY with `assistantCheck=CONFLICT_BLOCK`. At score 80 or higher, preserve the Original AI candidate and mark `STRONG_ORIGINAL_OVERRIDE`. Agreement preserves the Original AI signal and marks `CONFIRMED`. Historical evidence never turns STANDBY into CALL/PUT and never changes CALL to PUT or PUT to CALL.
+- Original AI's existing score floor (60), volatility gate, and support/resistance checks remain unchanged.
+- Changed files: `main-market/src/analyzer.js`, `main-market/original-ai/engine/analyze-market.js`, `main-market/original-ai/engine/decision-engine.js`, `main-market/test/analyzer.test.js`, `main-market/test/rest-fallback.test.js`.
+- Commits: `758193b3feb27bf1d21cd1ef73a68fc536ea4c0c`, `3c7aa80080a956018c864050d87108ea22b007e2`, `8fda91959cc6db2f7d12cb45bdee152b7802c928`, `48c82a7aff220ada7f648a4d10385e8a0b975444`, `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200`.
+- CI run #237 failed solely on a stale role-label assertion in `rest-fallback.test.js`; this was corrected in the last listed commit. Run #238 is pending final verification at the time of this audit entry.
+- Important limitation: the historical analogue share is not a calibrated win probability. The 53%/12-match eligibility and score-80 override are provisional safety thresholds; they require walk-forward/out-of-sample backtesting before treating them as optimal.
+- Render deploy, live market feed, APK build/install, and physical-device validation are NOT TESTED in this change.
