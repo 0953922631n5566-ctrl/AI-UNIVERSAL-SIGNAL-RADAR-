@@ -30,10 +30,10 @@ test("Original AI data warm-up remains 200 closed M1 candles", () => {
   assert.equal(MAX_CANDLES, 220);
 });
 
-test("Original AI is the sole decision path and returns the direct engine result", () => {
+test("Live analyzer routes through async ten-engine dispatcher", async () => {
   const candles = history();
   const direct = analyzeOriginal(candles.slice(-MIN_CLOSED_CANDLES));
-  const routed = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
+  const routed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
   assert.equal(routed.signal, direct.signal);
   assert.equal(routed.regime, direct.regime);
   assert.equal(routed.strategy, direct.strategy);
@@ -93,31 +93,31 @@ test("Volatility safety gate still blocks extreme and unsupported high volatilit
   assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2.81 } }, candidate).signal, "STANDBY");
 });
 
-test("Missing, malformed, stale or unapproved source data fails closed", () => {
+test("Missing, malformed, stale or unapproved source data fails closed", async () => {
   const candles = history();
-  assert.equal(analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false }).signal, "STANDBY");
+  assert.equal((await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false })).signal, "STANDBY");
   const malformed = history();
   malformed.at(-1).high = malformed.at(-1).low - 0.1;
-  assert.equal(analyzeMarket(malformed, { tickAgeSeconds: 0 }).signal, "STANDBY");
+  assert.equal((await analyzeMarket(malformed, { tickAgeSeconds: 0 })).signal, "STANDBY");
   const stale = history();
   stale.forEach(c => { c.epoch -= 600; });
-  assert.equal(analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 }).signal, "STANDBY");
+  assert.equal((await analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 })).signal, "STANDBY");
 });
 
-test("Fresh REST fallback is accepted only when explicitly enabled", () => {
+test("Fresh REST fallback is accepted only when explicitly enabled", async () => {
   const candles = history();
-  const allowed = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: true });
+  const allowed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: true });
   assert.equal(allowed.dataMode, "REST_FALLBACK");
   assert.equal(allowed.livePriceReady, true);
-  const blocked = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
+  const blocked = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
   assert.equal(blocked.signal, "STANDBY");
 });
 
-test("Current live candle is excluded from Original AI closed-candle window", () => {
+test("Current live candle is excluded from Original AI closed-candle window", async () => {
   const candles = history();
   const liveEpoch = Math.floor(Date.now() / 60000) * 60;
   candles.push({ ...candles.at(-1), epoch: liveEpoch, live: true });
-  const result = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
+  const result = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
   assert.equal(result.closedCandleCount, 220);
   assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
 });
