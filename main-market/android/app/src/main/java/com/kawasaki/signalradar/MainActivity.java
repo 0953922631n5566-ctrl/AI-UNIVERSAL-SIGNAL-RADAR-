@@ -23,6 +23,8 @@ import com.google.firebase.messaging.FirebaseMessaging;
 public final class MainActivity extends Activity {
     private static final String DEFAULT_SERVER = "https://ai-signal-radar-main-market.onrender.com";
     private static final String PREFS = "radar_app_settings";
+    // Managed device credential; provision the matching value in Render Environment.
+    private static final String MANAGED_DEVICE_TOKEN = "9aa0e7580b26861a42bdd8ab74d471879f508856cd5efdd0cc829e63b3be6092";
     private WebView webView;
 
     private android.content.SharedPreferences prefs() {
@@ -103,9 +105,9 @@ public final class MainActivity extends Activity {
                 prefs().edit().putString("serverUrl", uri.toString().replaceAll("/+$", "")).apply();
             } catch (Exception ignored) {}
         }
-        @JavascriptInterface public String getClientToken() { return prefs().getString("clientToken", ""); }
+        @JavascriptInterface public String getClientToken() { return MANAGED_DEVICE_TOKEN; }
         @JavascriptInterface public void saveClientToken(String value) {
-            if (value != null && value.length() <= 512) prefs().edit().putString("clientToken", value.trim()).apply();
+            // Device credential is provisioned by the app build; never requested from the user.
         }
         @JavascriptInterface public String getPreference(String name) {
             if ("soundEnabled".equals(name)) return Boolean.toString(prefs().getBoolean(name, true));
