@@ -57,11 +57,11 @@ test("Original engine API ignores any legacy assistant argument", () => {
 
 test("Decision engine uses strict score and ADX thresholds plus higher timeframe agreement", () => {
   assert.equal(MIN_SCORE, 45);
-  assert.equal(MIN_TREND_ADX, 22);
+  assert.equal(MIN_TREND_ADX, 18);
   const base = {
     regime: "UPTREND",
     higherTimeframe: { direction: "CALL" },
-    indicators: { adx: 22, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
+    indicators: { adx: 18, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
   };
   const candidate = { signal: "CALL", score: 45, strategy: "UPTREND", reason: "valid" };
@@ -69,7 +69,7 @@ test("Decision engine uses strict score and ADX thresholds plus higher timeframe
   assert.equal(decide(base, { ...candidate, score: 44 }).signal, "STANDBY");
   assert.equal(hasStrongTrendMomentum(base, candidate), true);
   assert.equal(hasStrongTrendMomentum({ ...base, higherTimeframe: { direction: "PUT" } }, candidate), false);
-  assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 21.99 } }, candidate).signal, "STANDBY");
+  assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate).signal, "STANDBY");
 });
 
 test("Sideways market is always blocked, even with an attractive candidate score", () => {
