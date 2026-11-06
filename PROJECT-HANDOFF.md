@@ -1483,3 +1483,40 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - APK SHA-256: 2f98d81da23dd300f9b6a821c3050a9e0065cccd4f0f6aa179397dc1378d90a8.
 - Render deploy for control.html change commit 61f95a70f3e17526a3e6d6aeeb97587aaa27d3b4 reached LIVE. Documentation-only deploy commit 4e880a3c972401e6e6a844b7cd0ea9526e4b379e also reached LIVE. The final 88f3a791 commit only changes Android service restart policy; it does not change backend runtime logic.
 - No Xiaomi 11T physical-device verification has been performed. Do not claim measured zero battery/network usage; source lifecycle and CI build are verified only.
+
+
+## 2026-11-06 — Signal Radar PRO Android v1.11.0 overlay upgrade
+
+### Source baseline and isolation
+- Confirmed the correct v1.10.0 Android source is on `main-market`, not the legacy OCR project and not the experimental Kotlin background-alert branch.
+- Baseline app package: `com.kawasaki.signalradar`; `versionCode=12`, `versionName=1.10.0`; Firebase Messaging dependency and `google-services.json` are present.
+- Created isolated implementation branch `feat/signal-radar-pro-v1.11.0` and PR #27 targeting `main-market`: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/27
+- The Android/OCR `main` branch was not changed.
+
+### v1.11.0 implementation
+- Version is now `versionCode=13`, `versionName=1.11.0`.
+- Added `SYSTEM_ALERT_WINDOW` permission and a dashboard control that checks permission and opens Android's Display over other apps settings.
+- Added `SignalOverlayController`: large neon green CALL / neon red PUT banner, directional glyph, animated border/glow, auto-dismiss, and a tap-to-dismiss control. It uses `TYPE_APPLICATION_OVERLAY` on Android 8+ and the legacy overlay window type on earlier supported Android versions.
+- Enhanced the in-app signal dialog with saturated direction-specific color backgrounds and large text.
+- Added `SignalAlertDispatcher` to deduplicate by the shared alert ID across FCM and polling, then play direction-specific notification tones and distinct CALL/PUT vibration waveforms according to the user's local sound/vibration toggles.
+- FCM and polling show the in-app dialog when the activity is visible; otherwise they use the floating overlay when permission is granted. A silent high-importance notification is retained only as a fallback when the app is backgrounded and overlay permission is unavailable.
+- STANDBY is ignored by the signal dispatcher and does not create a signal banner, sound, haptic, or fallback signal notification.
+- Existing Firebase Messaging dependency, FCM push service, Twelve Data-backed Main Market server feed, background notification channel and dashboard Master ON/OFF bridge are preserved.
+- Master OFF persists locally, unsubscribes the `main-market-signals` FCM topic, dismisses any overlay, stops the polling foreground service, aborts the active HTTP connection, shuts down its executor, releases the wake lock and removes its foreground notification. FCM messages received after OFF are discarded.
+- The local Android v1.10.0 client uses a 15-second HTTP poll plus FCM; it does not own a Twelve Data WebSocket. The Twelve Data Streaming connection is on the shared Render backend. Master OFF stops this device's monitoring and FCM subscription, but does not stop the shared backend stream for other clients. Do not claim otherwise without a per-device backend control API.
+- Android does not allow an app to override the user's Do Not Disturb / notification policy without special access. The custom audio/haptic path respects the app toggles and device audio/haptic availability.
+
+### Build and integrity verification
+- APK workflow run `42227500665` completed successfully on application code commit `535b9069deff33a46d9115b2c011a828a3d7b93b`.
+- Gradle reported `BUILD SUCCESSFUL`; `apksigner verify --verbose` passed (JAR and APK Signature Scheme v2 true).
+- SHA-256: `10c307118d755abec6aa96cd3fd970e4801399d79623ec510e7af7d41880a923`.
+- GitHub artifact ID `13506447052`, artifact name `Signal-Radar-PRO-v1.11.0-APK`; artifact expires 2026-12-06.
+- The built APK was retrieved and the extracted APK's SHA-256 was independently recomputed in the working container and matched the workflow checksum.
+- Main Market Checks run `42227500636` passed. Main Market v2 Rewrite Checks initially failed only because its workflow still searched for the removed `PARALLEL_WORKER_THREAD` string while current `server.js` explicitly reports `historicalAnalogueWorker: "BYPASSED"`. Updated the workflow assertion to match the current server architecture in commit `bd3fafb8dde18b7d20f329062dc44607abd70ad5`; wait for its rerun before treating all CI as green.
+- PR #27 is open and not yet merged. Render production has not yet been redeployed from this branch.
+
+### Device validation still required
+- On the Xiaomi 11T / Android 14, install the APK, open the Floating Signal Overlay section and grant Display over other apps.
+- Verify CALL/PUT while the app is foregrounded and while a separate trading app is foregrounded; verify sound and haptics with both toggles enabled and disabled.
+- Verify Master OFF stops the local polling service, foreground notification, wake lock and FCM topic subscription; verify Master ON restarts monitoring.
+- CI build/signature verification does not prove real-device overlay permission behavior, physical sound/haptics, or battery usage. Do not describe those as device-tested until the handset test is performed.
