@@ -53,3 +53,16 @@ test("trend regime classification uses M1 ADX, EMA alignment and DI independent 
   assert.equal(classifyTrendRegime({ ...bear, higherTimeframe: { direction: "CALL" } }).regime, "DOWNTREND");
   assert.equal(classifyTrendRegime({ ...bull, adx: 17.99 }), null);
 });
+
+test("SIDEWAY permits only a multi-engine Range-Bound Swing candidate with safety approval", () => {
+  const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "UNCLEAR" },
+    indicators: { volatilityRatio: 1, nearSupport: true, nearResistance: false, rsi: 40 } };
+  const candidate = { signal: "CALL", score: 68, confidence: 80, strategy: "RANGE_BOUND_SWING",
+    engineResults: [
+      { engine: "range_bound_swing", direction: "CALL", validity: true },
+      { engine: "safety_noise_guard", direction: "NO_SIGNAL", validity: true, reason: "PASS: safe" }
+    ] };
+  assert.equal(decide(ctx, candidate).signal, "CALL");
+  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2 } }, candidate).signal, "STANDBY");
+  assert.equal(decide(ctx, { ...candidate, engineResults: candidate.engineResults.slice(0, 1) }).signal, "STANDBY");
+});
