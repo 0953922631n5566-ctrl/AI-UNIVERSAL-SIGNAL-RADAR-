@@ -19,6 +19,9 @@ import com.google.firebase.messaging.RemoteMessage;
 
 public final class RadarPushService extends FirebaseMessagingService {
     @Override public void onMessageReceived(@NonNull RemoteMessage message) {
+        if(!getSharedPreferences("radar_app_settings",Context.MODE_PRIVATE).getBoolean("systemEnabled",true)){
+            android.util.Log.i("RadarFCM","Dropped signal while Master OFF");return;
+        }
         String signal = message.getData().get("signal");
         String alertId = message.getData().get("alertId");
         if (!"CALL".equals(signal) && !"PUT".equals(signal)) return;
