@@ -1639,3 +1639,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Android source, compact top-pinned Build 16 banner, `FLAG_NOT_TOUCHABLE`, Master ON/OFF, audio/haptics, APK version/signature and Build 16 artifact were not modified or rebuilt in this backend-only change.
 - Render service and environment secrets were not edited; auto-deploy is expected from the main-market branch push. Verify the resulting deploy and live engine diagnostics before treating this implementation as deployed.
 - Signal release remains rule-based/manual-only; `signalReleaseValidated=false` and out-of-sample validation remains outstanding. The 10 engines are heuristic strategy modules, not evidence of predictive edge.
+
+
+### Final verification — 2026-11-06 17:12 UTC
+- Final backend/test source commit: `7784e987452ea1bb4c267a47ade399f3a3cb8c1d`.
+- Render deploy `dep-dbn0kcvbf4ts738dfi7g` for the final source commit reached `live`; service auto-deploy remains enabled on branch `main-market`.
+- Render build ran `npm test`: 52 tests passed, 0 failed. The suite includes the common ten-engine contract, SIDEWAY Range-Bound Swing consensus, Safety Noise Guard stale-data VETO, missing-volume behavior, Promise.allSettled failure isolation, and the guarded Original AI SIDEWAY decision gate.
+- Live `/health` independently returned `ok:true`, version `2026-11-06-multi-engine-v1`, `decisionEngine=TEN_ENGINE_MULTI_STRATEGY`, `engines=10`, `dispatcher=PROMISE_ALL_SETTLED`, and `safetyNoiseGuardVeto=true`. Android client authentication and Firebase Admin were configured; Twelve Data key pool was 10/10 available.
+- Live `/api/public/signal` returned 10 per-engine result records and `engineSummary={total:10,fulfilled:10,failed:0,safetyVeto:false}`. The sampled state was EUR/USD STANDBY / UPTREND, reason `No directional engine consensus`, score 0, ADX 24.55, RSI 39.81, MACD histogram -0.00003359, tick age 1s, API ONLINE/STREAMING, and 200 closed M1 candles. No engine had a qualified directional setup in that snapshot; this is expected fail-closed behavior, not a deployment failure.
+- The sampled snapshot did not produce CALL/PUT, so it does not verify an actual FCM send or on-device banner arrival. The FCM pipeline is source-preserved; physical Android/FCM end-to-end validation remains outstanding.
+- Android Build 16 source/artifact was not modified or rebuilt. Compact top-pinned overlay, `FLAG_NOT_TOUCHABLE`, Master ON/OFF, FCM high-priority data-only delivery, 55-second Android cooldown and same-alert-ID dedupe remain unchanged.
+- Server timing remains 3–5 seconds before M1 close with 250ms checks, <=5-second tick freshness, and 55-second dispatch cooldown. This was verified by source preservation and the timing regression tests; exact handset delivery latency is not guaranteed.
+- The system remains rule-based/manual-only: `signalReleaseValidated=false`; no out-of-sample or profitability validation is implied by the multi-engine architecture or unit tests.
