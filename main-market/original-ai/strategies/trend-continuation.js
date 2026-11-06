@@ -1,12 +1,15 @@
 'use strict';
 
 const MIN_CONTINUATION_ADX = 18;
-const MIN_CONTINUATION_SCORE = 60;
+const MIN_CONTINUATION_SCORE = 45;
 
 function evaluateTrendContinuation(x, direction) {
   const i = x?.indicators, c = x?.latest, p = x?.candles?.at(-2);
   const call = direction === 'CALL', signal = call ? 'CALL' : 'PUT';
   if (!i || !c || !p) return { signal: 'STANDBY', score: 0, reason: 'Missing trend context' };
+  if (!Number.isFinite(i.adx) || i.adx < MIN_CONTINUATION_ADX) {
+    return { signal: 'STANDBY', score: 0, reason: `Trend strength below ADX ${MIN_CONTINUATION_ADX}` };
+  }
 
   const range = Math.max(c.high - c.low, 1e-12);
   const body = call ? (c.close - c.open) / range : (c.open - c.close) / range;
@@ -24,8 +27,9 @@ function evaluateTrendContinuation(x, direction) {
     ? c.close > i.ema9 && c.close > c.open && c.close > p.close
     : c.close < i.ema9 && c.close < c.open && c.close < p.close;
   const rsiAligned = call ? i.rsi >= 45 && i.rsi <= 72 : i.rsi >= 28 && i.rsi <= 55;
-  const evidence = [i.adx >= MIN_CONTINUATION_ADX, diAligned, rsiAligned, macdAligned, candleFlow, pullback && reclaim];
-  const score = evidence.filter(Boolean).length * 20;
+  // Directional evidence is weighted to a 100-point scale; ADX remains an independent hard gate.
+  const score = (diAligned ? 10 : 0) + (rsiAligned ? 20 : 0) +
+    (macdAligned ? 10 : 0) + (candleFlow ? 25 : 0) + (pullback && reclaim ? 35 : 0);
   const continuation = momentumAligned && candleFlow;
   if (score >= MIN_CONTINUATION_SCORE && (continuation || pullback && reclaim)) {
     return {
