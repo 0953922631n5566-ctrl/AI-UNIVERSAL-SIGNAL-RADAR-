@@ -510,7 +510,6 @@ async function select(symbolValue) {
 
 function stop(clearSignal = true) {
   monitoring = false;
-  httpLeaseUntil = 0;
   clearTimers();
   closeUpstream();
   const feed = feeds.get(selectedSymbol);
