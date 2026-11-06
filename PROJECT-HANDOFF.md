@@ -1231,3 +1231,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Fixed REST fallback selection: when 200 closed M1 candles are loaded and the Streaming tick is absent/stale, the analyzer may use REST candles only while the latest closed candle remains within the configured 180-second freshness window. This avoids waiting for the Streaming status enum to become ERROR/TIMEOUT before evaluating valid REST history.
 - UI now discloses that output is a rule-based manual candidate and has not completed independent out-of-sample validation. No profitability claim is made; broker execution remains disabled.
 - Android version bumped to 1.3.0 / versionCode 4 to trigger a fresh APK build. APK build, test results, Render deployment, and device test remain pending until verified.
+
+
+## 2026-11-06 — APK 1.3.0 and live Main Market verification
+
+- APK: GitHub Actions Android APK Build #65, run `42184754823`, job `127782329688`, source commit `242c90893e9398486b084d2b699e641420cb4648`, artifact ID `13486902746` (`Kawasaki-Signal-Radar-APK`). Build completed successfully.
+- Downloaded and extracted the artifact ZIP. Actual `app-debug.apk` size: 2,579,264 bytes. SHA-256: `23083d7f8b219028fe1f5b9d74025883f217e793f293c867918c77249cc2cb87`. Android version: 1.3.0 / versionCode 4; package `com.kawasaki.signalradar`.
+- Android MainActivity opens `/signal`; this route was updated to a compact dark UI with green CALL, red PUT, gray STANDBY, price, market regime, closed-candle count, data age, next-candle/signal-expiry timers, reason/evidence and explicit rule-based/manual-only validation disclosure.
+- Latest Render deploy at this checkpoint: `dep-dbmokrrfnrrc73a0fs30`, commit `548e0dd2f48e5395818a566721064dd0639d0c18`, status LIVE. Render postinstall: 36 tests passed, 0 failed; build successful.
+- Live `/health` verified `ok:true`, 10/10 Twelve Data keys available, EUR/USD 1-minute, 200-candle history, Streaming not required for signal calculation, REST fallback enabled, `signalRuntimeLock:false`, and status `RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED`.
+- Live `/api/public/signal` verified real streaming data and 200 closed candles. At the check time Original AI output was STANDBY, regime UNCLEAR, reason `Conflicting or weak market evidence`; this is a genuine market decision, not the removed technical release lock.
+- Browser test of `/signal` confirmed API ONLINE, price 1.11836, 201/200 closed candles, regime UNCLEAR, and the gray STANDBY panel with the real analyzer reason. This is a server/browser test, not a physical Xiaomi 11T device test.
+- Independent out-of-sample validation remains incomplete. Signals are transparent rule-based manual decision support, not a proven profitable strategy. No broker execution is enabled. Device installation and on-device alert behavior remain to be tested.
