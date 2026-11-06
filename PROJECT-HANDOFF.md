@@ -1268,3 +1268,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Required external step: set Render environment variable `FIREBASE_SERVICE_ACCOUNT_JSON` to the Firebase Admin SDK service-account JSON in Render Dashboard (Environment) and redeploy. Do not commit or paste private key into GitHub. Once set, verify startup log `firebaseAdminConfigured: true` and a successful `[push] signal notification sent` log for a genuine new CALL/PUT.
 - After setting server credentials, install APK 1.4.0, grant Android notification permission, open it once to subscribe to topic, then test background delivery. Xiaomi HyperOS battery/autostart restrictions may delay notifications; app force-stop/offline conditions prevent guaranteed delivery.
 - Physical device notification delivery has not yet been tested. No floating window or screen-overlay permission is used.
+
+
+## 2026-11-06 — APK 1.5.0 control dashboard implementation
+
+- Added `/control` route and `public/control.html` to match the requested control-screen layout: per-slot API status list (no credential values), Future Projection panel explicitly marked as simulation-only/not market data, SYSTEM ON/OFF, sound and vibration toggles with test buttons, editable Render URL, and background-monitoring note.
+- `src/twelve-data-pool.js` now exposes safe `keyStates` per configured slot: ACTIVE, READY or COOLDOWN, available flag, cooldown remaining and failure count. No API key material is exposed. Public signal response now includes sanitized `apiPool` state.
+- Android MainActivity now opens `/control`, supports saved HTTPS server URL and saved device token via a JavaScript bridge, and exposes persisted sound/vibration preferences plus test sound/vibration actions.
+- Added `RadarPushService` and registered it in AndroidManifest. It displays only CALL/PUT, deduplicates by alertId, colors notifications green/red, and selects one of four Android notification channels based on sound/vibration preferences.
+- Added `src/push-notifications-v2.js` and switched server import to data-only high-priority FCM. This is required so Android service can respect the in-app sound/vibration toggles instead of the OS automatically displaying a fixed notification payload.
+- Android app version bumped to 1.5.0 / versionCode 6. Workflow should run on `main-market` changes under `main-market/android/**`.
+- Device control actions still require the configured `ANDROID_CLIENT_TOKEN`; first launch prompts once for this access token if none is saved. This avoids exposing an unauthenticated public start/stop endpoint.
+- Future Projection card currently states that no verified projection is available; it does not fabricate OHLC values. Hooking up the existing Historical Simulation output remains separate work.
+- Pending verification: Render deploy, unit tests, Android build artifact, install/device UI, notification permission and background CALL/PUT delivery. Do not claim these until verified.
+- Firebase Admin backend still requires Render `FIREBASE_SERVICE_ACCOUNT_JSON`. Without it, push delivery is not available regardless of APK build.
