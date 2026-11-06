@@ -54,16 +54,9 @@ export async function sendSignalPush({ symbol, signal, alertId, price, reason })
         price: Number.isFinite(Number(price)) ? String(price) : "",
         reason: String(reason || "").slice(0, 300)
       },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "market_signal_alerts_v2",
-          icon: "ic_stat_signal",
-          color: presentation.color,
-          tag: safeAlertId,
-          priority: "high"
-        }
-      }
+      // Keep this a data-only FCM message so RadarPushService receives it
+      // in the background and can honor the app's sound/vibration settings.
+      android: { priority: "high" }
     });
     console.info("[push] signal data message sent", {
       signal,
