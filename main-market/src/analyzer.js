@@ -2,8 +2,7 @@ import { createRequire } from "node:module";
 import { MIN_CLOSED_CANDLES, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS } from "./config.js";
 
 const require = createRequire(import.meta.url);
-const { prepareMarket: prepareOriginalMarket, finalizeMarket: finalizeOriginalMarket } =
-  require("../original-ai/engine/analyze-market.js");
+const { analyzeMarketMulti } = require("../original-ai/engine/analyze-market.js");
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -43,7 +42,7 @@ function sourceGate(candles, options) {
  * source/data-quality gate -> market perception -> regime/strategy -> decision engine.
  * Historical analogue workers are intentionally not imported, started, awaited, or consulted.
  */
-export function analyzeMarket(candles, options = {}) {
+export async function analyzeMarket(candles, options = {}) {
   const gate = sourceGate(candles, options);
   if (!gate.ready) {
     return {
@@ -55,8 +54,9 @@ export function analyzeMarket(candles, options = {}) {
     };
   }
 
-  const prepared = prepareOriginalMarket(gate.closed.slice(-MIN_CLOSED_CANDLES));
-  const decision = finalizeOriginalMarket(prepared);
+  const decision = await analyzeMarketMulti(gate.closed.slice(-MIN_CLOSED_CANDLES), {
+    now, tickAgeSeconds: options.tickAgeSeconds, allowRestFallback: rest, ageSeconds
+  });
   return {
     ...decision,
     lastCandleEpoch: gate.lastCandleEpoch,
