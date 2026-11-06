@@ -19,19 +19,21 @@ jobs:
           cache-dependency-path: main-market/package.json
       - name: Install and run tests
         run: cd main-market && npm install
-      - name: Verify Telegram Mini App cross-origin authentication wiring
+      - name: Verify direct Android client authentication wiring
         run: |
           cd main-market
-          grep -Fq 'const API_ORIGIN="https://ai-signal-radar-main-market.onrender.com";' public/app.js
-          test "$(grep -Fc 'credentials:"include"' public/app.js)" -ge 1
-          grep -Fq 'allowedOrigins.has(origin)' server.js
-          grep -Fq 'https://ai-universal-signal-radar.onrender.com' server.js
-          grep -Fq 'Access-Control-Allow-Credentials", "true"' server.js
+          grep -Fq 'const API_ORIGIN=window.location.origin;' public/app.js
+          grep -Fq 'ANDROID_CLIENT_TOKEN' server.js
+          grep -Fq 'requireDeviceSession' server.js
+          grep -Fq 'Access-Control-Allow-Headers' server.js
+          grep -Fq 'AndroidBridge' public/app.js
+          grep -Fq 'androidClientAuthConfigured' server.js
+          grep -Fq 'ORIGINAL_AI' server.js
+          grep -Fq 'PARALLEL_WORKER_THREAD' server.js
           grep -Fq 'export const MIN_CLOSED_CANDLES = 200;' src/config.js
           grep -Fq 'export const HISTORY_CANDLES = 200;' src/config.js
-          grep -Fq 'h.impactOccurred' public/app.js
-          grep -Fq 'h.notificationOccurred' public/app.js
-          grep -Fq 'allowedOrigins.has(origin)' server.js
+          test ! -e src/telegram-auth.js
+          ! grep -Eqi 'Telegram|telegram|initData|BOT_TOKEN' public/app.js server.js public/index.html
       - name: Syntax-check application modules
         run: |
           cd main-market
@@ -39,5 +41,5 @@ jobs:
           node --check src/config.js
           node --check src/analyzer.js
           node --check src/twelve-data.js
-          node --check src/telegram-auth.js
+          node --check src/client-auth.js
           node --check public/app.js
