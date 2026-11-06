@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const { decide, MIN_SCORE, MIN_TREND_ADX } = require("../original-ai/engine/decision-engine.js");
-const { evaluateTrendContinuation } = require("../original-ai/strategies/trend-continuation.js");
+const { evaluateTrendContinuation, MIN_CONTINUATION_SCORE } = require("../original-ai/strategies/trend-continuation.js");
 const { classifyTrendRegime, MIN_TREND_ADX: SCANNER_ADX, buildHigherTimeframeContext } =
   require("../original-ai/scanner/trend-scanner.js");
 
@@ -47,7 +47,8 @@ test("sideways market is blocked even when a strategy reports a high score", () 
   assert.match(result.reason, /Sideways/);
 });
 
-test("trend continuation requires six-way high-quality evidence and score 60", () => {
+test("trend continuation uses a 45-point weighted evidence floor with ADX 18 hard gate", () => {
+  assert.equal(MIN_CONTINUATION_SCORE, 45);
   const previous = { open: 1.0, high: 1.03, low: 0.99, close: 1.02 };
   const latest = { open: 1.0, high: 1.12, low: 0.99, close: 1.10 };
   const result = evaluateTrendContinuation({
@@ -56,7 +57,13 @@ test("trend continuation requires six-way high-quality evidence and score 60", (
       macdHistogram: 0.001, ema9: 1.05 }
   }, "CALL");
   assert.equal(result.signal, "CALL");
-  assert.ok(result.score >= 60);
+  assert.ok(result.score >= 45);
+  const weakTrend = evaluateTrendContinuation({
+    candles: [previous, latest], latest,
+    indicators: { adx: 17.99, plusDI: 25, minusDI: 12, rsi: 60,
+      macdHistogram: 0.001, ema9: 1.05 }
+  }, "CALL");
+  assert.equal(weakTrend.signal, "STANDBY");
 });
 
 test("M5 context is derived from M1 history without another market-data request", () => {
