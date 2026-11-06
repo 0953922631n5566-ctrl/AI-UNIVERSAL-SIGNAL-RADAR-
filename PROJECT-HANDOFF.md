@@ -1391,3 +1391,28 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
   - `77acb5691d193cd6e9273a8cff05a771fc80ca53` — threshold boundary tests.
 - This is a rule-classification relaxation, not proof of accuracy or profitability. Existing 40-point candidate threshold and entry confirmations are unchanged. OOS validation remains outstanding; manual decision support only.
 - Verification at 2026-11-06T12:23Z: GitHub Actions check `test` for test commit `77acb5691d193cd6e9273a8cff05a771fc80ca53` completed SUCCESS. Render scanner commit `7545e18eb691e4ca8e2081da546a860b31d330b7` reached LIVE. Live `/health` returned ok=true, signalRuntimeLock=false, Firebase Admin configured=true, Twelve Data pool 10/10 available, and 200-candle requirement. Live `/api/public/signal` returned API ONLINE / STREAMING, 201 closed candles, and regime SIDEWAY with STANDBY because no confirmed range-boundary entry existed. The later test commit deploy was still update_in_progress and the handoff-doc commit was queued at the last Render poll; verify final auto-deploy status separately. This live observation demonstrates the scanner now classifies the current market as SIDEWAY instead of UNCLEAR; it does not establish predictive accuracy or guarantee CALL/PUT.
+
+
+## 2026-11-06 — Second-stage signal threshold tuning (user-approved)
+
+- User requested minimum decision score 35 (from 40) and trend-regime ADX threshold 14 (from 16), while retaining trend confirmation and volatility protections.
+- Updated:
+  - `main-market/original-ai/engine/decision-engine.js`: `MIN_SCORE = 35`.
+  - `main-market/original-ai/scanner/trend-scanner.js`: `MIN_TREND_ADX = 14`; trend classification still requires at least 2/3 EMA relationships and matching DI direction.
+  - `main-market/test/original-ai-thresholds.test.js`: boundary tests for score 35/34 and ADX 14 / below 14 in both directions.
+  - `main-market/test/analyzer.test.js`: decision threshold test updated to score 35; strong-trend momentum still requires ADX 18.
+- Deliberately unchanged:
+  - `analyze-market.js` remains a thin orchestration wrapper; the actual thresholds are owned by decision-engine and trend-scanner, so no unrelated rewrite was made there.
+  - Strong trend momentum confirmation remains ADX 18 with matching DI, MACD and RSI.
+  - Trend-continuation entry evidence and candle/pullback confirmation remain unchanged; the trend strategy still requires its independent confirmation condition.
+  - Sideway entries still require a confirmed support bounce or resistance rejection. A weak sideway candidate (score 32) remains below MIN_SCORE 35 and therefore STANDBY.
+  - Volatility blocks remain >2.8 hard block and >2.2 without strong momentum; 200 closed-candle, source freshness, indicator completeness and fail-closed gates remain.
+- Important interpretation: MIN_SCORE 35 relaxes the final decision gate, but current strategy scores are discrete and not every strategy produces a 35-point candidate. This change does not manufacture entries or make an unconfirmed range boundary tradable.
+- Commits:
+  - `2d22749e3442e754d009fffd05ecd31109b0e1de` — decision score threshold.
+  - `22f1a3174d58fe13955e7d486da546c70f61c378` — trend scanner ADX threshold.
+  - `6cb1c5dd5815f8f3f02a371e2f8531fc67b1d56e` — threshold test updates.
+  - `b1c96628958e5905e775bd078c4ed5e40fcff949` — analyzer safety tests.
+  - `6562eb44559dbd346b43ac5b0cbe441f93523d33` — exact ADX 14 boundary fixtures.
+- GitHub Actions test for latest source commit was queued at the last check; Render auto-deploy status and live health/streaming verification are pending. Record only confirmed outcomes after polling.
+- This remains rule-based manual decision support, not validated predictive accuracy or profitability. No broker execution.
