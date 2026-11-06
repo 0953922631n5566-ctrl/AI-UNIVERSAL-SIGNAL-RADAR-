@@ -1097,3 +1097,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render configuration required: set `TWELVE_DATA_API_KEYS` to the 10 existing keys as a JSON array in the service's Environment (or use numbered variables). Keep `ANDROID_CLIENT_TOKEN` separate and preserve the existing token so paired devices do not need to be re-paired. Never place provider keys in source control or the APK.
 - Android MainActivity already defaults to `https://ai-signal-radar-main-market.onrender.com/`. Bumped Android versionCode to 2 and versionName to 1.1.0 to produce a fresh package; this remains a WebView client that loads the live backend. The APK workflow must pass before providing an artifact link.
 - Device authentication still requires the existing paired credential to be present in Android Keystore. A successful CI build does not prove physical Xiaomi 11T installation or live API streaming.
+
+
+### Deployment verification — 2026-11-06
+- Latest backend source commit: `7eb0180fb7d04813f988e9a2951d75b9cfa281c8`. GitHub Main Market Checks run #228 passed.
+- Render successfully built and started the updated service after removing the last legacy single-key startup reference. Live `/health` now exposes `configuration.twelveDataApiPool`.
+- Live health currently reports Android client auth configured, but API pool configuredCount=0 and availableCount=0. Therefore the failover code is deployed, but it is not yet operational against provider data until the 10 Twelve Data keys are entered in Render as `TWELVE_DATA_API_KEYS`.
+- APK workflow run #50 succeeded for Android versionCode 2 / versionName 1.1.0. Artifact: `Kawasaki-Signal-Radar-APK`, SHA-256 of extracted APK: `613429cf6f6ca2244db2fe6d07244bf9167f57daac4ce3a2854d87ddcac226aa`. This is a CI-built debug APK; physical Xiaomi 11T installation remains unverified.
+- Preserve the existing `ANDROID_CLIENT_TOKEN`; live health confirms it is already configured. The Android WebView default URL is the production Main Market URL. Existing device pairing token remains encrypted in app storage when the app is updated without clearing its data.
