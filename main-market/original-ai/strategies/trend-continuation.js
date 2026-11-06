@@ -15,7 +15,7 @@ function evaluateTrendContinuation(x,direction){
   const rsiAligned=call?i.rsi>=45&&i.rsi<=78:i.rsi>=22&&i.rsi<=55;
   const evidence=[i.adx>=18,diAligned,rsiAligned,macdAligned,candleFlow,pullback&&reclaim];
   const score=evidence.filter(Boolean).length*20,continuation=momentumAligned&&candleFlow;
-  if(score>=60&&(continuation||pullback&&reclaim))return{signal,score:Math.min(100,score),reason:continuation?(call?'Strong bullish continuation candle':'Strong bearish continuation candle'):(call?'Uptrend pullback and bullish momentum confirmed':'Downtrend pullback and bearish momentum confirmed')};
+  if(score>=40&&(continuation||pullback&&reclaim))return{signal,score:Math.min(100,score),reason:continuation?(call?'Strong bullish continuation candle':'Strong bearish continuation candle'):(call?'Uptrend pullback and bullish momentum confirmed':'Downtrend pullback and bearish momentum confirmed')};
   return{signal:'STANDBY',score,reason:call?'Uptrend entry confirmation incomplete':'Downtrend entry confirmation incomplete'};
 }
 module.exports={evaluateTrendContinuation};
