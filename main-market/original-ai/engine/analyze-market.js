@@ -18,6 +18,7 @@ function finalizeMarket(prepared) {
     ...decision,
     reason: decision.reason || context.reason,
     indicators: context.indicators || null,
+    higherTimeframe: context.higherTimeframe || null,
     regimeConfidence: context.confidence || 0
   };
 }
