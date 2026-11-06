@@ -51,7 +51,7 @@ public final class RadarPollingService extends Service {
             executor=Executors.newSingleThreadScheduledExecutor();
             statusHandler.removeCallbacks(statusTicker);
             statusHandler.post(statusTicker);
-            executor.scheduleWithFixedDelay(this::pollSafely,0,15,TimeUnit.SECONDS);
+            executor.scheduleWithFixedDelay(this::pollSafely,0,5,TimeUnit.SECONDS);
         }
         return START_STICKY;
     }
