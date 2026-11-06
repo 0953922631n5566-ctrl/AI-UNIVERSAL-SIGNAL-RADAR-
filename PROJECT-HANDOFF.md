@@ -1473,3 +1473,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Local-device OFF behavior is implemented. Important architectural boundary: Render hosts one shared Main Market engine, whose Twelve Data REST/streaming and Original AI analysis are started by server startup configuration. The Android master switch is device-local and does not yet stop that shared Render engine. Existing /api/control start/stop actions require an authenticated device session; /control WebView does not currently have that session/token. Do NOT add an unauthenticated public global stop endpoint. A global backend OFF switch would affect every device using this shared backend and requires an explicit product decision plus secure authorization/session wiring.
 - Android workflow for commit d3cac870c7a38699992675ad26b997e868be103b started; final build artifact and SHA-256 must be recorded after checking workflow completion. GitHub Actions build success is not a physical Xiaomi 11T lifecycle test.
 - Remaining device validation: install v1.10.0; test OFF while service is active; verify foreground notification disappears, no new polling/FCM alerts arrive, and battery usage settles; turn ON and verify service and push topic restart. Confirm behavior after force-stop/reopen and device reboot.
+
+
+### Master switch APK build verification — 2026-11-06
+
+- Final Android source commit: 88f3a791a5a2d0f0552171f7ba3476aa906e7b9d. The enabled service returns START_STICKY so Android may recreate it after process pressure; every recreation checks the persisted systemEnabled value first, and OFF returns START_NOT_STICKY and tears down.
+- Main Market APK workflow run 42222945917 completed SUCCESS. Gradle assembleDebug, APK existence check, SHA-256 generation, and artifact upload all passed. Main Market Checks run 42222945854 completed SUCCESS for the same source commit.
+- Artifact ID 13504716536; artifact name signal-radar-pro-main-market-debug-apk; expires 2026-11-20. Extracted app-debug.apk size 2,593,987 bytes.
+- APK SHA-256: 2f98d81da23dd300f9b6a821c3050a9e0065cccd4f0f6aa179397dc1378d90a8.
+- Render deploy for control.html change commit 61f95a70f3e17526a3e6d6aeeb97587aaa27d3b4 reached LIVE. Documentation-only deploy commit 4e880a3c972401e6e6a844b7cd0ea9526e4b379e also reached LIVE. The final 88f3a791 commit only changes Android service restart policy; it does not change backend runtime logic.
+- No Xiaomi 11T physical-device verification has been performed. Do not claim measured zero battery/network usage; source lifecycle and CI build are verified only.
