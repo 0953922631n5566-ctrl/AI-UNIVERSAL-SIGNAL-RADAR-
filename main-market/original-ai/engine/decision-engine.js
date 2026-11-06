@@ -1,7 +1,7 @@
 'use strict';
 
 const MIN_SCORE = 45;
-const MIN_TREND_ADX = 22;
+const MIN_TREND_ADX = 18;
 
 function hasStrongTrendMomentum(ctx, candidate) {
   const i = ctx?.indicators;
