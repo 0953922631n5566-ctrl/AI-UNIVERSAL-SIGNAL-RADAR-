@@ -26,21 +26,21 @@ test('decision engine blocks SIDEWAY candidates', () => {
 });
 test('RAM cache is keyed by candle timestamp', () => { const c = createSignalCache(); c.set(1, { signal: 'CALL' }); assert.equal(c.get(1).signal, 'CALL'); assert.equal(c.get(2), null); });
 test('full analyzer always returns valid signal enum', () => { const x = analyzeMarket(mk(Array.from({ length: 200 }, (_, i) => 1 + i * .00001))); assert.ok(['CALL', 'PUT', 'STANDBY'].includes(x.signal)); });
-test('trend CALL needs M5, ADX, score and directional evidence', () => {
+test('trend CALL needs ADX, score and directional evidence while M5 transitions', () => {
   const ctx = { regime: 'UPTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 1, nearSupport: false, nearResistance: false, adx: 25, plusDI: 28, minusDI: 10, macdHistogram: .0002, rsi: 60 } };
   assert.equal(decide(ctx, { strategy: 'UPTREND', signal: 'CALL', score: 60 }).signal, 'CALL');
-  assert.equal(decide({ ...ctx, higherTimeframe: alignedPut }, { strategy: 'UPTREND', signal: 'CALL', score: 100 }).signal, 'STANDBY');
+  assert.equal(decide({ ...ctx, higherTimeframe: { direction: 'UNCLEAR' } }, { strategy: 'UPTREND', signal: 'CALL', score: 60 }).signal, 'CALL');
 });
-test('trend PUT needs M5, ADX, score and directional evidence', () => {
-  const ctx = { regime: 'DOWNTREND', higherTimeframe: alignedPut, indicators: { volatilityRatio: 1, nearSupport: false, nearResistance: false, adx: 25, minusDI: 28, plusDI: 10, macdHistogram: -.0002, rsi: 40 } };
+test('trend PUT needs ADX, score and directional evidence while M5 transitions', () => {
+  const ctx = { regime: 'DOWNTREND', higherTimeframe: { direction: 'UNCLEAR' }, indicators: { volatilityRatio: 1, nearSupport: false, nearResistance: false, adx: 25, minusDI: 28, plusDI: 10, macdHistogram: -.0002, rsi: 40 } };
   assert.equal(decide(ctx, { strategy: 'DOWNTREND', signal: 'PUT', score: 60 }).signal, 'PUT');
 });
 test('strong CALL can pass nearby resistance only with full momentum confirmation', () => {
   const ctx = { regime: 'UPTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 1, nearSupport: false, nearResistance: true, adx: 30, plusDI: 28, minusDI: 12, macdHistogram: .0002, rsi: 65 } };
   assert.equal(decide(ctx, { strategy: 'UPTREND', signal: 'CALL', score: 80 }).signal, 'CALL');
 });
-test('volatility expansion and M5 disagreement block a candidate', () => {
-  const ctx = { regime: 'DOWNTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 2.5, nearSupport: true, nearResistance: false, adx: 31, minusDI: 30, plusDI: 10, macdHistogram: -.0003, rsi: 38 } };
+test('volatility expansion and weak countertrend evidence block a candidate', () => {
+  const ctx = { regime: 'DOWNTREND', higherTimeframe: alignedCall, indicators: { volatilityRatio: 2.5, nearSupport: true, adx: 24, nearResistance: false, adx: 31, minusDI: 30, plusDI: 10, macdHistogram: -.0003, rsi: 38 } };
   assert.equal(decide(ctx, { strategy: 'DOWNTREND', signal: 'PUT', score: 100 }).signal, 'STANDBY');
 });
 test('downtrend strategy recognizes strong bearish continuation', () => {
