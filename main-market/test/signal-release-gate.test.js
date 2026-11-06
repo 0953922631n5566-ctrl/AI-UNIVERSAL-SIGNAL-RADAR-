@@ -1,41 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "../src/signal-release-gate.js";
+import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED, SIGNAL_VALIDATION_STATUS } from "../src/signal-release-gate.js";
 
-test("directional release stays locked by default", () => {
+test("out-of-sample validation status is informational, not a runtime lock", () => {
   assert.equal(SIGNAL_RELEASE_VALIDATED, false);
+  assert.equal(SIGNAL_VALIDATION_STATUS, "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
-test("CALL and PUT candidates are converted to STANDBY while validation is locked", () => {
+test("genuine Original AI CALL and PUT candidates are preserved with an explicit validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({
-      signal,
-      reason: "candidate from deterministic analyzer",
-      evidence: ["closed M1 candles"],
-      metrics: { score: 80 },
-      alertId: "must-not-escape"
-    });
-
-    assert.equal(result.signal, "STANDBY");
-    assert.equal(result.signalReleaseLocked, true);
+    const result = applySignalReleaseGate({ signal, reason: "candidate from deterministic Original AI analyzer", evidence: ["200 closed M1 candles"], alertId: "candidate-id" });
+    assert.equal(result.signal, signal);
+    assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
-    assert.equal(result.alertId, null);
-    assert.equal(result.preAlertSignal, null);
-    assert.match(result.reason, /out-of-sample/);
-    assert.match(result.reason, new RegExp(signal));
-    assert.deepEqual(result.evidence, ["closed M1 candles"]);
-    assert.deepEqual(result.metrics, { score: 80 });
+    assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
+    assert.equal(result.alertId, "candidate-id");
+    assert.match(result.signalValidationNote, /out-of-sample/);
+    assert.deepEqual(result.evidence, ["200 closed M1 candles"]);
   }
 });
 
-test("an existing STANDBY remains STANDBY and retains the analyzer reason", () => {
-  const result = applySignalReleaseGate({ signal: "STANDBY", reason: "Insufficient candles" });
+test("STANDBY remains STANDBY and keeps the actual analyzer reason", () => {
+  const result = applySignalReleaseGate({ signal: "STANDBY", reason: "Insufficient closed M1 candles" });
   assert.equal(result.signal, "STANDBY");
-  assert.match(result.reason, /Insufficient candles/);
-  assert.equal(result.signalReleaseLocked, true);
-});
-
-test("directional output is preserved only when validation is explicitly approved", () => {
-  const candidate = { signal: "CALL", reason: "validated test candidate", alertId: "safe-test" };
-  assert.deepEqual(applySignalReleaseGate(candidate, true), candidate);
+  assert.equal(result.reason, "Insufficient closed M1 candles");
+  assert.equal(result.signalReleaseLocked, false);
 });
