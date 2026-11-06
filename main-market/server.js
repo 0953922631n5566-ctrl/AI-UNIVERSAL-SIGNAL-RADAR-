@@ -694,6 +694,7 @@ app.get("/api/public/signal", (_req, res) => {
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
       signalValidationNote: state.signalValidationNote,
