@@ -1460,3 +1460,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - This alignment is required for FCM background notifications to use the newly created high-importance channel and its sound/vibration settings. Main Market Checks for this commit completed SUCCESS.
 - Render auto-deploy for this backend channel-alignment commit was queued/building at the time of this note; re-check its final state before claiming LIVE.
 - APK artifact remains the successful build from commit `1d4f94766cd0b44acef011b792b005606dd7099f`; this backend-only change does not require another APK build.
+
+
+## Android Master ON/OFF switch — 2026-11-06
+
+- APK version bumped to 1.10.0 / versionCode 12 in commit d3cac870c7a38699992675ad26b997e868be103b.
+- MainActivity now reads persisted systemEnabled on app launch. ON starts the Android polling Foreground Service and subscribes to main-market-signals; OFF unsubscribes from the FCM topic and stops the service. Preference is committed synchronously before teardown/restart.
+- RadarPollingService no longer starts its executor or acquires a WakeLock in onCreate. It starts those only after onStartCommand confirms Master ON. It now returns START_NOT_STICKY; OFF or process recreation cannot silently restart the worker when preference is false.
+- Service teardown shuts down the scheduled executor, disconnects any active HttpURLConnection, releases WakeLock, removes the foreground notification, and cancels the status notification. The Activity cancels app notifications on OFF.
+- RadarPushService drops any CALL/PUT FCM message received while the persisted Master preference is OFF, including messages already in flight while topic unsubscription completes.
+- public/control.html already contains the prominent master button; it now renders ON/OFF/PAUSED state, stops its refresh timer and aborts an in-flight dashboard fetch on OFF, and restarts refresh on ON. This is the APK's /control dashboard.
+- Local-device OFF behavior is implemented. Important architectural boundary: Render hosts one shared Main Market engine, whose Twelve Data REST/streaming and Original AI analysis are started by server startup configuration. The Android master switch is device-local and does not yet stop that shared Render engine. Existing /api/control start/stop actions require an authenticated device session; /control WebView does not currently have that session/token. Do NOT add an unauthenticated public global stop endpoint. A global backend OFF switch would affect every device using this shared backend and requires an explicit product decision plus secure authorization/session wiring.
+- Android workflow for commit d3cac870c7a38699992675ad26b997e868be103b started; final build artifact and SHA-256 must be recorded after checking workflow completion. GitHub Actions build success is not a physical Xiaomi 11T lifecycle test.
+- Remaining device validation: install v1.10.0; test OFF while service is active; verify foreground notification disappears, no new polling/FCM alerts arrive, and battery usage settles; turn ON and verify service and push topic restart. Confirm behavior after force-stop/reopen and device reboot.
