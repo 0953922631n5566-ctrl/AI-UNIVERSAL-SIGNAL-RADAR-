@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 const { buildMarketContext } = require("../original-ai/scanner/market-context.js");
 const { routeStrategy } = require("../original-ai/engine/strategy-router.js");
 const { decide: decideOriginal } = require("../original-ai/engine/decision-engine-original.js");
+const { decide: decideActive } = require("../original-ai/engine/decision-engine.js");
 
 function originalDecision(candles) {
   const context = buildMarketContext(candles);
@@ -35,14 +36,19 @@ test("Original AI data warm-up is 200 closed M1 candles with live-candle headroo
   assert.equal(MAX_CANDLES, 220);
 });
 
-test("Original AI alone decides CALL/PUT; historical simulation runs in parallel and reaches its Decision Engine", () => {
+test("Original AI owns signals and consumes validated historical evidence as a safety check", () => {
   const candles = history();
   const options = { now: Date.now(), tickAgeSeconds: 0 };
   const original = originalDecision(candles.slice(-MIN_CLOSED_CANDLES));
   const result = analyzeMarket(candles, options);
-  assert.equal(result.signal, original.signal);
   assert.equal(result.regime, original.regime);
-  assert.equal(result.assistant.role, "ADVISORY_ONLY");
+  assert.equal(result.assistant.role, "ADVISORY_AND_SAFETY_CHECK");
+  assert.equal(typeof result.assistant.decisionReady, "boolean");
+  if (result.assistant.decisionReady && result.assistant.historicalDirection !== original.signal &&
+      ["CALL", "PUT"].includes(original.signal) && original.score < 80) {
+    assert.equal(result.signal, "STANDBY");
+    assert.equal(result.assistantCheck, "CONFLICT_BLOCK");
+  }
   assert.ok(["READY", "LIMITED_SAMPLE"].includes(result.assistant.status));
   assert.ok(["AGREES", "CONFLICTS", "NO_COMPARISON"].includes(result.assistant.alignment));
   assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(result.assistant.executionMode));
@@ -55,7 +61,7 @@ test("Historical assistant never manufactures an order when its data source gate
   const result = analyzeMarket(history(), { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
   assert.equal(result.signal, "STANDBY");
   assert.equal(result.livePriceReady, false);
-  assert.equal(result.assistant.role, "ADVISORY_ONLY");
+  assert.equal(result.assistant.role, "ADVISORY_AND_SAFETY_CHECK");
   assert.equal(result.assistant.status, "UNAVAILABLE");
   assert.equal(result.assistant.executionMode, "SOURCE_BLOCKED");
 });
@@ -92,4 +98,25 @@ test("Historical assistant cache is invalidated when candle history changes", ()
   const b = analyzeMarket(history(220, 1), { tickAgeSeconds: 0 });
   assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(a.assistant.executionMode));
   assert.equal(b.assistant.executionMode, "PARALLEL_WORKER_THREAD");
+});
+
+
+test("Historical evidence blocks only conflicting borderline candidates and never creates or flips signals", () => {
+  const context = {
+    regime: "UPTREND",
+    indicators: { adx: 24, plusDI: 30, minusDI: 12, macdHistogram: 0.0001, rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false },
+    historicalAssistant: { decisionReady: true, direction: "PUT", directionalSharePercent: 60, analogueCount: 20 }
+  };
+  const candidate = { signal: "CALL", score: 60, strategy: "UPTREND", reason: "Original trend candidate" };
+  assert.equal(decideActive(context, candidate).signal, "STANDBY");
+  assert.equal(decideActive(context, candidate).assistantCheck, "CONFLICT_BLOCK");
+
+  const agreement = { ...context, historicalAssistant: { ...context.historicalAssistant, direction: "CALL" } };
+  assert.equal(decideActive(agreement, candidate).signal, "CALL");
+  assert.equal(decideActive({ ...context, historicalAssistant: null }, candidate).signal, "CALL");
+
+  const strongCandidate = { ...candidate, score: 80 };
+  assert.equal(decideActive(context, strongCandidate).signal, "CALL");
+  assert.equal(decideActive({ ...context, historicalAssistant: { ...context.historicalAssistant, direction: "CALL" } },
+    { ...candidate, signal: "PUT", strategy: "DOWNTREND" }).signal, "STANDBY");
 });
