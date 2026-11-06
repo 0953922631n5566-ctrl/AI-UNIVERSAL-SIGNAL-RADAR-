@@ -1,27 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
 import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
 import { analyzeMarket } from "../src/analyzer.js";
+import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { buildMarketContext } = require("../original-ai/scanner/market-context.js");
-const { routeStrategy } = require("../original-ai/engine/strategy-router.js");
-const { decide: decideOriginal } = require("../original-ai/engine/decision-engine-original.js");
-const { decide: decideActive } = require("../original-ai/engine/decision-engine.js");
+const { analyzeMarket: analyzeOriginal, prepareMarket, finalizeMarket } =
+  require("../original-ai/engine/analyze-market.js");
+const { decide, MIN_SCORE, hasStrongTrendMomentum } =
+  require("../original-ai/engine/decision-engine.js");
 
-function originalDecision(candles) {
-  const context = buildMarketContext(candles);
-  const candidate = routeStrategy(context);
-  return decideOriginal(context, candidate);
-}
-
-function history(count = 220, variant = 0) {
+function history(count = 220) {
   let price = 1.08;
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
   return Array.from({ length: count }, (_, i) => {
-    const delta = Math.sin(i * 1.7 + variant) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
+    const delta = Math.sin(i * 1.7) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
     const open = price, close = price + delta, epoch = start + i * 60;
     price = close;
     return { time: new Date(epoch * 1000).toISOString(), epoch, open,
@@ -30,43 +24,72 @@ function history(count = 220, variant = 0) {
   });
 }
 
-test("Original AI data warm-up is 200 closed M1 candles with live-candle headroom", () => {
+test("Original AI data warm-up remains 200 closed M1 candles", () => {
   assert.equal(MIN_CLOSED_CANDLES, 200);
   assert.equal(HISTORY_CANDLES, 200);
   assert.equal(MAX_CANDLES, 220);
 });
 
-test("Original AI owns signals and consumes validated historical evidence as a safety check", () => {
+test("Original AI is the sole decision path and returns the direct engine result", () => {
   const candles = history();
-  const options = { now: Date.now(), tickAgeSeconds: 0 };
-  const original = originalDecision(candles.slice(-MIN_CLOSED_CANDLES));
-  const result = analyzeMarket(candles, options);
-  assert.equal(result.regime, original.regime);
-  assert.equal(result.assistant.role, "ADVISORY_AND_SAFETY_CHECK");
-  assert.equal(typeof result.assistant.decisionReady, "boolean");
-  if (result.assistant.decisionReady && result.assistant.historicalDirection !== original.signal &&
-      ["CALL", "PUT"].includes(original.signal) && original.score < 80) {
-    assert.equal(result.signal, "STANDBY");
-    assert.equal(result.assistantCheck, "CONFLICT_BLOCK");
-  }
-  assert.ok(["READY", "LIMITED_SAMPLE"].includes(result.assistant.status));
-  assert.ok(["AGREES", "CONFLICTS", "NO_COMPARISON"].includes(result.assistant.alignment));
-  assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(result.assistant.executionMode));
-  assert.equal(result.assistantAlignment, result.assistant.alignment);
-  assert.equal(result.assistantHistoricalDirection, result.assistant.historicalDirection);
-  assert.equal("confidence" in result.assistant, false);
+  const direct = analyzeOriginal(candles.slice(-MIN_CLOSED_CANDLES));
+  const routed = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(routed.signal, direct.signal);
+  assert.equal(routed.regime, direct.regime);
+  assert.equal(routed.strategy, direct.strategy);
+  assert.equal(routed.score, direct.score);
+  assert.equal(routed.livePriceReady, true);
+  assert.equal(routed.dataMode, "STREAMING");
+  assert.equal("assistant" in routed, false);
+  assert.equal("historicalDirection" in routed, false);
 });
 
-test("Historical assistant never manufactures an order when its data source gate fails", () => {
-  const result = analyzeMarket(history(), { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
-  assert.equal(result.signal, "STANDBY");
-  assert.equal(result.livePriceReady, false);
-  assert.equal(result.assistant.role, "ADVISORY_AND_SAFETY_CHECK");
-  assert.equal(result.assistant.status, "UNAVAILABLE");
-  assert.equal(result.assistant.executionMode, "SOURCE_BLOCKED");
+test("Original engine API ignores any legacy assistant argument", () => {
+  const candles = history().slice(-MIN_CLOSED_CANDLES);
+  const direct = analyzeOriginal(candles);
+  const legacyArgument = analyzeOriginal(candles, {
+    decisionReady: true, historicalDirection: "PUT", directionalSharePercent: 99, analogueCount: 500
+  });
+  assert.deepEqual(legacyArgument, direct);
+  assert.deepEqual(finalizeMarket(prepareMarket(candles)), direct);
 });
 
-test("REST fallback can supply data only when explicitly enabled and fresh", () => {
+test("Decision engine keeps minimum score at 40 and ADX threshold at 18", () => {
+  assert.equal(MIN_SCORE, 40);
+  const base = {
+    regime: "UPTREND",
+    indicators: { adx: 18, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
+      rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
+  };
+  const candidate = { signal: "CALL", score: 40, strategy: "UPTREND", reason: "valid" };
+  assert.equal(decide(base, candidate).signal, "CALL");
+  assert.equal(decide(base, { ...candidate, score: 39 }).signal, "STANDBY");
+  assert.equal(hasStrongTrendMomentum(base, candidate), true);
+  assert.equal(hasStrongTrendMomentum({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate), false);
+});
+
+test("Volatility safety gate still blocks extreme and unsupported high volatility", () => {
+  const candidate = { signal: "CALL", score: 70, strategy: "UPTREND", reason: "candidate" };
+  const ctx = { regime: "UPTREND", indicators: { adx: 10, plusDI: 20, minusDI: 10,
+    macdHistogram: 0.0001, rsi: 55, volatilityRatio: 2.3,
+    nearResistance: false, nearSupport: false } };
+  assert.equal(decide(ctx, candidate).signal, "STANDBY");
+  assert.match(decide(ctx, candidate).reason, /volatility/i);
+  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2.81 } }, candidate).signal, "STANDBY");
+});
+
+test("Missing, malformed, stale or unapproved source data fails closed", () => {
+  const candles = history();
+  assert.equal(analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false }).signal, "STANDBY");
+  const malformed = history();
+  malformed.at(-1).high = malformed.at(-1).low - 0.1;
+  assert.equal(analyzeMarket(malformed, { tickAgeSeconds: 0 }).signal, "STANDBY");
+  const stale = history();
+  stale.forEach(c => { c.epoch -= 600; });
+  assert.equal(analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 }).signal, "STANDBY");
+});
+
+test("Fresh REST fallback is accepted only when explicitly enabled", () => {
   const candles = history();
   const allowed = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: true });
   assert.equal(allowed.dataMode, "REST_FALLBACK");
@@ -82,41 +105,4 @@ test("Current live candle is excluded from Original AI closed-candle window", ()
   const result = analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
   assert.equal(result.closedCandleCount, 220);
   assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
-});
-
-test("Malformed and stale source data fails closed", () => {
-  const malformed = history();
-  malformed.at(-1).high = malformed.at(-1).low - 0.1;
-  assert.equal(analyzeMarket(malformed, { tickAgeSeconds: 0 }).signal, "STANDBY");
-  const stale = history();
-  stale.forEach(c => { c.epoch -= 600; });
-  assert.equal(analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 }).signal, "STANDBY");
-});
-
-test("Historical assistant cache is invalidated when candle history changes", () => {
-  const a = analyzeMarket(history(220, 0), { tickAgeSeconds: 0 });
-  const b = analyzeMarket(history(220, 1), { tickAgeSeconds: 0 });
-  assert.ok(["PARALLEL_WORKER_THREAD", "CACHED_WORKER_RESULT"].includes(a.assistant.executionMode));
-  assert.equal(b.assistant.executionMode, "PARALLEL_WORKER_THREAD");
-});
-
-
-test("Historical evidence blocks only conflicting borderline candidates and never creates or flips signals", () => {
-  const context = {
-    regime: "UPTREND",
-    indicators: { adx: 24, plusDI: 30, minusDI: 12, macdHistogram: 0.0001, rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false },
-    historicalAssistant: { decisionReady: true, direction: "PUT", directionalSharePercent: 60, analogueCount: 20 }
-  };
-  const candidate = { signal: "CALL", score: 60, strategy: "UPTREND", reason: "Original trend candidate" };
-  assert.equal(decideActive(context, candidate).signal, "STANDBY");
-  assert.equal(decideActive(context, candidate).assistantCheck, "CONFLICT_BLOCK");
-
-  const agreement = { ...context, historicalAssistant: { ...context.historicalAssistant, direction: "CALL" } };
-  assert.equal(decideActive(agreement, candidate).signal, "CALL");
-  assert.equal(decideActive({ ...context, historicalAssistant: null }, candidate).signal, "CALL");
-
-  const strongCandidate = { ...candidate, score: 80 };
-  assert.equal(decideActive(context, strongCandidate).signal, "CALL");
-  assert.equal(decideActive({ ...context, historicalAssistant: { ...context.historicalAssistant, direction: "CALL" } },
-    { ...candidate, signal: "PUT", strategy: "DOWNTREND" }).signal, "STANDBY");
 });
