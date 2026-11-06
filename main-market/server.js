@@ -375,7 +375,18 @@ function startStream() {
       const failedSymbol = failed.some(item =>
         resolveSymbol(typeof item === "string" ? item : item?.symbol) === symbol
       );
-      if (failedSymbol || status === "error" || status === "failed") {
+      if ((failedSymbol || status === "error" || status === "failed") &&
+          /401|403|429|quota|credit|rate.?limit|unauthori[sz]ed|api.?key/i.test(text)) {
+        const keyError = { kind: /429|quota|credit|rate.?limit/i.test(text) ? "RATE_LIMIT" : "AUTH_OR_PERMISSION", message: text };
+        twelveDataKeyPool.markFailure(apiKey, keyError);
+        feed.streamStatus = "ERROR";
+        feed.streamMessage = "Key ปัจจุบันใช้ Streaming ไม่ได้ — กำลังสลับ Key";
+        if (upstream === socket) upstream = null;
+        clearInterval(heartbeatTimer); heartbeatTimer = null;
+        try { socket.close(); } catch {}
+        retryTimer = setTimeout(startStream, 1000);
+        evaluate(feed);
+      } else if (failedSymbol || status === "error" || status === "failed") {
         feed.streamStatus = "UNSUPPORTED";
         feed.streamMessage = text || "Twelve Data ปฏิเสธการสมัคร Streaming";
         evaluate(feed);
