@@ -1,27 +1,14 @@
-// Directional signals remain disabled until an independent out-of-sample evaluation
-// of the complete perception and decision pipeline has been reviewed and recorded.
+// This flag describes validation maturity only; it is NOT a runtime signal lock.
+// CALL/PUT candidates remain governed by Original AI and live-data quality gates.
 export const SIGNAL_RELEASE_VALIDATED = false;
+export const SIGNAL_VALIDATION_STATUS = "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED";
 
-export function applySignalReleaseGate(result, validated = SIGNAL_RELEASE_VALIDATED) {
-  if (validated) return result;
-
-  const sourceReason = typeof result?.reason === "string" && result.reason.trim()
-    ? result.reason.trim()
-    : "ยังไม่มีเหตุผลจากตัววิเคราะห์";
-  const candidate = ["CALL", "PUT"].includes(result?.signal) ? result.signal : null;
-
+export function applySignalReleaseGate(result) {
   return {
     ...(result && typeof result === "object" ? result : {}),
-    signal: "STANDBY",
-    reason: [
-      "ปิด CALL/PUT ไว้จนกว่า perception และ decision pipeline จะผ่านการประเมิน out-of-sample",
-      candidate ? `ระงับ candidate ${candidate}` : null,
-      sourceReason
-    ].filter(Boolean).join(" · "),
-    preAlertSignal: null,
-    alertId: null,
-    signalExpiresAt: null,
-    signalReleaseValidated: false,
-    signalReleaseLocked: true
+    signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
+    signalReleaseLocked: false,
+    signalValidationStatus: SIGNAL_VALIDATION_STATUS,
+    signalValidationNote: "Original AI rule-based candidate · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
   };
 }
