@@ -1,4 +1,117 @@
 'use strict';
-const{ema}=require('../indicators/ema'),{rsi}=require('../indicators/rsi'),{macd}=require('../indicators/macd'),{adx}=require('../indicators/adx'),{volatility}=require('../indicators/volatility'),{supportResistance}=require('../indicators/support-resistance');
-function scanTrend(c){if(!Array.isArray(c)||c.length<200)return{regime:'UNCLEAR',confidence:0,reason:'Insufficient closed candles',indicators:null};const a=c.map(x=>x.close),e9=ema(a,9),e21=ema(a,21),e50=ema(a,50),e200=ema(a,200),rv=rsi(a),m=macd(a),d=adx(c),v=volatility(c),sr=supportResistance(c);if([e9,e21,e50,e200,rv,m?.histogram,d?.adx,d?.plusDI,d?.minusDI,v?.averageRange,sr?.support,sr?.resistance].some(x=>!Number.isFinite(x)))return{regime:'UNCLEAR',confidence:0,reason:'Indicator calculation incomplete',indicators:null};const last=c.at(-1),prev=c.at(-2),up=e9>e21&&e21>e50&&e50>e200,down=e9<e21&&e21<e50&&e50<e200,nearSupport=last.close-sr.support<=v.averageRange*.25,nearResistance=sr.resistance-last.close<=v.averageRange*.25,bullBreak=last.close>prev.high&&last.close>e21,bearBreak=last.close<prev.low&&last.close<e21;let regime='UNCLEAR',confidence=0,reason='Conflicting or weak market evidence';if((down&&bullBreak&&m.histogram>0&&rv>=50)||(up&&bearBreak&&m.histogram<0&&rv<=50)){regime='REVERSAL';confidence=78;reason='Structure break and momentum shift';}else if(up&&d.adx>=18&&d.plusDI>d.minusDI){regime='UPTREND';confidence=Math.min(99,65+d.adx-18);reason='Bullish EMA alignment with ADX/DI confirmation';}else if(down&&d.adx>=18&&d.minusDI>d.plusDI){regime='DOWNTREND';confidence=Math.min(99,65+d.adx-18);reason='Bearish EMA alignment with ADX/DI confirmation';}else if(d.adx<18&&Math.abs(e9-e21)<=v.averageRange*.35){regime='SIDEWAY';confidence=72;reason='Low ADX and compressed EMA spread';}return{regime,confidence,reason,indicators:{ema9:e9,ema21:e21,ema50:e50,ema200:e200,rsi:rv,macdHistogram:m.histogram,adx:d.adx,plusDI:d.plusDI,minusDI:d.minusDI,support:sr.support,resistance:sr.resistance,averageRange:v.averageRange,volatilityRatio:v.ratio,nearSupport,nearResistance}};}
-module.exports={scanTrend};
+
+const { ema } = require('../indicators/ema');
+const { rsi } = require('../indicators/rsi');
+const { macd } = require('../indicators/macd');
+const { adx } = require('../indicators/adx');
+const { volatility } = require('../indicators/volatility');
+const { supportResistance } = require('../indicators/support-resistance');
+
+const MIN_TREND_ADX = 16;
+
+function classifyTrendRegime({ bullishAlignment, bearishAlignment, adx: adxValue, plusDI, minusDI }) {
+  if (!Number.isFinite(adxValue) || !Number.isFinite(plusDI) || !Number.isFinite(minusDI)) return null;
+
+  if (adxValue >= MIN_TREND_ADX && bullishAlignment >= 2 && plusDI > minusDI) {
+    return {
+      regime: 'UPTREND',
+      confidence: Math.min(95, 62 + adxValue - MIN_TREND_ADX),
+      reason: `Bullish EMA alignment (${bullishAlignment}/3) with ADX/DI confirmation`
+    };
+  }
+
+  if (adxValue >= MIN_TREND_ADX && bearishAlignment >= 2 && minusDI > plusDI) {
+    return {
+      regime: 'DOWNTREND',
+      confidence: Math.min(95, 62 + adxValue - MIN_TREND_ADX),
+      reason: `Bearish EMA alignment (${bearishAlignment}/3) with ADX/DI confirmation`
+    };
+  }
+
+  return null;
+}
+
+function scanTrend(c) {
+  if (!Array.isArray(c) || c.length < 200) {
+    return { regime: 'UNCLEAR', confidence: 0, reason: 'Insufficient closed candles', indicators: null };
+  }
+
+  const closes = c.map(x => x.close);
+  const e9 = ema(closes, 9);
+  const e21 = ema(closes, 21);
+  const e50 = ema(closes, 50);
+  const e200 = ema(closes, 200);
+  const rv = rsi(closes);
+  const m = macd(closes);
+  const d = adx(c);
+  const v = volatility(c);
+  const sr = supportResistance(c);
+
+  if ([e9, e21, e50, e200, rv, m?.histogram, d?.adx, d?.plusDI, d?.minusDI,
+    v?.averageRange, sr?.support, sr?.resistance].some(x => !Number.isFinite(x))) {
+    return { regime: 'UNCLEAR', confidence: 0, reason: 'Indicator calculation incomplete', indicators: null };
+  }
+
+  const last = c.at(-1);
+  const prev = c.at(-2);
+  const bullishAlignment = Number(e9 > e21) + Number(e21 > e50) + Number(e50 > e200);
+  const bearishAlignment = Number(e9 < e21) + Number(e21 < e50) + Number(e50 < e200);
+  const nearSupport = last.close - sr.support <= v.averageRange * 0.25;
+  const nearResistance = sr.resistance - last.close <= v.averageRange * 0.25;
+  const bullBreak = last.close > prev.high && last.close > e21;
+  const bearBreak = last.close < prev.low && last.close < e21;
+
+  let regime = 'UNCLEAR';
+  let confidence = 0;
+  let reason = 'Conflicting or weak market evidence';
+
+  if ((bearishAlignment === 3 && bullBreak && m.histogram > 0 && rv >= 50) ||
+      (bullishAlignment === 3 && bearBreak && m.histogram < 0 && rv <= 50)) {
+    regime = 'REVERSAL';
+    confidence = 78;
+    reason = 'Structure break and momentum shift';
+  } else {
+    const trend = classifyTrendRegime({
+      bullishAlignment,
+      bearishAlignment,
+      adx: d.adx,
+      plusDI: d.plusDI,
+      minusDI: d.minusDI
+    });
+
+    if (trend) {
+      ({ regime, confidence, reason } = trend);
+    } else if (d.adx < 18 && Math.abs(e9 - e21) <= v.averageRange * 0.35) {
+      regime = 'SIDEWAY';
+      confidence = 72;
+      reason = 'Low ADX and compressed EMA spread';
+    }
+  }
+
+  return {
+    regime,
+    confidence,
+    reason,
+    indicators: {
+      ema9: e9,
+      ema21: e21,
+      ema50: e50,
+      ema200: e200,
+      emaBullishAlignment: bullishAlignment,
+      emaBearishAlignment: bearishAlignment,
+      rsi: rv,
+      macdHistogram: m.histogram,
+      adx: d.adx,
+      plusDI: d.plusDI,
+      minusDI: d.minusDI,
+      support: sr.support,
+      resistance: sr.resistance,
+      averageRange: v.averageRange,
+      volatilityRatio: v.ratio,
+      nearSupport,
+      nearResistance
+    }
+  };
+}
+
+module.exports = { scanTrend, classifyTrendRegime, MIN_TREND_ADX };
