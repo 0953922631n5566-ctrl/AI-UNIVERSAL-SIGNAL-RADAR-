@@ -1135,3 +1135,25 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - GitHub Actions Main Market Checks run #233: `42164410306`, completed **success** for commit `3a05d984500cbbf3a1ba3022ff06653a9db69d01`. This supersedes the two immediately preceding failed runs (#231/#232), whose single failing assertion expected the legacy `assistantAlignment` diagnostic field.
 - Scope of successful CI: Main Market Checks workflow. This is not proof of Render deployment, live Twelve Data streaming, APK build/install, or Xiaomi 11T behavior.
 - Current source state: two active engine files carry the Original AI analysis/decision flow; Historical Analogue is metadata only. The `*-original.js` files remain as rollback copies.
+
+
+## 2026-11-06 — Historical Analogue integrated as Original AI decision support
+
+- Branch: `main-market`.
+- User-approved behavior: the Historical Analogue model now supplies a validated secondary evidence check to the Original AI; Original AI remains the sole signal authority.
+- Changed active runtime files:
+  - `main-market/src/analyzer.js`: marks historical evidence decision-eligible only when live/fresh data is available, the directional share meets the 53% configured threshold, and at least 12 analogues were used.
+  - `main-market/original-ai/engine/analyze-market.js`: passes only the validated direction/share/sample count into Original AI's market context.
+  - `main-market/original-ai/engine/decision-engine.js`: uses the historical result as a conservative conflict check. A conflicting historical direction can hold a borderline Original AI candidate (score <80) at STANDBY; it cannot create a CALL/PUT or reverse the Original AI direction. Strong Original AI candidates (score >=80) retain authority and are marked as an override when conflicting. Existing volatility and support/resistance gates remain active.
+- Assistant output role is now `ADVISORY_AND_SAFETY_CHECK`; `decisionReady` indicates whether historical evidence passed the minimum quality/sample gates. Historical directional share is not a calibrated win probability.
+- Tests updated:
+  - `main-market/test/analyzer.test.js` checks that historical evidence only blocks conflicting borderline candidates and never creates/flips a signal.
+  - `main-market/test/rest-fallback.test.js` updated for the new assistant role.
+- Commits:
+  - `758193b3feb27bf1d21cd1ef73a68fc536ea4c0c` — decision engine safety check.
+  - `3c7aa80080a956018c864050d87108ea22b007e2` — analyzer context bridge.
+  - `8fda91959cc6db2f7d12cb45bdee152b7802c928` — validated historical readiness flag.
+  - `48c82a7aff220ada7f648a4d10385e8a0b975444` — integration tests.
+  - `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200` — REST fallback test compatibility.
+- CI run #237 (`42165434619`) failed because one existing REST fallback test still expected the old `ADVISORY_ONLY` label; the 2 new integration tests and all other tests passed. The assertion was updated in commit `929d3f3e7d2cd3d4dc8fc9f15a91c1439eb13200`; CI run #238 is the verification run and must be checked before claiming test success.
+- NOT YET VERIFIED: CI run #238 outcome at time of this entry; Render deployment/live EUR/USD feed; APK build/install; physical Xiaomi 11T behavior; historical model's out-of-sample predictive value. The 53%/12-analogue eligibility and score-80 override are conservative engineering gates, not empirically optimized trading parameters.
