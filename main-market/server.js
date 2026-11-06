@@ -496,7 +496,7 @@ function startStream() {
         clearInterval(heartbeatTimer); heartbeatTimer = null;
         try { socket.close(); } catch {}
         retryTimer = setTimeout(startStream, 1000);
-        evaluate(feed);
+        void evaluate(feed).then(publish).catch(error => console.error("[radar] key-rotation analysis failed", error.message));
       } else if (failedSymbol || status === "error" || status === "failed") {
         feed.streamStatus = "UNSUPPORTED";
         feed.streamMessage = text || "Twelve Data ปฏิเสธการสมัคร Streaming";
@@ -553,8 +553,7 @@ function startStream() {
       feed.streamStatus = "ERROR";
       feed.streamMessage = "Streaming หลุด — กำลังเชื่อมต่อใหม่";
     }
-    evaluate(feed);
-    publish();
+    void evaluate(feed).then(publish).catch(error => console.error("[radar] close analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 8000);
   });
 }
