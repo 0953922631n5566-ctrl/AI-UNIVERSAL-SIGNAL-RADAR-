@@ -1,10 +1,10 @@
 'use strict';
 
-const MIN_SCORE = 60;
+const MIN_SCORE = 40;
 
 function hasStrongTrendMomentum(ctx, candidate) {
   const i = ctx?.indicators;
-  if (!i || !candidate || !['UPTREND', 'DOWNTREND'].includes(candidate.strategy) || i.adx < 20) return false;
+  if (!i || !candidate || !['UPTREND', 'DOWNTREND'].includes(candidate.strategy) || i.adx < 18) return false;
   if (candidate.signal === 'CALL') return i.plusDI > i.minusDI && i.macdHistogram > 0 && i.rsi >= 22 && i.rsi <= 78;
   if (candidate.signal === 'PUT') return i.minusDI > i.plusDI && i.macdHistogram < 0 && i.rsi >= 22 && i.rsi <= 78;
   return false;
