@@ -56,7 +56,7 @@ public final class RadarPollingService extends Service {
             if(("CALL".equals(signal)||"PUT".equals(signal))&&!expiry.isEmpty()&&!key.equals(lastAlertKey)){
                 lastAlertKey=key;showSignal(signal,symbol,price,reason,key);
             }
-            updateStatus("API "+market.optString("apiStatus","ONLINE")+" · "+signal+" · "+price);
+            updateStatus("API "+market.optString("apiStatus","ONLINE")+" · Background monitoring active");
         }catch(Exception e){Log.w(TAG,"Signal polling failed",e);updateStatus("STANDBY · รอเชื่อมต่อ Render · ลองใหม่อัตโนมัติ");}
     }
     private JSONObject fetchSignal()throws Exception{
@@ -135,7 +135,7 @@ public final class RadarPollingService extends Service {
         String title=call?"CALL · SIGNAL RADAR PRO":put?"PUT · SIGNAL RADAR PRO":"STANDBY · SIGNAL RADAR PRO";
         Notification.Builder b=Build.VERSION.SDK_INT>=26?new Notification.Builder(this,CHANNEL):new Notification.Builder(this);
         return b.setSmallIcon(R.drawable.ic_stat_signal).setLargeIcon(badgeIcon(color,glyph))
-            .setContentTitle(title).setContentText(s).setStyle(new Notification.BigTextStyle().bigText(s))
+            .setContentTitle(title).setContentText("Background monitoring is running")
             .setColor(color).setContentIntent(pi).setOngoing(true).build();
     }
     private void updateStatus(String s){NotificationManager m=getSystemService(NotificationManager.class);if(m!=null)m.notify(NOTIFICATION_ID,statusNotification(s));}
