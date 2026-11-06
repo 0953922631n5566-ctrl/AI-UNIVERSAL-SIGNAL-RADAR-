@@ -28,8 +28,8 @@ public final class RadarPushService extends FirebaseMessagingService {
         if (alertId.equals(seen.getString("last_alert_id", ""))) return;
         boolean sound = prefs.getBoolean("soundEnabled", true);
         boolean vibration = prefs.getBoolean("vibrationEnabled", true);
-        String channel = sound ? (vibration ? "signal_sv_v2" : "signal_s_v2") :
-            (vibration ? "signal_v_v2" : "signal_silent_v2");
+        String channel = sound ? (vibration ? "signal_sv_v3" : "signal_s_v3") :
+            (vibration ? "signal_v_v3" : "signal_silent_v3");
         ensureChannel(channel, sound, vibration);
         boolean call = "CALL".equals(signal);
         int color = parseColor(message.getData().get("signalColor"), call ? Color.rgb(22,163,74) : Color.rgb(220,38,38));
@@ -38,6 +38,7 @@ public final class RadarPushService extends FirebaseMessagingService {
         String title = message.getData().getOrDefault("title", badge + (call ? " · สัญญาณขาขึ้น" : " · สัญญาณขาลง"));
         String body = message.getData().getOrDefault("body", message.getData().getOrDefault("symbol", "EUR/USD"));
         String notificationTag = message.getData().getOrDefault("notificationTag", alertId);
+        MainActivity.showSignalPopupIfVisible(this,signal,message.getData().getOrDefault("symbol","EUR/USD"),message.getData().getOrDefault("price","--"),body);
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, channel) : new Notification.Builder(this);
         Notification notification = builder.setSmallIcon(R.drawable.ic_stat_signal)
             .setLargeIcon(badgeIcon(color, glyph)).setContentTitle(title).setContentText(body)
@@ -71,11 +72,11 @@ public final class RadarPushService extends FirebaseMessagingService {
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null || manager.getNotificationChannel(id) != null) return;
         NotificationChannel channel = new NotificationChannel(id, "Main Market Signal Alerts", NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("CALL/PUT alert with native sound and vibration");
+        channel.setDescription("High-priority CALL/PUT alert with native sound and vibration");channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
         channel.enableVibration(vibration);
-        if (vibration) channel.setVibrationPattern(new long[]{0,220,90,220});
+        if (vibration) channel.setVibrationPattern(new long[]{0,180,70,180,70,320});
         if (sound) channel.setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
-            new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build());
+            new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
         else channel.setSound(null, null);
         manager.createNotificationChannel(channel);
     }
