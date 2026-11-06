@@ -1,0 +1,28 @@
+name: Render Main Market Keep Alive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-main-market-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Render health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://ai-signal-radar-main-market.onrender.com/health"
+          echo "Pinging $URL"
+          curl --fail --silent --show-error --location --max-time 25 --retry 2 --retry-delay 3 "$URL"
+          echo
+          echo "Health endpoint responded successfully."
