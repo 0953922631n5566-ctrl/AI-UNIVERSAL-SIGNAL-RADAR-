@@ -12,7 +12,7 @@ test("REST fetch automatically fails over from a quota-limited key", async () =>
   });
   const attempted = [];
   const result = await fetchCandles({
-    keyPool,
+    keyPool: pool,
     symbol: "EUR/USD",
     now,
     fetchImpl: async (_url, options) => {
