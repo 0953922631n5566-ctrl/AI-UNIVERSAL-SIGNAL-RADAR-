@@ -36,7 +36,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onResume(){super.onResume();activeActivity=this;if(webView!=null)webView.postDelayed(()->webView.evaluateJavascript("window.refreshOverlayPermission && window.refreshOverlayPermission()",null),250);}
     @Override protected void onPause(){if(activeActivity==this)activeActivity=null;super.onPause();}
-    @Override protected void onDestroy(){if(activeActivity==this)activeActivity=null;if(activeSignalDialog!=null&&activeSignalDialog.isShowing())activeSignalDialog.dismiss();super.onDestroy();}
+    @Override protected void onDestroy(){if(activeActivity==this)activeActivity=null;super.onDestroy();}
 
     public static boolean showSignalPopupIfVisible(Context context,String signal,String symbol,String price,String reason){
         MainActivity activity=activeActivity;
