@@ -1,3 +1,4 @@
+import { twelveDataKeyPool } from "./twelve-data-pool.js";
 import {
   HISTORY_CANDLES,
   MIN_CLOSED_CANDLES,
@@ -44,6 +45,7 @@ function parseCandle(value) {
 
 export async function fetchCandles({
   apiKey,
+  keyPool = twelveDataKeyPool,
   symbol = "EUR/USD",
   interval = "1min",
   outputsize = HISTORY_CANDLES,
@@ -53,7 +55,12 @@ export async function fetchCandles({
   const normalized = normalizeSymbol(symbol);
   const allowed = SYMBOLS.some(item => normalizeSymbol(item) === normalized);
   if (!allowed) throw new Error(`Pair is not enabled: ${symbol}`);
-  if (!apiKey) throw new Error("TWELVE_DATA_API_KEY is not configured");
+  const candidateKeys = apiKey ? [apiKey] : keyPool.getCandidates();
+  if (!candidateKeys.length) {
+    const error = new Error("No Twelve Data API keys are currently available");
+    error.kind = "RATE_LIMIT";
+    throw error;
+  }
 
   const url = new URL("/time_series", API_BASE);
   url.searchParams.set("symbol", symbol);
@@ -61,29 +68,40 @@ export async function fetchCandles({
   url.searchParams.set("outputsize", String(outputsize));
   url.searchParams.set("timezone", "UTC");
 
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      headers: { Authorization: `apikey ${apiKey}` },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-    });
-  } catch (error) {
-    const wrapped = new Error(`Twelve Data network error for ${symbol}: ${error.message}`);
-    wrapped.kind = "NETWORK_ERROR";
-    throw wrapped;
-  }
-
   let body;
-  try { body = await response.json(); }
-  catch {
-    const error = new Error(`Twelve Data returned invalid JSON for ${symbol}`);
-    error.kind = "INVALID_RESPONSE";
-    throw error;
+  let response;
+  let lastError = null;
+  let successfulKey = null;
+  for (const candidateKey of candidateKeys) {
+    try {
+      response = await fetchImpl(url, {
+        headers: { Authorization: `apikey ${candidateKey}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      });
+      try { body = await response.json(); }
+      catch {
+        const error = new Error(`Twelve Data returned invalid JSON for ${symbol}`);
+        error.kind = "INVALID_RESPONSE";
+        throw error;
+      }
+      if (!response.ok || body?.status === "error" || !Array.isArray(body?.values)) {
+        throw providerError(symbol, body, response.status);
+      }
+      successfulKey = candidateKey;
+      break;
+    } catch (caught) {
+      const error = caught?.kind ? caught : (() => {
+        const wrapped = new Error(`Twelve Data network error for ${symbol}: ${caught.message}`);
+        wrapped.kind = "NETWORK_ERROR";
+        return wrapped;
+      })();
+      lastError = error;
+      if (error.kind === "PAIR_UNAVAILABLE" || error.kind === "INSUFFICIENT_HISTORY") throw error;
+      if (!apiKey) keyPool.markFailure(candidateKey, error);
+    }
   }
-
-  if (!response.ok || body?.status === "error" || !Array.isArray(body?.values)) {
-    throw providerError(symbol, body, response.status);
-  }
+  if (!successfulKey) throw lastError || new Error("Twelve Data API pool failed");
+  if (!apiKey) keyPool.markSuccess(successfulKey);
 
   const minuteStart = Math.floor(now / 60000) * 60;
   const byEpoch = new Map();
