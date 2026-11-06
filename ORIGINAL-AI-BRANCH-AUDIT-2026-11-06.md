@@ -147,3 +147,6 @@ Continue with a read-only runtime trace of `feature/original-ai-historical-assis
 - Note: APK artifact commit predates the backend-only stale lease fix, but Android source was unchanged after that build. The server fix does not require a new APK build.
 - Firebase Admin key was generated in a remote browser but could not be transferred securely to Render by browser automation. Do not treat it as configured. The user must create/download a key in their own browser and add its JSON as the Render secret; never paste the private key into chat.
 - Not yet tested: actual device install, Android 13+ permission response, notification delivery, Xiaomi HyperOS background delivery, or long-running behavior on Render Free plan.
+
+
+- Security cleanup: the one Firebase Admin key generated in the remote browser during the failed transfer attempt was revoked and verified absent from the service-account Keys page. No other key or IAM role was changed. The user should generate a fresh key locally only when ready to paste it directly into Render Environment.
