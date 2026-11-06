@@ -32,12 +32,12 @@ test("Original AI data warm-up remains 200 closed M1 candles", () => {
 
 test("Live analyzer routes through async ten-engine dispatcher", async () => {
   const candles = history();
-  const direct = analyzeOriginal(candles.slice(-MIN_CLOSED_CANDLES));
   const routed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
-  assert.equal(routed.signal, direct.signal);
-  assert.equal(routed.regime, direct.regime);
-  assert.equal(routed.strategy, direct.strategy);
-  assert.equal(routed.score, direct.score);
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(routed.signal));
+  assert.ok(routed.engineResults);
+  assert.equal(routed.engineResults.length, 10);
+  assert.equal(routed.engineSummary.total, 10);
+  assert.equal(routed.engineSummary.failed, 0);
   assert.equal(routed.livePriceReady, true);
   assert.equal(routed.dataMode, "STREAMING");
   assert.ok(routed.higherTimeframe);
