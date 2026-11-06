@@ -40,7 +40,7 @@ function decide(ctx, candidate) {
       r.engine === 'safety_noise_guard' && r.validity && r.reason.startsWith('PASS:'));
     if (!rangeVote || !rangeSafe || !safetyPass || !['CALL', 'PUT'].includes(candidate?.signal) ||
         !Number.isFinite(candidate?.score) || candidate.score < 55)
-      return standby(ctx, candidate, 'SIDEWAY hold: Range-Bound Swing confirmation and safety checks are required');
+      return standby(ctx, candidate, 'Sideways/choppy regime; directional entry blocked unless Range-Bound Swing confirmation and safety checks pass');
     return { ...candidate, regime: ctx.regime };
   }
   if (!candidate || !['CALL', 'PUT'].includes(candidate.signal) ||
