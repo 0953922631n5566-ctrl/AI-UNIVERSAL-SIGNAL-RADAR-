@@ -7,7 +7,7 @@ const { adx } = require('../indicators/adx');
 const { volatility } = require('../indicators/volatility');
 const { supportResistance } = require('../indicators/support-resistance');
 
-const MIN_TREND_ADX = 16;
+const MIN_TREND_ADX = 14;
 
 function classifyTrendRegime({ bullishAlignment, bearishAlignment, adx: adxValue, plusDI, minusDI }) {
   if (!Number.isFinite(adxValue) || !Number.isFinite(plusDI) || !Number.isFinite(minusDI)) return null;
