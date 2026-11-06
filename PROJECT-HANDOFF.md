@@ -1609,3 +1609,33 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The APK is **debug-signed**, not signed with a persistent production keystore. Compared with the prior Build 15 debug APK artifact, the debug certificate SHA-256 differs; Android may reject an in-place update over that prior APK. For upgrade-in-place continuity, configure a persistent release keystore through protected GitHub Actions secrets and build a release-signed APK. Do not commit a keystore or passwords to the repository.
 - No physical Xiaomi/Android device test has been performed. Signal timing is gated on fresh Streaming ticks and FCM transport; end-to-end on-device receipt timing remains to be verified.
 - Signal release remains rule-based/manual-only; `signalReleaseValidated=false` and out-of-sample validation remains outstanding.
+
+
+## 2026-11-06 — Backend 10-Engine Multi-Strategy Architecture
+
+### Implementation
+- Added `main-market/original-ai/engine/multi-engine-dispatcher.js` as the production orchestration layer. It evaluates ten independent engines concurrently with `Promise.allSettled()`; a rejected strategy is recorded as NO_SIGNAL/invalid and does not abort the other engines.
+- Each engine returns the common contract: `engine`, `direction` (CALL/PUT/NO_SIGNAL), `score` (0–100), `confidence` (0–100), `reason`, and `validity`. Missing required history or volume is represented as invalid/NO_SIGNAL; no synthetic volume is created.
+- Engines:
+  1. Trend Breakout — 20-candle high/low breakout with close-strength confirmation.
+  2. Trend Continuation — ADX/DI/MACD/RSI and candle-flow confirmation.
+  3. Pin Bar Reversal — rejection wick with support/resistance or RSI context.
+  4. Candlestick Pattern — bullish/bearish engulfing and morning/evening star patterns.
+  5. Range-Bound Swing — only active in SIDEWAY/RANGING; requires support/resistance rejection, RSI boundary and subdued volatility.
+  6. Compression Squeeze — measured range contraction followed by directional expansion.
+  7. Momentum Divergence — price/derived-RSI divergence; requires sufficient candle history.
+  8. Volume Order Flow — requires actual volume/tick-volume observations; absent FX volume returns NO_SIGNAL rather than fabricated data.
+  9. Pullback Retest — EMA 9/21/50 structure with retest and reclaim/rejection.
+  10. Safety Noise Guard — vetoes missing/invalid 200-candle history, stale source, M1 gaps, extreme volatility and abnormal noise spikes.
+- Central Dispatcher applies per-engine weights, supporting-vs-conflicting directional votes, a minimum two-engine consensus, aggregate score floor 55 and conflict-margin floor 22%. SIDEWAY/RANGING candidates additionally require a Range-Bound Swing vote and pass the Original AI range safety gate. Safety Noise Guard has unconditional VETO authority.
+- Integrated into the live path: source/data-quality gate → shared Original AI market context → ten engines → Central Dispatcher → Original AI final safety/decision gate. The legacy synchronous helpers remain for diagnostics; the backend uses the asynchronous multi-engine analyzer.
+- Public `/api/public/signal` and WebSocket market state expose per-engine diagnostics and engine summary. `/health` reports TEN_ENGINE_MULTI_STRATEGY, Promise.allSettled, and Safety Noise Guard VETO.
+- Async backend evaluation is awaited by the M1 timing loop and REST/watchdog paths; stream event paths safely handle the returned promise.
+
+### Preserved behavior / scope
+- M1 dispatch eligibility remains 3–5 seconds before candle close; 250ms timing cadence and <=5-second tick freshness are unchanged.
+- Server and Android anti-duplicate cooldown remains 55 seconds; Android same-alert-ID dedupe remains 10 minutes.
+- High-priority data-only FCM dispatch path is unchanged.
+- Android source, compact top-pinned Build 16 banner, `FLAG_NOT_TOUCHABLE`, Master ON/OFF, audio/haptics, APK version/signature and Build 16 artifact were not modified or rebuilt in this backend-only change.
+- Render service and environment secrets were not edited; auto-deploy is expected from the main-market branch push. Verify the resulting deploy and live engine diagnostics before treating this implementation as deployed.
+- Signal release remains rule-based/manual-only; `signalReleaseValidated=false` and out-of-sample validation remains outstanding. The 10 engines are heuristic strategy modules, not evidence of predictive edge.
