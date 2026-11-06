@@ -683,7 +683,8 @@ server.listen(PORT, () => {
   console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
-    twelveDataApiKeyConfigured: Boolean(API_KEY),
+    twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
+    twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
     restRefreshSeconds: REST_SYNC_SECONDS
