@@ -7,6 +7,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
+import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -16,7 +17,6 @@ import {
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const API_KEY = process.env.TWELVE_DATA_API_KEY || "";
 const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
@@ -128,7 +128,8 @@ function snapshot() {
     apiMessage: globalLockMessage || data.statusMessage,
     onlineCount: data.apiStatus === "ONLINE" ? 1 : 0,
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
-    version: VERSION
+    version: VERSION,
+    apiPool: twelveDataKeyPool.publicStatus()
   };
 }
 
@@ -239,7 +240,7 @@ async function syncSelected({ force = false } = {}) {
   feed.restSyncPromise = (async () => {
     try {
       const response = await fetchCandles({
-        apiKey: API_KEY, symbol: selectedSymbol,
+        keyPool: twelveDataKeyPool, symbol: selectedSymbol,
         interval: INTERVAL, outputsize: HISTORY_CANDLES
       });
       const live = feed.candles.at(-1);
@@ -313,9 +314,11 @@ function startWatchdog() {
 
 function startStream() {
   if (!monitoring || upstream) return;
-  if (!API_KEY) {
+  const apiKey = twelveDataKeyPool.getActiveKey();
+  if (!apiKey) {
     const feed = feeds.get(selectedSymbol);
-    lockFeed(feed, "ยังไม่ได้ตั้ง TWELVE_DATA_API_KEY ใน Render Environment");
+    lockFeed(feed, "ยังไม่มี Twelve Data Key ที่พร้อมใช้งานใน Render Environment");
+    retryTimer = setTimeout(startStream, Math.min(twelveDataKeyPool.nextAvailableInMs() || 60000, 15 * 60 * 1000));
     return;
   }
 
@@ -326,7 +329,7 @@ function startStream() {
   feed.streamMessage = "กำลังสมัครรับราคา Streaming";
   let socket;
   try {
-    const url = "wss://ws.twelvedata.com/v1/quotes/price?apikey=" + encodeURIComponent(API_KEY);
+    const url = "wss://ws.twelvedata.com/v1/quotes/price?apikey=" + encodeURIComponent(apiKey);
     socket = new WebSocket(url);
     upstream = socket;
   } catch (error) {
@@ -386,8 +389,14 @@ function startStream() {
     if (message.status === "error" || message.event === "error") {
       const text = String(message.message || message.code || "Streaming error");
       if (/\b401\b|\b429\b|quota|credit|rate.?limit|unauthori[sz]ed|api.?key/i.test(text)) {
-        globalLockMessage = "Twelve Data Streaming: " + text;
-        lockFeed(feed, globalLockMessage);
+        const keyError = { kind: /429|quota|credit|rate.?limit/i.test(text) ? "RATE_LIMIT" : "AUTH_OR_PERMISSION", message: text };
+        twelveDataKeyPool.markFailure(apiKey, keyError);
+        globalLockMessage = "Twelve Data Key ปัจจุบันถูกจำกัด — กำลังสลับ Key อัตโนมัติ";
+        if (upstream === socket) upstream = null;
+        clearInterval(heartbeatTimer); heartbeatTimer = null;
+        try { socket.close(); } catch {}
+        publish();
+        retryTimer = setTimeout(startStream, 1000);
       } else {
         feed.streamStatus = "ERROR";
         feed.streamMessage = text;
@@ -401,6 +410,7 @@ function startStream() {
     if (upstream !== socket) return;
     feed.streamStatus = "ERROR";
     feed.streamMessage = error.message;
+    twelveDataKeyPool.markFailure(apiKey, { kind: "TRANSIENT", message: error.message });
     feed.activeSignal = null;
     feed.activeUntil = 0;
     evaluate(feed);
@@ -557,7 +567,8 @@ app.get("/health", (_req, res) => {
     architecture: { decisionEngine: "ORIGINAL_AI", historicalSimulation: "PARALLEL_WORKER_THREAD", simulationRole: "ADVISORY_ONLY" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
-      twelveDataApiKey: Boolean(API_KEY),
+      twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
+      twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
       restRefreshSeconds: REST_SYNC_SECONDS,
