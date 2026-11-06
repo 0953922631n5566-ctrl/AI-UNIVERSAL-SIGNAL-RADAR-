@@ -274,7 +274,7 @@ function dispatchSignalIfReady(feed) {
  })) return;
  if (feed.lastDispatchedAlertId === feed.alertId) return;
 
- // Claim the candle and 60-second cooldown before the asynchronous FCM call.
+ // Claim the candle and 55-second cooldown before the asynchronous FCM call.
  feed.lastDispatchedAt = now;
  feed.lastDispatchedCandle = candleEpoch;
  feed.lastDispatchedAlertId = feed.alertId;
@@ -447,8 +447,7 @@ function startStream() {
   } catch (error) {
     feed.streamStatus = "ERROR";
     feed.streamMessage = error.message;
-    evaluate(feed);
-    publish();
+    void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     retryTimer = setTimeout(startStream, 8000);
     return;
   }
@@ -501,7 +500,7 @@ function startStream() {
       } else if (failedSymbol || status === "error" || status === "failed") {
         feed.streamStatus = "UNSUPPORTED";
         feed.streamMessage = text || "Twelve Data ปฏิเสธการสมัคร Streaming";
-        evaluate(feed);
+        void evaluate(feed).then(publish).catch(error => console.error("[radar] subscription analysis failed", error.message));
       } else if (status === "success" || succeeded.length) {
         feed.streamStatus = "SUBSCRIBED";
         feed.streamMessage = "สมัครรับ Streaming แล้ว — รอ tick แรก";
@@ -524,8 +523,7 @@ function startStream() {
       } else {
         feed.streamStatus = "ERROR";
         feed.streamMessage = text;
-        evaluate(feed);
-        publish();
+        void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
       }
     }
   });
@@ -540,8 +538,7 @@ function startStream() {
     try { socket.close(); } catch {}
     feed.activeSignal = null;
     feed.activeUntil = 0;
-    evaluate(feed);
-    publish();
+    void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
   });
 
