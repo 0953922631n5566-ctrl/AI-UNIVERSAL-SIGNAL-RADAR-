@@ -33,6 +33,24 @@ function decide(ctx, candidate) {
 
   const i = ctx.indicators;
   const strongMomentum = hasStrongTrendMomentum(ctx, candidate);
+  const historical = ctx.historicalAssistant;
+  const historicalReady = historical?.decisionReady === true &&
+    ['CALL', 'PUT'].includes(historical.direction) &&
+    Number.isFinite(historical.directionalSharePercent) &&
+    Number.isFinite(historical.analogueCount) && historical.analogueCount >= 12;
+
+  // The historical model is a secondary safety check, never a signal generator.
+  // It can block a conflicting borderline candidate, but cannot create or flip a signal.
+  if (historicalReady && historical.direction !== candidate.signal && candidate.score < 80) {
+    return {
+      signal: 'STANDBY',
+      regime: ctx.regime,
+      score: candidate.score,
+      reason: `Historical evidence conflicts (${historical.direction} ${historical.directionalSharePercent}% from ${historical.analogueCount} analogues); Original AI candidate held for safety`,
+      strategy: candidate.strategy,
+      assistantCheck: 'CONFLICT_BLOCK'
+    };
+  }
 
   if (i.volatilityRatio > 2.8 || (i.volatilityRatio > 2.2 && !strongMomentum)) {
     return {
@@ -44,7 +62,6 @@ function decide(ctx, candidate) {
     };
   }
 
-  // Symmetric soft S/R: strong aligned momentum is required to pass nearby levels.
   if (candidate.strategy === 'UPTREND' && candidate.signal === 'CALL' &&
       i.nearResistance && !(strongMomentum && candidate.score >= MIN_SCORE)) {
     return {
@@ -67,7 +84,13 @@ function decide(ctx, candidate) {
     };
   }
 
-  return { ...candidate, regime: ctx.regime };
+  return {
+    ...candidate,
+    regime: ctx.regime,
+    ...(historicalReady ? {
+      assistantCheck: historical.direction === candidate.signal ? 'CONFIRMED' : 'STRONG_ORIGINAL_OVERRIDE'
+    } : {})
+  };
 }
 
 module.exports = { decide, MIN_SCORE, hasStrongTrendMomentum };
