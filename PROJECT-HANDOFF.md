@@ -1209,3 +1209,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render request logs contained no observed `/api/auth`, `/api/state`, or `/api/control` calls in the checked interval. The 64-character device credential is configured server-side but is not embedded in the APK; the operator must provision it to the device through a secure channel. No credential value is copied into this repository or report.
 - The older root `main` Android OCR APK workflow remains run `41786849036` on commit `386d0240bc13c83b9e45153a91557d0d75563cb9`; it sends OCR price JSON, not JPEG, and does not match the deployed Main Market API contract. Root `main` head at audit time was `c1da18900415fc6bd5e28e4e6c0ea8ba67540396`, whose latest commit adds a 10-minute Main Market health ping workflow.
 - Delivery status: APK built and its bytes/hash verified; backend live and health/market-data startup observed; device authentication, physical Xiaomi 11T test, FCM delivery, and full device-to-backend validation remain unverified. No vision model or independent out-of-sample evaluation exists. Keep STANDBY. No paid service was created and no broker execution is enabled.
+
+
+## 2026-11-06 — Android display name correction: Signal Radar PRO
+
+- Timezone: Asia/Bangkok. Branch: `main-market`. Scope: Android launcher/app display name only; package identity and Firebase registration intentionally unchanged.
+- User confirmed the correct installed product name is **Signal Radar PRO**, not “Kawasaki Signal Radar”.
+- Updated `main-market/android/app/src/main/AndroidManifest.xml` application label to `Signal Radar PRO`.
+- Updated `main-market/android/settings.gradle` Gradle root project display name to `SignalRadarPRO`.
+- Intentionally preserved `applicationId` and Android `namespace` as `com.kawasaki.signalradar`, and preserved Firebase Android package registration in `google-services.json`. This stable package ID is the critical identity for installing an update over the existing app; changing it would create a separate app and prevent in-place update.
+- Preserved versionCode 3 / versionName 1.2.0 pending a verified newer build. The old APK will not change its displayed name; the newly built APK must be installed as an update.
+- Commits: manifest label `e69558fb7041fa622929ab0db5e0312488efe6d6`; Gradle project name `118237af40bc7008cbb9f04a0af29c363dca2835`.
+- VERIFIED by source inspection/edit: display name changed; package/applicationId and Firebase package match remain unchanged.
+- NOT YET VERIFIED: Android workflow triggered by these commits, fresh APK artifact, signature compatibility with the APK already installed on the user's phone, installation/update on Xiaomi 11T, and launcher label after install. A debug APK can update only an existing install signed with the same debug signing key.
