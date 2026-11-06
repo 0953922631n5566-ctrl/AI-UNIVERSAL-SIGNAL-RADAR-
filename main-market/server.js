@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
-import { validateTelegramInitData } from "./src/telegram-auth.js";
+import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import {
@@ -17,11 +17,11 @@ import {
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const API_KEY = process.env.TWELVE_DATA_API_KEY || "";
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || "";
-const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
+const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-02-v2-rewrite";
+const VERSION = "2026-11-06-android-direct-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -487,32 +487,22 @@ function stop(clearSignal = true) {
 
 function finite(value) { return Number.isFinite(value); }
 
-function cookieValue(header, name) {
-  for (const part of String(header || "").split(";")) {
-    const index = part.indexOf("=");
-    if (index < 0) continue;
-    if (part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
-  }
-  return "";
-}
-
 function sessionForRequest(req) {
   const authorization = String(req.headers.authorization || "");
-  const bearer = authorization.match(/^Bearer\s+([a-f0-9]{64})$/i)?.[1] || "";
-  const token = bearer || cookieValue(req.headers.cookie, "radar_session");
-  const session = token ? sessions.get(token) : null;
+  const bearer = authorization.match(/^Bearer\\s+([a-f0-9]{64})$/i)?.[1] || "";
+  const session = bearer ? sessions.get(bearer) : null;
   if (!session) return null;
   if (session.expiresAt <= Date.now()) {
-    sessions.delete(token);
+    sessions.delete(bearer);
     return null;
   }
   return session;
 }
 
-function requireTelegramSession(req, res, next) {
+function requireDeviceSession(req, res, next) {
   const session = sessionForRequest(req);
-  if (!session) return res.status(401).json({ ok: false, error: "กรุณาเปิด Mini App ผ่าน Telegram ใหม่อีกครั้ง" });
-  req.telegramUserId = session.userId;
+  if (!session) return res.status(401).json({ ok: false, error: "อุปกรณ์ยังไม่ได้เชื่อมต่อหรือ Session หมดอายุ กรุณาเชื่อมต่อใหม่" });
+  req.deviceId = session.deviceId;
   next();
 }
 
@@ -536,21 +526,18 @@ function rateLimitControl(req, res, next) {
   next();
 }
 
-const allowedOrigins = new Set([
-  "https://ai-universal-signal-radar.onrender.com",
-  "https://my-ai-signal-bot-v2.onrender.com",
-  "https://ai-signal-radar-main-market.onrender.com"
-]);
+const allowedOrigins = new Set(["https://ai-signal-radar-main-market.onrender.com"]);
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && (allowedOrigins.has(origin) || origin === `https://${req.headers.host}`)) {
+  const sameOrigin = Boolean(origin && origin === `https://${req.headers.host}`);
+  const originAllowed = Boolean(origin && (allowedOrigins.has(origin) || sameOrigin));
+  if (originAllowed) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
   }
-  if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigins.has(origin) ? 204 : 403);
+  if (req.method === "OPTIONS") return res.sendStatus(originAllowed ? 204 : 403);
   next();
 });
 app.use(express.json({ limit: "8kb" }));
@@ -567,7 +554,7 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     configuration: {
-      telegramBotToken: Boolean(BOT_TOKEN),
+      androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: Boolean(API_KEY),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
@@ -578,25 +565,23 @@ app.get("/health", (_req, res) => {
   });
 });
 app.post("/api/auth", rateLimitAuth, (req, res) => {
-  if (!BOT_TOKEN) {
-    console.error("[auth] blocked: Telegram bot token is not configured");
-    return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Telegram Bot Token" });
+  if (!CLIENT_TOKEN) {
+    console.error("[auth] blocked: ANDROID_CLIENT_TOKEN is not configured");
+    return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่ารหัสเชื่อมต่ออุปกรณ์" });
   }
-  const validation = validateTelegramInitData(req.body?.initData, BOT_TOKEN);
-  if (!validation.ok) {
-    console.warn("[auth] rejected Telegram initData");
-    return res.status(401).json({ ok: false, error: "ยืนยัน Telegram ไม่สำเร็จ กรุณาเปิด Mini App ใหม่" });
+  if (!validateClientToken(req.body?.clientToken, CLIENT_TOKEN)) {
+    console.warn("[auth] rejected Android client credential");
+    return res.status(401).json({ ok: false, error: "รหัสเชื่อมต่ออุปกรณ์ไม่ถูกต้อง" });
   }
   const token = randomBytes(32).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, { userId: validation.userId, expiresAt });
-  res.setHeader("Set-Cookie", `radar_session=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`);
+  sessions.set(token, { deviceId: "android-client", expiresAt });
   noCache(res);
-  console.info("[auth] Telegram Mini App session created");
+  console.info("[auth] Android client session created");
   res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
 });
-app.get("/api/state", requireTelegramSession, (_req, res) => { noCache(res); res.json(snapshot()); });
-app.post("/api/control", requireTelegramSession, rateLimitControl, async (req, res) => {
+app.get("/api/state", requireDeviceSession, (_req, res) => { noCache(res); res.json(snapshot()); });
+app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res) => {
   const body = req.body || {};
   try {
     if (body.action === "start") {
@@ -619,7 +604,7 @@ app.post("/api/control", requireTelegramSession, rateLimitControl, async (req, r
 setInterval(() => {
   if (monitoring && wss.clients.size === 0 && httpLeaseUntil &&
       Date.now() > httpLeaseUntil) {
-    console.warn("[radar] Mini App lease expired; stopping scanner");
+    console.warn("[radar] Android client lease expired; stopping scanner");
     stop();
   }
 }, 5000);
@@ -644,7 +629,6 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   wss.handleUpgrade(req, socket, head, client => {
-    client.telegramUserId = session.userId;
     wss.emit("connection", client, req);
   });
 });
@@ -667,10 +651,9 @@ wss.on("connection", socket => {
 
 server.listen(PORT, () => {
   console.log(`MAIN MARKET v2 listening on ${PORT}`);
-  console.info("[radar] token-related environment variable names",
-    Object.keys(process.env).filter(key => /(TELEGRAM|BOT|TOKEN)/i.test(key)).sort());
+  console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
-    telegramBotTokenConfigured: Boolean(BOT_TOKEN),
+    androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeyConfigured: Boolean(API_KEY),
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
