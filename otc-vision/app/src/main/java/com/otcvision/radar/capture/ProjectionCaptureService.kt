@@ -90,7 +90,7 @@ class ProjectionCaptureService : Service() {
             }
             ACTION_START -> {
                 try {
-                    check(Settings.canDrawOverlays(this)) { "Allow Display over other apps to use floating ROI controls" }
+                    check(Settings.canDrawOverlays(this)) { "Allow Display over other apps to use floating single scan button" }
                     startForegroundCompat()
                     val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
                     val data = if (Build.VERSION.SDK_INT >= 33) {
@@ -164,15 +164,9 @@ class ProjectionCaptureService : Service() {
         controls = ManualFloatingControls(
             this,
             getSystemService(WINDOW_SERVICE) as WindowManager,
-            onCapture = { requestManualCapture() },
-            onStop = {
-                stopCapture()
-                broadcast(ACTION_STOPPED, "Manual capture stopped by user")
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
+            onCapture = { requestManualCapture() }
         ).also { it.show(screenWidth, screenHeight) }
-        broadcast(ACTION_METRIC, "MANUAL_READY · move the ROI box over the broker price tag, then tap CAPTURE & ANALYZE")
+        broadcast(ACTION_METRIC, "ONE_TAP_READY · tap SCAN & ANALYZE; fixed right-axis ROI 82–98% / 15–85%")
     }
 
     private fun requestManualCapture() {
@@ -181,19 +175,19 @@ class ProjectionCaptureService : Service() {
                 controls?.setStatus("Capture session is not active", true)
                 return
             }
-            val selectedBounds = controls?.roiBoundsOnScreen()
+            val selectedBounds = controls?.presetRoiBounds()
             if (selectedBounds == null || selectedBounds.width() <= 0 || selectedBounds.height() <= 0) {
-                controls?.setStatus("ROI box is not ready · reposition it and retry", true)
-                showCaptureToast("ROI box is not ready")
+                controls?.setStatus("Preset price-tag region is unavailable · retry", true)
+                showCaptureToast("Preset price-tag region is unavailable")
                 return
             }
             if (processing.get() || !captureRequested.compareAndSet(false, true)) {
-                controls?.setStatus("One capture is already in progress", false)
+                controls?.setStatus("Scan already in progress", false)
                 return
             }
             pendingRoiBounds = Rect(selectedBounds)
             controls?.hideForCapture()
-            updateNotification("Manual capture requested · waiting for next frame")
+            updateNotification("One-tap scan · waiting for one frame")
         } catch (error: Exception) {
             captureRequested.set(false)
             pendingRoiBounds = null
@@ -268,7 +262,7 @@ class ProjectionCaptureService : Service() {
             frameBitmap.copyPixelsFromBuffer(plane.buffer)
 
             val roi = pendingRoiBounds?.let { Rect(it) }
-                ?: error("ROI coordinates were not saved before capture")
+                ?: error("Preset ROI coordinates were not saved before capture")
             pendingRoiBounds = null
             check(screenWidth > 0 && screenHeight > 0) { "Display dimensions are unavailable" }
 
@@ -286,7 +280,7 @@ class ProjectionCaptureService : Service() {
             check(startX >= 0 && startY >= 0 && cropWidthSafe > 0 && cropHeightSafe > 0 &&
                 startX + cropWidthSafe <= frameBitmap.width &&
                 startY + cropHeightSafe <= frameBitmap.height) {
-                "ROI is outside the captured screen · move the box fully onto the display"
+                "Preset price-tag ROI is outside the captured screen"
             }
 
             // Crop exactly the user-positioned ROI rectangle after strict bounds validation.
@@ -329,10 +323,11 @@ class ProjectionCaptureService : Service() {
                     val memoryKb = usedHeapKb()
                     val message = status + " · manual ROI " + cropWidth + "x" + cropHeight + " px"
                     controls?.setStatus(
-                        if (parsed.value != null) "PRICE " + parsed.value + " · ready for next capture"
-                        else status + " · adjust ROI and tap again",
+                        if (parsed.value != null) "PRICE " + parsed.value + " · SIGNAL STANDBY"
+                        else status + " · tap to retry",
                         true
                     )
+                    showCaptureToast(if (parsed.value != null) "PRICE " + parsed.value + " · SIGNAL STANDBY: 10 local signal engines are not configured" else status)
                     broadcast(
                         ACTION_METRIC,
                         message,
@@ -344,7 +339,7 @@ class ProjectionCaptureService : Service() {
                     )
                 }
                 .addOnFailureListener { error ->
-                    controls?.setStatus("OCR failed · adjust ROI and retry", true)
+                    controls?.setStatus("OCR failed · tap to retry", true)
                     reportCaptureFailure("OCR_FAILURE", error)
                 }
                 .addOnCompleteListener {
@@ -354,7 +349,7 @@ class ProjectionCaptureService : Service() {
             handedToMlKit = true
         } catch (error: Exception) {
             reportCaptureFailure("CAPTURE_OR_CROP", error)
-            controls?.setStatus("Capture failed · adjust ROI and tap again", true)
+            controls?.setStatus("Capture failed · tap to retry", true)
             showCaptureToast(error.message ?: "Unable to capture selected ROI")
         } finally {
             runCatching { image.close() }
