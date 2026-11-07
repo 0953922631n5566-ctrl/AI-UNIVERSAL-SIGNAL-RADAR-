@@ -1,0 +1,33 @@
+name: Isolated AI-10 CORE Tests
+
+on:
+  push:
+    branches:
+      - feature/isolated-10ai-engine
+    paths:
+      - "isolated-10ai-engine/**"
+      - ".github/workflows/isolated-10ai-engine.yml"
+  pull_request:
+    paths:
+      - "isolated-10ai-engine/**"
+      - ".github/workflows/isolated-10ai-engine.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: isolated-10ai-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: npm run check
+      - name: Run isolated engine tests
+        run: npm test
