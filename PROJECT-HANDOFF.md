@@ -400,3 +400,13 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - New CI run and field APK build are pending after the latest source/documentation commits. Do not report success until run/artifact verified.
 - Xiaomi 11T field extraction/accuracy/thermal metrics remain unknown until 100-frame device CSV is collected and compared with timestamp-matched ground truth.
 - Main Market / AI-10 CORE untouched; no networking, backend, Render, Twelve Data, Firebase, FCM, Telegram, or trading logic added.
+
+
+### CI result for urgent orange-tag OCR patch
+- Build run #39 / ID `42339416983` completed successfully on branch `feature/otc-vision-apk`, source commit `bf09036ff1044af4eb8707c4d0b09bdcebf642ba`.
+- Parser tests: **11 passed, 0 failed (100%)**.
+- APK artifact: `otc-vision-finetuned-debug-apk`, ID `13561385788`, ZIP size 22,443,738 bytes; expires 2026-11-21.
+- Extracted APK size: 46,437,768 bytes.
+- APK SHA-256: `3c9c7c99f5e48cbf5a6249bb7418e8f4b4682937bf587a2f68d07b131608ec56`; independently matched the checksum file inside the downloaded artifact.
+- Workflow URL: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42339416983
+- The successful build verifies compilation, unit tests, and artifact packaging only. It does not establish improved OCR accuracy on Xiaomi 11T; 100-frame field test and exact-match comparison remain pending.
