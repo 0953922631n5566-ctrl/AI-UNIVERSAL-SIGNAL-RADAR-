@@ -73,7 +73,10 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         return PriceRead("ORANGE_TAG_NOT_FOUND", None, (), "No orange price tag was detected on the right axis")
 
     _, x, y, w, h = max(candidates, key=lambda item: item[0])
-    pad_x, pad_y = max(4, int(w * 0.08)), max(3, int(h * 0.12))
+    # Keep a generous vertical margin so the first/last digit rows are not clipped.
+    # The contour follows the orange tag border, while the price glyphs sit inside it.
+    pad_x = max(6, int(w * 0.12))
+    pad_y = max(8, int(h * 0.35))
     left = max(0, x0 + x - pad_x)
     top = max(0, y0 + y - pad_y)
     right = min(width, x0 + x + w + pad_x)
@@ -83,18 +86,21 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         return PriceRead("INVALID_TAG_CROP", None, (), "Detected tag crop is empty",
                          (left, top, right, bottom), orange_tag_found=True)
 
-    enlarged = cv2.resize(tag, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
+    # Upscale small on-screen digits before contrast normalization.
+    enlarged = cv2.resize(tag, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
-    gray = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(gray)
-    denoised = cv2.medianBlur(gray, 3)
-    threshold = cv2.adaptiveThreshold(
-        denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY, 31, 9
+    enhanced = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(gray)
+
+    # Otsu produces a crisp global binary mask; OCR both polarities because
+    # platform themes may render bright digits on either dark or light fills.
+    _, threshold = cv2.threshold(
+        enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
-    config = "--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789.,"
+    threshold_inverse = cv2.bitwise_not(threshold)
+    config = "--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789."
     texts = [
         pytesseract.image_to_string(threshold, config=config),
-        pytesseract.image_to_string(cv2.bitwise_not(threshold), config=config),
+        pytesseract.image_to_string(threshold_inverse, config=config),
     ]
     raw_text = " | ".join(text.strip() for text in texts if text.strip())
     reads = tuple(dict.fromkeys(
