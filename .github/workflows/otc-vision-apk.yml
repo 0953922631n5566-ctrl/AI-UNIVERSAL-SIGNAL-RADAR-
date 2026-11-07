@@ -35,18 +35,19 @@ jobs:
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-      - name: Assemble isolated OTC debug APK
+      - name: Run parser unit tests and assemble isolated OTC debug APK
         working-directory: otc-vision
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK and checksum
         run: |
           test -s otc-vision/app/build/outputs/apk/debug/app-debug.apk
           sha256sum otc-vision/app/build/outputs/apk/debug/app-debug.apk > otc-vision/app/build/outputs/apk/debug/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: otc-vision-radar-debug-apk
+          name: otc-vision-finetuned-debug-apk
           path: |
             otc-vision/app/build/outputs/apk/debug/app-debug.apk
             otc-vision/app/build/outputs/apk/debug/SHA256SUMS.txt
+            otc-vision/app/build/reports/tests/testDebugUnitTest/
           if-no-files-found: error
           retention-days: 14
