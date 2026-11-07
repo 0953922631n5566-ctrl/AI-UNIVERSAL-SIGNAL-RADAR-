@@ -14,5 +14,6 @@ async function analyze(marketData, marketContext = marketData) {
 }
 
 const { createVisionAnalyzeHandler } = require('./src/vision-input-gateway');
+const { createOpenAIVisionAdapter, validateExtraction, VisionExtractionError } = require('./src/vision-adapter');
 
-module.exports = { analyze, evaluateAllEngines, evaluateEngineBatch, centralDispatcher, decide, createVisionAnalyzeHandler };
+module.exports = { analyze, evaluateAllEngines, evaluateEngineBatch, centralDispatcher, decide, createVisionAnalyzeHandler, createOpenAIVisionAdapter, validateExtraction, VisionExtractionError };
