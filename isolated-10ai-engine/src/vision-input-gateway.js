@@ -51,7 +51,7 @@ function parseMultipart(buffer, contentType, maxBytes) {
     if (next < 0) break;
     let dataEnd = next;
     if (buffer.subarray(dataEnd - 2, dataEnd).toString() === '\r\n') dataEnd -= 2;
-    const disposition = headers.match(/content-disposition:\s*form-data;[^\r\n]*name="([^"]+)"(?:;[^\r\n]*filename="([^"]*)")?/i);
+    const disposition = headers.match(/content-disposition:\s*form-data;[^\r\n]*?name="([^"]+)"(?:;[^\r\n]*?filename="([^"]*)")?/i);
     if (disposition) {
       const name = disposition[1], filename = disposition[2];
       const data = buffer.subarray(headerEnd + 4, dataEnd);
