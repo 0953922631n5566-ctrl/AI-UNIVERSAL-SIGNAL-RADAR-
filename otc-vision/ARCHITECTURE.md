@@ -1,131 +1,70 @@
-# OTC Vision Signal Radar — Isolated Project Blueprint
+# OTC Vision Signal Radar — Server-Side Frame Analysis
 
-**Status:** workspace initialized; architecture only. No APK built, no capture active, and nothing deployed.
+**Status:** Android one-tap full-frame uploader and server OCR source are implemented on the isolated branch. Backend deployment, a compatible server URL/token, Xiaomi device testing, and directional engine integration remain pending.
 
 ## Isolation contract
 
-- Work only on branch feature/otc-vision-apk.
-- Branch created from repository main, not main-market.
-- Never merge into main or main-market without separate explicit approval.
-- Do not edit, call, configure, or deploy to the Main Market Render service.
-- Do not reuse Main Market FCM, credentials, environment variables, backend endpoints, Twelve Data, Telegram, or server-side alert delivery.
-- The inherited repository contains unrelated Main Market files and workflows. Treat them as read-only historical context. New OTC app code belongs under otc-vision/ with its own Android application ID, build configuration, tests, and release artifacts.
-- Do not edit or dispatch the existing Render keep-alive workflow. Do not add any workflow that calls Render or sends FCM notifications.
+- Work only on \`feature/otc-vision-apk\`.
+- Do not merge into \`main\` or \`main-market\`.
+- Do not modify or deploy to the Main Market Render service.
+- No Twelve Data, Telegram, Firebase, FCM, broker API, or order execution.
+- OTC Vision uses its own Android application ID: \`com.otcvision.radar\`.
 
-## Product objective
+## Client architecture
 
-A single-device Android app for Xiaomi 11T / Android 14. It observes a user-selected OTC trading screen, extracts price/candle information on-device, evaluates locally implemented strategies, and presents manual CALL / PUT / STANDBY alerts. It must not place trades or automate broker interaction.
+1. User configures an HTTPS backend base URL and ingest token in the app.
+2. Token is encrypted with an Android Keystore AES-GCM key; only ciphertext is stored in app-private preferences.
+3. User explicitly starts MediaProjection and permits the single floating action button.
+4. The only floating control is a draggable **CAPTURE & SEND** button.
+5. Each tap arms one frame. Idle ImageReader frames are immediately closed without Bitmap conversion.
+6. The next frame is wrapped once as a Bitmap solely for JPEG encoding, uploaded as multipart to \`POST /v1/frame\`, then recycled in a \`finally\` block.
+7. The client performs no ROI crop, image filtering, local OCR, candle extraction, or signal calculation. It displays the server's signal/status/reason response on the floating button and in the app.
 
-## Proposed technology
+### Upload contract
 
-- Kotlin, Android SDK, Gradle, Jetpack components.
-- MediaProjection for explicit, user-approved screen capture.
-- Android foreground service with the mediaProjection service type while capture is active.
-- Google ML Kit Text Recognition, preferably the bundled on-device model for predictable offline availability.
-- Android Bitmap/image processing for candle geometry and color extraction. OCR is for text/price labels, not candle-shape analysis.
-- Room for local configuration, calibration, and bounded diagnostic history; no cloud sync.
-- Android NotificationManager for local alerts, with locally bundled audio and vibration.
-- Unit and instrumentation tests for parsing, feature extraction, strategy logic, and notification state.
+- HTTPS endpoint: \`{serverBaseUrl}/v1/frame\`
+- Authentication: \`Authorization: Bearer <RADAR_INGEST_TOKEN>\`
+- Multipart fields: \`session_id\`, \`sequence\`, \`captured_at_ms\`, \`width\`, \`height\`, and \`image\` (JPEG).
+- JPEG quality is reduced in bounded steps to stay under the server's 4 MB frame limit.
+- Connect timeout: 10 seconds; response timeout: 20 seconds.
+- No screenshot is written to local storage by the uploader.
+- Android must still allocate one temporary full-frame Bitmap and one compressed JPEG byte array; therefore memory use is reduced, not zero. Capture/encoding/network/platform failures are caught and reported, but no software can guarantee zero crashes under every OS or fatal-memory condition.
 
-## Runtime pipeline
+## Server architecture
 
-1. **User-controlled session**
-   - User opens the app, selects the target screen, calibrates the price-label and candle-chart regions, and explicitly starts capture.
-   - Display a persistent capture indicator and a clear Stop control.
-   - Stop capture immediately when the user stops the session, revokes projection, the service is stopped, or an unrecoverable capture error occurs.
+- \`backend/app.py\` authenticates the request, validates dimensions, payload size, MIME signature, timestamp, and monotonically increasing sequence.
+- \`backend/vision_ocr.py\` decodes the image in memory, searches the right-hand axis for an orange tag, crops the detected tag, enlarges it, denoises/thresholds it, and runs Tesseract OCR against numeric characters.
+- The screenshot is not persisted. The server retains only bounded in-memory session metadata and a truncated SHA-256 evidence identifier.
+- \`backend/Dockerfile\` installs the Tesseract binary and Python OCR dependencies.
+- The server returns the extracted price and OCR status where possible.
 
-2. **Screen capture and crop**
-   - Use MediaProjection with a virtual display and ImageReader.
-   - Crop only two configured regions of interest: current price label and candle chart.
-   - Handle rotation, resolution changes, scaling, system bars, and stale frames.
-   - Avoid Accessibility permissions for routine capture. Accessibility is not a general-purpose screen-capture API; only consider a narrowly scoped assistive feature after explicit approval.
+## Directional signal safety / 10-engine gap
 
-3. **Price OCR**
-   - Run ML Kit on the cropped price-label bitmap.
-   - Normalize digits and decimal separators, reject ambiguous/multiple candidates, and validate against configured instrument tick/precision rules.
-   - Attach capture timestamp, OCR confidence, and source ROI to every observation.
-   - Require temporal consistency across successive frames. Never turn low-confidence or stale OCR into a price.
+- A search of this branch did not find the requested ten OTC Signal Engine implementations or a validated chart-perception/decision adapter.
+- The existing backend was a frame-ingestion stub that only hashed uploads and returned STANDBY. The new code adds server-side orange-tag OCR, not the missing ten strategies.
+- The API therefore always returns \`signal=STANDBY\` and \`PRICE_READ_ENGINE_NOT_CONFIGURED\` when OCR succeeds. It must not emit CALL/PUT until the exact ten engine sources are identified, ported, supplied with suitable candle/chart inputs, and independently validated.
+- A single current price is not enough to calculate ten defensible directional strategies. Full screenshot capture creates the possibility of chart perception, but chart/candle extraction is not yet implemented.
 
-4. **Candle vision**
-   - Detect chart bounds and candle bodies/wicks from pixels using color segmentation and geometry.
-   - Infer direction, body size, wick lengths, and approximate OHLC only when scale calibration is reliable.
-   - Mark chart-derived values as estimates. If axis scale, candle boundaries, or colors cannot be resolved confidently, return UNKNOWN rather than fabricate OHLC.
-   - Build a time-ordered local candle buffer and reject duplicate, missing, out-of-order, or stale observations.
+## Backend deployment requirements
 
-5. **Local market-state and 10-engine decision layer**
-   - Port the ten AI-10 CORE micro-strategies only after reviewing the exact source implementation and mapping each strategy's inputs to data screen vision can genuinely provide.
-   - Keep each strategy as a pure Kotlin component returning direction, evidence, validity, and reason; no network or Android UI dependencies.
-   - Use a common feature snapshot: price series, estimated candles, momentum, volatility, support/resistance, and data-quality flags.
-   - Aggregate evidence in a separate decision engine with regime awareness: trend, range, high volatility, reversal/unclear.
-   - STANDBY is mandatory when OCR is ambiguous, frames/candles are stale or incomplete, calibration is invalid, strategies conflict materially, or the regime is unclear.
-   - Never claim a confidence percentage unless a calibrated, tested probability model exists. No auto-trading, broker clicks, or order execution.
+- Deploy only the dedicated OTC backend from this branch, using build context at repository root and Dockerfile path \`backend/Dockerfile\`.
+- Set server environment variable \`RADAR_INGEST_TOKEN\` to a strong random secret.
+- The Android app must be configured with that service's HTTPS base URL and the same token.
+- This source change does not itself deploy a Render service or alter any existing service. Do not claim the endpoint is live until a dedicated deployment and authenticated test upload succeed.
 
-6. **Local alert delivery**
-   - Use local Android notifications with a high-importance notification channel, sound, and vibration preferences.
-   - Use heads-up presentation where Android permits. A draw-over-other-apps overlay is optional, separately explained, and explicitly enabled by the user. Do not abuse Accessibility services to force overlays.
-   - Full-screen intents are restricted by Android and must not be assumed available. The app must work with ordinary heads-up notifications.
-   - Deduplicate alerts by candle/session key, enforce expiry, and never sound for STANDBY.
-   - Alerts are advisory and identify themselves as visual OTC screen analysis.
+## Device validation checklist
 
-## Suggested project layout
+- Install the newly built debug APK on Xiaomi 11T / Android 14.
+- Save the dedicated HTTPS backend URL and token; verify the token is encrypted by the Android Keystore-backed config store.
+- Grant overlay and fresh MediaProjection consent.
+- Open the broker screen and tap **CAPTURE & SEND** once.
+- Verify exactly one multipart POST, the received frame dimensions, orange-tag OCR result, server response, and on-screen status.
+- Repeat with permission revocation, no network, HTTP 401/413/5xx, rotation, and rapid double taps.
+- Measure memory and thermal behavior. A full-frame capture still requires temporary image memory; this design removes local ML Kit and local preprocessing but does not make memory usage zero.
 
-    otc-vision/
-      settings.gradle.kts
-      build.gradle.kts
-      app/
-        build.gradle.kts
-        src/main/AndroidManifest.xml
-        src/main/java/.../
-          MainActivity.kt
-          capture/ProjectionCaptureService.kt
-          capture/RegionCalibration.kt
-          vision/PriceTextRecognizer.kt
-          vision/CandleImageAnalyzer.kt
-          vision/FrameQualityGate.kt
-          data/LocalObservationStore.kt
-          engine/FeatureSnapshot.kt
-          engine/StrategyEngine01.kt ... StrategyEngine10.kt
-          engine/DecisionAggregator.kt
-          alerts/LocalAlertManager.kt
-          settings/PrivacySettings.kt
-        src/test/...
-      docs/
-        DATA_CONTRACT.md
-        DEVICE_SETUP_XIAOMI_11T.md
-        STRATEGY_PORTING_MATRIX.md
+## Build and release
 
-The package/application ID must be unique to this OTC app and must not reuse the Main Market app ID.
-
-## Privacy, security, and network boundary
-
-- Default network policy: no INTERNET permission and no network client dependency.
-- No API keys, server URLs, Firebase, FCM, Telegram, Render, or remote analytics.
-- Keep screenshots and OCR output in memory by default. If diagnostics are enabled, store only bounded, user-visible local records and provide a delete-all control.
-- Do not persist or upload broker credentials, account balances, personal identifiers, or full-screen recordings.
-- Capture must be user-initiated, visibly indicated, and stoppable at any time.
-
-## Xiaomi 11T / Android 14 notes
-
-- Android 14 requires fresh user consent for each MediaProjection session; do not cache or reuse a projection token.
-- Declare the correct foreground-service permissions and foregroundServiceType=mediaProjection; follow Android 14 foreground-service start requirements.
-- Test lock/unlock, app switching, orientation, screen-off, battery saver, memory pressure, permission revocation, and notification permission denial.
-- Xiaomi/HyperOS may restrict background activity. Document user-controlled Autostart and battery settings only if testing demonstrates they are required; do not silently bypass system controls.
-- Never promise uninterrupted capture when Android or the user has stopped projection.
-
-## Delivery phases and acceptance gates
-
-1. **Foundation:** isolated Gradle app, unique application ID, privacy boundary, session UI, permission flow. Build and install on Xiaomi 11T.
-2. **Capture:** explicit MediaProjection, ROI calibration, frame throttling, lifecycle and stop behavior. Verify no capture outside an active session.
-3. **Vision:** OCR price extraction and candle geometry with replayable test images; measure precision/recall and stale-data rejection.
-4. **Strategy port:** inspect and map all ten source engines; implement unit tests and deterministic replay. Do not loosen thresholds just to force CALL/PUT output.
-5. **Alerts:** local notifications, sound/vibration controls, deduplication, expiry, and STANDBY silence.
-6. **Device validation:** long-run battery/thermal tests, HyperOS background behavior, screen rotation, and failure recovery.
-7. **Release:** signed APK and SHA-256 checksum. No Render deployment, FCM setup, or merge to Main Market.
-
-## Current verified state
-
-- Git branch: feature/otc-vision-apk.
-- Branch base: main at commit 02b77fe3357a2c0b708135b7cf280437b56781ac.
-- No files on main or main-market were changed by this initialization.
-- No Render or FCM action was performed.
-- Architecture document only; Android implementation and APK remain pending.
+- Workflow: \`.github/workflows/otc-vision-apk.yml\`.
+- Android build: \`otc-vision/app\`.
+- Debug artifact must be downloaded and APK SHA-256 verified before sharing.
+- Build success is not proof of server deployment or Xiaomi hardware behavior.
