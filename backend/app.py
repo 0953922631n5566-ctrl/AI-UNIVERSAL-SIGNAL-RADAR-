@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from vision_ocr import read_orange_price
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("otc_vision.ocr")
 app = FastAPI(title="AI Universal Signal Radar", version="0.1.0")
 TOKEN = os.getenv("RADAR_INGEST_TOKEN", "")
