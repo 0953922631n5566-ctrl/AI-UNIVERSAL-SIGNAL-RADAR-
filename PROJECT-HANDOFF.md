@@ -470,3 +470,14 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Source changes were pushed as separate commits on the isolated branch. The newest source commit and CI workflow run must be checked before distributing an APK.
 - Important: this patch has not yet been proven on Xiaomi 11T hardware. CI compilation/tests and APK packaging are necessary but not sufficient; repeat the one-tap capture test, plus airplane mode, 401, 413, 5xx, rapid taps, and projection revocation.
 - Existing backend behavior remains OCR-only with STANDBY; no ten-engine CALL/PUT logic was added. The dedicated OTC Render backend is not modified by this Android-only patch.
+
+
+## 2026-11-07 — OTC SENDING crash-fix clean build result
+
+- Final clean build workflow run #90 / ID 42348413792 completed successfully on `feature/otc-vision-apk`; run URL: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42348413792.
+- Workflow head/source commit: `75c37aad670555661adc784891bb7fa661dd1df0`. The commit includes the corrected Multipart escaping, Dispatchers.IO uploader, main-thread overlay marshaling, and clean-build workflow command.
+- CI ran `:app:clean :app:testDebugUnitTest :app:assembleDebug`; Gradle reported `BUILD SUCCESSFUL in 31s`. Android unit-test task was `NO-SOURCE` (there are no Android unit test sources yet). Backend OCR parser suite: 5 tests passed.
+- Artifact ID `13564397743`, name `otc-vision-finetuned-debug-apk`, ZIP size 1,348,098 bytes; expiry 2026-11-21.
+- Extracted APK size 1,356,315 bytes. Independently verified SHA-256: `64f7f1b369252f8e266aff119fd0574c928dbb8279167e53943f5ad748381f83`, matching the artifact's SHA256SUMS.txt.
+- Clean APK artifact is available from the Actions run. The Xiaomi 11T hardware retest is still required; build success does not prove the reported force-close is fixed at runtime.
+- No OTC Render backend settings or Main Market branch/service were modified by this Android crash-fix patch.
