@@ -7,7 +7,9 @@ public class CaptureOverlayService extends Service {
   createChannel();startForeground(19,new Notification.Builder(this,"visual_capture").setSmallIcon(android.R.drawable.ic_menu_camera).setContentTitle("VISUAL-SIGNAL-AI").setContentText("Manual screenshot capture is ready").build());
   Intent data=i.getParcelableExtra("projectionData");int code=i.getIntExtra("resultCode",0);
   projection=((MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE)).getMediaProjection(code,data);
-  if(projection==null){stopSelf();return START_NOT_STICKY;}\n  projection.registerCallback(new MediaProjection.Callback(){@Override public void onStop(){stopSelf();}},h);\n  showButton();initCapturePipeline();return START_STICKY;
+  if(projection==null){stopSelf();return START_NOT_STICKY;}
+  projection.registerCallback(new MediaProjection.Callback(){@Override public void onStop(){stopSelf();}},h);
+  showButton();initCapturePipeline();return START_STICKY;
  }
  private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationManager n=getSystemService(NotificationManager.class);n.createNotificationChannel(new NotificationChannel("visual_capture","Visual capture",NotificationManager.IMPORTANCE_LOW));}}
  private int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
