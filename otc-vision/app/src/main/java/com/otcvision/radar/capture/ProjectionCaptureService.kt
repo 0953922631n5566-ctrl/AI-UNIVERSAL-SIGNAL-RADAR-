@@ -25,6 +25,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.otcvision.radar.model.RoiConfig
 import com.otcvision.radar.vision.BitmapPreprocessor
+import com.otcvision.radar.vision.OrangeTagDetector
 import com.otcvision.radar.vision.PriceTextParser
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -86,7 +87,7 @@ class ProjectionCaptureService : Service() {
                         intent.getParcelableExtra(EXTRA_RESULT_DATA)
                     } ?: error("Missing MediaProjection consent result")
                     startCapture(resultCode, data)
-                    updateNotification("Capturing locally · OCR on device")
+                    updateNotification("Capturing locally · dynamic orange-tag OCR")
                 } catch (error: Exception) {
                     broadcast(ACTION_ERROR, error.javaClass.simpleName + ": " + (error.message ?: "Capture startup failed"))
                     stopCapture()
@@ -180,19 +181,32 @@ class ProjectionCaptureService : Service() {
             image.close()
         }
 
-        val priceRect = roiConfig.priceLabel.toRect(frameWidth, frameHeight)
+        val scanRect = roiConfig.priceLabel.toRect(frameWidth, frameHeight)
         val chartRect = roiConfig.candleChart.toRect(frameWidth, frameHeight)
-        val priceCrop = Bitmap.createBitmap(fullFrame, priceRect.left, priceRect.top, priceRect.width(), priceRect.height())
+        val axisScan = Bitmap.createBitmap(fullFrame, scanRect.left, scanRect.top, scanRect.width(), scanRect.height())
+        val tagRect = OrangeTagDetector.findTag(axisScan)
+        val priceCrop = tagRect?.let {
+            Bitmap.createBitmap(axisScan, it.left, it.top, it.width(), it.height())
+        }
+        axisScan.recycle()
+
         val chartCrop = Bitmap.createBitmap(fullFrame, chartRect.left, chartRect.top, chartRect.width(), chartRect.height())
         fullFrame.recycle()
-
-        // Phase 1 validates chart ROI extraction; candle geometry/OHLC inference is later.
         val chartRoiPixels = chartCrop.width.toLong() * chartCrop.height.toLong()
         chartCrop.recycle()
 
+        if (priceCrop == null) {
+            broadcast(
+                ACTION_METRIC,
+                "NO_ORANGE_TAG · right-axis scan " + scanRect.width() + "x" + scanRect.height(),
+                frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+            )
+            return
+        }
+
         val scaled = BitmapPreprocessor.scaleForOcr(priceCrop)
         priceCrop.recycle()
-        val prepared = BitmapPreprocessor.prepareForOcr(scaled)
+        val prepared = BitmapPreprocessor.prepareOrangeTagForOcr(scaled)
         scaled.recycle()
 
         val ocrStartedAt = System.nanoTime()
@@ -206,11 +220,11 @@ class ProjectionCaptureService : Service() {
                 val status = when {
                     parsed.isAmbiguous -> "AMBIGUOUS"
                     parsed.value != null -> "PRICE_READ"
-                    else -> "NO_PRICE"
+                    else -> "NO_VALID_PRICE"
                 }
                 broadcast(
                     ACTION_METRIC,
-                    status + " · chart ROI " + chartRoiPixels + " px",
+                    status + " · orange tag anchored · chart ROI " + chartRoiPixels + " px",
                     price = parsed.value,
                     candidates = parsed.candidates.joinToString(","),
                     ocrMs = ocrMs,
