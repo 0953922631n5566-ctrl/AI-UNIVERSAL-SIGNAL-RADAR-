@@ -20,6 +20,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.PowerManager
 import android.os.BatteryManager
+import android.os.Environment
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.view.WindowManager
@@ -30,6 +31,10 @@ import com.otcvision.radar.model.RoiConfig
 import com.otcvision.radar.vision.BitmapPreprocessor
 import com.otcvision.radar.vision.OrangeTagDetector
 import com.otcvision.radar.vision.PriceTextParser
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ProjectionCaptureService : Service() {
@@ -62,6 +67,7 @@ class ProjectionCaptureService : Service() {
     private val roiConfig = RoiConfig.defaults()
     private var isStopping = false
     private lateinit var benchmarkRecorder: OcrBenchmarkRecorder
+    private var debugSnapshotsSaved = 0
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -214,8 +220,11 @@ class ProjectionCaptureService : Service() {
             return
         }
 
-        val scaled = BitmapPreprocessor.scaleForOcr(priceCrop)
+        // Every anchored quote is first enlarged by exactly 2x with bicubic interpolation.
+        val doubled = BitmapPreprocessor.upscaleBicubic2x(priceCrop)
         priceCrop.recycle()
+        val scaled = BitmapPreprocessor.scaleForOcr(doubled)
+        doubled.recycle()
         val prepared = BitmapPreprocessor.prepareOrangeTagForOcr(scaled)
         scaled.recycle()
 
@@ -223,7 +232,9 @@ class ProjectionCaptureService : Service() {
         recognizer.process(InputImage.fromBitmap(prepared, 0))
             .addOnSuccessListener { result ->
                 val ocrMs = (System.nanoTime() - ocrStartedAt) / 1_000_000L
-                val parsed = PriceTextParser.parse(result.text)
+                // ML Kit has no native whitelist API; sanitize to [0-9.] before regex validation.
+                val numericText = PriceTextParser.sanitizeOcrText(result.text)
+                val parsed = PriceTextParser.parse(numericText)
                 val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
                 val usedMemoryKb = usedHeapKb()
                 val status = when {
@@ -231,6 +242,7 @@ class ProjectionCaptureService : Service() {
                     parsed.value != null -> "PRICE_READ"
                     else -> "NO_VALID_PRICE"
                 }
+                if (parsed.value == null) saveDebugBitmap(prepared, status)
                 val progress = recordBenchmark(status, parsed.value, ocrMs, frameAgeMs, usedMemoryKb)
                 broadcast(
                     ACTION_METRIC,
@@ -244,6 +256,7 @@ class ProjectionCaptureService : Service() {
             }
             .addOnFailureListener { error ->
                 val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+                saveDebugBitmap(prepared, "OCR_FAILURE")
                 val progress = recordBenchmark("OCR_FAILURE", null, -1L, frameAgeMs, usedHeapKb())
                 broadcast(ACTION_METRIC, "OCR_FAILURE · " + (error.localizedMessage ?: error.javaClass.simpleName) + progress, frameMs = frameAgeMs, memoryKb = usedHeapKb())
             }
@@ -251,6 +264,28 @@ class ProjectionCaptureService : Service() {
                 prepared.recycle()
                 processing.set(false)
             }
+    }
+
+    /**
+     * Stores at most five failed OCR crops per capture session in app-specific local storage.
+     * Debug I/O is best-effort: storage/permission failures are swallowed and never stop capture.
+     */
+    private fun saveDebugBitmap(bitmap: Bitmap, reason: String) {
+        if (debugSnapshotsSaved >= 5) return
+        runCatching {
+            val base = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
+            val directory = File(base, "ocr-debug")
+            if (!directory.exists() && !directory.mkdirs()) return
+            val stamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(Date())
+            val safeReason = reason.replace(Regex("[^A-Za-z0-9_-]"), "_").take(24)
+            val file = File(directory, "ocr-$stamp-$safeReason.png")
+            file.outputStream().use { stream ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                    "Could not encode debug OCR bitmap"
+                }
+            }
+            debugSnapshotsSaved++
+        }
     }
 
     private fun usedHeapKb(): Long {
