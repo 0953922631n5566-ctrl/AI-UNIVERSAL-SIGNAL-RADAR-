@@ -35,6 +35,13 @@ jobs:
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend OCR dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Run server OCR parser tests
+        run: python -m unittest discover -s backend -p "test_*.py"
       - name: Run parser unit tests and assemble isolated OTC debug APK
         working-directory: otc-vision
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
