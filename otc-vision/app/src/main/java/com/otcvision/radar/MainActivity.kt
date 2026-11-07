@@ -64,11 +64,11 @@ class MainActivity : Activity() {
             textSize = 21f
         }
         val description = TextView(this).apply {
-            text = "Offline screen capture + on-device OCR. No network, server, FCM, or trade execution."
+            text = "One-tap screen capture + on-device OCR. Fixed price-tag region; no continuous OCR loop."
             textSize = 14f
         }
         statusView = TextView(this).apply {
-            text = "Manual mode. Grant overlay + screen capture permissions, position the ROI box over the price tag, then tap CAPTURE & ANALYZE."
+            text = "Grant overlay + screen capture once. Then open the broker app and tap the floating SCAN & ANALYZE button."
             textSize = 15f
             setPadding(0, 24, 0, 24)
         }
@@ -99,7 +99,7 @@ class MainActivity : Activity() {
         startButton.setOnClickListener {
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             if (!Settings.canDrawOverlays(this)) {
-                statusView.text = "Allow Display over other apps so the floating ROI and capture button can appear above the broker app."
+                statusView.text = "Allow Display over other apps so the single SCAN & ANALYZE button can appear above the broker app."
                 startActivityForResult(
                     Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
                     overlayRequestCode
@@ -125,7 +125,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == overlayRequestCode) {
             if (Settings.canDrawOverlays(this)) requestScreenCaptureConsent()
-            else statusView.text = "Overlay permission is required for manual floating ROI capture."
+            else statusView.text = "Overlay permission is required for the floating scan button."
             return
         }
         if (requestCode != projectionRequestCode) return
@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(service) else startService(service)
             setCapturing(true)
-            statusView.text = "Starting local capture and ML Kit OCR…"
+            statusView.text = "Starting one-tap capture and on-device ML Kit OCR…"
         } catch (error: Exception) {
             statusView.text = "Could not start capture: " + error.javaClass.simpleName + ": " + (error.message ?: "")
             setCapturing(false)
