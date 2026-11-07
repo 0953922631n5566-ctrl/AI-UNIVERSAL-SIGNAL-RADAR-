@@ -8,7 +8,10 @@ Standalone Android client and FastAPI OCR service, isolated from Main Market.
 - One draggable floating button: CAPTURE & SEND.
 - No movable ROI, no local ML Kit, no local OCR, no local image filtering or candle analysis.
 - ImageReader drains and closes idle frames. A tap arms one full-screen frame.
-- The frame is JPEG-encoded once and uploaded by HTTPS multipart to POST /v1/frame.
+- The captured Image is copied into an independently owned Bitmap and closed before upload begins. JPEG encoding and HTTPS multipart POST /v1/frame run on Dispatchers.IO, never on the Android main thread.
+- A dedicated SupervisorJob coroutine owns each upload; the Bitmap is recycled only after upload completion, including cancellation/error paths.
+- FrameUploader has a main-thread guard so accidental UI-thread invocation fails fast and is converted into a visible FAILED state.
+- Floating button View/WindowManager changes are marshalled to the Android main thread. Network, HTTP, JPEG, and capture failures are caught as Throwable, logged, and surfaced as FAILED + Toast instead of escaping the capture pipeline.
 - Temporary full-screen Bitmap/JPEG memory is still required by Android capture and encoding; memory overhead is reduced, not zero.
 - Server base URL and ingest token are configured in the app. The token is encrypted using Android Keystore AES-GCM.
 - The screenshot is not written to local storage by the upload module.
