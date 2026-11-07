@@ -14,8 +14,6 @@ object BitmapPreprocessor {
         source.getPixels(input, 0, width, 0, 0, width, height)
         val output = IntArray(input.size) { index ->
             val color = input[index]
-            val hsv = FloatArray(3)
-            Color.colorToHSV(color, hsv)
             val orange = OrangeTagDetector.isOrange(color)
             val luminance = (Color.red(color) * 0.299f + Color.green(color) * 0.587f + Color.blue(color) * 0.114f)
             // Orange container -> white; white/light price glyphs -> black; antialiasing retained as gray.
