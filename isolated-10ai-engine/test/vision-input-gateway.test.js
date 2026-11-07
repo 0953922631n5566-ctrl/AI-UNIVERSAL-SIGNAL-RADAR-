@@ -110,7 +110,7 @@ test('multipart screenshot and chartContext JSON are accepted', async () => {
     'fake-jpeg-binary',
     '--' + boundary + '--',
     ''
-  ].join('\\r\\n');
+  ].join('\r\n');
   const req = mockRequest(body, 'multipart/form-data; boundary=' + boundary);
   const res = mockResponse();
   await handler(req, res);
