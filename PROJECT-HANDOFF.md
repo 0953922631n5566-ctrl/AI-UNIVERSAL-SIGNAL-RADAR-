@@ -1651,3 +1651,49 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Android Build 16 source/artifact was not modified or rebuilt. Compact top-pinned overlay, `FLAG_NOT_TOUCHABLE`, Master ON/OFF, FCM high-priority data-only delivery, 55-second Android cooldown and same-alert-ID dedupe remain unchanged.
 - Server timing remains 3–5 seconds before M1 close with 250ms checks, <=5-second tick freshness, and 55-second dispatch cooldown. This was verified by source preservation and the timing regression tests; exact handset delivery latency is not guaranteed.
 - The system remains rule-based/manual-only: `signalReleaseValidated=false`; no out-of-sample or profitability validation is implied by the multi-engine architecture or unit tests.
+
+## 2026-11-07 — AI-10 CORE naming and architecture registration
+
+### Official architecture identity
+- Codename: **AI-10 CORE**.
+- Full name: **AI-10 CORE — Ten-Engine Multi-Strategy Architecture**.
+- Canonical scope: the ten strategy modules and Central AI Dispatcher running inside the Main Market Node.js backend on branch `main-market`.
+- This name identifies the current modular architecture; it does **not** mean ten separately deployed Render microservices.
+
+### Registered configuration and runtime identity
+- `main-market/package.json` now registers `radarArchitecture.name=AI-10 CORE`, `engineCount=10`, `deploymentModel=SINGLE_RENDER_SERVICE`, `executionModel=PROMISE_ALL_SETTLED`, and `decisionAuthority=CENTRAL_AI_DISPATCHER`.
+- `main-market/server.js` exposes the identity through response headers:
+  - `X-System-Name: AI-10 CORE`
+  - `X-System-Architecture: AI-10-CORE`
+  - `X-System-Version: 2026-11-07-ai-10-core-v1`
+- `GET /health` reports `systemName`, architecture name/id, `deploymentModel=SINGLE_RENDER_SERVICE`, ten engines, Promise.allSettled dispatch, and Central AI Dispatcher authority.
+- Startup log is prefixed with `[AI-10 CORE]`.
+
+### Verified architecture boundaries and source references
+- Deployment boundary: one Node.js Render Web Service, `ai-signal-radar-main-market`, attached to branch `main-market`; all ten engines execute in that service/process. They are independent strategy modules, **not** independent Render services or independently deployed microservices.
+- Parallel execution and failure isolation: `main-market/original-ai/engine/multi-engine-dispatcher.js` evaluates the engine list using `Promise.allSettled()`; a rejected engine becomes an invalid `NO_SIGNAL` result while other results are retained.
+- Ten strategy modules in `multi-engine-dispatcher.js`:
+  1. Trend Breakout
+  2. Trend Continuation
+  3. Pin Bar Reversal
+  4. Candlestick Pattern
+  5. Range-Bound Swing
+  6. Compression Squeeze
+  7. Momentum Divergence
+  8. Volume Order Flow
+  9. Pullback Retest
+  10. Safety Noise Guard
+- Central Dispatcher rules in `multi-engine-dispatcher.js`: Safety Noise Guard has VETO authority; a directional candidate requires at least two supporting engines, aggregate score >=55, and conflict margin >=22%; SIDEWAY/RANGING additionally requires a Range-Bound Swing vote.
+- Production analysis path:
+  - `main-market/src/analyzer.js`: source/data-quality gate, then invokes the asynchronous Original AI analyzer.
+  - `main-market/original-ai/engine/analyze-market.js`: builds shared market context, evaluates all ten engines, and passes the candidate to the final decision gate.
+  - `main-market/original-ai/engine/decision-engine.js`: applies the final Original AI regime, trend, volatility, and higher-timeframe safety checks.
+  - `main-market/server.js`: exposes the health and public signal diagnostics and retains the existing FCM dispatch integration.
+- This remains one central decision path. The Android APK receives the final approved event; it does not independently aggregate the ten engine votes.
+
+### Integrity-check outcome
+- Source inspection confirms the registered package metadata, runtime constants/headers, health payload, ten-engine list, Promise.allSettled execution, dispatcher thresholds/VETO rule, and analyzer integration describe the same architecture.
+- Runtime identity version is now `2026-11-07-ai-10-core-v1`; this source change is expected to trigger the existing Render auto-deploy on `main-market`.
+- Backend-only identity/documentation change. Android source and Build 16 APK were not changed or rebuilt.
+- Deployment and live runtime identity must be rechecked after Render completes the auto-deploy. Do not claim the new response headers or health fields are live until that check succeeds.
+- Existing limitations remain: rule-based/manual-only signal release; no OOS or profitability validation is implied by the architecture name or software tests.
