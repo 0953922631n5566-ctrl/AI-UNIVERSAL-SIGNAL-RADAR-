@@ -51,15 +51,21 @@ public class CaptureOverlayService extends Service {
  }
  private void sendImage(byte[] bytes){HttpURLConnection c=null;String state="STANDBY";try{
   URL u=new URL(BuildConfig.VISION_ENDPOINT);c=(HttpURLConnection)u.openConnection();c.setRequestMethod("POST");c.setConnectTimeout(12000);c.setReadTimeout(30000);c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");
-  JSONObject body=new JSONObject();body.put("imageBase64",Base64.encodeToString(bytes,Base64.NO_WRAP));body.put("mimeType","image/jpeg");JSONObject ctx=new JSONObject();ctx.put("symbol","EUR/USD");ctx.put("timeframe","M1");body.put("chartContext",ctx);
+  JSONObject body=new JSONObject();body.put("imageBase64",Base64.encodeToString(bytes,Base64.NO_WRAP));body.put("mimeType","image/jpeg");body.put("chartContext",new JSONObject());
   try(OutputStream os=c.getOutputStream()){os.write(body.toString().getBytes("UTF-8"));}
   int code=c.getResponseCode();InputStream in=code<400?c.getInputStream():c.getErrorStream();ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[4096];int n;while((n=in.read(b))>0)out.write(b,0,n);
-  if(code==200)state=new JSONObject(out.toString("UTF-8")).optString("signal","STANDBY");
- }catch(Exception ignored){state="STANDBY";}finally{if(c!=null)c.disconnect();String result=state;h.post(()->{busy=false;showStatus(result);});}}
- private void showStatus(String state){if(bar!=null){try{wm.removeView(bar);}catch(Exception ignored){}bar=null;}
-  int color="CALL".equals(state)?0xff16a34a:"PUT".equals(state)?0xffdc2626:0xff6b7280;
-  View v=new View(this);v.setBackgroundColor(color);bar=v;int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
-  WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,dp(5),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP;wm.addView(v,p);h.postDelayed(()->{if(bar==v){try{wm.removeView(v);}catch(Exception ignored){}bar=null;}},5000);
+  String response=out.toString("UTF-8");
+  if(code==200){JSONObject json=new JSONObject(response);state=json.optString("signal","STANDBY");double confidence=json.optDouble("confidence",-1);String reason=json.optString("reason","");if(confidence>=0)state=state+"  "+Math.round(confidence*100)+"%";if(!reason.isEmpty())state=state+" — "+reason;}
+  else state="HTTP "+code+" — "+response;
+ }catch(Exception ex){state="NETWORK ERROR — "+ex.getClass().getSimpleName()+": "+String.valueOf(ex.getMessage());}finally{if(c!=null)c.disconnect();String result=state;h.post(()->{busy=false;showStatus(result);});}}
+ private void showStatus(String state){
+  if(bar!=null){try{wm.removeView(bar);}catch(Exception ignored){}bar=null;}
+  boolean call=state.startsWith("CALL"),put=state.startsWith("PUT");
+  int color=call?0xff16a34a:put?0xffdc2626:0xff6b7280;
+  TextView v=new TextView(this);v.setText(state);v.setTextColor(Color.WHITE);v.setTextSize(15);v.setTypeface(null,1);v.setGravity(Gravity.CENTER);v.setPadding(dp(16),dp(8),dp(16),dp(8));v.setMaxLines(3);v.setBackground(round(color,dp(12)));v.setElevation(dp(10));bar=v;
+  int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
+  WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,dp(76),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP;p.y=dp(28);wm.addView(v,p);
+  h.postDelayed(()->{if(bar==v){try{wm.removeView(v);}catch(Exception ignored){}bar=null;}},10000);
  }
  @Override public void onDestroy(){if(button!=null)try{wm.removeView(button);}catch(Exception ignored){}if(bar!=null)try{wm.removeView(bar);}catch(Exception ignored){}if(virtualDisplay!=null)virtualDisplay.release();if(imageReader!=null)imageReader.close();if(projection!=null)projection.stop();super.onDestroy();}
 }
