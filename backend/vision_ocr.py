@@ -63,8 +63,8 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         stage = "fixed_right_axis_roi"
         roi_left_ratio = 0.68
         roi_right_ratio = 0.90
-        roi_top_ratio = 0.05
-        roi_bottom_ratio = 0.90
+        roi_top_ratio = 0.35
+        roi_bottom_ratio = 0.65
         left = max(0, min(width - 1, int(round(width * roi_left_ratio))))
         right = max(left + 1, min(width, int(round(width * roi_right_ratio))))
         top = max(0, min(height - 1, int(round(height * roi_top_ratio))))
@@ -82,12 +82,16 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         crop_w, crop_h = tag.shape[1], tag.shape[0]
         min_crop_w = max(80, int(round(width * 0.075)))
         min_crop_h = max(24, int(round(height * 0.018)))
+        roi_gray = cv2.cvtColor(tag, cv2.COLOR_BGR2GRAY)
+        roi_mean_brightness = round(float(roi_gray.mean()), 2)
+        roi_p90_brightness = round(float(np.percentile(roi_gray, 90)), 2)
         logger.info(
             "FIXED_RIGHT_AXIS_ROI box=%s crop_wh=%sx%s "
-            "ratios=(%.3f,%.3f,%.3f,%.3f) frame_wh=%sx%s valid=%s",
+            "ratios=(%.3f,%.3f,%.3f,%.3f) frame_wh=%sx%s "
+            "gray_mean=%.2f gray_p90=%.2f valid=%s",
             box, crop_w, crop_h,
             roi_left_ratio, roi_top_ratio, roi_right_ratio, roi_bottom_ratio,
-            width, height,
+            width, height, roi_mean_brightness, roi_p90_brightness,
             crop_w >= min_crop_w and crop_h >= min_crop_h,
         )
         if crop_w < min_crop_w or crop_h < min_crop_h:
