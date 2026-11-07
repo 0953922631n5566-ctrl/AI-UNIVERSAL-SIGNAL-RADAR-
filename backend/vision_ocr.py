@@ -58,7 +58,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 frame_width=width, frame_height=height,
             )
 
-        # The complete incoming image is the user-defined price-tag crop.
+        # Client defines the crop; OCR the entire uploaded image directly.
         stage = "direct_user_crop"
         tag = frame
         box = (0, 0, width, height)
