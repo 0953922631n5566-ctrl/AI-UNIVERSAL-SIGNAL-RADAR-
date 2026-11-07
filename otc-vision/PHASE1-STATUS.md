@@ -1,52 +1,28 @@
-# Phase 1 Implementation Status
+# Dynamic Price Tag OCR — Implementation Status
 
 **Branch:** `feature/otc-vision-apk`  
-**Scope:** isolated Android native foundation and local capture/OCR pipeline  
-**Status:** source implementation committed; build and physical-device validation pending.
+**Scope:** isolated Android local screen capture and dynamic orange price-tag OCR  
+**Status:** source update committed; CI build and physical-device validation must be checked separately.
 
-## Implemented in this phase
+## Integrated
+- Broad right-axis scan ROI: x=78–99.5%, y=10–90%.
+- HSV orange color segmentation and connected-component anchoring to locate the moving price tag on every frame.
+- Dynamic padded crop around the detected orange container.
+- Fail-closed `NO_ORANGE_TAG` state when no orange component meets the tag-shape thresholds; the app does not OCR the entire axis as a fallback.
+- Orange-background preprocessing to improve contrast for the price glyphs.
+- Strict price token validation: 1–3 integer digits and 5–6 fractional digits.
+- Multiple valid price candidates remain ambiguous; invalid/short chart decimals are ignored.
+- Unit tests for 5- and 6-decimal quotes and rejection of short chart decimals.
 
-- Separate Gradle Android app under `otc-vision/`.
-- Unique application ID: `com.otcvision.radar`.
-- No INTERNET permission, network library, backend URL, credentials, Firebase/FCM, Telegram, Render, or Twelve Data dependency.
-- Android MediaProjection user-consent flow and foreground service declaration for media projection.
-- ImageReader screen-frame acquisition with a bounded capture cadence and explicit Stop/revocation cleanup.
-- Two normalized ROI crops: a price-label region and a chart region.
-- Price ROI preprocessing: grayscale conversion, contrast adjustment, 3x3 median denoising, and scaling.
-- Bundled ML Kit Latin Text Recognition dependency.
-- Conservative text parser that reports a value only when exactly one decimal-price candidate is found.
-- On-screen per-frame OCR latency, frame age, candidate status, and app heap-use metrics.
-- Parser unit tests and a branch-specific GitHub Actions APK build workflow.
+## Not claimed yet
+- CI Gradle build success for this update until the new workflow run completes.
+- Exact orange hue thresholds or tag component thresholds validated against the user's broker screen.
+- OCR exact-match accuracy, 100-sample accuracy, thermal stability, or sustained memory measurements on Xiaomi 11T.
+- Screenshot-specific pixel calibration; the scan band is intentionally broad and normalized to display dimensions.
 
-## Verification completed
-
-- GitHub branch comparison confirms the OTC branch is ahead of `main` by OTC project commits and has no commits behind the base at the comparison point.
-- Source inspection confirms the OTC manifest does not declare INTERNET permission.
-- App ID is distinct from the existing legacy Android application.
-- The OTC build workflow is scoped to pushes on `feature/otc-vision-apk` and changes under `otc-vision/**`.
-- No Main Market Render deployment, FCM configuration, backend request, or merge was performed.
-
-## Not yet verified — do not treat as passed
-
-- Gradle compilation / APK assembly: no build runner result was available at report time.
-- Physical MediaProjection capture on Xiaomi 11T / Android 14.
-- OCR latency distribution (median/p95) on-device.
-- Exact-match price extraction accuracy against a real OTC broker screen.
-- Sustained memory, battery, temperature, and thermal-throttling behavior.
-- Xiaomi HyperOS background behavior and notification presentation.
-
-## Initial benchmark results
-
-No physical-device measurements are available yet. Therefore no numeric OCR latency or accuracy result is claimed. The application displays the required live metrics when installed and run on the Xiaomi 11T. Use the protocol in `README.md` to collect at least 100 observations and a 15-minute thermal/memory run after ROI calibration.
-
-## Known Phase 1 limitations
-
-- ROI coordinates are starter defaults, not broker-calibrated. Edit `RoiConfig.kt` for the actual OTC platform layout before accuracy testing.
-- Candle ROI cropping is implemented, but candle body/wick detection and OHLC reconstruction are not implemented yet.
-- OCR currently targets decimal-price text and may reject formats that do not match the configured token parser.
-- No CALL/PUT decision logic or alerts are included in Phase 1.
-- CameraX ImageAnalysis is not used because this is screen capture, not camera capture; ImageReader is the correct MediaProjection frame source.
-
-## Next gate
-
-Run the isolated GitHub Actions APK build, resolve any compile issues, install on the Xiaomi 11T, calibrate both ROIs, and collect real OCR latency/accuracy/thermal data before advancing to candle vision.
+## Device test checklist
+1. Build/install the latest artifact from this branch.
+2. Confirm `PRICE_READ` follows the orange tag when it moves vertically.
+3. Test tag near top, center, and bottom of the scan band.
+4. Confirm no tag gives `NO_ORANGE_TAG`, not a stale/guessed price.
+5. Compare every returned price against the visible broker price before reporting accuracy.
