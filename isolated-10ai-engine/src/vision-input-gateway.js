@@ -143,7 +143,7 @@ function createVisionAnalyzeHandler({ analyze, visionAdapter = null, maxBytes = 
       return send(res, 200, { ok: true, source: image ? 'vision_adapter' : 'structured_context', result });
     } catch (error) {
       const status = Number.isInteger(error.status) ? error.status : 500;
-      return send(res, status, { error: status === 500 ? 'VISION_ANALYSIS_FAILED' : error.message });
+      return send(res, status, { error: status === 500 ? 'VISION_ANALYSIS_FAILED' : error.code || error.message, message: error.message });
     }
   };
 }
