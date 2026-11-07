@@ -36,7 +36,7 @@ class ManualFloatingControls(
         displayHeight = screenHeight.coerceAtLeast(1)
         val saved = context.getSharedPreferences("scan_button", Context.MODE_PRIVATE)
         val view = Button(context).apply {
-            text = "SCAN & ANALYZE"
+            text = "CAPTURE & SEND"
             isAllCaps = false
             textSize = 13f
             setTextColor(Color.WHITE)
@@ -78,12 +78,12 @@ class ManualFloatingControls(
             }
             setOnClickListener {
                 isEnabled = false
-                text = "SCANNING…"
+                text = "SENDING…"
                 try {
                     onCapture()
                 } catch (error: Exception) {
                     isEnabled = true
-                    text = "SCAN & ANALYZE"
+                    text = "CAPTURE & SEND"
                     Toast.makeText(context, error.message ?: "Scan request failed", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -95,15 +95,6 @@ class ManualFloatingControls(
             y = saved.getInt("y", (displayHeight * 0.12f).toInt()).coerceIn(0, displayHeight - 1)
         }
         windowManager.addView(view, params)
-    }
-
-    /** Fixed right-axis price-tag ROI: X 82–98%, Y 15–85% of the captured display. */
-    fun presetRoiBounds(): android.graphics.Rect {
-        val left = (displayWidth * 0.82f).toInt().coerceIn(0, displayWidth - 1)
-        val right = (displayWidth * 0.98f).toInt().coerceIn(left + 1, displayWidth)
-        val top = (displayHeight * 0.15f).toInt().coerceIn(0, displayHeight - 1)
-        val bottom = (displayHeight * 0.85f).toInt().coerceIn(top + 1, displayHeight)
-        return android.graphics.Rect(left, top, right, bottom)
     }
 
     fun hideForCapture() {
