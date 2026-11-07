@@ -1,7 +1,7 @@
 # OTC Vision OCR — Bicubic Preprocessing Patch
 
 **Branch:** `feature/otc-vision-apk`  
-**Status:** patch committed; CI build and Xiaomi 11T field validation pending.
+**Status:** patch committed; CI build passed (11/11 parser tests); Xiaomi 11T field validation pending.
 
 ## Patch contents
 - Exact 2x bicubic (Catmull-Rom) scaling of each anchored orange-tag crop.
