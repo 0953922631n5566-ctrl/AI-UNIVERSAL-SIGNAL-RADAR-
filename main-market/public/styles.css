@@ -15,3 +15,7 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 .pairing{margin:12px 0;padding:16px;border:1px solid #28473a;border-radius:14px;background:#0d1b15;display:grid;gap:10px}.pairing[hidden]{display:none}.pairing b{font-size:14px}.pairing p{margin:0;color:#a9b8af;font-size:12px}.pairing input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #365346;border-radius:9px;background:#07110d;color:#e7f4eb;font:inherit;box-sizing:border-box}.pairing input:focus{outline:2px solid #3b9a67}
+
+
+/* Manual Price Override */
+.manual-price-card{margin:16px 0;padding:16px;border:1px solid rgba(104,190,145,.28);border-radius:16px;background:linear-gradient(145deg,rgba(20,55,40,.55),rgba(8,20,15,.9));display:grid;gap:10px}.manual-price-card>p{margin:0;color:var(--muted,#9eafa5);font-size:.88rem;line-height:1.5}.manual-price-entry{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}.manual-price-entry label{grid-column:1/-1;color:var(--muted,#9eafa5);font-size:.82rem}.manual-price-entry input{width:100%;min-width:0;padding:13px 12px;border:1px solid rgba(130,190,155,.35);border-radius:10px;background:#07130e;color:#f2fff7;font:600 1.05rem inherit}.manual-price-entry button{padding:13px 18px;border:0;border-radius:10px;background:#16834e;color:white;font-weight:700}.manual-price-entry button:disabled{opacity:.45}.manual-price-card small{color:var(--muted,#9eafa5);font-size:.76rem;line-height:1.45}

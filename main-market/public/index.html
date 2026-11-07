@@ -46,6 +46,14 @@
       <div class="reason"><b>✦ เหตุผลและหลักฐาน</b><p id="reasonText">กดเริ่มสแกนเพื่อโหลดข้อมูลจาก Twelve Data</p><ul id="evidenceList"></ul><small id="validationNote">Original AI rule-based · ยังไม่มีผลประเมิน out-of-sample · Manual only</small></div>
     </section>
 
+    <section class="manual-price-card" aria-labelledby="manualPriceTitle">
+      <div class="section-head"><span id="manualPriceTitle">MANUAL PRICE OVERRIDE</span><span>PRIMARY SOURCE</span></div>
+      <p>ระบบใช้เฉพาะราคาที่กรอก ไม่เรียก Twelve Data หรืออ่านภาพหน้าจอ</p>
+      <div class="manual-price-entry"><label for="manualPrice">ราคาปัจจุบัน</label><input id="manualPrice" type="number" inputmode="decimal" min="0.00000001" step="0.00000001" placeholder="เช่น 0.847605" autocomplete="off"><button id="submitManualPrice" type="button" disabled>ส่งราคา</button></div>
+      <small id="manualPriceStatus" role="status" aria-live="polite">เริ่มสแกนก่อน แล้วจึงส่งราคา</small>
+      <small>หมายเหตุ: ระบบต้องสะสมข้อมูลราคาตามเวลาให้เพียงพอก่อนคำนวณอินดิเคเตอร์ M1</small>
+    </section>
+
     <section class="metrics">
       <div class="metric"><span>LIVE PRICE</span><b id="livePrice">—</b></div>
       <div class="metric"><span>CLOSED CLOSE</span><b id="closePrice">—</b></div>
@@ -76,6 +84,6 @@
     <p id="testStatus" class="test-status">แตะปุ่มทดสอบเพื่อตรวจอุปกรณ์</p>
     <footer><b>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</b><span id="updatedAt">ยังไม่มีข้อมูล</span></footer>
   </main>
-  <script src="/app.js?v=20261106-original-ai-v2"></script>
+  <script src="/app.js?v=20261107-manual-price-v1"></script>
 </body>
 </html>
