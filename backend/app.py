@@ -11,6 +11,8 @@ from typing import Deque
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from vision_ocr import read_orange_price
+
 app = FastAPI(title="AI Universal Signal Radar", version="0.1.0")
 TOKEN = os.getenv("RADAR_INGEST_TOKEN", "")
 MAX_FRAME_BYTES = 4 * 1024 * 1024
@@ -38,6 +40,7 @@ class Decision(BaseModel):
     observed_at: float | None = None
     asset: str | None = None
     timeframe: str | None = None
+    price: str | None = None
     evidence: list[str] = []
 
 
@@ -102,14 +105,37 @@ async def ingest_frame(
     state.frames_seen += 1
     state.hashes.append(digest)
 
-    # Intentionally no fabricated OCR, candles, indicators, confidence or direction.
-    # A validated vision adapter must be implemented before any directional output.
+    # OCR runs only on the backend. The uploaded full-screen frame is never persisted.
+    try:
+        ocr = read_orange_price(payload)
+        price = ocr.price
+        status = "PRICE_READ_ENGINE_NOT_CONFIGURED" if ocr.status == "PRICE_READ" else ocr.status
+        reason = (
+            "Price extracted by server OCR; directional 10-engine adapter is not configured."
+            if ocr.status == "PRICE_READ" else ocr.reason
+        )
+        evidence = [
+            f"frame_sha256:{digest[:16]}",
+            f"server_ocr:{ocr.status}",
+            "directional_signal_suppressed",
+        ]
+        if ocr.tag_box:
+            evidence.append("orange_tag_box:" + ",".join(map(str, ocr.tag_box)))
+        evidence.extend("price_candidate:" + candidate for candidate in ocr.candidates)
+    except Exception as exc:
+        price = None
+        status = "SERVER_OCR_ERROR"
+        reason = "Server OCR failed safely: " + type(exc).__name__
+        evidence = [f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"]
+
+    # Never emit CALL/PUT until the exact ten engines are ported and independently validated.
     return Decision(
         signal="STANDBY",
-        status="VISION_ADAPTER_NOT_CONFIGURED",
-        reason="Frame received, but chart perception and validated decision model are not configured.",
+        status=status,
+        reason=reason,
         session_id=session_id,
         sequence=sequence,
         observed_at=captured_at_ms / 1000.0,
-        evidence=[f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"],
+        price=price,
+        evidence=evidence,
     )
