@@ -441,3 +441,17 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Backend source is committed but not deployed. A dedicated service must be deployed from root context with backend/Dockerfile, set RADAR_INGEST_TOKEN, and the same HTTPS URL/token entered in the APK. No Render service was modified or deployed.
 - Fresh CI build run 42345019445 for source commit c70056b048b05f83634fbd29c2e40f63d741d0e0 was in progress at handoff. Wait for Android tests/build, APK checksum and artifact upload. Do not share an earlier APK as the current server-uploader build.
 - Xiaomi 11T device validation and end-to-end upload/OCR verification remain pending.
+
+
+### OTC Vision server-uploader APK build verification — 2026-11-07
+
+- Final source commit: 45e5a944d6095976ba4b7bb8624b669051318b3c on feature/otc-vision-apk.
+- Workflow run 42345462116 completed successfully. Run URL: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42345462116.
+- Backend OCR parser tests: 5 passed. Android Gradle testDebugUnitTest and assembleDebug task completed successfully; obsolete local OCR parser tests were removed with the local OCR implementation.
+- APK verification and artifact upload steps passed.
+- Artifact ID: 13563930184; name: otc-vision-finetuned-debug-apk; ZIP size 837,182 bytes; expires 2026-11-21.
+- Extracted APK size: 843,919 bytes.
+- APK SHA-256 independently recomputed from the downloaded artifact and matched the included SHA256SUMS.txt: d4ecd6536395d30f304075170c79117ecf898271a9e645247a36a97f151b8f31.
+- This is a debug APK. No Xiaomi 11T installation, MediaProjection capture, authenticated server upload, or live server OCR has yet been verified.
+- The backend code is not deployed. The app must be configured with the dedicated HTTPS backend URL and matching RADAR_INGEST_TOKEN. No Render service was changed.
+- Server still returns STANDBY because the ten OTC Signal Engine implementations/validated decision adapter are not present. OCR price extraction is not a CALL/PUT signal.
