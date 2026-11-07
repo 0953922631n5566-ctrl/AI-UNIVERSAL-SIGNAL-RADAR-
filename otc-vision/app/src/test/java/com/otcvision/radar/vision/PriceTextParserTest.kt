@@ -6,10 +6,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PriceTextParserTest {
-    @Test fun parsesSingleDecimalPrice() {
+    @Test fun parsesFiveDecimalTradingPrice() {
         val result = PriceTextParser.parse("EUR/USD 1.08452")
         assertEquals("1.08452", result.value)
         assertFalse(result.isAmbiguous)
+    }
+
+    @Test fun parsesSixDecimalTradingPrice() {
+        assertEquals("1.135203", PriceTextParser.parse("1.135203").value)
+    }
+
+    @Test fun rejectsShortChartDecimals() {
+        val result = PriceTextParser.parse("RSI 45.23 · 1.0845")
+        assertEquals(null, result.value)
+        assertTrue(result.candidates.isEmpty())
     }
 
     @Test fun rejectsMultiplePriceCandidates() {
