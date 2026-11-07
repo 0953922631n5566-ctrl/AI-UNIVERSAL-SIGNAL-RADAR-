@@ -117,3 +117,16 @@ test('multipart screenshot and chartContext JSON are accepted', async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(called, true);
 });
+
+test('vision gateway dispatches normalized structured chart context into all ten real engines', async () => {
+  const { analyze } = require('../index');
+  const marketData = fixture();
+  const handler = createVisionAnalyzeHandler({ analyze });
+  const req = mockRequest(JSON.stringify({ marketData, marketContext: marketData }), 'application/json');
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  const payload = JSON.parse(res.body);
+  assert.equal(payload.result.engineResults.length, 10);
+  assert.equal(payload.result.engineSummary.total, 10);
+});
