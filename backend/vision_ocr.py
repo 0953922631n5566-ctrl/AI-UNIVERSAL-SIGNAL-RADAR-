@@ -20,7 +20,7 @@ class PriceRead:
     orange_tag_found: bool = False
 
 
-_PRICE_RE = re.compile(r"(?<!\\d)(\\d{1,2})[.,](\\d{3,6})(?!\\d)")
+_PRICE_RE = re.compile(r"(?<!\d)(\d{1,2})[.,](\d{3,6})(?!\d)")
 
 
 def parse_price_candidates(text: str) -> tuple[str, ...]:
