@@ -22,6 +22,15 @@ Status: source changes committed; fresh Android + backend parser CI build runnin
 - CI build does not validate Android MediaProjection behavior or OCR accuracy on Xiaomi 11T.
 - CALL/PUT remain disabled until ten strategy sources are ported and independently evaluated using appropriate chart/candle data.
 
+## Crash-resilience patch — 2026-11-07
+
+- Added kotlinx-coroutines-android and moved JPEG compression plus all HTTP operations into a Dispatchers.IO coroutine.
+- ImageReader frame pixels are copied to an independently owned Bitmap; the Image is closed immediately before asynchronous upload. The Bitmap remains valid until the upload job completes and is then recycled in its completion handler.
+- The full capture/upload path catches Throwable, reports the stage and exception, restores the floating button to FAILED · TAP TO RETRY, and shows a Toast. HTTP failures do not terminate the app.
+- ManualFloatingControls now marshals every View/WindowManager mutation to the main thread, preventing capture-thread UI access.
+- FrameUploader rejects main-thread invocation as a defensive invariant.
+- Fresh CI build and Xiaomi 11T retest are pending. Do not mark the device crash fixed until the user repeats the live capture test.
+
 ## Hardware test
 
 After APK artifact verification and backend deployment, configure server URL/token in the app, grant overlay + MediaProjection permissions, and verify one tap creates one POST and one server response. Exercise network errors, stale frames, permission revocation, rapid taps, memory, and thermal behavior.
