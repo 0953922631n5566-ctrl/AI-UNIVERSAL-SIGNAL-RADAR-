@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -12,16 +14,17 @@ import android.widget.Button
 import android.widget.Toast
 
 /**
- * Minimal one-button overlay. There is no movable/resizable ROI surface.
- * The button itself can be dragged; every tap requests exactly one capture.
+ * Minimal one-button overlay. All WindowManager/View mutations are marshalled
+ * onto the Android main thread; capture and upload workers never touch Views.
  */
 class ManualFloatingControls(
     private val context: Context,
     private val windowManager: WindowManager,
     private val onCapture: () -> Unit
 ) {
-    private var button: Button? = null
-    private var params: WindowManager.LayoutParams? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    @Volatile private var button: Button? = null
+    @Volatile private var params: WindowManager.LayoutParams? = null
     private var displayWidth = 1
     private var displayHeight = 1
     private var downRawX = 0f
@@ -30,8 +33,13 @@ class ManualFloatingControls(
     private var startY = 0
     private var moved = false
 
-    fun show(screenWidth: Int, screenHeight: Int) {
-        if (button != null) return
+    private fun onMain(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action()
+        else mainHandler.post { action() }
+    }
+
+    fun show(screenWidth: Int, screenHeight: Int) = onMain {
+        if (button != null) return@onMain
         displayWidth = screenWidth.coerceAtLeast(1)
         displayHeight = screenHeight.coerceAtLeast(1)
         val saved = context.getSharedPreferences("scan_button", Context.MODE_PRIVATE)
@@ -81,10 +89,12 @@ class ManualFloatingControls(
                 text = "SENDING…"
                 try {
                     onCapture()
-                } catch (error: Exception) {
+                } catch (error: Throwable) {
                     isEnabled = true
-                    text = "CAPTURE & SEND"
-                    Toast.makeText(context, error.message ?: "Scan request failed", Toast.LENGTH_SHORT).show()
+                    text = "FAILED · TAP TO RETRY"
+                    runCatching {
+                        Toast.makeText(context, error.message ?: "Scan request failed", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -94,25 +104,28 @@ class ManualFloatingControls(
             x = saved.getInt("x", (displayWidth * 0.55f).toInt()).coerceIn(0, displayWidth - 1)
             y = saved.getInt("y", (displayHeight * 0.12f).toInt()).coerceIn(0, displayHeight - 1)
         }
-        windowManager.addView(view, params)
-    }
-
-    fun hideForCapture() {
-        button?.visibility = View.INVISIBLE
-    }
-
-    fun showAfterFrame() {
-        button?.visibility = View.VISIBLE
-    }
-
-    fun setStatus(message: String, ready: Boolean = true) {
-        button?.apply {
-            text = message.take(42)
-            isEnabled = ready
+        try {
+            windowManager.addView(view, params)
+        } catch (error: Throwable) {
+            button = null
+            params = null
+            throw error
         }
     }
 
-    fun remove() {
+    fun hideForCapture() = onMain { button?.visibility = View.INVISIBLE }
+
+    fun showAfterFrame() = onMain { button?.visibility = View.VISIBLE }
+
+    fun setStatus(message: String, ready: Boolean = true) = onMain {
+        button?.apply {
+            text = message.take(42)
+            isEnabled = ready
+            visibility = View.VISIBLE
+        }
+    }
+
+    fun remove() = onMain {
         runCatching { button?.let { windowManager.removeView(it) } }
         button = null
         params = null
