@@ -43,9 +43,10 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
     if width < 240 or height < 320:
         return PriceRead("IMAGE_TOO_SMALL", None, (), "Uploaded screenshot dimensions are too small")
 
-    # Restrict tag search to the right-hand price axis to avoid unrelated orange UI.
+    # Search the chart's right price-axis band. Exclude lower trade controls,
+    # which can be red/orange and larger than the actual price tag.
     x0, x1 = int(width * 0.72), width
-    y0, y1 = int(height * 0.08), int(height * 0.92)
+    y0, y1 = int(height * 0.12), int(height * 0.68)
     axis = frame[y0:y1, x0:x1]
     hsv = cv2.cvtColor(axis, cv2.COLOR_BGR2HSV)
     orange_mask = cv2.inRange(hsv, np.array([4, 75, 70]), np.array([38, 255, 255]))
@@ -63,21 +64,28 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         if w < 24 or h < 10:
             continue
         aspect = w / max(1, h)
-        if aspect < 0.8 or aspect > 12:
+        # The right-axis price banner is a wide, shallow orange label.
+        # Reject square/portrait orange controls such as the DOWN trade button.
+        if aspect < 3.0 or aspect > 14:
             continue
         right_bias = (x + w) / max(1, axis.shape[1])
-        score = area * (0.5 + right_bias)
+        score = area * (0.35 + right_bias) * min(aspect, 10.0) / 5.0
         candidates.append((score, x, y, w, h))
 
     if not candidates:
         return PriceRead("ORANGE_TAG_NOT_FOUND", None, (), "No orange price tag was detected on the right axis")
 
     _, x, y, w, h = max(candidates, key=lambda item: item[0])
-    # Keep a generous vertical margin so the first/last digit rows are not clipped.
-    # The contour follows the orange tag border, while the price glyphs sit inside it.
-    pad_x = max(6, int(w * 0.12))
+    # A thin horizontal price guide can be connected to the left tip of the
+    # banner by the color mask. If the contour spans most of the axis, discard
+    # that guide and OCR only the right-hand label body.
+    crop_x = x
+    if x <= int(axis.shape[1] * 0.08) and w >= int(axis.shape[1] * 0.35):
+        crop_x = x + int(w * 0.48)
+    # Keep enough padding to retain every digit without including the long guide.
+    pad_x = max(5, int(w * 0.06))
     pad_y = max(8, int(h * 0.35))
-    left = max(0, x0 + x - pad_x)
+    left = max(0, x0 + crop_x - pad_x)
     top = max(0, y0 + y - pad_y)
     right = min(width, x0 + x + w + pad_x)
     bottom = min(height, y0 + y + h + pad_y)
