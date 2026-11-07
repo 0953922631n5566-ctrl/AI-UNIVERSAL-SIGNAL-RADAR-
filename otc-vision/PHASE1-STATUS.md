@@ -9,7 +9,7 @@
 - Orange-aware grayscale inversion, contrast stretch, local adaptive threshold using an integral image, and minimum crop upscaling for small glyphs.
 - Strict 1–3 integer digits plus 5–6 fractional digits; includes `1.135475`.
 - Parser unit tests cover 5/6 decimals, comma separator, short decimals, too-long decimals, ambiguous matches, and unrelated text.
-- Capture automatically logs 100 consecutive processed outcomes (price read, no tag, or OCR failure) to a local app-private CSV.
+- Capture automatically logs 100 consecutive processed outcomes (price read, no tag, or OCR failure) to a CSV in the app-specific Documents directory (or internal app files if external app storage is unavailable).
 - Per-sample telemetry: extraction status, parsed price, OCR/frame latency, heap, Android thermal status, and battery temperature if exposed.
 - Completion summary reports extraction rate, mean/max OCR latency, peak heap, max thermal status, and max battery temperature.
 
