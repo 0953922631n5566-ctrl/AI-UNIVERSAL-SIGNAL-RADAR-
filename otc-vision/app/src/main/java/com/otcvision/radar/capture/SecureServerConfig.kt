@@ -25,7 +25,7 @@ object SecureServerConfig {
         val encrypted = cipher.doFinal(token.toByteArray(Charsets.UTF_8))
         val encoded = Base64.encodeToString(cipher.iv + encrypted, Base64.NO_WRAP)
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString("base_url", baseUrl.trim().trimEnd('/'))
+            .putString("base_url", baseUrl.trim().trimEnd('/').removeSuffix("/v1/frame"))
             .putString("token_ciphertext", encoded)
             .apply()
     }
