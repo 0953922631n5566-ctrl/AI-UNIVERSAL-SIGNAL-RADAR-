@@ -1,4 +1,4 @@
-"""Server-side orange price-tag detection and OCR. No directional engine is enabled."""
+"""Server-side fixed right-axis ROI price OCR. No directional engine is enabled."""
 from __future__ import annotations
 
 import base64
@@ -39,7 +39,7 @@ def parse_price_candidates(text: str) -> tuple[str, ...]:
 
 
 def read_orange_price(image_bytes: bytes) -> PriceRead:
-    """Detect and OCR a compact orange price tag on the chart's right axis."""
+    """Crop the fixed right-axis zone and OCR its displayed price."""
     stage = "decode"
     try:
         encoded = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -55,156 +55,48 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 frame_width=width, frame_height=height,
             )
 
-        # Search a broader right-side chart region. Live platforms can place
-        # the price tag at different vertical levels and slightly left of the
-        # screen edge; full-width banners remain excluded by contour geometry.
-        stage = "opencv_orange_mask"
-        x0, x1 = int(width * 0.65), width
-        y0, y1 = int(height * 0.05), int(height * 0.90)
-        axis = frame[y0:y1, x0:x1]
-        if axis.size == 0:
-            return PriceRead(
-                "INVALID_AXIS_ROI", None, (), "Right-axis ROI is empty",
-                frame_width=width, frame_height=height,
-            )
-
-        hsv = cv2.cvtColor(axis, cv2.COLOR_BGR2HSV)
-        orange_mask = cv2.inRange(
-            hsv, np.array([4, 75, 70]), np.array([38, 255, 255])
-        )
-        axis_h, axis_w = axis.shape[:2]
-
-        # Join nearby orange fragments before contour extraction. A horizontal
-        # close kernel bridges gaps between the tag body, border and orange
-        # pieces split by anti-aliasing/compression, without joining distant
-        # chart elements. Keep the original mask for true-orange coverage stats.
-        merge_w = max(15, int(round(axis_w * 0.045)))
-        merge_h = max(7, int(round(axis_h * 0.008)))
-        merge_kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT, (merge_w, merge_h)
-        )
-        grouped_mask = cv2.morphologyEx(
-            orange_mask, cv2.MORPH_CLOSE, merge_kernel, iterations=2
-        )
-        # A small dilation consolidates touching edge fragments into one
-        # external component; the resulting box is still measured on the
-        # grouped mask, while coverage is measured on the original mask.
-        bridge_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
-        grouped_mask = cv2.dilate(grouped_mask, bridge_kernel, iterations=1)
-        contours, _ = cv2.findContours(
-            grouped_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
-
-        logger.info(
-            "ORANGE_CONTOUR_MERGE_DIAG axis_wh=%sx%s merge_kernel=%sx%s "
-            "original_pixels=%s grouped_pixels=%s contours=%s",
-            axis_w, axis_h, merge_w, merge_h,
-            cv2.countNonZero(orange_mask), cv2.countNonZero(grouped_mask),
-            len(contours),
-        )
-        axis_area = max(1, axis_h * axis_w)
-        tag_candidates: list[tuple[float, int, int, int, int]] = []
-
-        # Emit geometry and orange-pixel coverage before applying any filter.
-        # This makes rejected contours inspectable from Render logs.
-        contour_diagnostics: list[tuple[int, int, int, int, int, float, float]] = []
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
-            area = max(1, w * h)
-            aspect = w / max(1, h)
-            right_edge_ratio = (x + w) / max(1, axis_w)
-            roi_mask = orange_mask[y:y + h, x:x + w]
-            hsv_coverage = cv2.countNonZero(roi_mask) / area
-            contour_diagnostics.append(
-                (area, x, y, w, h, aspect, hsv_coverage)
-            )
-
-        for index, (area, x, y, w, h, aspect, hsv_coverage) in enumerate(
-            sorted(contour_diagnostics, reverse=True)[:30], start=1
-        ):
-            right_edge_ratio = (x + w) / max(1, axis_w)
-            logger.info(
-                "ORANGE_CONTOUR_DIAG index=%s bbox_axis=%s bbox_frame=%s "
-                "aspect=%.3f right_edge=%.3f hsv_coverage=%.3f area=%s",
-                index, (x, y, w, h),
-                (x0 + x, y0 + y, w, h),
-                aspect, right_edge_ratio, hsv_coverage, area,
-            )
-
-        for area, x, y, w, h, aspect, hsv_coverage in contour_diagnostics:
-            right_edge_ratio = (x + w) / max(1, axis_w)
-
-            # Relaxed tag geometry: allow tags that sit farther left or higher
-            # on the axis, and support shorter/wider and taller/narrower labels.
-            # Very wide or tall contours remain excluded to reject warning bars.
-            if x < int(axis_w * 0.04) or right_edge_ratio < 0.76:
-                continue
-            # A single digit/curve-sized fragment must never qualify as a
-            # complete price tag. Require enough width for the full decimal
-            # price and enough height for the tag's text line.
-            min_tag_w = max(64, int(round(axis_w * 0.10)))
-            min_tag_h = max(20, int(round(axis_h * 0.010)))
-            if w < min_tag_w or w > int(axis_w * 0.70):
-                continue
-            if h < min_tag_h or h > int(axis_h * 0.12):
-                continue
-            if aspect < 1.80 or aspect > 18.0:
-                continue
-            if area < axis_area * 0.00012 or area > axis_area * 0.085:
-                continue
-
-            # Favor a broad, coherent grouped component. Do not let a tiny
-            # high-density sub-contour outrank the full tag.
-            size_score = min(1.0, w / max(1, min_tag_w * 2))
-            score = (
-                area * (0.45 + right_edge_ratio)
-                * min(aspect, 9.0) * max(0.20, hsv_coverage)
-                * (0.75 + 0.25 * size_score) / 4.0
-            )
-            tag_candidates.append((score, x, y, w, h))
-
-        if not tag_candidates:
-            return PriceRead(
-                "ORANGE_TAG_NOT_FOUND", None, (),
-                "No compact orange price tag matched the strict right-axis geometry",
-                frame_width=width, frame_height=height,
-            )
-
-        _, x, y, w, h = max(tag_candidates, key=lambda item: item[0])
-
-        # Pad around the entire detected tag so leading digits and decimal
-        # points are not clipped by a tight contour boundary.
-        pad_x = max(5, int(round(w * 0.15)))
-        pad_y = max(5, int(round(h * 0.25)))
-        left = max(0, x0 + x - pad_x)
-        top = max(0, y0 + y - pad_y)
-        right = min(width, x0 + x + w + pad_x)
-        bottom = min(height, y0 + y + h + pad_y)
+        # Fixed right-axis ROI: capture the complete price-axis column between
+        # the chart's right edge and the trade-control column. Coordinates are
+        # normalized to the incoming frame, so the same layout works at
+        # different Android screenshot resolutions. No color/contour detection
+        # is used to determine the crop.
+        stage = "fixed_right_axis_roi"
+        roi_left_ratio = 0.68
+        roi_right_ratio = 0.90
+        roi_top_ratio = 0.05
+        roi_bottom_ratio = 0.90
+        left = max(0, min(width - 1, int(round(width * roi_left_ratio))))
+        right = max(left + 1, min(width, int(round(width * roi_right_ratio))))
+        top = max(0, min(height - 1, int(round(height * roi_top_ratio))))
+        bottom = max(top + 1, min(height, int(round(height * roi_bottom_ratio))))
         tag = frame[top:bottom, left:right]
         box = (left, top, right, bottom)
 
         if tag.size == 0:
             return PriceRead(
-                "INVALID_TAG_CROP", None, (), "Detected tag crop is empty",
-                box, "", True, width, height,
+                "INVALID_AXIS_ROI", None, (),
+                "Fixed right-axis ROI is empty",
+                box, "", False, width, height,
             )
 
         crop_w, crop_h = tag.shape[1], tag.shape[0]
         min_crop_w = max(80, int(round(width * 0.075)))
         min_crop_h = max(24, int(round(height * 0.018)))
         logger.info(
-            "OCR_TAG_CROP_VALIDATION box=%s crop_wh=%sx%s "
-            "minimum_wh=%sx%s valid=%s",
-            box, crop_w, crop_h, min_crop_w, min_crop_h,
+            "FIXED_RIGHT_AXIS_ROI box=%s crop_wh=%sx%s "
+            "ratios=(%.3f,%.3f,%.3f,%.3f) frame_wh=%sx%s valid=%s",
+            box, crop_w, crop_h,
+            roi_left_ratio, roi_top_ratio, roi_right_ratio, roi_bottom_ratio,
+            width, height,
             crop_w >= min_crop_w and crop_h >= min_crop_h,
         )
         if crop_w < min_crop_w or crop_h < min_crop_h:
             return PriceRead(
-                "TAG_CROP_TOO_SMALL", None, (),
-                f"Grouped tag crop is below minimum dimensions "
+                "AXIS_ROI_TOO_SMALL", None, (),
+                f"Fixed right-axis ROI is below minimum dimensions "
                 f"({crop_w}x{crop_h}; required at least "
                 f"{min_crop_w}x{min_crop_h})",
-                box, "", True, width, height,
+                box, "", False, width, height,
             )
 
         stage = "opencv_ocr_preprocessing"
@@ -340,7 +232,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         if len(found_prices) == 1:
             return PriceRead(
                 "SUCCESS", found_prices[0], tuple(found_prices),
-                "One validated price candidate extracted from orange tag",
+                "One validated price candidate extracted from fixed right-axis ROI",
                 box, raw_text, True, width, height,
             )
         if len(found_prices) > 1:
@@ -352,7 +244,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
 
         return PriceRead(
             "NO_VALID_PRICE", None, (),
-            "Orange tag found but no valid price text was recognized",
+            "Fixed right-axis ROI captured but no valid price text was recognized",
             box, raw_text, True, width, height,
         )
 
