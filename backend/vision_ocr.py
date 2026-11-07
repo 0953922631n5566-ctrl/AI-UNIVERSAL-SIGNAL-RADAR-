@@ -1,4 +1,4 @@
-"""Server-side fixed right-axis ROI price OCR. No directional engine is enabled."""
+"""OCR for user-supplied, pre-cropped price-tag images. No directional engine is enabled."""
 from __future__ import annotations
 
 import logging
@@ -25,13 +25,7 @@ class PriceRead:
     frame_height: int | None = None
 
 
-# Fixed normalized rectangle around the right-axis price-tag zone.
-# Keep the full vertical float area inside one crop; do not run contour or
-# color-based localization before OCR.
-TAG_ZONE_LEFT = 0.68
-TAG_ZONE_RIGHT = 0.90
-TAG_ZONE_TOP = 0.35
-TAG_ZONE_BOTTOM = 0.65
+# The client sends an image already cropped around the price tag.
 OCR_UPSCALE = 6.0
 OCR_CONFIG = "--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789."
 
@@ -48,7 +42,7 @@ def parse_price_candidates(text: str) -> tuple[str, ...]:
 
 
 def read_orange_price(image_bytes: bytes) -> PriceRead:
-    """Crop the fixed right-axis zone and OCR its displayed price."""
+    """OCR the complete user-cropped price-tag image directly."""
     stage = "decode"
     try:
         encoded = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -57,67 +51,25 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             return PriceRead("INVALID_IMAGE", None, (), "Server could not decode the uploaded image")
 
         height, width = frame.shape[:2]
-        if width < 240 or height < 320:
+        if width < 30 or height < 12:
             return PriceRead(
                 "IMAGE_TOO_SMALL", None, (),
-                f"Decoded frame is too small ({width}x{height})",
+                f"Pre-cropped price-tag image is too small ({width}x{height})",
                 frame_width=width, frame_height=height,
             )
 
-        # Fixed right-axis ROI: capture the complete price-axis column between
-        # the chart's right edge and the trade-control column. Coordinates are
-        # normalized to the incoming frame, so the same layout works at
-        # different Android screenshot resolutions. No color/contour detection
-        # is used to determine the crop.
-        stage = "fixed_right_axis_roi"
-        roi_left_ratio = TAG_ZONE_LEFT
-        roi_right_ratio = TAG_ZONE_RIGHT
-        roi_top_ratio = TAG_ZONE_TOP
-        roi_bottom_ratio = TAG_ZONE_BOTTOM
-        left = max(0, min(width - 1, int(round(width * roi_left_ratio))))
-        right = max(left + 1, min(width, int(round(width * roi_right_ratio))))
-        top = max(0, min(height - 1, int(round(height * roi_top_ratio))))
-        bottom = max(top + 1, min(height, int(round(height * roi_bottom_ratio))))
-        tag = frame[top:bottom, left:right]
-        box = (left, top, right, bottom)
-
-        if tag.size == 0:
-            return PriceRead(
-                "INVALID_AXIS_ROI", None, (),
-                "Fixed right-axis ROI is empty",
-                box, "", False, width, height,
-            )
-
-        crop_w, crop_h = tag.shape[1], tag.shape[0]
-        min_crop_w = max(80, int(round(width * 0.075)))
-        min_crop_h = max(24, int(round(height * 0.018)))
-        roi_gray = cv2.cvtColor(tag, cv2.COLOR_BGR2GRAY)
-        roi_mean_brightness = round(float(roi_gray.mean()), 2)
-        roi_p90_brightness = round(float(np.percentile(roi_gray, 90)), 2)
+        # The complete incoming image is the user-defined price-tag crop.
+        stage = "direct_user_crop"
+        tag = frame
+        box = (0, 0, width, height)
         logger.info(
-            "FIXED_RIGHT_AXIS_ROI box=%s crop_wh=%sx%s "
-            "ratios=(%.3f,%.3f,%.3f,%.3f) frame_wh=%sx%s "
-            "gray_mean=%.2f gray_p90=%.2f valid=%s",
-            box, crop_w, crop_h,
-            roi_left_ratio, roi_top_ratio, roi_right_ratio, roi_bottom_ratio,
-            width, height, roi_mean_brightness, roi_p90_brightness,
-            crop_w >= min_crop_w and crop_h >= min_crop_h,
+            "OCR_USER_CROP frame_wh=%sx%s crop_wh=%sx%s source=client_pre_cropped",
+            width, height, width, height,
         )
-        if crop_w < min_crop_w or crop_h < min_crop_h:
-            return PriceRead(
-                "AXIS_ROI_TOO_SMALL", None, (),
-                f"Fixed right-axis ROI is below minimum dimensions "
-                f"({crop_w}x{crop_h}; required at least "
-                f"{min_crop_w}x{min_crop_h})",
-                box, "", False, width, height,
-            )
 
         stage = "opencv_ocr_preprocessing"
         gray = cv2.cvtColor(tag, cv2.COLOR_BGR2GRAY)
-        hsv_tag = cv2.cvtColor(tag, cv2.COLOR_BGR2HSV)
 
-        # Preserve the source crop and inspect whether bright, low-saturation
-        # digit pixels are present before any contrast/threshold operation.
         def image_stats(image: np.ndarray) -> dict:
             arr = np.asarray(image)
             return {
@@ -132,19 +84,9 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 "p90": round(float(np.percentile(arr, 90)), 2),
             }
 
-        white_text_mask = cv2.inRange(
-            hsv_tag,
-            np.array([0, 0, 145], dtype=np.uint8),
-            np.array([179, 135, 255], dtype=np.uint8),
-        )
         logger.info(
-            "OCR_TAG_CROP_DIAG frame_wh=%sx%s tag_box=%s crop_wh=%sx%s "
-            "bgr_stats=%s gray_stats=%s hsv_stats=%s white_mask_pixels=%s "
-            "white_mask_ratio=%.5f gray_sample=%s",
-            width, height, box, tag.shape[1], tag.shape[0],
-            image_stats(tag), image_stats(gray), image_stats(hsv_tag),
-            int(cv2.countNonZero(white_text_mask)),
-            cv2.countNonZero(white_text_mask) / max(1, white_text_mask.size),
+            "OCR_USER_CROP_DIAG crop_wh=%sx%s gray_stats=%s gray_sample=%s",
+            width, height, image_stats(gray),
             gray[::max(1, gray.shape[0] // 8), ::max(1, gray.shape[1] // 12)].tolist(),
         )
 
@@ -156,14 +98,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         )
         clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
         enhanced = clahe.apply(enlarged_gray)
-        enlarged_white_mask = cv2.resize(
-            white_text_mask, (enhanced.shape[1], enhanced.shape[0]),
-            interpolation=cv2.INTER_NEAREST,
-        )
-
-        # Keep a non-thresholded grayscale path, a gentler CLAHE path, and
-        # a color-derived white-glyph mask. The mask is supplemental: it never
-        # replaces grayscale inputs, so low-contrast digits are not discarded.
+        # Five grayscale-only variants; no color conversion or color mask.
         _, raw_otsu = cv2.threshold(
             enlarged_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
@@ -174,10 +109,10 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY, 31, 5,
         )
-        white_mask_variant = cv2.morphologyEx(
-            enlarged_white_mask, cv2.MORPH_CLOSE,
-            cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)),
-            iterations=1,
+        blurred = cv2.GaussianBlur(enhanced, (0, 0), 1.2)
+        sharpened = cv2.addWeighted(enhanced, 1.6, blurred, -0.6, 0)
+        _, sharpened_otsu = cv2.threshold(
+            sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
         )
 
         variants = (
@@ -185,13 +120,13 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             ("clahe_otsu", clahe_otsu),
             ("clahe_inverted_otsu", cv2.bitwise_not(clahe_otsu)),
             ("clahe_adaptive", clahe_adaptive),
-            ("white_text_mask", white_mask_variant),
+            ("sharpened_gray_otsu", sharpened_otsu),
         )
 
         logger.info(
-            "OCR_PREPROCESS_DIAG tag_box=%s crop_wh=%sx%s upscaled=%sx%s "
+            "OCR_PREPROCESS_DIAG crop_wh=%sx%s upscaled=%sx%s "
             "gray_stats=%s enhanced_stats=%s variants=%s",
-            box, tag.shape[1], tag.shape[0],
+            tag.shape[1], tag.shape[0],
             enhanced.shape[1], enhanced.shape[0],
             image_stats(gray), image_stats(enhanced),
             ",".join(name for name, _ in variants),
@@ -222,7 +157,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         if len(found_prices) == 1:
             return PriceRead(
                 "SUCCESS", found_prices[0], tuple(found_prices),
-                "One validated price candidate extracted from fixed tag-zone crop",
+                "One validated price candidate extracted from the user-supplied crop",
                 box, raw_text, True, width, height,
             )
         if len(found_prices) > 1:
@@ -234,7 +169,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
 
         return PriceRead(
             "NO_VALID_PRICE", None, (),
-            "Fixed tag-zone crop captured but no valid price text was recognized",
+            "User-supplied crop processed but no valid price text was recognized",
             box, raw_text, True, width, height,
         )
 
