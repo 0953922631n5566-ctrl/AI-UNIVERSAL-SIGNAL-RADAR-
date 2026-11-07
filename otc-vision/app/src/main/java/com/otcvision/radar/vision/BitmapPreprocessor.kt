@@ -14,7 +14,6 @@ object BitmapPreprocessor {
      */
     fun prepareOrangeTagForOcr(source: Bitmap): Bitmap {
         requireUsableBitmap(source, "prepareOrangeTagForOcr")
-        requireUsableBitmap(source, "prepareForOcr")
         val width = source.width
         val height = source.height
         val input = IntArray(width * height)
@@ -155,6 +154,7 @@ object BitmapPreprocessor {
 
     /** General scale helper retained for non-tag ROIs. */
     fun scaleForOcr(source: Bitmap, maxDimension: Int = 1400, minHeight: Int = 96): Bitmap {
+        requireUsableBitmap(source, "scaleForOcr")
         val largest = max(source.width, source.height)
         val scaleDown = if (largest > maxDimension) maxDimension.toFloat() / largest else 1f
         val scaleUp = if (source.height * scaleDown < minHeight) {
@@ -172,6 +172,7 @@ object BitmapPreprocessor {
 
     /** Legacy grayscale + contrast + 3x3 median denoise. Caller owns returned bitmap. */
     fun prepareForOcr(source: Bitmap, contrast: Float = 1.35f): Bitmap {
+        requireUsableBitmap(source, "prepareForOcr")
         val width = source.width
         val height = source.height
         val input = IntArray(width * height)
