@@ -25,7 +25,7 @@ class PriceRead:
     frame_height: int | None = None
 
 
-_PRICE_RE = re.compile(r"(?<!\\d)(\\d+\\.\\d{4,6})(?!\\d)")
+_PRICE_RE = re.compile(r"(?<!\d)(\d+\.\d{4,6})(?!\d)")
 
 
 def parse_price_candidates(text: str) -> tuple[str, ...]:
