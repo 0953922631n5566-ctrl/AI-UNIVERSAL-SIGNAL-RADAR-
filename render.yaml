@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: otc-vision-frame-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: feature/otc-vision-apk
+    dockerContext: .
+    dockerfilePath: backend/Dockerfile
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: RADAR_INGEST_TOKEN
+        generateValue: true
