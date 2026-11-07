@@ -1,48 +1,30 @@
-# AI-10 CORE — Isolated Vision Test Workspace
+# VISUAL-SIGNAL-AI v1.1.0 — Isolated Vision Workspace
 
-Standalone development copy of the ten-engine strategy subsystem. Production `main-market` paths are not modified.
+This workspace is isolated on `feature/isolated-10ai-engine`. Production Signal Radar PRO / Main Market is not part of this build.
 
-## Run locally
+## Gemini Vision backend
+- Runtime: Node.js 20+, no third-party runtime dependencies.
+- Provider/model: Gemini API / `gemini-2.5-flash`.
+- Set `GEMINI_API_KEY` only in the Render service Environment dashboard. Never commit the key or embed it in the APK.
+- Optional `GEMINI_VISION_MODEL` defaults to `gemini-2.5-flash`.
+- `GET /health` reports provider/model and whether the key is configured; it never returns the key.
+- `POST /api/v1/vision/signal` accepts one JSON Base64 screenshot or multipart image. It returns `{ok,signal,confidence,reason,symbol,timeframe,provider,model}`.
+- Signals are CALL, PUT, or STANDBY. Confidence below 0.70 is forced to STANDBY. No 200-candle/OHLC-history gate is applied to this single-image endpoint.
+- Maximum upload is 8 MiB. Gemini Free Tier quotas/rate limits still apply; no provider can guarantee zero quota errors or unlimited free usage.
 
-Node.js 20+; no third-party runtime dependencies.
-
-```sh
-cd isolated-10ai-engine
-OPENAI_API_KEY=your_key npm start
-npm test
-npm run check
-```
-
-## Test server
-
-- `GET /health` — server/provider configuration status (never exposes the API key).
-- `POST /api/v1/vision/analyze-chart` — accepts JSON Base64 or multipart JPEG/PNG/WebP screenshots.
-- Configure `OPENAI_API_KEY` as a Render environment secret. Optional `OPENAI_VISION_MODEL` defaults to `gpt-4o`.
-
-JSON example:
-
+JSON request:
 ```json
-{
-  "imageBase64": "<base64 JPEG bytes>",
-  "mimeType": "image/jpeg",
-  "chartContext": {
-    "symbol": "EUR/USD",
-    "timeframe": "M1",
-    "tickAgeSeconds": 3
-  }
-}
+{"imageBase64":"<base64>","mimeType":"image/jpeg","chartContext":{"symbol":"EUR/USD","timeframe":"M1"}}
 ```
 
-Multipart uses file field `image` and JSON field `chartContext`. Maximum image size is 8 MiB.
+## Android APK
+- Gradle project: `android/`
+- Application ID: `com.kawasaki.visualsignalai`
+- Version: `1.1.0`
+- Build: `gradle -p android assembleDebug`
+- Workflow: `.github/workflows/visual-signal-ai-apk.yml`, scoped to this branch and isolated Android paths.
+- User must grant Android screen-capture consent and overlay permission. A draggable icon-only floating control captures one frame only after manual tap. A thin top-edge bar shows green CALL, red PUT, or grey STANDBY.
+- Endpoint is compiled into the isolated APK as the isolated Render URL. No API key is stored in the client.
 
-## Strict extraction policy
-
-`src/vision-adapter.js` calls OpenAI Chat Completions with GPT-4o Vision, temperature 0, and strict JSON Schema output. It asks for visible market structure, trend, candlestick patterns, numerical indicator states, and individually legible OHLC candles. It rejects unreadable images, confidence below 0.98, fewer than 200 candles, invalid OHLC geometry, missing indicators, symbol/timeframe mismatch, and missing trusted freshness metadata. It never fills missing values with estimates.
-
-Important limitation: chart screenshots often do not expose 200 exact candle timestamps and OHLC digits or all required indicator numbers. In those cases the endpoint intentionally returns HTTP 422. A screenshot itself cannot prove live-feed freshness, so the caller must supply trusted `tickAgeSeconds <= 25`, or explicitly permitted REST freshness metadata (`allowRestFallback: true`, `ageSeconds <= 180`). The vision model's confidence is a model estimate, not a mathematical guarantee of pixel-reading accuracy. For production-grade numeric OHLC, use a trusted market-data feed; use vision for qualitative visual context.
-
-HTTP status codes: 200 accepted and dispatched; 400 malformed input; 413 oversized upload; 415 unsupported media; 422 unreadable/invalid/incomplete extraction; 503 missing API key/provider rate limit; 502 provider failure.
-
-## Isolation
-
-This workspace is on `feature/isolated-10ai-engine`. It does not modify or deploy the production `main-market` service. The Render test server must be created as a separate service from this branch.
+## Important verification status
+Source code and the isolated Render deployment are updated separately from production. Before distributing the APK, verify GitHub Actions build success, configure `GEMINI_API_KEY` in Render, verify `/health` reports `visionConfigured:true`, then perform a real manual screenshot POST/device test. A healthy process without a configured key is not an end-to-end Gemini test.
