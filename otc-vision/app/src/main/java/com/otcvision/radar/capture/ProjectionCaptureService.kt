@@ -232,9 +232,10 @@ class ProjectionCaptureService : Service() {
             val pixelStride = plane.pixelStride
             val rowPadding = plane.rowStride - pixelStride * frameWidth
             val paddedWidth = frameWidth + rowPadding / pixelStride
-            fullFrame = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
+            val frameBitmap = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
+            fullFrame = frameBitmap
             try {
-                fullFrame.copyPixelsFromBuffer(plane.buffer)
+                frameBitmap.copyPixelsFromBuffer(plane.buffer)
             } finally {
                 image.close()
             }
@@ -245,24 +246,26 @@ class ProjectionCaptureService : Service() {
             val right = (roiOnScreen.right.toFloat() * frameWidth / screenWidth).toInt().coerceIn(left + 1, frameWidth)
             val bottom = (roiOnScreen.bottom.toFloat() * frameHeight / screenHeight).toInt().coerceIn(top + 1, frameHeight)
             val cropRect = Rect(left, top, right, bottom)
-            roiCrop = Bitmap.createBitmap(fullFrame, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
-            fullFrame.recycle()
+            val cropBitmap = Bitmap.createBitmap(frameBitmap, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+            roiCrop = cropBitmap
+            frameBitmap.recycle()
             fullFrame = null
 
-            scaled = BitmapPreprocessor.scaleForOcr(roiCrop)
-            roiCrop.recycle()
+            val scaledBitmap = BitmapPreprocessor.scaleForOcr(cropBitmap)
+            scaled = scaledBitmap
+            cropBitmap.recycle()
             roiCrop = null
-            prepared = BitmapPreprocessor.prepareForOcr(scaled)
-            scaled.recycle()
+            val preparedBitmap = BitmapPreprocessor.prepareForOcr(scaledBitmap)
+            prepared = preparedBitmap
+            scaledBitmap.recycle()
             scaled = null
 
-            check(!prepared.isRecycled) { "Prepared ROI bitmap was recycled before OCR handoff" }
-            ocrBitmap = prepared.copy(Bitmap.Config.ARGB_8888, false)
+            check(!preparedBitmap.isRecycled) { "Prepared ROI bitmap was recycled before OCR handoff" }
+            val ownedBitmap = preparedBitmap.copy(Bitmap.Config.ARGB_8888, false)
                 ?: error("Could not create OCR-owned bitmap copy")
-            prepared.recycle()
+            ocrBitmap = ownedBitmap
+            preparedBitmap.recycle()
             prepared = null
-
-            val ownedBitmap = ocrBitmap
             val ocrStartedAt = System.nanoTime()
             recognizer.process(InputImage.fromBitmap(ownedBitmap, 0))
                 .addOnSuccessListener { result ->
