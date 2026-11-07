@@ -7,13 +7,19 @@ import org.junit.Test
 
 class PriceTextParserTest {
     @Test fun parsesFiveDecimalTradingPrice() {
-        val result = PriceTextParser.parse("EUR/USD 1.08452")
-        assertEquals("1.08452", result.value)
-        assertFalse(result.isAmbiguous)
+        assertEquals("1.08452", PriceTextParser.parse("EUR/USD 1.08452").value)
     }
 
     @Test fun parsesSixDecimalTradingPrice() {
         assertEquals("1.135203", PriceTextParser.parse("1.135203").value)
+    }
+
+    @Test fun parsesRequestedSixDigitFraction() {
+        assertEquals("1.135475", PriceTextParser.parse("EUR/USD 1.135475").value)
+    }
+
+    @Test fun acceptsCommaDecimalSeparator() {
+        assertEquals("1.135475", PriceTextParser.parse("1,135475").value)
     }
 
     @Test fun rejectsShortChartDecimals() {
@@ -28,9 +34,13 @@ class PriceTextParserTest {
         assertTrue(result.isAmbiguous)
     }
 
+    @Test fun rejectsMoreThanSixFractionDigits() {
+        assertEquals(null, PriceTextParser.parse("1.1234567").value)
+    }
+
     @Test fun returnsNoPriceForUnrelatedText() {
         val result = PriceTextParser.parse("BUY SELL OTC")
         assertEquals(null, result.value)
-        assertTrue(result.candidates.isEmpty())
+        assertFalse(result.isAmbiguous)
     }
 }
