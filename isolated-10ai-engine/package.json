@@ -1,22 +1,15 @@
 {
-  "name": "ai-10-core-standalone",
-  "version": "1.0.0",
+  "name": "visual-signal-ai-isolated",
+  "version": "1.1.0",
   "private": true,
   "type": "commonjs",
-  "description": "Isolated standalone workspace for AI-10 CORE ten-engine subsystem and GPT-4o chart vision test gateway",
+  "description": "Standalone Gemini Vision screenshot signal service for VISUAL-SIGNAL-AI",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js && node --check src/vision-input-gateway.js && node --check src/vision-adapter.js && node --check server.js"
-  },
-  "radarArchitecture": {
-    "name": "AI-10 CORE",
-    "engineCount": 10,
-    "executionModel": "PROMISE_ALL_SETTLED",
-    "decisionAuthority": "CENTRAL_AI_DISPATCHER",
-    "deploymentModel": "STANDALONE_WORKSPACE"
+    "check": "node --check src/gemini-vision-adapter.js && node --check src/vision-signal-gateway.js && node --check src/vision-input-gateway.js && node --check server.js"
   }
 }
