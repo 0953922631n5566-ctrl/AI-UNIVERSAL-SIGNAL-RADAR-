@@ -5,6 +5,7 @@ on:
     branches: [feature/otc-vision-apk]
     paths:
       - "otc-vision/**"
+      - "backend/**"
       - ".github/workflows/otc-vision-apk.yml"
   workflow_dispatch:
 
