@@ -196,6 +196,7 @@ class ProjectionCaptureService : Service() {
         chartCrop.recycle()
 
         if (priceCrop == null) {
+            processing.set(false)
             broadcast(
                 ACTION_METRIC,
                 "NO_ORANGE_TAG · right-axis scan " + scanRect.width() + "x" + scanRect.height(),
