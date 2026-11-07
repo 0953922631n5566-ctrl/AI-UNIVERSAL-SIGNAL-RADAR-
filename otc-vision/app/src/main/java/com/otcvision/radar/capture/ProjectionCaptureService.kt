@@ -245,7 +245,7 @@ class ProjectionCaptureService : Service() {
             .addOnFailureListener { error ->
                 val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
                 val progress = recordBenchmark("OCR_FAILURE", null, -1L, frameAgeMs, usedHeapKb())
-                broadcast(ACTION_ERROR, "ML Kit OCR failed: " + (error.localizedMessage ?: error.javaClass.simpleName) + progress)
+                broadcast(ACTION_METRIC, "OCR_FAILURE · " + (error.localizedMessage ?: error.javaClass.simpleName) + progress, frameMs = frameAgeMs, memoryKb = usedHeapKb())
             }
             .addOnCompleteListener {
                 prepared.recycle()
