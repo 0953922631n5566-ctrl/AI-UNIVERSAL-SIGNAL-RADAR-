@@ -387,3 +387,16 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Build/test workflow: `.github/workflows/otc-vision-apk.yml`, run #30 / ID `42337050038`, source commit `c0c9a92452c146efa1aeff4249b5ed8191761e16`; completed successfully. Parser unit tests: 8/8 passed. Artifact `otc-vision-finetuned-debug-apk`, ID `13560336155`, ZIP size 22,435,944 bytes. Extracted APK size 46,421,384 bytes; independently verified APK SHA-256 `df69199c119119cf5c10b14830af3dc4bba10ca1a0adfad4df201107534e5398`. Run URL: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42337050038.
 - No actual Xiaomi 11T 100-frame run has been performed by the build runner. Device extraction rate, exact-match accuracy, and thermal results remain pending user-side capture and CSV review.
 - No network/API, Render, Twelve Data, Firebase, FCM, Telegram, OCR backend, or Main Market source was modified.
+
+
+## 2026-11-07 — Urgent orange-tag OCR patch
+
+- Patched only `feature/otc-vision-apk`.
+- Anchored tag crop is now resized exactly 2x with a Catmull-Rom bicubic pixel resampler before adaptive preprocessing.
+- Preprocessor detects light/dark glyph polarity, maps orange background to white, expands glyph contrast, and uses local adaptive thresholding for dark text on a light OCR canvas.
+- OCR output is sanitized to `[0-9.]+` before price regex validation. ML Kit Text Recognition has no configurable character whitelist; filtering is correctly applied after recognition.
+- Up to five failed preprocessed crops per capture session are stored as PNGs in app-specific `Pictures/ocr-debug`; all debug file operations are best-effort and caught.
+- Parser tests expanded for strict numeric sanitization and common OCR glyph confusions.
+- New CI run and field APK build are pending after the latest source/documentation commits. Do not report success until run/artifact verified.
+- Xiaomi 11T field extraction/accuracy/thermal metrics remain unknown until 100-frame device CSV is collected and compared with timestamp-matched ground truth.
+- Main Market / AI-10 CORE untouched; no networking, backend, Render, Twelve Data, Firebase, FCM, Telegram, or trading logic added.
