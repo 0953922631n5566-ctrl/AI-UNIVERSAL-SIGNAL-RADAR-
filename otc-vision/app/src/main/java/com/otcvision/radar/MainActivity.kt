@@ -71,7 +71,7 @@ class MainActivity : Activity() {
         }
         val serverUrlInput = EditText(this).apply {
             hint = "HTTPS server base URL (without /v1/frame)"
-            singleLine = true
+            setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
         }
         val serverTokenInput = EditText(this).apply {
