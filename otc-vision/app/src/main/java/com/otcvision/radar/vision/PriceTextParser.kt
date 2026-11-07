@@ -3,9 +3,8 @@ package com.otcvision.radar.vision
 data class PriceParseResult(val value: String?, val candidates: List<String>, val isAmbiguous: Boolean)
 
 object PriceTextParser {
-    // Accept 1–3 integer digits and 5–6 fractional digits, including six-decimal quotes such as 1.135475.
-    // Boundaries reject longer numeric strings and partial matches embedded in chart labels.
-    private val numericToken = Regex("""(?<![\\d.])\\d{1,3}[.,]\\d{5,6}(?![\\d.])""")
+    // Accept 1–3 integer digits and 5–6 fractional digits, including 1.135475.
+    private val numericToken = Regex("""(?<![\d.])\d{1,3}[.,]\d{5,6}(?![\d.])""")
 
     fun parse(text: String): PriceParseResult {
         val normalized = text.replace('O', '0').replace('o', '0')
