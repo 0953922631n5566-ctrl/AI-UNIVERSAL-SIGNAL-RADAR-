@@ -20,7 +20,7 @@ Standalone Android application under `otc-vision/`, isolated from legacy apps, b
 ## Automatic 100-frame benchmark
 - Starting a MediaProjection capture automatically resets and starts a local 100-sample run.
 - Samples include OCR status/value, OCR and frame latency, Java heap usage, Android thermal status, and battery temperature where available.
-- The app-private CSV is written to `files/benchmark/ocr-100-<timestamp>.csv`; the UI status reports progress and a completion summary.
+- The CSV is written to the app-specific Documents directory (`Android/data/com.otcvision.radar/files/Documents/benchmark/ocr-100-<timestamp>.csv`; internal app files are used only if external app storage is unavailable). The UI status reports progress and a completion summary.
 - Extraction rate means the percentage of sampled frames that produced a syntactically valid quote. It is **not** exact-match accuracy.
 - The CSV includes an intentionally blank `exact_match` column. Fill it only after comparing each sample with a separately recorded ground-truth quote. Do not claim price accuracy from extraction rate alone.
 - Battery temperature is not SoC temperature. Thermal status may be unavailable on older Android versions.
