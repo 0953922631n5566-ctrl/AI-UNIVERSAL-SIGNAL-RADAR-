@@ -1,0 +1,293 @@
+package com.otcvision.radar.capture
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.Image
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.IBinder
+import android.util.DisplayMetrics
+import android.view.WindowManager
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.otcvision.radar.model.RoiConfig
+import com.otcvision.radar.vision.BitmapPreprocessor
+import com.otcvision.radar.vision.PriceTextParser
+import java.util.concurrent.atomic.AtomicBoolean
+
+class ProjectionCaptureService : Service() {
+    companion object {
+        const val ACTION_START = "com.otcvision.radar.START_CAPTURE"
+        const val ACTION_STOP = "com.otcvision.radar.STOP_CAPTURE"
+        const val ACTION_METRIC = "com.otcvision.radar.CAPTURE_METRIC"
+        const val ACTION_STOPPED = "com.otcvision.radar.CAPTURE_STOPPED"
+        const val ACTION_ERROR = "com.otcvision.radar.CAPTURE_ERROR"
+        const val EXTRA_RESULT_CODE = "projection_result_code"
+        const val EXTRA_RESULT_DATA = "projection_result_data"
+        const val EXTRA_PRICE = "price"
+        const val EXTRA_CANDIDATES = "candidates"
+        const val EXTRA_OCR_MS = "ocr_ms"
+        const val EXTRA_FRAME_MS = "frame_ms"
+        const val EXTRA_MEMORY_KB = "memory_kb"
+        const val EXTRA_MESSAGE = "message"
+        private const val CHANNEL_ID = "otc_capture"
+        private const val NOTIFICATION_ID = 810
+        private const val MIN_FRAME_INTERVAL_MS = 650L
+    }
+
+    private var projection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var imageReader: ImageReader? = null
+    private var captureThread: HandlerThread? = null
+    private var lastFrameAt = 0L
+    private val processing = AtomicBoolean(false)
+    private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val roiConfig = RoiConfig.defaults()
+    private var isStopping = false
+
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            stopCapture(stopProjection = false)
+            broadcast(ACTION_STOPPED, "Screen capture permission revoked or session ended")
+            stopSelf()
+        }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopCapture()
+                broadcast(ACTION_STOPPED, "Capture stopped by user")
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_START -> {
+                try {
+                    startForegroundCompat()
+                    val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
+                    val data = if (Build.VERSION.SDK_INT >= 33) {
+                        intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(EXTRA_RESULT_DATA)
+                    } ?: error("Missing MediaProjection consent result")
+                    startCapture(resultCode, data)
+                    updateNotification("Capturing locally · OCR on device")
+                } catch (error: Exception) {
+                    broadcast(ACTION_ERROR, error.javaClass.simpleName + ": " + (error.message ?: "Capture startup failed"))
+                    stopCapture()
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startForegroundCompat() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "OTC screen capture", NotificationManager.IMPORTANCE_LOW)
+            )
+        }
+        val notification = buildNotification("Waiting for capture session")
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun startCapture(resultCode: Int, data: Intent) {
+        check(projection == null) { "A capture session is already active" }
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val activeProjection = manager.getMediaProjection(resultCode, data)
+            ?: error("Android did not provide a MediaProjection instance")
+        projection = activeProjection
+
+        val metrics = displayMetrics()
+        require(metrics.widthPixels > 0 && metrics.heightPixels > 0) { "Invalid display dimensions" }
+        val reader = ImageReader.newInstance(metrics.widthPixels, metrics.heightPixels, PixelFormat.RGBA_8888, 2)
+        imageReader = reader
+        val thread = HandlerThread("otc-vision-frame-reader").also { it.start() }
+        captureThread = thread
+        val handler = Handler(thread.looper)
+
+        activeProjection.registerCallback(projectionCallback, handler)
+        reader.setOnImageAvailableListener({ source ->
+            val now = System.currentTimeMillis()
+            if (now - lastFrameAt < MIN_FRAME_INTERVAL_MS || !processing.compareAndSet(false, true)) {
+                source.acquireLatestImage()?.close()
+                return@setOnImageAvailableListener
+            }
+            val frame = source.acquireLatestImage()
+            if (frame == null) {
+                processing.set(false)
+                return@setOnImageAvailableListener
+            }
+            lastFrameAt = now
+            try {
+                processFrame(frame, now)
+            } catch (error: Exception) {
+                frame.close()
+                processing.set(false)
+                broadcast(ACTION_ERROR, "Frame processing: " + (error.message ?: error.javaClass.simpleName))
+            }
+        }, handler)
+
+        virtualDisplay = activeProjection.createVirtualDisplay(
+            "OtcVisionCapture",
+            metrics.widthPixels,
+            metrics.heightPixels,
+            metrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            reader.surface,
+            null,
+            handler
+        ) ?: error("Could not create capture virtual display")
+    }
+
+    private fun processFrame(image: Image, frameStartedAt: Long) {
+        val frameWidth = image.width
+        val frameHeight = image.height
+        val plane = image.planes.firstOrNull() ?: run {
+            image.close()
+            processing.set(false)
+            return
+        }
+        val pixelStride = plane.pixelStride
+        val rowPadding = plane.rowStride - pixelStride * frameWidth
+        val paddedWidth = frameWidth + rowPadding / pixelStride
+        val fullFrame = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
+        try {
+            fullFrame.copyPixelsFromBuffer(plane.buffer)
+        } finally {
+            image.close()
+        }
+
+        val priceRect = roiConfig.priceLabel.toRect(frameWidth, frameHeight)
+        val chartRect = roiConfig.candleChart.toRect(frameWidth, frameHeight)
+        val priceCrop = Bitmap.createBitmap(fullFrame, priceRect.left, priceRect.top, priceRect.width(), priceRect.height())
+        val chartCrop = Bitmap.createBitmap(fullFrame, chartRect.left, chartRect.top, chartRect.width(), chartRect.height())
+        fullFrame.recycle()
+
+        // Phase 1 validates chart ROI extraction; candle geometry/OHLC inference is later.
+        val chartRoiPixels = chartCrop.width.toLong() * chartCrop.height.toLong()
+        chartCrop.recycle()
+
+        val scaled = BitmapPreprocessor.scaleForOcr(priceCrop)
+        priceCrop.recycle()
+        val prepared = BitmapPreprocessor.prepareForOcr(scaled)
+        scaled.recycle()
+
+        val ocrStartedAt = System.nanoTime()
+        recognizer.process(InputImage.fromBitmap(prepared, 0))
+            .addOnSuccessListener { result ->
+                val ocrMs = (System.nanoTime() - ocrStartedAt) / 1_000_000L
+                val parsed = PriceTextParser.parse(result.text)
+                val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+                val runtime = Runtime.getRuntime()
+                val usedMemoryKb = (runtime.totalMemory() - runtime.freeMemory()) / 1024L
+                val status = when {
+                    parsed.isAmbiguous -> "AMBIGUOUS"
+                    parsed.value != null -> "PRICE_READ"
+                    else -> "NO_PRICE"
+                }
+                broadcast(
+                    ACTION_METRIC,
+                    status + " · chart ROI " + chartRoiPixels + " px",
+                    price = parsed.value,
+                    candidates = parsed.candidates.joinToString(","),
+                    ocrMs = ocrMs,
+                    frameMs = frameAgeMs,
+                    memoryKb = usedMemoryKb
+                )
+            }
+            .addOnFailureListener { error ->
+                broadcast(ACTION_ERROR, "ML Kit OCR failed: " + (error.localizedMessage ?: error.javaClass.simpleName))
+            }
+            .addOnCompleteListener {
+                prepared.recycle()
+                processing.set(false)
+            }
+    }
+
+    private fun displayMetrics(): DisplayMetrics {
+        val result = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(result)
+        return result
+    }
+
+    private fun buildNotification(message: String): Notification {
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
+        return builder.setContentTitle("OTC Vision Radar")
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun updateNotification(message: String) {
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(message))
+    }
+
+    private fun broadcast(
+        action: String,
+        message: String,
+        price: String? = null,
+        candidates: String? = null,
+        ocrMs: Long = -1L,
+        frameMs: Long = -1L,
+        memoryKb: Long = -1L
+    ) {
+        val intent = Intent(action).setPackage(packageName)
+            .putExtra(EXTRA_MESSAGE, message)
+            .putExtra(EXTRA_PRICE, price)
+            .putExtra(EXTRA_CANDIDATES, candidates)
+            .putExtra(EXTRA_OCR_MS, ocrMs)
+            .putExtra(EXTRA_FRAME_MS, frameMs)
+            .putExtra(EXTRA_MEMORY_KB, memoryKb)
+        sendBroadcast(intent)
+    }
+
+    private fun stopCapture(stopProjection: Boolean = true) {
+        if (isStopping) return
+        isStopping = true
+        try { imageReader?.setOnImageAvailableListener(null, null) } catch (_: Exception) {}
+        try { virtualDisplay?.release() } catch (_: Exception) {}
+        virtualDisplay = null
+        try { imageReader?.close() } catch (_: Exception) {}
+        imageReader = null
+        try { projection?.unregisterCallback(projectionCallback) } catch (_: Exception) {}
+        if (stopProjection) try { projection?.stop() } catch (_: Exception) {}
+        projection = null
+        try { captureThread?.quitSafely() } catch (_: Exception) {}
+        captureThread = null
+        processing.set(false)
+        isStopping = false
+    }
+
+    override fun onDestroy() {
+        stopCapture()
+        try { recognizer.close() } catch (_: Exception) {}
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
