@@ -29,6 +29,7 @@ object OrangeTagDetector {
      * is relative to [source], padded slightly to preserve glyph edges.
      */
     fun findTag(source: Bitmap): Rect? {
+        check(!source.isRecycled) { "findTag rejected a recycled bitmap" }
         val width = source.width
         val height = source.height
         if (width < 24 || height < 16) return null
