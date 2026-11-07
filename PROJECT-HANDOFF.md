@@ -375,3 +375,15 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - The Main Market Original AI engine is direct OHLC/rule/analogue analysis, not a visual perception model. Unit tests are not a substitute for predictive out-of-sample evaluation. Keep STANDBY.
 - The older root `main` OCR APK remains at workflow run `41786849036` / commit `386d0240bc13c83b9e45153a91557d0d75563cb9`; it posts OCR price JSON to a route that does not match the active Main Market API contract. Do not treat it as the current Main Market Android candidate.
 - Remaining delivery blockers: secure device credential provisioning; FCM Admin setup if background push is required; independent historical/out-of-sample evaluation; Android device install/auth/session test on Xiaomi 11T; confirmation of actual UI and notification behavior. No paid resources or broker execution were introduced.
+
+
+## 2026-11-07 — OTC Vision OCR fine-tuning and 100-frame benchmark
+
+- Work is isolated to `feature/otc-vision-apk` and `otc-vision/`; do not merge into `main` or `main-market`. Main Market / AI-10 CORE remains untouched.
+- Orange-tag preprocessing now maps the orange container to a white canvas, inverts and stretches bright quote glyphs, applies an integral-image local adaptive threshold, and enlarges small tag crops before ML Kit OCR.
+- Price validation regex now correctly accepts 5–6 fractional digits, including `1.135475`, and rejects longer numeric tokens. Parser tests were expanded for 5/6 decimals, comma separator, short/long decimals, ambiguity, and unrelated text.
+- Capture automatically records 100 processed outcomes to a CSV under the app-specific Documents folder: `Android/data/com.otcvision.radar/files/Documents/benchmark/`. Each row logs status, extracted quote, OCR/frame latency, heap, Android thermal status, and battery temperature when available.
+- Benchmark extraction rate is not exact-match accuracy. The CSV `exact_match` column is deliberately blank until every sampled quote is compared with timestamp-matched ground truth. Battery temperature is not SoC temperature.
+- Build/test workflow: `.github/workflows/otc-vision-apk.yml`, run #30 / ID `42337050038`, source commit `c0c9a92452c146efa1aeff4249b5ed8191761e16`. At handoff update time the job was still in progress; do not claim a successful APK until the run and artifact are verified.
+- No actual Xiaomi 11T 100-frame run has been performed by the build runner. Initial device extraction rate, exact-match accuracy, and thermal results remain pending user-side capture and CSV review.
+- No network/API, Render, Twelve Data, Firebase, FCM, Telegram, OCR backend, or Main Market source was modified.
