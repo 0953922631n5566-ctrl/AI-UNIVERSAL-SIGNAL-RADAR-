@@ -142,24 +142,7 @@ class ProjectionCaptureService : Service() {
 
         activeProjection.registerCallback(projectionCallback, handler)
         reader.setOnImageAvailableListener({ source ->
-            val now = System.currentTimeMillis()
-            if (now - lastFrameAt < MIN_FRAME_INTERVAL_MS || !processing.compareAndSet(false, true)) {
-                source.acquireLatestImage()?.close()
-                return@setOnImageAvailableListener
-            }
-            val frame = source.acquireLatestImage()
-            if (frame == null) {
-                processing.set(false)
-                return@setOnImageAvailableListener
-            }
-            lastFrameAt = now
-            try {
-                processFrame(frame, now)
-            } catch (error: Exception) {
-                frame.close()
-                processing.set(false)
-                broadcast(ACTION_ERROR, "Frame processing: " + (error.message ?: error.javaClass.simpleName))
-            }
+            analyzeLatestFrame(source)
         }, handler)
 
         virtualDisplay = activeProjection.createVirtualDisplay(
@@ -172,6 +155,37 @@ class ProjectionCaptureService : Service() {
             null,
             handler
         ) ?: error("Could not create capture virtual display")
+    }
+
+    /**
+     * Owns the ImageProxy-like Image lifecycle and contains every frame-level exception.
+     * The Image is closed exactly once by processFrame; failures never escape the handler.
+     */
+    private fun analyzeLatestFrame(source: ImageReader) {
+        val now = System.currentTimeMillis()
+        if (now - lastFrameAt < MIN_FRAME_INTERVAL_MS || !processing.compareAndSet(false, true)) {
+            runCatching { source.acquireLatestImage()?.close() }
+            return
+        }
+        val frame = try {
+            source.acquireLatestImage()
+        } catch (error: Exception) {
+            processing.set(false)
+            broadcast(ACTION_ERROR, "Frame acquire: " + (error.message ?: error.javaClass.simpleName))
+            return
+        }
+        if (frame == null) {
+            processing.set(false)
+            return
+        }
+        lastFrameAt = now
+        try {
+            processFrame(frame, now)
+        } catch (error: Exception) {
+            runCatching { frame.close() }
+            processing.set(false)
+            broadcast(ACTION_ERROR, "Frame processing: " + (error.message ?: error.javaClass.simpleName))
+        }
     }
 
     private fun processFrame(image: Image, frameStartedAt: Long) {
@@ -228,8 +242,19 @@ class ProjectionCaptureService : Service() {
         val prepared = BitmapPreprocessor.prepareOrangeTagForOcr(scaled)
         scaled.recycle()
 
+        // ML Kit receives its own bitmap. It remains alive until the Task completes,
+        // independently of the temporary preprocessing chain and frame-reader lifecycle.
+        val ocrBitmap = try {
+            check(!prepared.isRecycled) { "Prepared OCR bitmap was recycled before handoff" }
+            prepared.copy(Bitmap.Config.ARGB_8888, false)
+                ?: error("Could not copy prepared OCR bitmap")
+        } finally {
+            if (!prepared.isRecycled) prepared.recycle()
+        }
+
         val ocrStartedAt = System.nanoTime()
-        recognizer.process(InputImage.fromBitmap(prepared, 0))
+        try {
+            recognizer.process(InputImage.fromBitmap(ocrBitmap, 0))
             .addOnSuccessListener { result ->
                 val ocrMs = (System.nanoTime() - ocrStartedAt) / 1_000_000L
                 // ML Kit has no native whitelist API; sanitize to [0-9.] before regex validation.
@@ -242,7 +267,7 @@ class ProjectionCaptureService : Service() {
                     parsed.value != null -> "PRICE_READ"
                     else -> "NO_VALID_PRICE"
                 }
-                if (parsed.value == null) saveDebugBitmap(prepared, status)
+                if (parsed.value == null && !ocrBitmap.isRecycled) saveDebugBitmap(ocrBitmap, status)
                 val progress = recordBenchmark(status, parsed.value, ocrMs, frameAgeMs, usedMemoryKb)
                 broadcast(
                     ACTION_METRIC,
@@ -256,14 +281,19 @@ class ProjectionCaptureService : Service() {
             }
             .addOnFailureListener { error ->
                 val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
-                saveDebugBitmap(prepared, "OCR_FAILURE")
+                if (!ocrBitmap.isRecycled) saveDebugBitmap(ocrBitmap, "OCR_FAILURE")
                 val progress = recordBenchmark("OCR_FAILURE", null, -1L, frameAgeMs, usedHeapKb())
                 broadcast(ACTION_METRIC, "OCR_FAILURE · " + (error.localizedMessage ?: error.javaClass.simpleName) + progress, frameMs = frameAgeMs, memoryKb = usedHeapKb())
             }
             .addOnCompleteListener {
-                prepared.recycle()
+                if (!ocrBitmap.isRecycled) ocrBitmap.recycle()
                 processing.set(false)
             }
+        } catch (error: Exception) {
+            if (!ocrBitmap.isRecycled) ocrBitmap.recycle()
+            processing.set(false)
+            broadcast(ACTION_ERROR, "OCR dispatch: " + (error.message ?: error.javaClass.simpleName))
+        }
     }
 
     /**
@@ -271,8 +301,9 @@ class ProjectionCaptureService : Service() {
      * Debug I/O is best-effort: storage/permission failures are swallowed and never stop capture.
      */
     private fun saveDebugBitmap(bitmap: Bitmap, reason: String) {
-        if (debugSnapshotsSaved >= 5) return
+        if (debugSnapshotsSaved >= 5 || bitmap.isRecycled) return
         runCatching {
+            if (bitmap.isRecycled) return@runCatching
             val base = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
             val directory = File(base, "ocr-debug")
             if (!directory.exists() && !directory.mkdirs()) return
