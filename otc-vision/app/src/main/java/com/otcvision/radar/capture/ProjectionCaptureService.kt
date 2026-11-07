@@ -180,6 +180,7 @@ class ProjectionCaptureService : Service() {
             controls?.setStatus("One capture is already in progress", false)
             return
         }
+        controls?.hideForCapture()
         updateNotification("Manual capture requested · waiting for next frame")
     }
 
@@ -198,22 +199,25 @@ class ProjectionCaptureService : Service() {
             source.acquireLatestImage()
         } catch (error: Exception) {
             processing.set(false)
+            controls?.showAfterFrame()
             controls?.setStatus("Frame error: " + (error.message ?: error.javaClass.simpleName), true)
-            broadcast(ACTION_ERROR, "Frame acquire: " + (error.message ?: error.javaClass.simpleName))
+            broadcast(ACTION_METRIC, "FRAME_ERROR · " + (error.message ?: error.javaClass.simpleName))
             return
         }
         if (frame == null) {
             processing.set(false)
+            controls?.showAfterFrame()
             controls?.setStatus("No frame available · tap to retry", true)
             return
         }
+        controls?.showAfterFrame()
         try {
             processSingleFrame(frame)
         } catch (error: Exception) {
             runCatching { frame.close() }
             processing.set(false)
             controls?.setStatus("Capture failed · tap to retry", true)
-            broadcast(ACTION_ERROR, "Manual frame processing: " + (error.message ?: error.javaClass.simpleName))
+            broadcast(ACTION_METRIC, "CAPTURE_ERROR · " + (error.message ?: error.javaClass.simpleName))
         }
     }
 
@@ -296,7 +300,7 @@ class ProjectionCaptureService : Service() {
                 }
                 .addOnFailureListener { error ->
                     controls?.setStatus("OCR failed · adjust ROI and retry", true)
-                    broadcast(ACTION_ERROR, "OCR failed: " + (error.message ?: error.javaClass.simpleName))
+                    broadcast(ACTION_METRIC, "OCR_FAILURE · " + (error.message ?: error.javaClass.simpleName))
                 }
                 .addOnCompleteListener {
                     if (!ownedBitmap.isRecycled) ownedBitmap.recycle()
