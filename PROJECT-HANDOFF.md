@@ -455,3 +455,18 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - This is a debug APK. No Xiaomi 11T installation, MediaProjection capture, authenticated server upload, or live server OCR has yet been verified.
 - The backend code is not deployed. The app must be configured with the dedicated HTTPS backend URL and matching RADAR_INGEST_TOKEN. No Render service was changed.
 - Server still returns STANDBY because the ten OTC Signal Engine implementations/validated decision adapter are not present. OCR price extraction is not a CALL/PUT signal.
+
+
+## 2026-11-07 — OTC Vision Xiaomi 11T SENDING crash hardening
+
+- User reported force-close immediately after tapping the green CAPTURE & SEND floating button when its label changes to SENDING.
+- Work is isolated to `feature/otc-vision-apk`; Main Market branch and Render service were not changed.
+- Added `kotlinx-coroutines-android:1.9.0` to the standalone `otc-vision` Android app.
+- `ProjectionCaptureService.kt` now copies the selected ImageReader pixels into a separately owned Bitmap, closes the Image immediately after the copy, and transfers the Bitmap to a SupervisorJob coroutine. JPEG encoding and all HTTP work run through `Dispatchers.IO`. The Bitmap is recycled only when the upload job completes, including cancellation before its body starts.
+- The full capture/upload pipeline now catches `Throwable`, logs the failure stage, restores the overlay to `FAILED · TAP TO RETRY`, and posts a Toast rather than allowing ordinary capture/network/IO exceptions to escape.
+- `FrameUploader.upload` has an explicit main-thread guard to prevent accidental blocking compression/network work on the UI thread.
+- `ManualFloatingControls` marshals all View and WindowManager mutations onto the Android main thread. The floating button remains visible during capture/upload so SENDING state is visible.
+- `otc-vision/README.md` and `otc-vision/PHASE1-STATUS.md` document the changes.
+- Source changes were pushed as separate commits on the isolated branch. The newest source commit and CI workflow run must be checked before distributing an APK.
+- Important: this patch has not yet been proven on Xiaomi 11T hardware. CI compilation/tests and APK packaging are necessary but not sufficient; repeat the one-tap capture test, plus airplane mode, 401, 413, 5xx, rapid taps, and projection revocation.
+- Existing backend behavior remains OCR-only with STANDBY; no ten-engine CALL/PUT logic was added. The dedicated OTC Render backend is not modified by this Android-only patch.
