@@ -410,3 +410,19 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - APK SHA-256: `3c9c7c99f5e48cbf5a6249bb7418e8f4b4682937bf587a2f68d07b131608ec56`; independently matched the checksum file inside the downloaded artifact.
 - Workflow URL: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42339416983
 - The successful build verifies compilation, unit tests, and artifact packaging only. It does not establish improved OCR accuracy on Xiaomi 11T; 100-frame field test and exact-match comparison remain pending.
+
+
+## 2026-11-07 — One-Tap preset ROI architecture shift
+
+- User requested removal of the movable/resizable yellow ROI overlay and replacement with one draggable floating action button labelled **SCAN & ANALYZE**.
+- Commit sequence on `feature/otc-vision-apk`:
+  - `614d30c9803a247a1af28b85a16ed3d53514c362`: replace the ROI window and multi-control floating panel with one draggable button.
+  - `b716bbc7c594b70d2e0a8c8219d49f3d58a8e6e3`: capture a single frame using the preset right-axis ROI.
+  - `b83a19cbe6b0a0ddea61ed511dd4679e3e010b42`: update MainActivity instructions for the one-button flow.
+  - `73009ceaf92b407a76ee3892fc72b24dc1b44227`: label crop metrics as preset ROI.
+- Preset crop uses display-relative coordinates X=82–98%, Y=15–85%. The only floating surface is a draggable `SCAN & ANALYZE` button; its position is persisted. The old movable/resizable ROI surface, resize handle, panel drag bar, and overlay STOP button are removed.
+- A tap arms one frame. The ImageReader listener still drains the MediaProjection stream while idle, but idle frames are closed without bitmap conversion or OCR. Only one armed frame is converted, cropped, preprocessed, and sent to ML Kit; the button is hidden during capture and restored afterward.
+- OCR result is shown on the floating button and via Toast. Price extraction only is implemented. **The requested Local 10 Signal Engines are not present in this isolated OTC Vision source tree and have not been implemented or validated.** A price-axis crop alone is not enough candle/history input to calculate defensible CALL/PUT signals. When a price is read, UI explicitly reports SIGNAL STANDBY and the Toast states the 10 engines are not configured; do not claim directional signal output.
+- Existing try/catch, crop bounds checks, Image close/finally cleanup, and ML Kit completion cleanup remain. This reduces common capture/crop failure paths but cannot guarantee zero crashes for all Android/platform failures or fatal VM errors.
+- CI build for the final source commit `73009ceaf92b407a76ee3892fc72b24dc1b44227` must complete successfully before distributing a new APK. Build success does not establish Xiaomi 11T hardware behavior; one-tap positioning, actual broker ROI alignment, OCR exact-match rate, and thermal stability still require device testing.
+- Main Market / AI-10 CORE remains untouched. No network, Render, Firebase, FCM, Telegram, or broker execution changes were made.
