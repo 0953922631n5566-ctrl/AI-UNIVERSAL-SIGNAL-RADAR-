@@ -112,11 +112,17 @@ async def ingest_frame(
     processing_started = time.perf_counter()
     orange_tag_found = False
     ocr_raw_text = ""
+    ocr_status = "NOT_RUN"
+    ocr_reason = ""
+    tag_box = None
     try:
         ocr = read_orange_price(payload)
         price = ocr.price
         orange_tag_found = ocr.orange_tag_found
         ocr_raw_text = ocr.raw_text
+        ocr_status = ocr.status
+        ocr_reason = ocr.reason
+        tag_box = ocr.tag_box
         status = "PRICE_READ_ENGINE_NOT_CONFIGURED" if ocr.status == "PRICE_READ" else ocr.status
         reason = (
             "Price extracted by server OCR; directional 10-engine adapter is not configured."
@@ -133,8 +139,12 @@ async def ingest_frame(
     except Exception as exc:
         price = None
         status = "SERVER_OCR_ERROR"
+        ocr_status = status
+        ocr_reason = type(exc).__name__
         reason = "Server OCR failed safely: " + type(exc).__name__
         evidence = [f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"]
+        # Include the traceback in server logs for diagnosis; never log tokens or image bytes.
+        logger.exception("OCR_FRAME_ERROR session=%s sequence=%s", session_id, sequence)
 
     # Emit only OCR diagnostics. Never log request headers, tokens, frame bytes, or image data.
     processing_ms = int((time.perf_counter() - processing_started) * 1000)
@@ -146,6 +156,9 @@ async def ingest_frame(
                 "ocr_raw_text": ocr_raw_text,
                 "extracted_price": price,
                 "processing_ms": processing_ms,
+                "ocr_status": ocr_status,
+                "ocr_reason": ocr_reason,
+                "tag_box": tag_box,
             },
             ensure_ascii=False,
             separators=(",", ":"),
