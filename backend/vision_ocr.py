@@ -1,7 +1,6 @@
 """Server-side fixed right-axis ROI price OCR. No directional engine is enabled."""
 from __future__ import annotations
 
-import base64
 import logging
 import re
 from dataclasses import dataclass
@@ -25,6 +24,16 @@ class PriceRead:
     frame_width: int | None = None
     frame_height: int | None = None
 
+
+# Fixed normalized rectangle around the right-axis price-tag zone.
+# Keep the full vertical float area inside one crop; do not run contour or
+# color-based localization before OCR.
+TAG_ZONE_LEFT = 0.68
+TAG_ZONE_RIGHT = 0.90
+TAG_ZONE_TOP = 0.35
+TAG_ZONE_BOTTOM = 0.65
+OCR_UPSCALE = 6.0
+OCR_CONFIG = "--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789."
 
 _PRICE_RE = re.compile(r"(?<!\d)(\d+\.\d{4,6})(?!\d)")
 
@@ -61,10 +70,10 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         # different Android screenshot resolutions. No color/contour detection
         # is used to determine the crop.
         stage = "fixed_right_axis_roi"
-        roi_left_ratio = 0.68
-        roi_right_ratio = 0.90
-        roi_top_ratio = 0.35
-        roi_bottom_ratio = 0.65
+        roi_left_ratio = TAG_ZONE_LEFT
+        roi_right_ratio = TAG_ZONE_RIGHT
+        roi_top_ratio = TAG_ZONE_TOP
+        roi_bottom_ratio = TAG_ZONE_BOTTOM
         left = max(0, min(width - 1, int(round(width * roi_left_ratio))))
         right = max(left + 1, min(width, int(round(width * roi_right_ratio))))
         top = max(0, min(height - 1, int(round(height * roi_top_ratio))))
@@ -139,8 +148,11 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             gray[::max(1, gray.shape[0] // 8), ::max(1, gray.shape[1] // 12)].tolist(),
         )
 
+        # Upscale the fixed crop directly. PSM 11 treats the tag-zone as a
+        # sparse-text region, allowing the price to sit anywhere in the box.
         enlarged_gray = cv2.resize(
-            gray, None, fx=6.0, fy=6.0, interpolation=cv2.INTER_CUBIC
+            gray, None, fx=OCR_UPSCALE, fy=OCR_UPSCALE,
+            interpolation=cv2.INTER_CUBIC,
         )
         clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
         enhanced = clahe.apply(enlarged_gray)
@@ -186,35 +198,9 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         )
 
         stage = "tesseract"
-        config = (
-            "--oem 3 --psm 7 "
-            "-c tessedit_char_whitelist=0123456789."
-        )
+        config = OCR_CONFIG
         labeled_texts: list[str] = []
         found_prices: list[str] = []
-
-        # PNG/base64 is lossless and represents the exact pixel array passed
-        # to Tesseract. These are tightly bounded tag crops, not full frames.
-        def log_exact_ocr_image(label: str, image: np.ndarray) -> None:
-            ok, encoded_png = cv2.imencode(
-                ".png", image, [cv2.IMWRITE_PNG_COMPRESSION, 3]
-            )
-            if not ok:
-                logger.warning("OCR_IMAGE_DIAG_ENCODE_FAILED variant=%s", label)
-                return
-            payload = base64.b64encode(encoded_png.tobytes()).decode("ascii")
-            logger.info(
-                "OCR_IMAGE_DIAG variant=%s width=%s height=%s stats=%s "
-                "png_base64=%s",
-                label, image.shape[1], image.shape[0],
-                image_stats(image), payload,
-            )
-
-        # Log the original crop and every exact preprocessed image supplied
-        # to Tesseract. Render logs can therefore reconstruct the OCR inputs.
-        log_exact_ocr_image("tag_crop_bgr", tag)
-        for variant_name, variant_image in variants:
-            log_exact_ocr_image(variant_name, variant_image)
 
         for variant_name, variant_image in variants:
             recognized = pytesseract.image_to_string(
@@ -225,7 +211,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 if price not in found_prices:
                     found_prices.append(price)
             logger.info(
-                "OCR_TESSERACT_DIAG variant=%s psm=7 input_wh=%sx%s "
+                "OCR_TESSERACT_DIAG variant=%s psm=11 input_wh=%sx%s "
                 "input_stats=%s text=%r",
                 variant_name, variant_image.shape[1], variant_image.shape[0],
                 image_stats(variant_image), recognized[:160],
@@ -236,7 +222,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         if len(found_prices) == 1:
             return PriceRead(
                 "SUCCESS", found_prices[0], tuple(found_prices),
-                "One validated price candidate extracted from fixed right-axis ROI",
+                "One validated price candidate extracted from fixed tag-zone crop",
                 box, raw_text, True, width, height,
             )
         if len(found_prices) > 1:
@@ -248,7 +234,7 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
 
         return PriceRead(
             "NO_VALID_PRICE", None, (),
-            "Fixed right-axis ROI captured but no valid price text was recognized",
+            "Fixed tag-zone crop captured but no valid price text was recognized",
             box, raw_text, True, width, height,
         )
 
