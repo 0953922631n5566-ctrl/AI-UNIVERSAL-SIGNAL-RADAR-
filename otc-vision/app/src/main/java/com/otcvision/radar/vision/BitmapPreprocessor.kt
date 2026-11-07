@@ -13,6 +13,8 @@ object BitmapPreprocessor {
      * It detects whether the non-orange glyphs are light or dark, then normalizes either polarity.
      */
     fun prepareOrangeTagForOcr(source: Bitmap): Bitmap {
+        requireUsableBitmap(source, "prepareOrangeTagForOcr")
+        requireUsableBitmap(source, "prepareForOcr")
         val width = source.width
         val height = source.height
         val input = IntArray(width * height)
@@ -82,6 +84,7 @@ object BitmapPreprocessor {
      * This is deliberately explicit: Bitmap.createScaledBitmap(filter=true) is not bicubic.
      */
     fun upscaleBicubic2x(source: Bitmap): Bitmap {
+        requireUsableBitmap(source, "upscaleBicubic2x")
         val srcW = source.width
         val srcH = source.height
         if (srcW <= 0 || srcH <= 0) return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
@@ -125,6 +128,11 @@ object BitmapPreprocessor {
             }
         }
         return Bitmap.createBitmap(dst, dstW, dstH, Bitmap.Config.ARGB_8888)
+    }
+
+    private fun requireUsableBitmap(bitmap: Bitmap, operation: String) {
+        check(!bitmap.isRecycled) { "$operation rejected a recycled bitmap" }
+        check(bitmap.width > 0 && bitmap.height > 0) { "$operation received an empty bitmap" }
     }
 
     private fun cubicWeight(distance: Float): Float {
