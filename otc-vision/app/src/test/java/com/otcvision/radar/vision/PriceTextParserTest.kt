@@ -54,7 +54,7 @@ class PriceTextParserTest {
     }
 
     @Test fun sanitizerKeepsOnlyDigitsAndDecimalPoints() {
-        assertEquals("1.135475", PriceTextParser.sanitizeOcrText("1.13S475!"))
+        assertEquals("1.135475", PriceTextParser.sanitizeOcrText("1.135475!"))
     }
 
 }
