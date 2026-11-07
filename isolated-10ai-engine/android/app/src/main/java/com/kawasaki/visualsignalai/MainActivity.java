@@ -17,7 +17,7 @@ public class MainActivity extends Activity {
   getWindow().setStatusBarColor(0xff101318);
   getWindow().setNavigationBarColor(0xff101318);
   TextView t=new TextView(this);
-  t.setText("VISUAL-SIGNAL-AI\\n\\nAllow display capture, then use the floating button to analyze one screenshot.");
+  t.setText("VISUAL-SIGNAL-AI");
   t.setTextColor(0xffffffff); t.setTextSize(18); t.setGravity(Gravity.CENTER);
   t.setPadding(28,28,28,28); t.setBackgroundColor(0xff101318); setContentView(t);
   if(Build.VERSION.SDK_INT>=33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=0)
