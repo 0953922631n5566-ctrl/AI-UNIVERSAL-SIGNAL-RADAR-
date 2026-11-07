@@ -235,131 +235,69 @@ class ProjectionCaptureService : Service() {
     }
 
     private fun processSingleFrame(image: Image) {
-        var handedToMlKit = false
         var screenBitmap: Bitmap? = null
-        var roiCrop: Bitmap? = null
-        var scaled: Bitmap? = null
-        var prepared: Bitmap? = null
-        var ocrBitmap: Bitmap? = null
         val frameStartedAt = System.currentTimeMillis()
-        var cropWidth = 0
-        var cropHeight = 0
         try {
-            // All capture conversion, coordinate mapping and cropping is guarded.
+            val config = SecureServerConfig.load(this)
+                ?: error("Server URL/token not configured · open app and save server settings")
             val frameWidth = image.width
             val frameHeight = image.height
             check(frameWidth > 0 && frameHeight > 0) { "Screen frame has invalid dimensions" }
             val plane = image.planes.firstOrNull() ?: error("Screen frame has no pixel plane")
             val pixelStride = plane.pixelStride
             val rowStride = plane.rowStride
-            check(pixelStride > 0 && rowStride >= pixelStride * frameWidth) { "Screen frame has invalid row layout" }
+            check(pixelStride > 0 && rowStride >= pixelStride * frameWidth) {
+                "Screen frame has invalid row layout"
+            }
             val rowPadding = rowStride - pixelStride * frameWidth
             val paddedWidth = frameWidth + rowPadding / pixelStride
-            check(paddedWidth >= frameWidth && paddedWidth > 0) { "Screen frame bitmap width is invalid" }
-
-            val frameBitmap = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
-            screenBitmap = frameBitmap
-            frameBitmap.copyPixelsFromBuffer(plane.buffer)
-
-            val roi = pendingRoiBounds?.let { Rect(it) }
-                ?: error("Preset ROI coordinates were not saved before capture")
-            pendingRoiBounds = null
-            check(screenWidth > 0 && screenHeight > 0) { "Display dimensions are unavailable" }
-
-            // Convert absolute screen coordinates to frame pixels, then clamp to the real image bounds.
-            val rawLeft = (roi.left.toDouble() * frameWidth / screenWidth).toInt()
-            val rawTop = (roi.top.toDouble() * frameHeight / screenHeight).toInt()
-            val rawRight = (roi.right.toDouble() * frameWidth / screenWidth).toInt()
-            val rawBottom = (roi.bottom.toDouble() * frameHeight / screenHeight).toInt()
-            val startX = rawLeft.coerceIn(0, frameBitmap.width)
-            val startY = rawTop.coerceIn(0, frameBitmap.height)
-            val endX = rawRight.coerceIn(0, frameBitmap.width)
-            val endY = rawBottom.coerceIn(0, frameBitmap.height)
-            val cropWidthSafe = endX - startX
-            val cropHeightSafe = endY - startY
-            check(startX >= 0 && startY >= 0 && cropWidthSafe > 0 && cropHeightSafe > 0 &&
-                startX + cropWidthSafe <= frameBitmap.width &&
-                startY + cropHeightSafe <= frameBitmap.height) {
-                "Preset price-tag ROI is outside the captured screen"
+            check(paddedWidth >= frameWidth && paddedWidth > 0) {
+                "Screen frame bitmap width is invalid"
             }
-
-            // Crop exactly the user-positioned ROI rectangle after strict bounds validation.
-            val cropBitmap = Bitmap.createBitmap(frameBitmap, startX, startY, cropWidthSafe, cropHeightSafe)
-            roiCrop = cropBitmap
-            cropWidth = cropBitmap.width
-            cropHeight = cropBitmap.height
-            frameBitmap.recycle()
-            screenBitmap = null
-
-            val scaledBitmap = BitmapPreprocessor.scaleForOcr(cropBitmap)
-            scaled = scaledBitmap
-            cropBitmap.recycle()
-            roiCrop = null
-            val preparedBitmap = BitmapPreprocessor.prepareForOcr(scaledBitmap)
-            prepared = preparedBitmap
-            scaledBitmap.recycle()
-            scaled = null
-
-            check(!preparedBitmap.isRecycled && preparedBitmap.width > 0 && preparedBitmap.height > 0) {
-                "Prepared ROI bitmap is empty or recycled"
+            // No local crop, filtering, OCR, candle extraction, or decision logic runs on the device.
+            val bitmap = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
+            screenBitmap = bitmap
+            bitmap.copyPixelsFromBuffer(plane.buffer)
+            val sequence = uploadSequence.incrementAndGet()
+            val result = FrameUploader.upload(
+                config = config,
+                sessionId = uploadSessionId,
+                sequence = sequence,
+                capturedAtMs = System.currentTimeMillis(),
+                bitmap = bitmap
+            )
+            val elapsedMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+            val priceText = result.price ?: "—"
+            val message = result.signal + " · " + result.status + " · " + elapsedMs + " ms"
+            val label = if (result.signal == "CALL" || result.signal == "PUT") {
+                result.signal + " · " + priceText
+            } else {
+                "STANDBY · " + priceText
             }
-            val ownedBitmap = preparedBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                ?: error("Could not create OCR-owned bitmap copy")
-            ocrBitmap = ownedBitmap
-            preparedBitmap.recycle()
-            prepared = null
-
-            val ocrStartedAt = System.nanoTime()
-            recognizer.process(InputImage.fromBitmap(ownedBitmap, 0))
-                .addOnSuccessListener { result ->
-                    val ocrMs = (System.nanoTime() - ocrStartedAt) / 1_000_000L
-                    val parsed = PriceTextParser.parse(result.text)
-                    val status = when {
-                        parsed.isAmbiguous -> "AMBIGUOUS_PRICE"
-                        parsed.value != null -> "PRICE_READ"
-                        else -> "NO_VALID_PRICE"
-                    }
-                    val frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
-                    val memoryKb = usedHeapKb()
-                    val message = status + " · preset ROI " + cropWidth + "x" + cropHeight + " px"
-                    controls?.setStatus(
-                        if (parsed.value != null) "PRICE " + parsed.value + " · SIGNAL STANDBY"
-                        else status + " · tap to retry",
-                        true
-                    )
-                    showCaptureToast(if (parsed.value != null) "PRICE " + parsed.value + " · SIGNAL STANDBY: 10 local signal engines are not configured" else status)
-                    broadcast(
-                        ACTION_METRIC,
-                        message,
-                        price = parsed.value,
-                        candidates = parsed.candidates.joinToString(","),
-                        ocrMs = ocrMs,
-                        frameMs = frameMs,
-                        memoryKb = memoryKb
-                    )
-                }
-                .addOnFailureListener { error ->
-                    controls?.setStatus("OCR failed · tap to retry", true)
-                    reportCaptureFailure("OCR_FAILURE", error)
-                }
-                .addOnCompleteListener {
-                    if (!ownedBitmap.isRecycled) ownedBitmap.recycle()
-                    processing.set(false)
-                }
-            handedToMlKit = true
+            controls?.setStatus(label, true)
+            showCaptureToast(result.signal + " · price " + priceText + "\n" + result.reason)
+            broadcast(
+                ACTION_METRIC,
+                message,
+                price = result.price,
+                signal = result.signal,
+                serverStatus = result.status,
+                serverReason = result.reason,
+                frameMs = elapsedMs
+            )
+            updateNotification("Server result: " + result.signal + " · " + priceText)
         } catch (error: Exception) {
-            reportCaptureFailure("CAPTURE_OR_CROP", error)
-            controls?.setStatus("Capture failed · tap to retry", true)
-            showCaptureToast(error.message ?: "Unable to capture selected ROI")
+            reportCaptureFailure("FRAME_UPLOAD", error)
+            controls?.setStatus("UPLOAD FAILED · tap to retry", true)
+            showCaptureToast(error.message ?: "Unable to send screen frame")
+            broadcast(ACTION_METRIC, "UPLOAD_FAILED · " + (error.message ?: error.javaClass.simpleName))
         } finally {
             runCatching { image.close() }
-            listOfNotNull(screenBitmap, roiCrop, scaled, prepared).forEach { bitmap ->
+            screenBitmap?.let { bitmap ->
                 runCatching { if (!bitmap.isRecycled) bitmap.recycle() }
             }
-            if (!handedToMlKit) {
-                if (ocrBitmap != null && !ocrBitmap.isRecycled) runCatching { ocrBitmap.recycle() }
-                processing.set(false)
-            }
+            processing.set(false)
+            controls?.showAfterFrame()
         }
     }
 
@@ -408,7 +346,10 @@ class ProjectionCaptureService : Service() {
         candidates: String? = null,
         ocrMs: Long = -1L,
         frameMs: Long = -1L,
-        memoryKb: Long = -1L
+        memoryKb: Long = -1L,
+        signal: String? = null,
+        serverStatus: String? = null,
+        serverReason: String? = null
     ) {
         val intent = Intent(action).setPackage(packageName)
             .putExtra(EXTRA_MESSAGE, message)
@@ -417,6 +358,9 @@ class ProjectionCaptureService : Service() {
             .putExtra(EXTRA_OCR_MS, ocrMs)
             .putExtra(EXTRA_FRAME_MS, frameMs)
             .putExtra(EXTRA_MEMORY_KB, memoryKb)
+            .putExtra(EXTRA_SIGNAL, signal)
+            .putExtra(EXTRA_SERVER_STATUS, serverStatus)
+            .putExtra(EXTRA_SERVER_REASON, serverReason)
         sendBroadcast(intent)
     }
 
