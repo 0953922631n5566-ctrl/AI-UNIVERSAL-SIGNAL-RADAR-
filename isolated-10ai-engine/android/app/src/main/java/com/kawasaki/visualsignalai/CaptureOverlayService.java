@@ -1,5 +1,5 @@
 package com.kawasaki.visualsignalai;
-import android.app.*;import android.content.*;import android.graphics.*;import android.hardware.display.*;import android.media.*;import android.media.projection.*;import android.os.*;import android.view.*;import android.widget.*;import org.json.*;import java.io.*;import java.net.*;import java.nio.*;import android.util.Base64;
+import android.app.*;import android.content.*;import android.graphics.*;import android.graphics.drawable.GradientDrawable;import android.hardware.display.*;import android.media.*;import android.media.projection.*;import android.os.*;import android.view.*;import android.widget.*;import org.json.*;import java.io.*;import java.net.*;import java.nio.*;import android.util.Base64;
 public class CaptureOverlayService extends Service {
  private WindowManager wm;private View button,bar;private MediaProjection projection;private Handler h=new Handler(Looper.getMainLooper());private int density,w,hh;private boolean busy=false;private WindowManager.LayoutParams buttonLp;
  public IBinder onBind(Intent i){return null;}
