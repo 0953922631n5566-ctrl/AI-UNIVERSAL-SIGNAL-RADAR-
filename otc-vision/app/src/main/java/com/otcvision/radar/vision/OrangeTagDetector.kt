@@ -8,9 +8,20 @@ import kotlin.math.max
 /** Finds the orange price-tag container inside the broad right-axis scan area. */
 object OrangeTagDetector {
     fun isOrange(color: Int): Boolean {
-        val hsv = FloatArray(3)
-        Color.colorToHSV(color, hsv)
-        return hsv[0] in 7f..48f && hsv[1] >= 0.42f && hsv[2] >= 0.38f
+        val r = Color.red(color) / 255f
+        val g = Color.green(color) / 255f
+        val b = Color.blue(color) / 255f
+        val maxChannel = maxOf(r, g, b)
+        val minChannel = minOf(r, g, b)
+        val delta = maxChannel - minChannel
+        val saturation = if (maxChannel == 0f) 0f else delta / maxChannel
+        val hue = when {
+            delta == 0f -> 0f
+            maxChannel == r -> 60f * (((g - b) / delta) % 6f)
+            maxChannel == g -> 60f * (((b - r) / delta) + 2f)
+            else -> 60f * (((r - g) / delta) + 4f)
+        }.let { if (it < 0f) it + 360f else it }
+        return hue in 7f..48f && saturation >= 0.42f && maxChannel >= 0.38f
     }
 
     /**
