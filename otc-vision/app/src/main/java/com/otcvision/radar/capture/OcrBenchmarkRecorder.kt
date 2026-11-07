@@ -1,6 +1,7 @@
 package com.otcvision.radar.capture
 
 import android.content.Context
+import android.os.Environment
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,7 +33,7 @@ class OcrBenchmarkRecorder(context: Context) {
         val csvFile: File
     )
 
-    private val output = File(context.filesDir, "benchmark")
+    private val output = File(context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: context.filesDir, "benchmark")
     private val startedAt = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
     private val csvFile = File(output, "ocr-100-$startedAt.csv")
     private val samples = mutableListOf<Sample>()
