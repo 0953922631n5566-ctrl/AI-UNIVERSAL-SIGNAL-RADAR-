@@ -83,3 +83,37 @@ test('gateway only exposes POST on the exact vision route', async () => {
   assert.equal(res.statusCode, 405);
   assert.equal(res.headers.allow, 'POST');
 });
+
+test('multipart screenshot and chartContext JSON are accepted', async () => {
+  const boundary = 'RadarBoundaryAa91';
+  const marketData = fixture();
+  let called = false;
+  const handler = createVisionAnalyzeHandler({
+    visionAdapter: async (image, context) => {
+      called = true;
+      assert.equal(image.mimeType, 'image/jpeg');
+      assert.equal(context.symbol, 'EUR/USD');
+      return { marketData, marketContext: marketData };
+    },
+    analyze: async () => ({ signal: 'STANDBY' })
+  });
+  const body = [
+    '--' + boundary,
+    'Content-Disposition: form-data; name="chartContext"',
+    'Content-Type: application/json',
+    '',
+    JSON.stringify({ symbol: 'EUR/USD', timeframe: 'M1' }),
+    '--' + boundary,
+    'Content-Disposition: form-data; name="image"; filename="chart.jpg"',
+    'Content-Type: image/jpeg',
+    '',
+    'fake-jpeg-binary',
+    '--' + boundary + '--',
+    ''
+  ].join('\\r\\n');
+  const req = mockRequest(body, 'multipart/form-data; boundary=' + boundary);
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(called, true);
+});
