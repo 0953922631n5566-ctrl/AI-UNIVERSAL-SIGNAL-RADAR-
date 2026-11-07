@@ -54,6 +54,36 @@ def authorize(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
+def _emit_ocr_frame(
+    *,
+    orange_tag_found: bool,
+    ocr_raw_text: str,
+    extracted_price: str | None,
+    status: str,
+    processing_ms: int,
+    session_id: str,
+    sequence: int,
+    frame_width: int | None = None,
+    frame_height: int | None = None,
+    reason: str | None = None,
+) -> None:
+    """Emit one parseable JSON object for every frame that reaches OCR."""
+    record = {
+        "event": "OCR_FRAME",
+        "session_id": session_id,
+        "sequence": sequence,
+        "orange_tag_found": bool(orange_tag_found),
+        "ocr_raw_text": ocr_raw_text,
+        "extracted_price": extracted_price,
+        "status": status,
+        "processing_ms": processing_ms,
+        "frame_width": frame_width,
+        "frame_height": frame_height,
+        "reason": reason,
+    }
+    logger.info(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+
+
 @app.get("/health")
 def health():
     return {"ok": True, "service": "ai-universal-signal-radar", "analysis": "standby-only"}
@@ -108,22 +138,31 @@ async def ingest_frame(
     state.frames_seen += 1
     state.hashes.append(digest)
 
-    # OCR runs only on the backend. The uploaded full-screen frame is never persisted.
+    # OCR uses the decoded JPEG/PNG dimensions for every ROI calculation.
     processing_started = time.perf_counter()
     orange_tag_found = False
     ocr_raw_text = ""
-    ocr_status = "NOT_RUN"
-    ocr_reason = ""
+    extracted_price = None
+    frame_width = None
+    frame_height = None
+    ocr_status = "ERROR"
+    ocr_reason = None
     tag_box = None
     try:
         ocr = read_orange_price(payload)
-        price = ocr.price
         orange_tag_found = ocr.orange_tag_found
         ocr_raw_text = ocr.raw_text
-        ocr_status = ocr.status
+        extracted_price = ocr.price
+        frame_width = ocr.frame_width
+        frame_height = ocr.frame_height
+        ocr_status = "SUCCESS" if ocr.status == "PRICE_READ" else "NO_VALID_PRICE"
         ocr_reason = ocr.reason
         tag_box = ocr.tag_box
-        status = "PRICE_READ_ENGINE_NOT_CONFIGURED" if ocr.status == "PRICE_READ" else ocr.status
+
+        status = (
+            "PRICE_READ_ENGINE_NOT_CONFIGURED"
+            if ocr.status == "PRICE_READ" else ocr.status
+        )
         reason = (
             "Price extracted by server OCR; directional 10-engine adapter is not configured."
             if ocr.status == "PRICE_READ" else ocr.reason
@@ -137,35 +176,30 @@ async def ingest_frame(
             evidence.append("orange_tag_box:" + ",".join(map(str, ocr.tag_box)))
         evidence.extend("price_candidate:" + candidate for candidate in ocr.candidates)
     except Exception as exc:
-        price = None
         status = "SERVER_OCR_ERROR"
-        ocr_status = status
+        ocr_status = "ERROR"
         ocr_reason = type(exc).__name__
         reason = "Server OCR failed safely: " + type(exc).__name__
         evidence = [f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"]
-        # Include the traceback in server logs for diagnosis; never log tokens or image bytes.
-        logger.exception("OCR_FRAME_ERROR session=%s sequence=%s", session_id, sequence)
+        logger.exception(
+            "OCR_FRAME_EXCEPTION session=%s sequence=%s", session_id, sequence
+        )
+    finally:
+        processing_ms = int((time.perf_counter() - processing_started) * 1000)
+        _emit_ocr_frame(
+            orange_tag_found=orange_tag_found,
+            ocr_raw_text=ocr_raw_text,
+            extracted_price=extracted_price,
+            status=ocr_status,
+            processing_ms=processing_ms,
+            session_id=session_id,
+            sequence=sequence,
+            frame_width=frame_width,
+            frame_height=frame_height,
+            reason=ocr_reason,
+        )
 
-    # Emit only OCR diagnostics. Never log request headers, tokens, frame bytes, or image data.
-    processing_ms = int((time.perf_counter() - processing_started) * 1000)
-    logger.info(
-        "OCR_FRAME %s",
-        json.dumps(
-            {
-                "orange_tag_found": bool(orange_tag_found),
-                "ocr_raw_text": ocr_raw_text,
-                "extracted_price": price,
-                "processing_ms": processing_ms,
-                "ocr_status": ocr_status,
-                "ocr_reason": ocr_reason,
-                "tag_box": tag_box,
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ),
-    )
-
-    # Never emit CALL/PUT until the exact ten engines are ported and independently validated.
+    # Price extraction is not a directional signal; keep the response STANDBY.
     return Decision(
         signal="STANDBY",
         status=status,
@@ -173,6 +207,6 @@ async def ingest_frame(
         session_id=session_id,
         sequence=sequence,
         observed_at=captured_at_ms / 1000.0,
-        price=price,
+        price=extracted_price,
         evidence=evidence,
     )
