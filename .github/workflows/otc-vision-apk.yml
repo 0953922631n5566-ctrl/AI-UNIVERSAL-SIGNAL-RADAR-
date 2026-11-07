@@ -44,7 +44,7 @@ jobs:
         run: python -m unittest discover -s backend -p "test_*.py"
       - name: Run parser unit tests and assemble isolated OTC debug APK
         working-directory: otc-vision
-        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+        run: gradle --no-daemon :app:clean :app:testDebugUnitTest :app:assembleDebug
       - name: Verify APK and checksum
         run: |
           test -s otc-vision/app/build/outputs/apk/debug/app-debug.apk
