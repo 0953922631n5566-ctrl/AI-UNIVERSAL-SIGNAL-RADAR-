@@ -26,7 +26,7 @@ const schema = {
       required: REQUIRED_INDICATORS },
     nearSupport: { type: 'boolean' },
     nearResistance: { type: 'boolean' },
-    candles: { type: 'array', minItems: MIN_CANDLES, maxItems: 500, items: {
+    candles: { type: 'array', items: {
       type: 'object', additionalProperties: false,
       properties: {
         epoch: { type: 'integer' }, open: { type: 'number' }, high: { type: 'number' },
