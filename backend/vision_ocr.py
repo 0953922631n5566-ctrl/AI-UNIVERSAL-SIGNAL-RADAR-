@@ -113,36 +113,34 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 True, width, height,
             )
 
-        # Exclude the pointed left tip/edge while retaining the banner's digits.
-        text_region = tag[:, int(tag.shape[1] * 0.18):max(int(tag.shape[1] * 0.94), 1)]
-        if text_region.size == 0:
-            text_region = tag
-
+        # Keep two ROIs: the full banner (to avoid clipping the first digit) and
+        # the inner text area (to suppress the orange pointer/edge).
         stage = "opencv_white_text_preprocessing"
-        # Relax the white mask to retain anti-aliased digits and slightly tinted whites.
-        hsv_text = cv2.cvtColor(text_region, cv2.COLOR_BGR2HSV)
-        white_text_mask = cv2.inRange(
-            hsv_text, np.array([0, 0, 135]), np.array([179, 180, 255])
-        )
-        white_text_mask = cv2.morphologyEx(
-            white_text_mask, cv2.MORPH_CLOSE,
-            cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)), iterations=1,
-        )
-        enlarged = cv2.resize(text_region, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-        enlarged_mask = cv2.resize(white_text_mask, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
-        gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
-        enhanced = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(gray)
-        _, otsu = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        otsu_inv = cv2.bitwise_not(otsu)
-        adaptive = cv2.adaptiveThreshold(
-            enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 31, 9
-        )
-        adaptive_inv = cv2.bitwise_not(adaptive)
-        mask_at_ocr_size = cv2.resize(
-            white_text_mask, (gray.shape[1], gray.shape[0]), interpolation=cv2.INTER_NEAREST
-        )
-        masked_gray = cv2.bitwise_and(gray, gray, mask=mask_at_ocr_size)
-        masked_gray_inv = cv2.bitwise_not(masked_gray)
+        full_roi = tag[:, max(0, int(tag.shape[1] * 0.04)):max(1, int(tag.shape[1] * 0.98))]
+        inner_roi = tag[:, max(0, int(tag.shape[1] * 0.12)):max(1, int(tag.shape[1] * 0.96))]
+        roi_variants: list[tuple[str, np.ndarray]] = []
+        for roi_name, roi in (("full", full_roi), ("inner", inner_roi)):
+            if roi.size == 0:
+                continue
+            # Upscale more aggressively because the detected banner is often only
+            # 35-50 px high in a 1088x2400 phone frame.
+            enlarged = cv2.resize(roi, None, fx=5.0, fy=5.0, interpolation=cv2.INTER_LANCZOS4)
+            gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
+            enhanced = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(gray)
+            # Mild sharpening restores thin anti-aliased digit strokes without
+            # forcing all pixels through a potentially destructive white mask.
+            blur = cv2.GaussianBlur(enhanced, (0, 0), 1.1)
+            sharpened = cv2.addWeighted(enhanced, 1.7, blur, -0.7, 0)
+            _, otsu = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            adaptive = cv2.adaptiveThreshold(
+                sharpened, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, 31, 7,
+            )
+            roi_variants.extend((
+                (f"{roi_name}_gray", sharpened),
+                (f"{roi_name}_otsu", otsu),
+                (f"{roi_name}_adaptive", adaptive),
+            ))
 
         def pixel_stats(image: np.ndarray) -> str:
             return (
@@ -153,25 +151,20 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             )
 
         logger.info(
-            "OCR_PREPROCESS_DIAG tag_box=%s tag_wh=%sx%s text_wh=%sx%s "
-            "white_mask=[%s] gray=[%s] otsu=[%s] adaptive=[%s]",
-            box, tag.shape[1], tag.shape[0], text_region.shape[1], text_region.shape[0],
-            pixel_stats(white_text_mask), pixel_stats(gray), pixel_stats(otsu),
-            pixel_stats(adaptive),
+            "OCR_PREPROCESS_DIAG tag_box=%s tag_wh=%sx%s full_roi=%sx%s inner_roi=%sx%s "
+            "full_gray=[%s]",
+            box, tag.shape[1], tag.shape[0], full_roi.shape[1], full_roi.shape[0],
+            inner_roi.shape[1], inner_roi.shape[0],
+            pixel_stats(roi_variants[0][1]) if roi_variants else "unavailable",
         )
 
         stage = "tesseract"
-        variants = (
-            ("white_mask", enlarged_mask), ("masked_gray", masked_gray),
-            ("masked_gray_inv", masked_gray_inv), ("otsu", otsu),
-            ("otsu_inv", otsu_inv), ("adaptive", adaptive),
-            ("adaptive_inv", adaptive_inv),
-        )
-        psm_modes = (7, 8, 13)
+        # PSM 6/7 handle a compact line; PSM 8/13 provide word/raw-line fallbacks.
+        psm_modes = (6, 7, 8, 13)
         texts: list[str] = []
         labeled_texts: list[str] = []
         try:
-            for variant_name, variant_image in variants:
+            for variant_name, variant_image in roi_variants:
                 for psm in psm_modes:
                     config = f"--oem 3 --psm {psm} -c tessedit_char_whitelist=0123456789.,"
                     recognized = pytesseract.image_to_string(variant_image, config=config).strip()
