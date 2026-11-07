@@ -6,7 +6,7 @@ public class MainActivity extends Activity {
   TextView t=new TextView(this);t.setText("VISUAL-SIGNAL-AI\n\nAllow display capture, then use the floating button to analyze one screenshot.");t.setTextColor(0xffffffff);t.setTextSize(18);t.setGravity(Gravity.CENTER);t.setPadding(28,28,28,28);t.setBackgroundColor(0xff101318);setContentView(t);
   if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=0)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},702);
   if(!Settings.canDrawOverlays(this)){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));return;}
-  startActivityForResult(((MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE)).createScreenCaptureIntent(),REQ_CAPTURE);
+  requestCaptureConsent();
  }
  @Override protected void onResume(){super.onResume();if(!captureConsentRequested&&Settings.canDrawOverlays(this))requestCaptureConsent();}\n private void requestCaptureConsent(){if(captureConsentRequested)return;captureConsentRequested=true;startActivityForResult(((MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE)).createScreenCaptureIntent(),REQ_CAPTURE);}\n @Override protected void onActivityResult(int r,int c,Intent d){super.onActivityResult(r,c,d);if(r==REQ_CAPTURE&&c==RESULT_OK&&d!=null){
   Intent s=new Intent(this,CaptureOverlayService.class);s.putExtra("resultCode",c);s.putExtra("projectionData",d);
