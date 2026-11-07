@@ -89,6 +89,18 @@ class ManualFloatingControls(
         })
     }
 
+    /** Temporarily hide both app-owned overlays so they are not present in the captured pixels. */
+    fun hideForCapture() {
+        panel?.visibility = View.INVISIBLE
+        roiView?.visibility = View.INVISIBLE
+    }
+
+    fun showAfterFrame() {
+        roiView?.visibility = View.VISIBLE
+        panel?.visibility = View.VISIBLE
+        setStatus("Analyzing selected ROI…", false)
+    }
+
     fun setStatus(message: String, ready: Boolean = true) {
         status?.text = message
         captureButton?.isEnabled = ready
