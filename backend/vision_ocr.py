@@ -72,15 +72,36 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         orange_mask = cv2.inRange(
             hsv, np.array([4, 75, 70]), np.array([38, 255, 255])
         )
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        orange_mask = cv2.morphologyEx(
-            orange_mask, cv2.MORPH_CLOSE, kernel, iterations=2
+        axis_h, axis_w = axis.shape[:2]
+
+        # Join nearby orange fragments before contour extraction. A horizontal
+        # close kernel bridges gaps between the tag body, border and orange
+        # pieces split by anti-aliasing/compression, without joining distant
+        # chart elements. Keep the original mask for true-orange coverage stats.
+        merge_w = max(15, int(round(axis_w * 0.045)))
+        merge_h = max(7, int(round(axis_h * 0.008)))
+        merge_kernel = cv2.getStructuringElement(
+            cv2.MORPH_RECT, (merge_w, merge_h)
         )
+        grouped_mask = cv2.morphologyEx(
+            orange_mask, cv2.MORPH_CLOSE, merge_kernel, iterations=2
+        )
+        # A small dilation consolidates touching edge fragments into one
+        # external component; the resulting box is still measured on the
+        # grouped mask, while coverage is measured on the original mask.
+        bridge_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
+        grouped_mask = cv2.dilate(grouped_mask, bridge_kernel, iterations=1)
         contours, _ = cv2.findContours(
-            orange_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            grouped_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
 
-        axis_h, axis_w = axis.shape[:2]
+        logger.info(
+            "ORANGE_CONTOUR_MERGE_DIAG axis_wh=%sx%s merge_kernel=%sx%s "
+            "original_pixels=%s grouped_pixels=%s contours=%s",
+            axis_w, axis_h, merge_w, merge_h,
+            cv2.countNonZero(orange_mask), cv2.countNonZero(grouped_mask),
+            len(contours),
+        )
         axis_area = max(1, axis_h * axis_w)
         tag_candidates: list[tuple[float, int, int, int, int]] = []
 
@@ -118,19 +139,27 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
             # Very wide or tall contours remain excluded to reject warning bars.
             if x < int(axis_w * 0.04) or right_edge_ratio < 0.76:
                 continue
-            if w < max(18, int(axis_w * 0.045)) or w > int(axis_w * 0.70):
+            # A single digit/curve-sized fragment must never qualify as a
+            # complete price tag. Require enough width for the full decimal
+            # price and enough height for the tag's text line.
+            min_tag_w = max(64, int(round(axis_w * 0.10)))
+            min_tag_h = max(20, int(round(axis_h * 0.010)))
+            if w < min_tag_w or w > int(axis_w * 0.70):
                 continue
-            if h < max(8, int(axis_h * 0.004)) or h > int(axis_h * 0.12):
+            if h < min_tag_h or h > int(axis_h * 0.12):
                 continue
-            if aspect < 1.35 or aspect > 18.0:
+            if aspect < 1.80 or aspect > 18.0:
                 continue
-            if area < axis_area * 0.00004 or area > axis_area * 0.085:
+            if area < axis_area * 0.00012 or area > axis_area * 0.085:
                 continue
 
-            # Prefer compact, orange-dense contours near the right edge.
+            # Favor a broad, coherent grouped component. Do not let a tiny
+            # high-density sub-contour outrank the full tag.
+            size_score = min(1.0, w / max(1, min_tag_w * 2))
             score = (
                 area * (0.45 + right_edge_ratio)
-                * min(aspect, 9.0) * max(0.25, hsv_coverage) / 4.0
+                * min(aspect, 9.0) * max(0.20, hsv_coverage)
+                * (0.75 + 0.25 * size_score) / 4.0
             )
             tag_candidates.append((score, x, y, w, h))
 
@@ -157,6 +186,24 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         if tag.size == 0:
             return PriceRead(
                 "INVALID_TAG_CROP", None, (), "Detected tag crop is empty",
+                box, "", True, width, height,
+            )
+
+        crop_w, crop_h = tag.shape[1], tag.shape[0]
+        min_crop_w = max(80, int(round(width * 0.075)))
+        min_crop_h = max(24, int(round(height * 0.018)))
+        logger.info(
+            "OCR_TAG_CROP_VALIDATION box=%s crop_wh=%sx%s "
+            "minimum_wh=%sx%s valid=%s",
+            box, crop_w, crop_h, min_crop_w, min_crop_h,
+            crop_w >= min_crop_w and crop_h >= min_crop_h,
+        )
+        if crop_w < min_crop_w or crop_h < min_crop_h:
+            return PriceRead(
+                "TAG_CROP_TOO_SMALL", None, (),
+                f"Grouped tag crop is below minimum dimensions "
+                f"({crop_w}x{crop_h}; required at least "
+                f"{min_crop_w}x{min_crop_h})",
                 box, "", True, width, height,
             )
 
