@@ -1,51 +1,45 @@
-# OTC Vision Signal Radar — Dynamic Price Tag OCR
+# OTC Vision Radar — Server-Side Capture Client
 
-Standalone Android application under `otc-vision/`, isolated from legacy apps, backend, and Main Market workflows.
+Standalone Android client and FastAPI OCR service, isolated from Main Market.
 
-## Isolation guarantees
-- Application ID: `com.otcvision.radar`, distinct from the Main Market app.
-- No INTERNET permission and no networking dependency.
-- No backend URL, API token, Firebase, FCM, Telegram, Render, Twelve Data, or remote analytics.
-- Captured frames, OCR text, and debug images are processed/stored locally.
-- No broker login automation, taps, order placement, or trade execution.
-- Work only on `feature/otc-vision-apk`; do not merge to `main` or `main-market` without separate approval.
+## Current client behavior
 
-## Dynamic orange price-tag OCR
-- Right-axis scan ROI spans x=78–99.5% and y=10–90% of the captured screen.
-- Orange pixels are segmented and connected components anchor a padded crop around the moving price tag.
-- Every anchored crop is enlarged exactly 2x using a Catmull-Rom bicubic resampler.
-- Preprocessing detects light-vs-dark glyph polarity, maps the orange container to a clean white canvas, expands glyph contrast, and applies integral-image local adaptive thresholding to produce dark glyphs on a light background for ML Kit.
-- OCR output is sanitized to the strict numeric character set `[0-9.]+` (comma decimal separators and common O/I/l confusions are normalized first) before price validation.
-- **ML Kit Text Recognition does not expose a configurable character whitelist.** Filtering is therefore applied to recognized text before the price parser, not claimed as a recognizer option.
-- Price validation accepts 1–3 integer digits and exactly 5–6 fractional digits (e.g. `1.13520`, `1.135203`, `1.135475`). Multiple valid candidates remain `AMBIGUOUS`.
+- Android package: com.otcvision.radar.
+- One draggable floating button: CAPTURE & SEND.
+- No movable ROI, no local ML Kit, no local OCR, no local image filtering or candle analysis.
+- ImageReader drains and closes idle frames. A tap arms one full-screen frame.
+- The frame is JPEG-encoded once and uploaded by HTTPS multipart to POST /v1/frame.
+- Temporary full-screen Bitmap/JPEG memory is still required by Android capture and encoding; memory overhead is reduced, not zero.
+- Server base URL and ingest token are configured in the app. The token is encrypted using Android Keystore AES-GCM.
+- The screenshot is not written to local storage by the upload module.
 
-## Failed OCR debug snapshots
-- If OCR returns no unique valid price or ML Kit fails, the preprocessed bitmap is saved best-effort under app-specific local storage:
-  `Android/data/com.otcvision.radar/files/Pictures/ocr-debug/`
-- At most five snapshots are saved per capture session. File/storage/bitmap errors are caught and must not interrupt capture.
-- Debug images never leave the device automatically.
+## Backend behavior
 
-## Automatic 100-frame benchmark
-- Starting a MediaProjection capture automatically resets and starts a local 100-sample run.
-- Samples include OCR status/value, OCR and frame latency, Java heap usage, Android thermal status, and battery temperature where available.
-- CSV is written to the app-specific Documents directory:
-  `Android/data/com.otcvision.radar/files/Documents/benchmark/ocr-100-<timestamp>.csv`
-- Extraction rate is the percentage of frames producing a syntactically valid quote; it is **not** exact-match accuracy. Exact-match requires timestamp-matched ground truth for each sample.
-- Battery temperature is not SoC temperature. Thermal status may be unavailable on older Android versions.
+- FastAPI validates Bearer token, dimensions, MIME signature, payload size (4 MB), timestamp freshness, and frame sequence.
+- Server-side OpenCV detects an orange price tag on the right-hand price axis, crops and enlarges it, applies contrast/noise filtering, then runs Tesseract OCR.
+- The backend returns price candidates and OCR status. The uploaded screenshot is processed in memory and not persisted.
+- Build backend container from repository root with backend/Dockerfile; set RADAR_INGEST_TOKEN to a strong random secret.
+- This source is not deployed automatically by the Android workflow. Configure a dedicated OTC backend service and use its HTTPS base URL in the app.
 
-## Xiaomi 11T validation
-1. Install the newest APK and grant MediaProjection consent.
-2. Keep the orange quote tag visible and run one uninterrupted capture.
-3. Confirm progress reaches `BENCHMARK_COMPLETE 100/100`.
-4. Review the CSV and, if `NO_VALID_PRICE` persists, inspect the local `ocr-debug` PNGs.
-5. Compare extracted prices against timestamp-matched visible quotes before claiming exact-match accuracy.
+## Signal-engine status
+
+CALL/PUT remain disabled. No matching set of ten OTC Signal Engine implementations was found in this branch. The server currently returns STANDBY even when OCR extracts a price, with status PRICE_READ_ENGINE_NOT_CONFIGURED. Do not interpret price extraction as a directional recommendation.
+
+The ten engine sources and their required candle/chart inputs must be supplied/ported and independently tested before enabling directional output. A single price observation is not enough.
 
 ## Build
-With JDK 17 and Android SDK platform/build-tools 35 installed:
-```sh
-gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
-```
-APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Capture implementation
-MediaProjection frames are consumed through Android ImageReader. No camera permission or camera stream is requested. Phase 1 remains OCR-only: candle geometry/OHLC inference, CALL/PUT strategy decisions, alerts, and trade execution are out of scope.
+JDK 17 + Android SDK 35:
+    gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+
+The branch workflow additionally installs backend OCR dependencies and runs backend price-parser tests before building the APK.
+
+## Xiaomi 11T validation
+
+1. Configure the dedicated backend HTTPS URL and matching ingest token.
+2. Start MediaProjection and allow the floating button.
+3. Open the broker screen and tap CAPTURE & SEND once.
+4. Verify the server receives one full-screen JPEG and returns OCR status/price.
+5. Test no network, 401, 413, 5xx, revoked projection, rapid taps, rotation, memory and thermal behavior.
+
+Build success is not proof of server deployment or device behavior. No Main Market service or branch is changed.
