@@ -1,34 +1,39 @@
 # OTC Vision Signal Radar — Dynamic Price Tag OCR
 
-Standalone Android application under `otc-vision/`, isolated from the legacy Android app, backend, and Main Market workflows.
+Standalone Android application under `otc-vision/`, isolated from legacy apps, backend, and Main Market workflows.
 
 ## Isolation guarantees
 - Application ID: `com.otcvision.radar`, distinct from the Main Market app.
 - No INTERNET permission and no networking dependency.
 - No backend URL, API token, Firebase, FCM, Telegram, Render, Twelve Data, or remote analytics.
-- Captured frames and OCR text are processed in memory and are not persisted.
+- Captured frames and OCR text are processed locally; benchmark CSV is stored in app-private files.
 - No broker login automation, taps, order placement, or trade execution.
 - Work only on `feature/otc-vision-apk`; do not merge to `main` or `main-market` without separate approval.
+
+## Dynamic price-tag pipeline
+- Right-axis scan ROI spans x=78–99.5% and y=10–90% of the captured screen.
+- Orange pixels are segmented and connected components anchor a padded crop around the moving price tag.
+- The crop is enlarged when small, orange background is mapped to white, bright quote glyphs are contrast-stretched, and a summed-area-table local adaptive threshold produces dark glyphs on a light canvas.
+- OCR runs only on the detected tag. No tag reports `NO_ORANGE_TAG`.
+- Price parser accepts 1–3 integer digits and 5–6 fractional digits (e.g. `1.13520`, `1.135203`, `1.135475`). Multiple valid candidates remain `AMBIGUOUS`.
+
+## Automatic 100-frame benchmark
+- Starting a MediaProjection capture automatically resets and starts a local 100-sample run.
+- Samples include OCR status/value, OCR and frame latency, Java heap usage, Android thermal status, and battery temperature where available.
+- The app-private CSV is written to `files/benchmark/ocr-100-<timestamp>.csv`; the UI status reports progress and a completion summary.
+- Extraction rate means the percentage of sampled frames that produced a syntactically valid quote. It is **not** exact-match accuracy.
+- The CSV includes an intentionally blank `exact_match` column. Fill it only after comparing each sample with a separately recorded ground-truth quote. Do not claim price accuracy from extraction rate alone.
+- Battery temperature is not SoC temperature. Thermal status may be unavailable on older Android versions.
+
+## Xiaomi 11T validation
+Install the newest APK and run one continuous capture with the broker price tag visible. Keep the screen content representative for all 100 samples. After `BENCHMARK_COMPLETE 100/100`, export the CSV from app-private storage using a debug/device extraction workflow and compare each row to a timestamp-matched visible quote. The source change does not claim a completed physical-device benchmark.
 
 ## Build
 With JDK 17 and Android SDK platform/build-tools 35 installed:
 ```sh
-gradle --no-daemon :app:assembleDebug
+gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
 ```
 APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Dynamic price-tag pipeline
-- The right-axis scan ROI spans x=78–99.5% and y=10–90% of the captured screen.
-- Each frame is scanned for orange pixels using HSV hue/saturation/value thresholds.
-- Connected-component detection selects a compact horizontal orange container and calculates a padded bounding box around its current position.
-- OCR runs only on that detected tag crop; when no orange tag is found, the frame reports `NO_ORANGE_TAG` rather than OCRing chart labels.
-- Orange-tag preprocessing maps the orange container to white and contrasting glyph pixels to dark grayscale.
-- Price parser accepts only 1–3 integer digits plus exactly 5–6 fractional digits (for example `1.13520` or `1.135203`). Multiple valid candidates remain `AMBIGUOUS`; no valid token is `NO_VALID_PRICE`.
-
-## Xiaomi 11T validation
-Run the app against the real broker layout and verify the tag is detected at top, middle, and bottom of the right-axis scan range. Check that `NO_ORANGE_TAG` appears when the tag is absent and that chart-axis numbers are not returned as prices. Record exact-match ground truth separately; OCR detection alone does not establish accuracy.
-
-The code change does not claim a completed 100-sample benchmark. Accuracy, latency distribution, memory, battery, and thermal stability must be measured on the actual Xiaomi 11T with known reference prices.
-
 ## Capture implementation
-MediaProjection screen frames are consumed through Android ImageReader. No camera permission or camera stream is requested. Phase 1 remains OCR-only: candle geometry/OHLC inference, CALL/PUT strategy decisions, alerts, and trade execution are out of scope.
+MediaProjection frames are consumed through Android ImageReader. No camera permission or camera stream is requested. Phase 1 remains OCR-only: candle geometry/OHLC inference, CALL/PUT strategy decisions, alerts, and trade execution are out of scope.
