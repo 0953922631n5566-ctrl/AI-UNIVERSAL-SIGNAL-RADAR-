@@ -27,6 +27,8 @@ class OcrBenchmarkRecorder(context: Context) {
         val meanOcrMs: Long,
         val maxOcrMs: Long,
         val peakHeapKb: Long,
+        val maxThermalStatus: Int,
+        val maxBatteryTempC: Float?,
         val csvFile: File
     )
 
@@ -63,6 +65,8 @@ class OcrBenchmarkRecorder(context: Context) {
             meanOcrMs = if (latencies.isEmpty()) -1 else latencies.average().toLong(),
             maxOcrMs = latencies.maxOrNull() ?: -1,
             peakHeapKb = samples.maxOfOrNull { it.heapKb } ?: -1,
+            maxThermalStatus = samples.maxOfOrNull { it.thermalStatus } ?: -1,
+            maxBatteryTempC = samples.mapNotNull { it.batteryTempC }.maxOrNull(),
             csvFile = csvFile
         )
         completed = summary
