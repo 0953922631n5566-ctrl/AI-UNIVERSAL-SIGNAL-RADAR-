@@ -54,11 +54,12 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
                 frame_width=width, frame_height=height,
             )
 
-        # Search only the chart's right-side price axis. This excludes most
-        # full-width status banners and unrelated orange UI elements.
+        # Search a broader right-side chart region. Live platforms can place
+        # the price tag at different vertical levels and slightly left of the
+        # screen edge; full-width banners remain excluded by contour geometry.
         stage = "opencv_orange_mask"
-        x0, x1 = int(width * 0.72), width
-        y0, y1 = int(height * 0.12), int(height * 0.68)
+        x0, x1 = int(width * 0.65), width
+        y0, y1 = int(height * 0.05), int(height * 0.90)
         axis = frame[y0:y1, x0:x1]
         if axis.size == 0:
             return PriceRead(
@@ -82,26 +83,54 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         axis_area = max(1, axis_h * axis_w)
         tag_candidates: list[tuple[float, int, int, int, int]] = []
 
+        # Emit geometry and orange-pixel coverage before applying any filter.
+        # This makes rejected contours inspectable from Render logs.
+        contour_diagnostics: list[tuple[int, int, int, int, int, float, float]] = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
-            area = w * h
+            area = max(1, w * h)
             aspect = w / max(1, h)
             right_edge_ratio = (x + w) / max(1, axis_w)
+            roi_mask = orange_mask[y:y + h, x:x + w]
+            hsv_coverage = cv2.countNonZero(roi_mask) / area
+            contour_diagnostics.append(
+                (area, x, y, w, h, aspect, hsv_coverage)
+            )
 
-            # Compact, right-aligned price tag constraints. Wide warning
-            # banners and small orange icons are deliberately rejected.
-            if x < int(axis_w * 0.28) or right_edge_ratio < 0.90:
+        for index, (area, x, y, w, h, aspect, hsv_coverage) in enumerate(
+            sorted(contour_diagnostics, reverse=True)[:30], start=1
+        ):
+            right_edge_ratio = (x + w) / max(1, axis_w)
+            logger.info(
+                "ORANGE_CONTOUR_DIAG index=%s bbox_axis=%s bbox_frame=%s "
+                "aspect=%.3f right_edge=%.3f hsv_coverage=%.3f area=%s",
+                index, (x, y, w, h),
+                (x0 + x, y0 + y, w, h),
+                aspect, right_edge_ratio, hsv_coverage, area,
+            )
+
+        for area, x, y, w, h, aspect, hsv_coverage in contour_diagnostics:
+            right_edge_ratio = (x + w) / max(1, axis_w)
+
+            # Relaxed tag geometry: allow tags that sit farther left or higher
+            # on the axis, and support shorter/wider and taller/narrower labels.
+            # Very wide or tall contours remain excluded to reject warning bars.
+            if x < int(axis_w * 0.04) or right_edge_ratio < 0.76:
                 continue
-            if w < max(24, int(axis_w * 0.08)) or w > int(axis_w * 0.62):
+            if w < max(18, int(axis_w * 0.045)) or w > int(axis_w * 0.70):
                 continue
-            if h < max(10, int(axis_h * 0.008)) or h > int(axis_h * 0.10):
+            if h < max(8, int(axis_h * 0.004)) or h > int(axis_h * 0.12):
                 continue
-            if aspect < 2.2 or aspect > 12.0:
+            if aspect < 1.35 or aspect > 18.0:
                 continue
-            if area < axis_area * 0.00012 or area > axis_area * 0.06:
+            if area < axis_area * 0.00004 or area > axis_area * 0.085:
                 continue
 
-            score = area * (0.5 + right_edge_ratio) * min(aspect, 8.0) / 4.0
+            # Prefer compact, orange-dense contours near the right edge.
+            score = (
+                area * (0.45 + right_edge_ratio)
+                * min(aspect, 9.0) * max(0.25, hsv_coverage) / 4.0
+            )
             tag_candidates.append((score, x, y, w, h))
 
         if not tag_candidates:
