@@ -18,12 +18,20 @@ import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.util.Log
-import android.os.Looper
 import android.widget.Toast
 import android.view.WindowManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
@@ -32,7 +40,9 @@ import java.util.UUID
  * Server-side capture transmitter:
  * - ImageReader discards frames while idle.
  * - A user tap arms exactly one full-screen frame for HTTPS upload.
- * - No local OCR, image pre-processing, polling analysis, or automatic capture exists.
+ * - Pixel copy is completed on the ImageReader thread, then Image is closed.
+ * - JPEG compression and HTTP upload run only on Dispatchers.IO.
+ * - All floating-view mutations are marshalled to the Android main thread.
  */
 class ProjectionCaptureService : Service() {
     companion object {
@@ -60,14 +70,15 @@ class ProjectionCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var captureThread: HandlerThread? = null
-    private var controls: ManualFloatingControls? = null
+    @Volatile private var controls: ManualFloatingControls? = null
     private var screenWidth = 0
     private var screenHeight = 0
     private val captureRequested = AtomicBoolean(false)
     private val processing = AtomicBoolean(false)
     private val uploadSequence = AtomicInteger(0)
     private val uploadSessionId = UUID.randomUUID().toString()
-    private var isStopping = false
+    private val uploadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile private var isStopping = false
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -100,8 +111,8 @@ class ProjectionCaptureService : Service() {
                     } ?: error("Missing MediaProjection consent result")
                     startCapture(resultCode, data)
                     updateNotification("Server upload ready · tap CAPTURE & SEND")
-                } catch (error: Exception) {
-                    broadcast(ACTION_ERROR, error.javaClass.simpleName + ": " + (error.message ?: "Capture startup failed"))
+                } catch (error: Throwable) {
+                    reportCaptureFailure("CAPTURE_START", error)
                     stopCapture()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
@@ -178,12 +189,11 @@ class ProjectionCaptureService : Service() {
                 controls?.setStatus("Scan already in progress", false)
                 return
             }
-            controls?.hideForCapture()
+            // Keep the button visible so the user can see CAPTURING / SENDING state.
             updateNotification("Capturing one frame for server upload…")
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             captureRequested.set(false)
-            controls?.showAfterFrame()
-            controls?.setStatus("Capture request failed · tap to retry", true)
+            controls?.setStatus("FAILED · TAP TO RETRY", true)
             reportCaptureFailure("CAPTURE_REQUEST", error)
         }
     }
@@ -201,32 +211,36 @@ class ProjectionCaptureService : Service() {
         }
         val frame = try {
             source.acquireLatestImage()
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             processing.set(false)
-            controls?.showAfterFrame()
-            controls?.setStatus("Frame error: " + (error.message ?: error.javaClass.simpleName), true)
-            broadcast(ACTION_METRIC, "FRAME_ERROR · " + (error.message ?: error.javaClass.simpleName))
+            controls?.setStatus("FRAME FAILED · TAP TO RETRY", true)
+            reportCaptureFailure("FRAME_ACQUIRE", error)
             return
         }
         if (frame == null) {
             processing.set(false)
-            controls?.showAfterFrame()
-            controls?.setStatus("No frame available · tap to retry", true)
+            controls?.setStatus("NO FRAME · TAP TO RETRY", true)
+            broadcast(ACTION_METRIC, "FRAME_ERROR · no frame available")
             return
         }
-        controls?.showAfterFrame()
         try {
             processSingleFrame(frame)
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             runCatching { frame.close() }
             processing.set(false)
-            controls?.setStatus("Capture failed · tap to retry", true)
-            broadcast(ACTION_METRIC, "CAPTURE_ERROR · " + (error.message ?: error.javaClass.simpleName))
+            controls?.setStatus("FAILED · TAP TO RETRY", true)
+            reportCaptureFailure("FRAME_PIPELINE", error)
+            showCaptureToast(error.message ?: "Unable to capture screen frame")
         }
     }
 
+    /**
+     * Copies the Image pixels into an independently owned Bitmap, closes the
+     * Image immediately, and transfers Bitmap ownership to the IO coroutine.
+     */
     private fun processSingleFrame(image: Image) {
-        var screenBitmap: Bitmap? = null
+        var pendingBitmap: Bitmap? = null
+        var bitmapTransferredToUpload = false
         val frameStartedAt = System.currentTimeMillis()
         try {
             val config = SecureServerConfig.load(this)
@@ -245,50 +259,84 @@ class ProjectionCaptureService : Service() {
             check(paddedWidth >= frameWidth && paddedWidth > 0) {
                 "Screen frame bitmap width is invalid"
             }
-            // No local crop, filtering, OCR, candle extraction, or decision logic runs on the device.
+
+            // This is only a pixel copy; JPEG compression and networking happen later on IO.
             val bitmap = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
-            screenBitmap = bitmap
+            pendingBitmap = bitmap
             bitmap.copyPixelsFromBuffer(plane.buffer)
+            val capturedAtMs = System.currentTimeMillis()
             val sequence = uploadSequence.incrementAndGet()
-            val result = FrameUploader.upload(
-                config = config,
-                sessionId = uploadSessionId,
-                sequence = sequence,
-                capturedAtMs = System.currentTimeMillis(),
-                bitmap = bitmap
-            )
-            val elapsedMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
-            val priceText = result.price ?: "—"
-            val message = result.signal + " · " + result.status + " · " + elapsedMs + " ms"
-            val label = if (result.signal == "CALL" || result.signal == "PUT") {
-                result.signal + " · " + priceText
-            } else {
-                "STANDBY · " + priceText
-            }
-            controls?.setStatus(label, true)
-            showCaptureToast(result.signal + " · price " + priceText + "\n" + result.reason)
-            broadcast(
-                ACTION_METRIC,
-                message,
-                price = result.price,
-                signal = result.signal,
-                serverStatus = result.status,
-                serverReason = result.reason,
-                frameMs = elapsedMs
-            )
-            updateNotification("Server result: " + result.signal + " · " + priceText)
-        } catch (error: Exception) {
-            reportCaptureFailure("FRAME_UPLOAD", error)
-            controls?.setStatus("UPLOAD FAILED · tap to retry", true)
-            showCaptureToast(error.message ?: "Unable to send screen frame")
-            broadcast(ACTION_METRIC, "UPLOAD_FAILED · " + (error.message ?: error.javaClass.simpleName))
-        } finally {
+
+            // ImageReader buffers are no longer referenced after this point.
             runCatching { image.close() }
-            screenBitmap?.let { bitmap ->
+            val uploadBitmap = bitmap
+            pendingBitmap = null
+            bitmapTransferredToUpload = true
+            controls?.setStatus("SENDING…", false)
+
+            val job = uploadScope.launch {
+                try {
+                    val result = withContext(Dispatchers.IO) {
+                        FrameUploader.upload(
+                            config = config,
+                            sessionId = uploadSessionId,
+                            sequence = sequence,
+                            capturedAtMs = capturedAtMs,
+                            bitmap = uploadBitmap
+                        )
+                    }
+                    val elapsedMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+                    val priceText = result.price ?: "—"
+                    val message = result.signal + " · " + result.status + " · " + elapsedMs + " ms"
+                    val label = if (result.signal == "CALL" || result.signal == "PUT") {
+                        result.signal + " · " + priceText
+                    } else {
+                        "STANDBY · " + priceText
+                    }
+                    withContext(Dispatchers.Main.immediate) {
+                        controls?.setStatus(label, true)
+                        showCaptureToast(result.signal + " · price " + priceText + "\n" + result.reason)
+                        broadcast(
+                            ACTION_METRIC,
+                            message,
+                            price = result.price,
+                            signal = result.signal,
+                            serverStatus = result.status,
+                            serverReason = result.reason,
+                            frameMs = elapsedMs
+                        )
+                        updateNotification("Server result: " + result.signal + " · " + priceText)
+                    }
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    reportCaptureFailure("FRAME_UPLOAD", error)
+                    val detail = error.message ?: error.javaClass.simpleName
+                    withContext(NonCancellable + Dispatchers.Main.immediate) {
+                        controls?.setStatus("FAILED · TAP TO RETRY", true)
+                        showCaptureToast("Upload failed: " + detail)
+                        broadcast(ACTION_METRIC, "UPLOAD_FAILED · " + detail)
+                        runCatching { updateNotification("Upload failed · tap CAPTURE & SEND to retry") }
+                    }
+                }
+            }
+            // Also runs if the coroutine is cancelled before its body starts.
+            job.invokeOnCompletion {
+                runCatching { if (!uploadBitmap.isRecycled) uploadBitmap.recycle() }
+                processing.set(false)
+            }
+        } catch (error: Throwable) {
+            reportCaptureFailure("FRAME_PREPARE", error)
+            val detail = error.message ?: error.javaClass.simpleName
+            controls?.setStatus("FAILED · TAP TO RETRY", true)
+            showCaptureToast("Capture failed: " + detail)
+            broadcast(ACTION_METRIC, "CAPTURE_FAILED · " + detail)
+        } finally {
+            // Idempotent close: guarantees ImageReader never retains this frame.
+            runCatching { image.close() }
+            pendingBitmap?.let { bitmap ->
                 runCatching { if (!bitmap.isRecycled) bitmap.recycle() }
             }
-            processing.set(false)
-            controls?.showAfterFrame()
+            if (!bitmapTransferredToUpload) processing.set(false)
         }
     }
 
@@ -377,6 +425,7 @@ class ProjectionCaptureService : Service() {
 
     override fun onDestroy() {
         stopCapture()
+        uploadScope.cancel()
         super.onDestroy()
     }
 
