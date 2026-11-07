@@ -22,7 +22,7 @@ object BitmapPreprocessor {
         var nonOrangeCount = 0
         for (color in input) {
             if (!OrangeTagDetector.isOrange(color)) {
-                nonOrangeSum += luminance(color)
+                nonOrangeSum += luminance(color).toLong()
                 nonOrangeCount++
             }
         }
