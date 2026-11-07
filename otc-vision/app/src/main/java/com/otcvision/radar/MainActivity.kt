@@ -76,7 +76,7 @@ class MainActivity : Activity() {
         }
         val serverTokenInput = EditText(this).apply {
             hint = "Server ingest token"
-            singleLine = true
+            setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
         val saveServerButton = Button(this).apply { text = "SAVE SERVER SETTINGS" }
