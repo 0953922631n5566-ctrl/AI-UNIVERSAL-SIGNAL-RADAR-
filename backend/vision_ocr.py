@@ -16,9 +16,11 @@ class PriceRead:
     candidates: tuple[str, ...]
     reason: str
     tag_box: tuple[int, int, int, int] | None = None
+    raw_text: str = ""
+    orange_tag_found: bool = False
 
 
-_PRICE_RE = re.compile(r"(?<!\d)(\d{1,2})[.,](\d{3,6})(?!\d)")
+_PRICE_RE = re.compile(r"(?<!\\d)(\\d{1,2})[.,](\\d{3,6})(?!\\d)")
 
 
 def parse_price_candidates(text: str) -> tuple[str, ...]:
@@ -63,7 +65,6 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         aspect = w / max(1, h)
         if aspect < 0.8 or aspect > 12:
             continue
-        # Prefer compact orange labels nearest the far-right price axis.
         right_bias = (x + w) / max(1, axis.shape[1])
         score = area * (0.5 + right_bias)
         candidates.append((score, x, y, w, h))
@@ -79,7 +80,8 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
     bottom = min(height, y0 + y + h + pad_y)
     tag = frame[top:bottom, left:right]
     if tag.size == 0:
-        return PriceRead("INVALID_TAG_CROP", None, (), "Detected tag crop is empty")
+        return PriceRead("INVALID_TAG_CROP", None, (), "Detected tag crop is empty",
+                         (left, top, right, bottom), orange_tag_found=True)
 
     enlarged = cv2.resize(tag, None, fx=3.0, fy=3.0, interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
@@ -94,12 +96,16 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         pytesseract.image_to_string(threshold, config=config),
         pytesseract.image_to_string(cv2.bitwise_not(threshold), config=config),
     ]
+    raw_text = " | ".join(text.strip() for text in texts if text.strip())
     reads = tuple(dict.fromkeys(
         price for raw in texts for price in parse_price_candidates(raw)
     ))
     box = (left, top, right, bottom)
     if len(reads) == 1:
-        return PriceRead("PRICE_READ", reads[0], reads, "One price candidate extracted from orange tag", box)
+        return PriceRead("PRICE_READ", reads[0], reads,
+                         "One price candidate extracted from orange tag", box, raw_text, True)
     if len(reads) > 1:
-        return PriceRead("AMBIGUOUS_PRICE", None, reads, "Multiple price candidates detected; no price selected", box)
-    return PriceRead("NO_VALID_PRICE", None, (), "Orange tag found but no valid price text was recognized", box)
+        return PriceRead("AMBIGUOUS_PRICE", None, reads,
+                         "Multiple price candidates detected; no price selected", box, raw_text, True)
+    return PriceRead("NO_VALID_PRICE", None, (),
+                     "Orange tag found but no valid price text was recognized", box, raw_text, True)
