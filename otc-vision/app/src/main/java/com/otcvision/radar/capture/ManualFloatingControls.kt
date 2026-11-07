@@ -43,10 +43,10 @@ class ManualFloatingControls(
         if (panel != null) return
         displayWidth = screenWidth.coerceAtLeast(1)
         displayHeight = screenHeight.coerceAtLeast(1)
-        val savedX = prefs.getInt("x", (screenWidth * 0.68f).toInt()).coerceIn(0, screenWidth - 80)
-        val savedY = prefs.getInt("y", (screenHeight * 0.40f).toInt()).coerceIn(0, screenHeight - 60)
-        val savedW = prefs.getInt("w", (screenWidth * 0.25f).toInt()).coerceIn(100, screenWidth - savedX)
-        val savedH = prefs.getInt("h", (screenHeight * 0.065f).toInt()).coerceIn(48, screenHeight - savedY)
+        val savedX = prefs.getInt("x", (screenWidth * 0.68f).toInt()).coerceIn(0, (screenWidth - 100).coerceAtLeast(0))
+        val savedY = prefs.getInt("y", (screenHeight * 0.40f).toInt()).coerceIn(0, (screenHeight - 48).coerceAtLeast(0))
+        val savedW = prefs.getInt("w", (screenWidth * 0.25f).toInt()).coerceIn(1.coerceAtMost(screenWidth - savedX), (screenWidth - savedX).coerceAtLeast(1))
+        val savedH = prefs.getInt("h", (screenHeight * 0.065f).toInt()).coerceIn(1.coerceAtMost(screenHeight - savedY), (screenHeight - savedY).coerceAtLeast(1))
 
         val roi = RoiOverlayView(context) { x, y, w, h ->
             prefs.edit().putInt("x", x).putInt("y", y).putInt("w", w).putInt("h", h).apply()
@@ -85,7 +85,7 @@ class ManualFloatingControls(
                         val maxY = (displayHeight - (panel?.height ?: height)).coerceAtLeast(0)
                         params.x = (panelStartX + (event.rawX - panelDragRawX).toInt()).coerceIn(0, maxX)
                         params.y = (panelStartY + (event.rawY - panelDragRawY).toInt()).coerceIn(0, maxY)
-                        runCatching { windowManager.updateViewLayout(panel, params) }
+                        runCatching { panel?.let { windowManager.updateViewLayout(it, params) } }
                         prefs.edit().putInt("panel_x", params.x).putInt("panel_y", params.y).apply()
                         true
                     }
