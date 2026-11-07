@@ -1,7 +1,7 @@
 # OTC Vision Radar — Server-Side Capture Phase
 
 Branch: feature/otc-vision-apk
-Status: source changes committed; fresh Android + backend parser CI build running. Backend deployment and Xiaomi 11T testing are pending.
+Status: crash-resilience source patch committed; clean Android APK build verified. Backend deployment is live; Xiaomi 11T retest is pending.
 
 ## Implemented in source
 
@@ -34,3 +34,16 @@ Status: source changes committed; fresh Android + backend parser CI build runnin
 ## Hardware test
 
 After APK artifact verification and backend deployment, configure server URL/token in the app, grant overlay + MediaProjection permissions, and verify one tap creates one POST and one server response. Exercise network errors, stale frames, permission revocation, rapid taps, memory, and thermal behavior.
+
+
+## Crash-fix build verification — 2026-11-07
+
+- Clean build workflow run #90 / ID 42348413792 completed successfully on `feature/otc-vision-apk`.
+- Build source/head commit: `75c37aad670555661adc784891bb7fa661dd1df0`.
+- Workflow explicitly ran `:app:clean :app:testDebugUnitTest :app:assembleDebug`; Gradle reported `BUILD SUCCESSFUL in 31s`.
+- Note: `:app:testDebugUnitTest` reported `NO-SOURCE`; no Android unit test source files currently exist. Backend OCR parser suite ran 5 tests and passed.
+- Artifact ID: 13564397743; artifact name `otc-vision-finetuned-debug-apk`; archive size 1,348,098 bytes.
+- Extracted APK size: 1,356,315 bytes.
+- APK SHA-256: `64f7f1b369252f8e266aff119fd0574c928dbb8279167e53943f5ad748381f83`; independently recomputed from the downloaded APK and matches the workflow checksum file.
+- Workflow: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42348413792
+- This verifies clean compilation, packaging, and artifact integrity only. It does NOT prove the Xiaomi 11T crash is resolved; user must install this new APK and repeat the capture/upload test. Main Market source and service remain untouched.
