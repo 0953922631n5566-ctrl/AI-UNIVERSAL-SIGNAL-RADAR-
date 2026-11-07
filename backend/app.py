@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 import os
 import time
 from collections import defaultdict, deque
@@ -13,6 +15,7 @@ from pydantic import BaseModel
 
 from vision_ocr import read_orange_price
 
+logger = logging.getLogger("otc_vision.ocr")
 app = FastAPI(title="AI Universal Signal Radar", version="0.1.0")
 TOKEN = os.getenv("RADAR_INGEST_TOKEN", "")
 MAX_FRAME_BYTES = 4 * 1024 * 1024
@@ -90,7 +93,7 @@ async def ingest_frame(
     payload = await image.read(MAX_FRAME_BYTES + 1)
     if not payload or len(payload) > MAX_FRAME_BYTES:
         raise HTTPException(status_code=413, detail="Frame empty or exceeds 4 MB")
-    if not payload.startswith(b"\xff\xd8") and not payload.startswith(b"\x89PNG"):
+    if not payload.startswith(b"\\xff\\xd8") and not payload.startswith(b"\\x89PNG"):
         raise HTTPException(status_code=415, detail="Only JPEG or PNG frames are accepted")
     now_ms = int(time.time() * 1000)
     if captured_at_ms > now_ms + 30_000 or now_ms - captured_at_ms > 30_000:
@@ -106,9 +109,14 @@ async def ingest_frame(
     state.hashes.append(digest)
 
     # OCR runs only on the backend. The uploaded full-screen frame is never persisted.
+    processing_started = time.perf_counter()
+    orange_tag_found = False
+    ocr_raw_text = ""
     try:
         ocr = read_orange_price(payload)
         price = ocr.price
+        orange_tag_found = ocr.orange_tag_found
+        ocr_raw_text = ocr.raw_text
         status = "PRICE_READ_ENGINE_NOT_CONFIGURED" if ocr.status == "PRICE_READ" else ocr.status
         reason = (
             "Price extracted by server OCR; directional 10-engine adapter is not configured."
@@ -127,6 +135,22 @@ async def ingest_frame(
         status = "SERVER_OCR_ERROR"
         reason = "Server OCR failed safely: " + type(exc).__name__
         evidence = [f"frame_sha256:{digest[:16]}", "directional_signal_suppressed"]
+
+    # Emit only OCR diagnostics. Never log request headers, tokens, frame bytes, or image data.
+    processing_ms = int((time.perf_counter() - processing_started) * 1000)
+    logger.info(
+        "OCR_FRAME %s",
+        json.dumps(
+            {
+                "orange_tag_found": bool(orange_tag_found),
+                "ocr_raw_text": ocr_raw_text,
+                "extracted_price": price,
+                "processing_ms": processing_ms,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
 
     # Never emit CALL/PUT until the exact ten engines are ported and independently validated.
     return Decision(
