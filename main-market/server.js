@@ -24,7 +24,9 @@ const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const authRequests = new Map();
-const VERSION = "2026-11-06-multi-engine-v1";
+const SYSTEM_NAME = "AI-10 CORE";
+const ARCHITECTURE_ID = "AI-10-CORE";
+const VERSION = "2026-11-07-ai-10-core-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -660,6 +662,9 @@ function rateLimitControl(req, res, next) {
 
 const allowedOrigins = new Set(["https://ai-signal-radar-main-market.onrender.com"]);
 app.use((req, res, next) => {
+  res.setHeader("X-System-Name", SYSTEM_NAME);
+  res.setHeader("X-System-Architecture", ARCHITECTURE_ID);
+  res.setHeader("X-System-Version", VERSION);
   const origin = req.headers.origin;
   const sameOrigin = Boolean(origin && origin === `https://${req.headers.host}`);
   const originAllowed = Boolean(origin && (allowedOrigins.has(origin) || sameOrigin));
@@ -716,10 +721,10 @@ app.get("/styles.css", (_req, res) => { noCache(res); res.sendFile(path.join(APP
 app.get("/health", (_req, res) => {
   noCache(res);
   res.json({
-    ok: true, service: "main-market", version: VERSION,
+    ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "ANDROID_CLIENT", configured: Boolean(CLIENT_TOKEN) },
-    architecture: { decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
+    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", decisionAuthority: "CENTRAL_AI_DISPATCHER", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
     configuration: {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       ...firebaseAdminStatus(),
@@ -806,7 +811,7 @@ wss.on("connection", socket => {
 });
 
 server.listen(PORT, () => {
-  console.log(`MAIN MARKET v2 listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
   console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
