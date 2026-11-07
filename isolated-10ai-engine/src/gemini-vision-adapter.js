@@ -24,7 +24,7 @@ function createGeminiVisionAdapter({apiKey=process.env.GEMINI_API_KEY, model=pro
         body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt},{inline_data:{mime_type:image.mimeType,data:image.buffer.toString('base64')}}]}],
           generationConfig:{temperature:0,responseMimeType:'application/json',responseSchema:{type:'OBJECT',properties:{
             signal:{type:'STRING',enum:['CALL','PUT','STANDBY']},confidence:{type:'NUMBER'},reason:{type:'STRING'},
-            symbol:{type:'STRING'},timeframe:{type:'STRING'}},required:['signal','confidence','reason','symbol','timeframe']}})
+            symbol:{type:'STRING'},timeframe:{type:'STRING'}},required:['signal','confidence','reason','symbol','timeframe']}}})
       });
     } catch(e) { throw new VisionExtractionError(502,'GEMINI_UNAVAILABLE','Gemini Vision request failed: '+e.message); }
     if(!response.ok) {
