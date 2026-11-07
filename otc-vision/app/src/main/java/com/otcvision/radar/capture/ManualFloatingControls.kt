@@ -14,6 +14,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 
 /**
  * User-operated controls. No frame polling or OCR is started from this class;
@@ -101,7 +102,14 @@ class ManualFloatingControls(
                 isEnabled = false
                 text = "CAPTURING…"
                 status?.text = "Waiting for next screen frame…"
-                onCapture()
+                try {
+                    onCapture()
+                } catch (error: Exception) {
+                    isEnabled = true
+                    text = "CAPTURE & ANALYZE"
+                    status?.text = "Capture request failed · tap to retry"
+                    Toast.makeText(context, error.message ?: "Unable to start capture", Toast.LENGTH_SHORT).show()
+                }
             }
         }
         val stopButton = Button(context).apply {
@@ -224,20 +232,26 @@ class ManualFloatingControls(
                 MotionEvent.ACTION_MOVE -> {
                     val dx = (event.rawX - downRawX).toInt()
                     val dy = (event.rawY - downRawY).toInt()
-                    val maxWidth = (displayWidth - params.x).coerceAtLeast(100)
-                    val maxHeight = (displayHeight - params.y).coerceAtLeast(48)
+                    // Clamp against the full real display, not the chart's visible content area.
+                    val maxX = (displayWidth - params.width.coerceAtLeast(1)).coerceAtLeast(0)
+                    val maxY = (displayHeight - params.height.coerceAtLeast(1)).coerceAtLeast(0)
                     if (resizing) {
-                        params.width = (startW + dx).coerceIn(100.coerceAtMost(maxWidth), maxWidth)
-                        params.height = (startH + dy).coerceIn(48.coerceAtMost(maxHeight), maxHeight)
+                        val availableWidth = (displayWidth - params.x).coerceAtLeast(1)
+                        val availableHeight = (displayHeight - params.y).coerceAtLeast(1)
+                        params.width = (startW + dx).coerceIn(1, availableWidth)
+                        params.height = (startH + dy).coerceIn(1, availableHeight)
                     } else {
-                        params.x = (startX + dx).coerceIn(0, (displayWidth - params.width).coerceAtLeast(0))
-                        params.y = (startY + dy).coerceIn(0, (displayHeight - params.height).coerceAtLeast(0))
+                        params.x = (startX + dx).coerceIn(0, maxX)
+                        params.y = (startY + dy).coerceIn(0, maxY)
                     }
                     runCatching { windowManager.updateViewLayout(this, params) }
                     onGeometryChanged(params.x, params.y, params.width, params.height)
                     return true
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> return true
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    onGeometryChanged(params.x, params.y, params.width, params.height)
+                    return true
+                }
             }
             return true
         }
