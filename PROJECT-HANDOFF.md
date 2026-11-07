@@ -481,3 +481,12 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Extracted APK size 1,356,315 bytes. Independently verified SHA-256: `64f7f1b369252f8e266aff119fd0574c928dbb8279167e53943f5ad748381f83`, matching the artifact's SHA256SUMS.txt.
 - Clean APK artifact is available from the Actions run. The Xiaomi 11T hardware retest is still required; build success does not prove the reported force-close is fixed at runtime.
 - No OTC Render backend settings or Main Market branch/service were modified by this Android crash-fix patch.
+
+
+### Debug APK install compatibility note — 2026-11-07
+
+- Compared APK v2 signing certificates for the previously distributed server-uploader APK and clean crash-fix APK.
+- Previous APK certificate SHA-256: `2134e3f6f3d72c0241120f68e0609c6b3feefddd732fd9bdcf1047580acfb05a`.
+- Crash-fix APK certificate SHA-256: `a1e87e8d48dbd042772e1f9fdd93e075b2bfe8cdf1d8aa20094de6298d6b29e1`.
+- The debug signing certificates differ. Android will reject an in-place update over the previously installed debug APK. User must uninstall the old debug APK, then install the new one.
+- Uninstalling clears app-private preferences and Android Keystore data. After reinstall, user must re-enter the dedicated OTC HTTPS Base URL and RADAR_INGEST_TOKEN in Server Mode. No server-side token rotation is needed.
