@@ -19,7 +19,8 @@ data class NormalizedRoi(val left: Float, val top: Float, val right: Float, val 
 }
 
 data class RoiConfig(
-    val priceLabel: NormalizedRoi = NormalizedRoi(0.72f, 0.08f, 0.995f, 0.58f),
+    // Broad scan strip: the orange tag is detected dynamically anywhere from 10% to 90% height.
+    val priceLabel: NormalizedRoi = NormalizedRoi(0.78f, 0.10f, 0.995f, 0.90f),
     val candleChart: NormalizedRoi = NormalizedRoi(0.04f, 0.12f, 0.90f, 0.88f)
 ) {
     companion object { fun defaults() = RoiConfig() }
