@@ -26,7 +26,8 @@ const sessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "AI-10 CORE";
 const ARCHITECTURE_ID = "AI-10-CORE";
-const VERSION = "2026-11-07-ai-10-core-v1";
+const VERSION = "2026-11-07-manual-price-override-v1";
+const PRICE_SOURCE = "MANUAL";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -65,6 +66,10 @@ function standby(reason, extra = {}) {
 }
 
 function feedStatus(feed) {
+  if (PRICE_SOURCE === "MANUAL") {
+    const age = feed.tickAt ? (Date.now() - feed.tickAt) / 1000 : Infinity;
+    return age <= MAX_STREAM_AGE_SECONDS ? "MANUAL_READY" : "MANUAL_WAITING";
+  }
   if (feed.restStatus === "UNSUPPORTED") return "UNSUPPORTED";
   if (feed.dataLocked || globalLockMessage) return "LOCKED";
   if (feed.restStatus === "ERROR") return "DATA_ERROR";
@@ -81,6 +86,8 @@ function publicFeed(feed) {
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
   const messages = {
+    MANUAL_READY: "MANUAL OVERRIDE · ใช้ราคาที่ผู้ใช้ส่งเท่านั้น",
+    MANUAL_WAITING: "รอผู้ใช้กรอกราคาเพื่อสร้างข้อมูล M1",
     UNSUPPORTED: feed.restMessage,
     LOCKED: globalLockMessage || feed.restMessage,
     DATA_ERROR: feed.restMessage,
@@ -97,7 +104,7 @@ function publicFeed(feed) {
     restStatus: feed.restStatus,
     streamStatus: feed.streamStatus,
     statusMessage: messages[status] || feed.streamMessage,
-    apiStatus: status === "SUPPORTED" || status === "REST_ONLY" ? "ONLINE"
+    apiStatus: status === "MANUAL_READY" || status === "SUPPORTED" || status === "REST_ONLY" ? "ONLINE"
       : ["LOCKED", "STALE", "DATA_ERROR", "UNSUPPORTED"].includes(status) ? "LOCKED"
       : monitoring ? "CONNECTING" : "OFFLINE",
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
@@ -114,7 +121,7 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
-    source: "Twelve Data REST + live-price Streaming"
+    source: PRICE_SOURCE === "MANUAL" ? "MANUAL PRICE OVERRIDE" : "Twelve Data REST + live-price Streaming"
   };
 }
 
@@ -294,7 +301,7 @@ function dispatchSignalIfReady(feed) {
  }).catch(error => console.warn("[push] delivery failed", alertId, error.message));
 }
 
-function applyTick(feed, price, epoch) {
+function applyTick(feed, price, epoch, source = "STREAMING") {
   const minute = Math.floor(epoch / 60) * 60;
   const current = feed.candles.at(-1);
   if (!current || current.epoch < minute) {
@@ -315,7 +322,7 @@ function applyTick(feed, price, epoch) {
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
-  feed.streamMessage = "ได้รับราคา Streaming สด";
+  feed.streamMessage = source === "MANUAL" ? "ได้รับราคาจาก Manual Price Override" : "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
   void evaluate(feed).then(publish).catch(error => console.error("[radar] tick analysis failed", error.message));
@@ -565,6 +572,21 @@ async function start(symbolValue) {
   stop(false);
   selectedSymbol = symbol;
   monitoring = true;
+  if (PRICE_SOURCE === "MANUAL") {
+    const feed = feeds.get(symbol);
+    feed.tickAt = 0;
+    feed.lastTick = null;
+    feed.restStatus = "MANUAL";
+    feed.restMessage = "ปิดการเรียกราคาอัตโนมัติ · รอ Manual Price";
+    feed.streamStatus = "MANUAL";
+    feed.streamMessage = "รอราคาจากผู้ใช้";
+    feed.dataLocked = false;
+    resetSignal(feed, "Manual Override เปิดใช้งาน · กรอกราคาเพื่อเริ่มสะสมข้อมูล M1");
+    startWatchdog();
+    startSignalTimer();
+    publish();
+    return;
+  }
   globalLockMessage = null;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
@@ -758,6 +780,18 @@ app.post("/api/auth", rateLimitAuth, (req, res) => {
   res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
 });
 app.get("/api/state", requireDeviceSession, (_req, res) => { noCache(res); res.json(snapshot()); });
+app.post("/api/manual-price", requireDeviceSession, rateLimitControl, (req, res) => {
+  if (PRICE_SOURCE !== "MANUAL") return res.status(409).json({ ok: false, error: "Manual Override ไม่ได้เปิดใช้งาน" });
+  const raw = String(req.body?.price ?? "").trim();
+  if (!/^\\d+(?:\\.\\d{1,8})?$/.test(raw)) return res.status(400).json({ ok: false, error: "กรุณากรอกราคาเป็นตัวเลขบวกและทศนิยมไม่เกิน 8 ตำแหน่ง" });
+  const price = Number(raw);
+  if (!Number.isFinite(price) || price <= 0) return res.status(400).json({ ok: false, error: "ราคาต้องมากกว่า 0" });
+  if (!monitoring) return res.status(409).json({ ok: false, error: "กรุณากดเริ่มสแกนก่อนส่งราคา" });
+  const feed = feeds.get(selectedSymbol);
+  applyTick(feed, price, Math.floor(Date.now() / 1000), "MANUAL");
+  noCache(res);
+  res.json({ ok: true, source: "MANUAL", acceptedPrice: price, state: snapshot() });
+});
 app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res) => {
   const body = req.body || {};
   try {
