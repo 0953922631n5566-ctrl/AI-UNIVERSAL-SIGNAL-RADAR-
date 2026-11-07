@@ -16,5 +16,13 @@
     "express": "^4.21.2",
     "ws": "^8.18.0",
     "firebase-admin": "^13.5.0"
+  },
+  "radarArchitecture": {
+    "name": "AI-10 CORE",
+    "displayName": "AI-10 CORE — Ten-Engine Multi-Strategy Architecture",
+    "engineCount": 10,
+    "deploymentModel": "SINGLE_RENDER_SERVICE",
+    "executionModel": "PROMISE_ALL_SETTLED",
+    "decisionAuthority": "CENTRAL_AI_DISPATCHER"
   }
 }
