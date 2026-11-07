@@ -111,15 +111,16 @@ function createVisionAnalyzeHandler({ analyze, visionAdapter = null, maxBytes = 
       return send(res, 405, { error: 'METHOD_NOT_ALLOWED' });
     }
     try {
-      const raw = await readBody(req, maxBytes + 64 * 1024);
-      const type = String(req.headers['content-type'] || '').toLowerCase();
+      const raw = await readBody(req, Math.ceil(maxBytes * 1.5) + 64 * 1024);
+      const contentType = String(req.headers['content-type'] || '');
+      const type = contentType.toLowerCase();
       let image = null, input = {};
       if (type.includes('application/json')) {
         try { input = JSON.parse(raw.toString('utf8')); }
         catch { throw new HttpError(400, 'Request body must be valid JSON'); }
         if (input.imageBase64) image = decodeBase64Image(input.imageBase64, input.mimeType, maxBytes);
       } else if (type.includes('multipart/form-data')) {
-        const parts = parseMultipart(raw, type, maxBytes);
+        const parts = parseMultipart(raw, contentType, maxBytes);
         if (parts.image) {
           if (!IMAGE_TYPES.has(parts.image.mimeType)) throw new HttpError(415, 'Only JPEG, PNG and WebP images are accepted');
           image = parts.image;
