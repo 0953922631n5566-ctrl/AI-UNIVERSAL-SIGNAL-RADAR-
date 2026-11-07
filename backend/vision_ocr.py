@@ -94,19 +94,41 @@ def read_orange_price(image_bytes: bytes) -> PriceRead:
         return PriceRead("INVALID_TAG_CROP", None, (), "Detected tag crop is empty",
                          (left, top, right, bottom), orange_tag_found=True)
 
-    # Upscale small on-screen digits before contrast normalization.
-    enlarged = cv2.resize(tag, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC)
+    # Remove the pointed left tip and right border; they can be mistaken for
+    # digits. The price text sits inside the rectangular body of this banner.
+    text_region = tag[:, int(tag.shape[1] * 0.18):max(int(tag.shape[1] * 0.94), 1)]
+    if text_region.size == 0:
+        text_region = tag
+
+    # On this platform the digits are near-white on a saturated orange fill.
+    # HSV separation preserves the thin white strokes better than global Otsu.
+    hsv_text = cv2.cvtColor(text_region, cv2.COLOR_BGR2HSV)
+    white_text_mask = cv2.inRange(
+        hsv_text, np.array([0, 0, 170]), np.array([179, 130, 255])
+    )
+    white_text_mask = cv2.morphologyEx(
+        white_text_mask,
+        cv2.MORPH_CLOSE,
+        cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)),
+        iterations=1,
+    )
+    primary = cv2.resize(
+        white_text_mask, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC
+    )
+
+    # Keep CLAHE + Otsu as a fallback for alternate themes / non-white glyphs.
+    enlarged = cv2.resize(
+        text_region, None, fx=4.0, fy=4.0, interpolation=cv2.INTER_CUBIC
+    )
     gray = cv2.cvtColor(enlarged, cv2.COLOR_BGR2GRAY)
     enhanced = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8)).apply(gray)
-
-    # Otsu produces a crisp global binary mask; OCR both polarities because
-    # platform themes may render bright digits on either dark or light fills.
     _, threshold = cv2.threshold(
         enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
     threshold_inverse = cv2.bitwise_not(threshold)
     config = "--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789."
     texts = [
+        pytesseract.image_to_string(primary, config=config),
         pytesseract.image_to_string(threshold, config=config),
         pytesseract.image_to_string(threshold_inverse, config=config),
     ]
