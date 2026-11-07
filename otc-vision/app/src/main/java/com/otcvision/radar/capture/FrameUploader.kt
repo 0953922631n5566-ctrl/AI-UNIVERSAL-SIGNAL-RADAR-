@@ -1,6 +1,7 @@
 package com.otcvision.radar.capture
 
 import android.graphics.Bitmap
+import android.os.Looper
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.BufferedReader
@@ -13,7 +14,13 @@ data class FrameUploadResult(
     val price: String?, val sequence: Int
 )
 
-/** One-shot full-screen JPEG uploader. No local OCR, crop, or image filtering. */
+/**
+ * One-shot full-screen JPEG uploader.
+ *
+ * This method is deliberately synchronous so its caller can own the Bitmap
+ * lifetime. It MUST only be invoked from Dispatchers.IO: both JPEG encoding
+ * and every HttpURLConnection operation are blocking work.
+ */
 object FrameUploader {
     private const val MAX_JPEG_BYTES = 4 * 1024 * 1024
     private const val CONNECT_TIMEOUT_MS = 10_000
@@ -21,28 +28,34 @@ object FrameUploader {
 
     fun upload(config: SecureServerConfig.Config, sessionId: String, sequence: Int,
         capturedAtMs: Long, bitmap: Bitmap): FrameUploadResult {
+        check(Looper.myLooper() != Looper.getMainLooper()) {
+            "FrameUploader.upload must never run on the Android main thread"
+        }
         require(!bitmap.isRecycled && bitmap.width > 0 && bitmap.height > 0) {
             "Captured screen bitmap is invalid"
         }
+
+        // Compression is CPU/memory intensive; caller guarantees Dispatchers.IO.
         val jpeg = encodeBoundedJpeg(bitmap)
-        val boundary = "OtcVision" + System.nanoTime()
-        val endpoint = config.baseUrl.trimEnd('/') + "/v1/frame"
-        val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            doOutput = true
-            useCaches = false
-            setRequestProperty("Authorization", "Bearer ${config.token}")
-            setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-            setRequestProperty("Accept", "application/json")
-            setChunkedStreamingMode(64 * 1024)
-        }
+        var connection: HttpURLConnection? = null
         try {
+            val boundary = "OtcVision" + System.nanoTime()
+            val endpoint = config.baseUrl.trimEnd('/') + "/v1/frame"
+            connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                doOutput = true
+                useCaches = false
+                setRequestProperty("Authorization", "Bearer ${config.token}")
+                setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                setRequestProperty("Accept", "application/json")
+                setChunkedStreamingMode(64 * 1024)
+            }
             connection.outputStream.use { output ->
                 fun field(name: String, value: String) {
                     output.write("--$boundary\r\n".toByteArray())
-                    output.write("Content-Disposition: form-data; name=\"$name\"\r\n\r\n".toByteArray())
+                    output.write("Content-Disposition: form-data; name=\\"$name\\"\r\n\r\n".toByteArray())
                     output.write(value.toByteArray(Charsets.UTF_8))
                     output.write("\r\n".toByteArray())
                 }
@@ -52,7 +65,7 @@ object FrameUploader {
                 field("width", bitmap.width.toString())
                 field("height", bitmap.height.toString())
                 output.write("--$boundary\r\n".toByteArray())
-                output.write("Content-Disposition: form-data; name=\"image\"; filename=\"screen.jpg\"\r\n".toByteArray())
+                output.write("Content-Disposition: form-data; name=\\"image\\"; filename=\\"screen.jpg\\"\r\n".toByteArray())
                 output.write("Content-Type: image/jpeg\r\n\r\n".toByteArray())
                 output.write(jpeg)
                 output.write("\r\n--$boundary--\r\n".toByteArray())
@@ -73,7 +86,8 @@ object FrameUploader {
                 price = json.optString("price").takeIf { it.isNotBlank() && it != "null" },
                 sequence = json.optInt("sequence", sequence))
         } finally {
-            connection.disconnect()
+            connection?.disconnect()
+            // Best-effort clearing of the temporary encoded image bytes.
             jpeg.fill(0)
         }
     }
