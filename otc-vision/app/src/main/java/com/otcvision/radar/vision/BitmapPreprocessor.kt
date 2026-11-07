@@ -6,23 +6,86 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 object BitmapPreprocessor {
-    /** Converts the orange tag background to white and contrasting glyphs to dark pixels. */
+    /**
+     * Orange tag -> white canvas, bright quote glyphs -> dark ink.
+     * A summed-area table applies a local adaptive threshold without a costly per-pixel window scan.
+     */
     fun prepareOrangeTagForOcr(source: Bitmap): Bitmap {
         val width = source.width
         val height = source.height
         val input = IntArray(width * height)
         source.getPixels(input, 0, width, 0, 0, width, height)
-        val output = IntArray(input.size) { index ->
+
+        val gray = IntArray(input.size) { index ->
             val color = input[index]
-            val orange = OrangeTagDetector.isOrange(color)
-            val luminance = (Color.red(color) * 0.299f + Color.green(color) * 0.587f + Color.blue(color) * 0.114f)
-            // Orange container -> white; white/light price glyphs -> black; antialiasing retained as gray.
-            val value = if (orange) 255 else (255f - luminance).roundToInt().coerceIn(0, 255)
-            Color.rgb(value, value, value)
+            if (OrangeTagDetector.isOrange(color)) {
+                255
+            } else {
+                val luminance = (Color.red(color) * 0.299f +
+                    Color.green(color) * 0.587f +
+                    Color.blue(color) * 0.114f)
+                // Invert the bright/white price glyphs and stretch antialiased edges.
+                (((255f - luminance - 128f) * 1.85f) + 128f)
+                    .roundToInt().coerceIn(0, 255)
+            }
         }
-        return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
-            it.setPixels(output, 0, width, 0, 0, width, height)
+
+        if (width < 3 || height < 3) return grayBitmap(width, height, gray)
+
+        val stride = width + 1
+        val integral = LongArray((width + 1) * (height + 1))
+        for (y in 1..height) {
+            var rowSum = 0L
+            for (x in 1..width) {
+                rowSum += gray[(y - 1) * width + (x - 1)]
+                integral[y * stride + x] = integral[(y - 1) * stride + x] + rowSum
+            }
         }
+
+        val radius = (minOf(width, height) / 5).coerceIn(3, 9)
+        val output = IntArray(gray.size)
+        for (y in 0 until height) {
+            val top = (y - radius).coerceAtLeast(0)
+            val bottom = (y + radius + 1).coerceAtMost(height)
+            for (x in 0 until width) {
+                val left = (x - radius).coerceAtLeast(0)
+                val right = (x + radius + 1).coerceAtMost(width)
+                val count = (right - left) * (bottom - top)
+                val sum = integral[bottom * stride + right] -
+                    integral[top * stride + right] -
+                    integral[bottom * stride + left] +
+                    integral[top * stride + left]
+                val localMean = sum.toFloat() / count
+                val value = gray[y * width + x]
+                // Mild adaptive threshold: retain gray edge pixels only when local contrast supports ink.
+                val threshold = (localMean - 9f).coerceIn(96f, 238f)
+                val binary = if (value < threshold) 0 else 255
+                output[y * width + x] = Color.rgb(binary, binary, binary)
+            }
+        }
+        return grayBitmap(width, height, output)
+    }
+
+    private fun grayBitmap(width: Int, height: Int, pixels: IntArray): Bitmap =
+        Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
+            it.setPixels(pixels, 0, width, 0, 0, width, height)
+        }
+
+    /** Downscales oversized frames and enlarges tiny price tags for ML Kit character separation. */
+    fun scaleForOcr(source: Bitmap, maxDimension: Int = 1400, minHeight: Int = 96): Bitmap {
+        val largest = max(source.width, source.height)
+        val scaleDown = if (largest > maxDimension) maxDimension.toFloat() / largest else 1f
+        val scaleUp = if (source.height * scaleDown < minHeight) {
+            minHeight.toFloat() / source.height
+        } else 1f
+        val ratio = scaleDown * scaleUp
+        if (kotlin.math.abs(ratio - 1f) < 0.001f) return Bitmap.createBitmap(source)
+        return Bitmap.createScaledBitmap(
+            source,
+            max(1, (source.width * ratio).roundToInt()),
+            max(1, (source.height * ratio).roundToInt()),
+            true
+        )
     }
 
     /** Legacy grayscale + contrast + 3x3 median denoise. Caller owns returned bitmap. */
@@ -51,14 +114,5 @@ object BitmapPreprocessor {
         return Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).also {
             it.setPixels(gray, 0, width, 0, 0, width, height)
         }
-    }
-
-    fun scaleForOcr(source: Bitmap, maxDimension: Int = 1400): Bitmap {
-        val largest = max(source.width, source.height)
-        if (largest <= maxDimension) return Bitmap.createBitmap(source)
-        val ratio = maxDimension.toFloat() / largest
-        val width = max(1, (source.width * ratio).roundToInt())
-        val height = max(1, (source.height * ratio).roundToInt())
-        return Bitmap.createScaledBitmap(source, width, height, true)
     }
 }
