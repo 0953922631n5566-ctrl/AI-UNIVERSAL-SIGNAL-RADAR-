@@ -1,0 +1,21 @@
+{
+  "name": "ai-10-core-standalone",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Isolated standalone workspace for the AI-10 CORE ten-engine strategy subsystem",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js"
+  },
+  "radarArchitecture": {
+    "name": "AI-10 CORE",
+    "engineCount": 10,
+    "executionModel": "PROMISE_ALL_SETTLED",
+    "decisionAuthority": "CENTRAL_AI_DISPATCHER",
+    "deploymentModel": "STANDALONE_WORKSPACE"
+  }
+}
