@@ -426,3 +426,18 @@ No secrets are stored in GitHub or APK. No automated broker execution is impleme
 - Existing try/catch, crop bounds checks, Image close/finally cleanup, and ML Kit completion cleanup remain. This reduces common capture/crop failure paths but cannot guarantee zero crashes for all Android/platform failures or fatal VM errors.
 - CI build for the final source commit `73009ceaf92b407a76ee3892fc72b24dc1b44227` must complete successfully before distributing a new APK. Build success does not establish Xiaomi 11T hardware behavior; one-tap positioning, actual broker ROI alignment, OCR exact-match rate, and thermal stability still require device testing.
 - Main Market / AI-10 CORE remains untouched. No network, Render, Firebase, FCM, Telegram, or broker execution changes were made.
+
+
+## 2026-11-07 — OTC Vision server-side frame offload
+
+- Work remains isolated to feature/otc-vision-apk; Main Market / main-market files and services were not modified.
+- Android floating action button is now CAPTURE & SEND. Movable/resizable ROI and local OCR paths have been removed from the service.
+- A tap arms one full-screen ImageReader frame. Idle frames are closed without bitmap conversion. The client wraps the selected frame once for JPEG encoding and sends multipart HTTPS to POST /v1/frame.
+- New FrameUploader.kt sends session ID, sequence, capture timestamp, dimensions, and JPEG; uses 4 MB JPEG cap, 10s connect and 20s response timeouts; response includes signal/status/reason/price.
+- New SecureServerConfig.kt stores server base URL and encrypts the bearer token using Android Keystore AES-GCM. App UI requires HTTPS URL + ingest token. INTERNET permission added. ML Kit dependency removed.
+- Backend backend/vision_ocr.py performs in-memory OpenCV orange-tag detection on the right price axis, crop/upscale/denoise/threshold and Tesseract OCR. backend/app.py now returns OCR price/status while still forcing STANDBY. Added OCR dependencies and backend/Dockerfile; parser tests and CI step added.
+- No ten OTC Signal Engine implementations were found in this branch. No directional adapter is present. Successful OCR returns PRICE_READ_ENGINE_NOT_CONFIGURED; signal remains STANDBY. Do not claim CALL/PUT output.
+- Full-screen capture cannot have zero memory overhead: Android must temporarily hold a frame bitmap and compressed JPEG bytes. This design removes local OCR and preprocessing; it does not guarantee zero crashes under OS/fatal-memory conditions.
+- Backend source is committed but not deployed. A dedicated service must be deployed from root context with backend/Dockerfile, set RADAR_INGEST_TOKEN, and the same HTTPS URL/token entered in the APK. No Render service was modified or deployed.
+- Fresh CI build run 42345019445 for source commit c70056b048b05f83634fbd29c2e40f63d741d0e0 was in progress at handoff. Wait for Android tests/build, APK checksum and artifact upload. Do not share an earlier APK as the current server-uploader build.
+- Xiaomi 11T device validation and end-to-end upload/OCR verification remain pending.
