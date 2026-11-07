@@ -1,13 +1,13 @@
 package com.kawasaki.visualsignalai;
 import android.app.*;import android.content.*;import android.graphics.*;import android.graphics.drawable.GradientDrawable;import android.hardware.display.*;import android.media.*;import android.media.projection.*;import android.os.*;import android.view.*;import android.widget.*;import org.json.*;import java.io.*;import java.net.*;import java.nio.*;import android.util.Base64;
 public class CaptureOverlayService extends Service {
- private WindowManager wm;private View button,bar;private MediaProjection projection;private Handler h=new Handler(Looper.getMainLooper());private int density,w,hh;private boolean busy=false;private WindowManager.LayoutParams buttonLp;
+ private WindowManager wm;private View button,bar;private MediaProjection projection;private Handler h=new Handler(Looper.getMainLooper());private int density,w,hh;private boolean busy=false,capturePending=false;private ImageReader imageReader;private VirtualDisplay virtualDisplay;private WindowManager.LayoutParams buttonLp;
  public IBinder onBind(Intent i){return null;}
  public int onStartCommand(Intent i,int flags,int id){
   createChannel();startForeground(19,new Notification.Builder(this,"visual_capture").setSmallIcon(android.R.drawable.ic_menu_camera).setContentTitle("VISUAL-SIGNAL-AI").setContentText("Manual screenshot capture is ready").build());
   Intent data=i.getParcelableExtra("projectionData");int code=i.getIntExtra("resultCode",0);
   projection=((MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE)).getMediaProjection(code,data);
-  if(projection==null){stopSelf();return START_NOT_STICKY;}\n  projection.registerCallback(new MediaProjection.Callback(){@Override public void onStop(){stopSelf();}},h);\n  showButton();return START_STICKY;
+  if(projection==null){stopSelf();return START_NOT_STICKY;}\n  projection.registerCallback(new MediaProjection.Callback(){@Override public void onStop(){stopSelf();}},h);\n  initCapturePipeline();showButton();return START_STICKY;
  }
  private void createChannel(){if(Build.VERSION.SDK_INT>=26){NotificationManager n=getSystemService(NotificationManager.class);n.createNotificationChannel(new NotificationChannel("visual_capture","Visual capture",NotificationManager.IMPORTANCE_LOW));}}
  private int dp(float v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
@@ -22,11 +22,30 @@ public class CaptureOverlayService extends Service {
   wm.addView(button,buttonLp);
  }
  private GradientDrawable round(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(radius);d.setStroke(dp(1),0x668c929d);return d;}
- private void captureOneFrame(){if(busy||projection==null)return;busy=true;
-  ImageReader reader=ImageReader.newInstance(w,hh,PixelFormat.RGBA_8888,2);
-  VirtualDisplay vd=projection.createVirtualDisplay("visual-one-shot",w,hh,density,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader.getSurface(),null,h);
-  reader.setOnImageAvailableListener(r->{Image image=null;try{image=r.acquireLatestImage();if(image==null)return;Image.Plane p=image.getPlanes()[0];ByteBuffer buf=p.getBuffer();int px=p.getPixelStride(),row=p.getRowStride();Bitmap raw=Bitmap.createBitmap(row/px,hh,Bitmap.Config.ARGB_8888);raw.copyPixelsFromBuffer(buf);Bitmap bmp=Bitmap.createBitmap(raw,0,0,w,hh);raw.recycle();ByteArrayOutputStream out=new ByteArrayOutputStream();bmp.compress(Bitmap.CompressFormat.JPEG,82,out);bmp.recycle();byte[] bytes=out.toByteArray();vd.release();reader.close();new Thread(()->sendImage(bytes)).start();}catch(Exception ex){h.post(()->{busy=false;showStatus("STANDBY");});}finally{if(image!=null)image.close();}},h);
-  h.postDelayed(()->{if(busy){try{vd.release();reader.close();}catch(Exception ignored){}busy=false;showStatus("STANDBY");}},5000);
+ private void initCapturePipeline(){
+  imageReader=ImageReader.newInstance(w,hh,PixelFormat.RGBA_8888,3);
+  imageReader.setOnImageAvailableListener(reader->{
+   if(!capturePending||busy)return;
+   Image image=null;
+   try{
+    image=reader.acquireLatestImage();if(image==null)return;
+    capturePending=false;busy=true;
+    Image.Plane plane=image.getPlanes()[0];ByteBuffer buf=plane.getBuffer();
+    int pixel=plane.getPixelStride(),row=plane.getRowStride();
+    Bitmap raw=Bitmap.createBitmap(row/pixel,hh,Bitmap.Config.ARGB_8888);raw.copyPixelsFromBuffer(buf);
+    Bitmap bmp=Bitmap.createBitmap(raw,0,0,w,hh);raw.recycle();
+    ByteArrayOutputStream out=new ByteArrayOutputStream();bmp.compress(Bitmap.CompressFormat.JPEG,82,out);bmp.recycle();
+    byte[] bytes=out.toByteArray();new Thread(()->sendImage(bytes)).start();
+   }catch(Exception ex){capturePending=false;busy=false;h.post(()->showStatus("STANDBY"));}
+   finally{if(image!=null)image.close();}
+  },h);
+  virtualDisplay=projection.createVirtualDisplay("visual-signal-capture",w,hh,density,
+    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,imageReader.getSurface(),null,h);
+ }
+ private void captureOneFrame(){
+  if(busy||capturePending||projection==null||virtualDisplay==null)return;
+  capturePending=true;showStatus("STANDBY");
+  h.postDelayed(()->{if(capturePending){capturePending=false;showStatus("STANDBY");}},4000);
  }
  private void sendImage(byte[] bytes){HttpURLConnection c=null;String state="STANDBY";try{
   URL u=new URL(BuildConfig.VISION_ENDPOINT);c=(HttpURLConnection)u.openConnection();c.setRequestMethod("POST");c.setConnectTimeout(12000);c.setReadTimeout(30000);c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");
@@ -40,5 +59,5 @@ public class CaptureOverlayService extends Service {
   View v=new View(this);v.setBackgroundColor(color);bar=v;int type=Build.VERSION.SDK_INT>=26?WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY:WindowManager.LayoutParams.TYPE_PHONE;
   WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,dp(5),type,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP;wm.addView(v,p);h.postDelayed(()->{if(bar==v){try{wm.removeView(v);}catch(Exception ignored){}bar=null;}},5000);
  }
- @Override public void onDestroy(){if(button!=null)try{wm.removeView(button);}catch(Exception ignored){}if(bar!=null)try{wm.removeView(bar);}catch(Exception ignored){}if(projection!=null)projection.stop();super.onDestroy();}
+ @Override public void onDestroy(){if(button!=null)try{wm.removeView(button);}catch(Exception ignored){}if(bar!=null)try{wm.removeView(bar);}catch(Exception ignored){}if(virtualDisplay!=null)virtualDisplay.release();if(imageReader!=null)imageReader.close();if(projection!=null)projection.stop();super.onDestroy();}
 }
