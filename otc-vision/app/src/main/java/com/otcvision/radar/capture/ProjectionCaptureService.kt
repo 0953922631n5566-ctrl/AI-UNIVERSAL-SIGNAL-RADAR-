@@ -21,6 +21,9 @@ import android.os.HandlerThread
 import android.os.IBinder
 import android.provider.Settings
 import android.util.DisplayMetrics
+import android.util.Log
+import android.os.Looper
+import android.widget.Toast
 import android.view.WindowManager
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -61,6 +64,7 @@ class ProjectionCaptureService : Service() {
     private var controls: ManualFloatingControls? = null
     private var screenWidth = 0
     private var screenHeight = 0
+    @Volatile private var pendingRoiBounds: Rect? = null
     private val captureRequested = AtomicBoolean(false)
     private val processing = AtomicBoolean(false)
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
@@ -172,16 +176,31 @@ class ProjectionCaptureService : Service() {
     }
 
     private fun requestManualCapture() {
-        if (projection == null) {
-            controls?.setStatus("Capture session is not active", true)
-            return
+        try {
+            if (projection == null) {
+                controls?.setStatus("Capture session is not active", true)
+                return
+            }
+            val selectedBounds = controls?.roiBoundsOnScreen()
+            if (selectedBounds == null || selectedBounds.width() <= 0 || selectedBounds.height() <= 0) {
+                controls?.setStatus("ROI box is not ready · reposition it and retry", true)
+                showCaptureToast("ROI box is not ready")
+                return
+            }
+            if (processing.get() || !captureRequested.compareAndSet(false, true)) {
+                controls?.setStatus("One capture is already in progress", false)
+                return
+            }
+            pendingRoiBounds = Rect(selectedBounds)
+            controls?.hideForCapture()
+            updateNotification("Manual capture requested · waiting for next frame")
+        } catch (error: Exception) {
+            captureRequested.set(false)
+            pendingRoiBounds = null
+            controls?.showAfterFrame()
+            controls?.setStatus("Capture request failed · tap to retry", true)
+            reportCaptureFailure("CAPTURE_REQUEST", error)
         }
-        if (processing.get() || !captureRequested.compareAndSet(false, true)) {
-            controls?.setStatus("One capture is already in progress", false)
-            return
-        }
-        controls?.hideForCapture()
-        updateNotification("Manual capture requested · waiting for next frame")
     }
 
     /** Idle frames are discarded. A single frame is retained only after the user taps Capture. */
@@ -223,37 +242,60 @@ class ProjectionCaptureService : Service() {
 
     private fun processSingleFrame(image: Image) {
         var handedToMlKit = false
-        var fullFrame: Bitmap? = null
+        var screenBitmap: Bitmap? = null
         var roiCrop: Bitmap? = null
         var scaled: Bitmap? = null
         var prepared: Bitmap? = null
         var ocrBitmap: Bitmap? = null
         val frameStartedAt = System.currentTimeMillis()
+        var cropWidth = 0
+        var cropHeight = 0
         try {
+            // All capture conversion, coordinate mapping and cropping is guarded.
             val frameWidth = image.width
             val frameHeight = image.height
+            check(frameWidth > 0 && frameHeight > 0) { "Screen frame has invalid dimensions" }
             val plane = image.planes.firstOrNull() ?: error("Screen frame has no pixel plane")
             val pixelStride = plane.pixelStride
-            val rowPadding = plane.rowStride - pixelStride * frameWidth
+            val rowStride = plane.rowStride
+            check(pixelStride > 0 && rowStride >= pixelStride * frameWidth) { "Screen frame has invalid row layout" }
+            val rowPadding = rowStride - pixelStride * frameWidth
             val paddedWidth = frameWidth + rowPadding / pixelStride
+            check(paddedWidth >= frameWidth && paddedWidth > 0) { "Screen frame bitmap width is invalid" }
+
             val frameBitmap = Bitmap.createBitmap(paddedWidth, frameHeight, Bitmap.Config.ARGB_8888)
-            fullFrame = frameBitmap
-            try {
-                frameBitmap.copyPixelsFromBuffer(plane.buffer)
-            } finally {
-                image.close()
+            screenBitmap = frameBitmap
+            frameBitmap.copyPixelsFromBuffer(plane.buffer)
+
+            val roi = pendingRoiBounds?.let { Rect(it) }
+                ?: error("ROI coordinates were not saved before capture")
+            pendingRoiBounds = null
+            check(screenWidth > 0 && screenHeight > 0) { "Display dimensions are unavailable" }
+
+            // Convert absolute screen coordinates to frame pixels, then clamp to the real image bounds.
+            val rawLeft = (roi.left.toDouble() * frameWidth / screenWidth).toInt()
+            val rawTop = (roi.top.toDouble() * frameHeight / screenHeight).toInt()
+            val rawRight = (roi.right.toDouble() * frameWidth / screenWidth).toInt()
+            val rawBottom = (roi.bottom.toDouble() * frameHeight / screenHeight).toInt()
+            val startX = rawLeft.coerceIn(0, frameBitmap.width)
+            val startY = rawTop.coerceIn(0, frameBitmap.height)
+            val endX = rawRight.coerceIn(0, frameBitmap.width)
+            val endY = rawBottom.coerceIn(0, frameBitmap.height)
+            val cropWidthSafe = endX - startX
+            val cropHeightSafe = endY - startY
+            check(startX >= 0 && startY >= 0 && cropWidthSafe > 0 && cropHeightSafe > 0 &&
+                startX + cropWidthSafe <= frameBitmap.width &&
+                startY + cropHeightSafe <= frameBitmap.height) {
+                "ROI is outside the captured screen · move the box fully onto the display"
             }
 
-            val roiOnScreen = controls?.roiBoundsOnScreen() ?: error("ROI overlay is not available")
-            val left = (roiOnScreen.left.toFloat() * frameWidth / screenWidth).toInt().coerceIn(0, frameWidth - 1)
-            val top = (roiOnScreen.top.toFloat() * frameHeight / screenHeight).toInt().coerceIn(0, frameHeight - 1)
-            val right = (roiOnScreen.right.toFloat() * frameWidth / screenWidth).toInt().coerceIn(left + 1, frameWidth)
-            val bottom = (roiOnScreen.bottom.toFloat() * frameHeight / screenHeight).toInt().coerceIn(top + 1, frameHeight)
-            val cropRect = Rect(left, top, right, bottom)
-            val cropBitmap = Bitmap.createBitmap(frameBitmap, cropRect.left, cropRect.top, cropRect.width(), cropRect.height())
+            // Crop exactly the user-positioned ROI rectangle after strict bounds validation.
+            val cropBitmap = Bitmap.createBitmap(frameBitmap, startX, startY, cropWidthSafe, cropHeightSafe)
             roiCrop = cropBitmap
+            cropWidth = cropBitmap.width
+            cropHeight = cropBitmap.height
             frameBitmap.recycle()
-            fullFrame = null
+            screenBitmap = null
 
             val scaledBitmap = BitmapPreprocessor.scaleForOcr(cropBitmap)
             scaled = scaledBitmap
@@ -264,12 +306,15 @@ class ProjectionCaptureService : Service() {
             scaledBitmap.recycle()
             scaled = null
 
-            check(!preparedBitmap.isRecycled) { "Prepared ROI bitmap was recycled before OCR handoff" }
+            check(!preparedBitmap.isRecycled && preparedBitmap.width > 0 && preparedBitmap.height > 0) {
+                "Prepared ROI bitmap is empty or recycled"
+            }
             val ownedBitmap = preparedBitmap.copy(Bitmap.Config.ARGB_8888, false)
                 ?: error("Could not create OCR-owned bitmap copy")
             ocrBitmap = ownedBitmap
             preparedBitmap.recycle()
             prepared = null
+
             val ocrStartedAt = System.nanoTime()
             recognizer.process(InputImage.fromBitmap(ownedBitmap, 0))
                 .addOnSuccessListener { result ->
@@ -282,7 +327,7 @@ class ProjectionCaptureService : Service() {
                     }
                     val frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
                     val memoryKb = usedHeapKb()
-                    val message = status + " · manual ROI " + cropRect.width() + "x" + cropRect.height() + " px"
+                    val message = status + " · manual ROI " + cropWidth + "x" + cropHeight + " px"
                     controls?.setStatus(
                         if (parsed.value != null) "PRICE " + parsed.value + " · ready for next capture"
                         else status + " · adjust ROI and tap again",
@@ -300,22 +345,39 @@ class ProjectionCaptureService : Service() {
                 }
                 .addOnFailureListener { error ->
                     controls?.setStatus("OCR failed · adjust ROI and retry", true)
-                    broadcast(ACTION_METRIC, "OCR_FAILURE · " + (error.message ?: error.javaClass.simpleName))
+                    reportCaptureFailure("OCR_FAILURE", error)
                 }
                 .addOnCompleteListener {
                     if (!ownedBitmap.isRecycled) ownedBitmap.recycle()
                     processing.set(false)
                 }
             handedToMlKit = true
+        } catch (error: Exception) {
+            reportCaptureFailure("CAPTURE_OR_CROP", error)
+            controls?.setStatus("Capture failed · adjust ROI and tap again", true)
+            showCaptureToast(error.message ?: "Unable to capture selected ROI")
         } finally {
             runCatching { image.close() }
-            listOfNotNull(fullFrame, roiCrop, scaled, prepared).forEach { bitmap ->
-                if (!bitmap.isRecycled) bitmap.recycle()
+            listOfNotNull(screenBitmap, roiCrop, scaled, prepared).forEach { bitmap ->
+                runCatching { if (!bitmap.isRecycled) bitmap.recycle() }
             }
             if (!handedToMlKit) {
-                if (ocrBitmap != null && !ocrBitmap.isRecycled) ocrBitmap.recycle()
+                if (ocrBitmap != null && !ocrBitmap.isRecycled) runCatching { ocrBitmap.recycle() }
                 processing.set(false)
             }
+        }
+    }
+
+    private fun showCaptureToast(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            runCatching { Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun reportCaptureFailure(stage: String, error: Throwable) {
+        Log.e("OtcManualCapture", "$stage: ${error.message}", error)
+        runCatching {
+            broadcast(ACTION_ERROR, "$stage · ${error.javaClass.simpleName}: ${error.message ?: "unknown error"}")
         }
     }
 
