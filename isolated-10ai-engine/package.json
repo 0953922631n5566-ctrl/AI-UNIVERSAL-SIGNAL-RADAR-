@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js"
+    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js && node --check src/vision-input-gateway.js"
   },
   "radarArchitecture": {
     "name": "AI-10 CORE",
