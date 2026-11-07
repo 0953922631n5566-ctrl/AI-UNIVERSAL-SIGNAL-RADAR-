@@ -1,8 +1,5 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-import { createRequire } from "node:module";
-
-const require = createRequire(import.meta.url);
 const engines = require("../src/multi-engine-dispatcher.js");
 
 function sidewayFixture() {
