@@ -321,7 +321,7 @@ class ProjectionCaptureService : Service() {
                     }
                     val frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
                     val memoryKb = usedHeapKb()
-                    val message = status + " · manual ROI " + cropWidth + "x" + cropHeight + " px"
+                    val message = status + " · preset ROI " + cropWidth + "x" + cropHeight + " px"
                     controls?.setStatus(
                         if (parsed.value != null) "PRICE " + parsed.value + " · SIGNAL STANDBY"
                         else status + " · tap to retry",
