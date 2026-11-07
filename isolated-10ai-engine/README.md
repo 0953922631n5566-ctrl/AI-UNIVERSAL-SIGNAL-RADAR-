@@ -1,60 +1,48 @@
-# AI-10 CORE — Standalone Engine Workspace
+# AI-10 CORE — Isolated Vision Test Workspace
 
-This directory is an isolated development copy of the ten-engine subsystem from `main-market`.
+Standalone development copy of the ten-engine strategy subsystem. Production `main-market` paths are not modified.
 
-## Included source
-- `src/multi-engine-dispatcher.js`: ten strategy engines, Promise.allSettled isolation, Central AI Dispatcher and Safety Noise Guard VETO.
-- `src/decision-engine.js`: Original AI final safety/decision gate (copied unchanged).
-- `index.js`: standalone adapter; the host supplies market context and market data.
-- `test/`: isolated dispatcher regression tests.
+## Run locally
 
-## Engine roster
-1. Trend Breakout
-2. Trend Continuation
-3. Pin Bar Reversal
-4. Candlestick Pattern
-5. Range-Bound Swing
-6. Compression Squeeze
-7. Momentum Divergence
-8. Volume Order Flow
-9. Pullback Retest
-10. Safety Noise Guard (unconditional VETO authority)
-
-## Run independently
-Requires Node.js 20+; no third-party npm dependencies.
+Node.js 20+; no third-party runtime dependencies.
 
 ```sh
 cd isolated-10ai-engine
-cp .env.example .env
+OPENAI_API_KEY=your_key npm start
 npm test
 npm run check
 ```
 
-The test workspace has no connection to Render, Twelve Data, Firebase, Android, OCR, OTC, or Telegram. It receives OHLC candles, indicator values, regime, and freshness metadata from a caller. Do not add production credentials to this workspace.
+## Test server
 
-## Isolation boundary
-This is a dedicated branch and a separate package directory within the existing GitHub repository, not a new GitHub repository. Production paths under `main-market/` are not modified by the extraction. Changes in this workspace do not affect the active Render service unless separately merged or deployed.
+- `GET /health` — server/provider configuration status (never exposes the API key).
+- `POST /api/v1/vision/analyze-chart` — accepts JSON Base64 or multipart JPEG/PNG/WebP screenshots.
+- Configure `OPENAI_API_KEY` as a Render environment secret. Optional `OPENAI_VISION_MODEL` defaults to `gpt-4o`.
 
-## Configuration
-`.env.example` contains only local development metadata. Strategy thresholds remain source-defined to preserve parity with the production snapshot; any threshold changes should be made and tested here first, then explicitly reviewed before integration.
+JSON example:
 
-## Vision input gateway
-
-The package exports `createVisionAnalyzeHandler({ analyze, visionAdapter, maxBytes })` from `index.js`. Mount this Node HTTP handler at `POST /api/v1/vision/analyze-chart` (the handler checks the exact path itself).
-
-Accepted inputs:
-- JSON: `{ "imageBase64": "...", "mimeType": "image/jpeg", "chartContext": { "symbol": "EUR/USD", "timeframe": "M1" } }`
-- Multipart: image file field named `image` plus a `chartContext` JSON form field.
-
-JPEG, PNG and WebP are accepted; default request image limit is 8 MiB. Supply a real `visionAdapter(image, chartContext)` implementation that returns `{ marketData, marketContext }`. The adapter is the image-understanding boundary; this repository does not bundle an OCR/vision model or claim to decode pixels by itself. The returned data must contain at least 200 valid OHLC candles, indicators, regime, and freshness fields before dispatch. If no adapter is configured, image-only requests return HTTP 503. Invalid/incomplete market data returns HTTP 422 rather than fabricated prices.
-
-Example mount:
-
-```js
-const http = require('node:http');
-const { analyze, createVisionAnalyzeHandler } = require('./index');
-const visionHandler = createVisionAnalyzeHandler({ analyze, visionAdapter: yourVisionAdapter });
-http.createServer((req, res) => visionHandler(req, res)).listen(8080);
+```json
+{
+  "imageBase64": "<base64 JPEG bytes>",
+  "mimeType": "image/jpeg",
+  "chartContext": {
+    "symbol": "EUR/USD",
+    "timeframe": "M1",
+    "tickAgeSeconds": 3
+  }
+}
 ```
 
-Run `npm test` to execute dispatcher and gateway tests; `npm run check` validates syntax.
+Multipart uses file field `image` and JSON field `chartContext`. Maximum image size is 8 MiB.
+
+## Strict extraction policy
+
+`src/vision-adapter.js` calls OpenAI Chat Completions with GPT-4o Vision, temperature 0, and strict JSON Schema output. It asks for visible market structure, trend, candlestick patterns, numerical indicator states, and individually legible OHLC candles. It rejects unreadable images, confidence below 0.98, fewer than 200 candles, invalid OHLC geometry, missing indicators, symbol/timeframe mismatch, and missing trusted freshness metadata. It never fills missing values with estimates.
+
+Important limitation: chart screenshots often do not expose 200 exact candle timestamps and OHLC digits or all required indicator numbers. In those cases the endpoint intentionally returns HTTP 422. A screenshot itself cannot prove live-feed freshness, so the caller must supply trusted `tickAgeSeconds <= 25`, or explicitly permitted REST freshness metadata (`allowRestFallback: true`, `ageSeconds <= 180`). The vision model's confidence is a model estimate, not a mathematical guarantee of pixel-reading accuracy. For production-grade numeric OHLC, use a trusted market-data feed; use vision for qualitative visual context.
+
+HTTP status codes: 200 accepted and dispatched; 400 malformed input; 413 oversized upload; 415 unsupported media; 422 unreadable/invalid/incomplete extraction; 503 missing API key/provider rate limit; 502 provider failure.
+
+## Isolation
+
+This workspace is on `feature/isolated-10ai-engine`. It does not modify or deploy the production `main-market` service. The Render test server must be created as a separate service from this branch.
