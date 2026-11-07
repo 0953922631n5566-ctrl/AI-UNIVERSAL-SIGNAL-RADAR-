@@ -41,7 +41,7 @@ object FrameUploader {
         try {
             val boundary = "OtcVision" + System.nanoTime()
             val endpoint = config.baseUrl.trimEnd('/') + "/v1/frame"
-            connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+            val activeConnection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = CONNECT_TIMEOUT_MS
                 readTimeout = READ_TIMEOUT_MS
@@ -52,10 +52,11 @@ object FrameUploader {
                 setRequestProperty("Accept", "application/json")
                 setChunkedStreamingMode(64 * 1024)
             }
-            connection.outputStream.use { output ->
+            connection = activeConnection
+            activeConnection.outputStream.use { output ->
                 fun field(name: String, value: String) {
                     output.write("--$boundary\r\n".toByteArray())
-                    output.write("Content-Disposition: form-data; name=\\"$name\\"\r\n\r\n".toByteArray())
+                    output.write("Content-Disposition: form-data; name=\"$name\"\r\n\r\n".toByteArray())
                     output.write(value.toByteArray(Charsets.UTF_8))
                     output.write("\r\n".toByteArray())
                 }
@@ -65,14 +66,14 @@ object FrameUploader {
                 field("width", bitmap.width.toString())
                 field("height", bitmap.height.toString())
                 output.write("--$boundary\r\n".toByteArray())
-                output.write("Content-Disposition: form-data; name=\\"image\\"; filename=\\"screen.jpg\\"\r\n".toByteArray())
+                output.write("Content-Disposition: form-data; name=\"image\"; filename=\"screen.jpg\"\r\n".toByteArray())
                 output.write("Content-Type: image/jpeg\r\n\r\n".toByteArray())
                 output.write(jpeg)
                 output.write("\r\n--$boundary--\r\n".toByteArray())
                 output.flush()
             }
-            val code = connection.responseCode
-            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val code = activeConnection.responseCode
+            val stream = if (code in 200..299) activeConnection.inputStream else activeConnection.errorStream
             val responseText = stream?.use { input ->
                 BufferedReader(InputStreamReader(input, Charsets.UTF_8)).readText()
             }.orEmpty()
