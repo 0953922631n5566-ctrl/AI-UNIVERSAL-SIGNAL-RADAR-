@@ -93,7 +93,7 @@ async def ingest_frame(
     payload = await image.read(MAX_FRAME_BYTES + 1)
     if not payload or len(payload) > MAX_FRAME_BYTES:
         raise HTTPException(status_code=413, detail="Frame empty or exceeds 4 MB")
-    if not payload.startswith(b"\\xff\\xd8") and not payload.startswith(b"\\x89PNG"):
+    if not payload.startswith(b"\xff\xd8") and not payload.startswith(b"\x89PNG"):
         raise HTTPException(status_code=415, detail="Only JPEG or PNG frames are accepted")
     now_ms = int(time.time() * 1000)
     if captured_at_ms > now_ms + 30_000 or now_ms - captured_at_ms > 30_000:
