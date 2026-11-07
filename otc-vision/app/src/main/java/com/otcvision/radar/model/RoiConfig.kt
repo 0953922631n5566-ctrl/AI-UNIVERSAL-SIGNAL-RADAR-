@@ -20,7 +20,7 @@ data class NormalizedRoi(val left: Float, val top: Float, val right: Float, val 
 
 data class RoiConfig(
     val priceLabel: NormalizedRoi = NormalizedRoi(0.72f, 0.08f, 0.995f, 0.58f),
-    val candleChart: NormalizedRoi = NormalizedRoi(0.04f, 0.12f, 0.96f, 0.88f)
+    val candleChart: NormalizedRoi = NormalizedRoi(0.04f, 0.12f, 0.90f, 0.88f)
 ) {
     companion object { fun defaults() = RoiConfig() }
 }
