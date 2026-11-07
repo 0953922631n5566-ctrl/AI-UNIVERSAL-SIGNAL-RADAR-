@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.net.Uri
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -16,6 +18,7 @@ import com.otcvision.radar.capture.ProjectionCaptureService
 
 class MainActivity : Activity() {
     private val projectionRequestCode = 9101
+    private val overlayRequestCode = 9102
     private lateinit var statusView: TextView
     private lateinit var startButton: Button
     private lateinit var stopButton: Button
@@ -65,7 +68,7 @@ class MainActivity : Activity() {
             textSize = 14f
         }
         statusView = TextView(this).apply {
-            text = "Ready. Default price and chart ROIs are placeholders; calibrate for your broker layout."
+            text = "Manual mode. Grant overlay + screen capture permissions, position the ROI box over the price tag, then tap CAPTURE & ANALYZE."
             textSize = 15f
             setPadding(0, 24, 0, 24)
         }
@@ -95,8 +98,15 @@ class MainActivity : Activity() {
 
         startButton.setOnClickListener {
             val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            statusView.text = "Waiting for Android screen-capture consent…"
-            startActivityForResult(manager.createScreenCaptureIntent(), projectionRequestCode)
+            if (!Settings.canDrawOverlays(this)) {
+                statusView.text = "Allow Display over other apps so the floating ROI and capture button can appear above the broker app."
+                startActivityForResult(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                    overlayRequestCode
+                )
+            } else {
+                requestScreenCaptureConsent()
+            }
         }
         stopButton.setOnClickListener {
             startService(Intent(this, ProjectionCaptureService::class.java).setAction(ProjectionCaptureService.ACTION_STOP))
@@ -104,9 +114,20 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun requestScreenCaptureConsent() {
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        statusView.text = "Waiting for Android screen-capture consent…"
+        startActivityForResult(manager.createScreenCaptureIntent(), projectionRequestCode)
+    }
+
     @Deprecated("Platform consent result callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == overlayRequestCode) {
+            if (Settings.canDrawOverlays(this)) requestScreenCaptureConsent()
+            else statusView.text = "Overlay permission is required for manual floating ROI capture."
+            return
+        }
         if (requestCode != projectionRequestCode) return
         if (resultCode != RESULT_OK || data == null) {
             statusView.text = "Screen capture permission was not granted."
