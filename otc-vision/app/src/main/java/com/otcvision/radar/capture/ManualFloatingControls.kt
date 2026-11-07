@@ -14,8 +14,6 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * User-operated controls. No frame polling or OCR is started from this class;
@@ -114,16 +112,23 @@ class ManualFloatingControls(
         roiParams = null
     }
 
-    private fun overlayParams(width: Int, height: Int) = WindowManager.LayoutParams(
-        width,
-        height,
-        if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-        else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-        PixelFormat.TRANSLUCENT
-    )
+    @Suppress("DEPRECATION")
+    private fun overlayParams(width: Int, height: Int): WindowManager.LayoutParams {
+        val windowType = if (Build.VERSION.SDK_INT >= 26) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        return WindowManager.LayoutParams(
+            width,
+            height,
+            windowType,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        )
+    }
 
     private inner class RoiOverlayView(
         context: Context,
