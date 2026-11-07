@@ -13,4 +13,6 @@ async function analyze(marketData, marketContext = marketData) {
   return { ...decision, engineResults: candidate.engineResults, engineSummary: candidate.engineSummary };
 }
 
-module.exports = { analyze, evaluateAllEngines, evaluateEngineBatch, centralDispatcher, decide };
+const { createVisionAnalyzeHandler } = require('./src/vision-input-gateway');
+
+module.exports = { analyze, evaluateAllEngines, evaluateEngineBatch, centralDispatcher, decide, createVisionAnalyzeHandler };
