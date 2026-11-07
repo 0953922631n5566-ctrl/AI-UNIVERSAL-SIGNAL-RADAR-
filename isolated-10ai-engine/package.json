@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "commonjs",
-  "description": "Isolated standalone workspace for the AI-10 CORE ten-engine strategy subsystem",
+  "description": "Isolated standalone workspace for AI-10 CORE ten-engine subsystem and GPT-4o chart vision test gateway",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
+    "start": "node server.js",
     "test": "node --test",
-    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js && node --check src/vision-input-gateway.js"
+    "check": "node --check src/multi-engine-dispatcher.js && node --check src/decision-engine.js && node --check index.js && node --check src/vision-input-gateway.js && node --check src/vision-adapter.js && node --check server.js"
   },
   "radarArchitecture": {
     "name": "AI-10 CORE",
