@@ -20,6 +20,6 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
-    // Bundled ML Kit model: offline/on-device text recognition.
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    testImplementation("junit:junit:4.13.2")
 }
