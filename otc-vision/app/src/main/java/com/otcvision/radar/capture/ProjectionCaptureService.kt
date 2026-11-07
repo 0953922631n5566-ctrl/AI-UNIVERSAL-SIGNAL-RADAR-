@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
-import android.graphics.Rect
 import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.Image
@@ -25,12 +24,9 @@ import android.util.Log
 import android.os.Looper
 import android.widget.Toast
 import android.view.WindowManager
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import com.otcvision.radar.vision.BitmapPreprocessor
-import com.otcvision.radar.vision.PriceTextParser
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.UUID
 
 /**
  * Manual capture service:
@@ -48,6 +44,9 @@ class ProjectionCaptureService : Service() {
         const val EXTRA_RESULT_CODE = "projection_result_code"
         const val EXTRA_RESULT_DATA = "projection_result_data"
         const val EXTRA_PRICE = "price"
+        const val EXTRA_SIGNAL = "signal"
+        const val EXTRA_SERVER_STATUS = "server_status"
+        const val EXTRA_SERVER_REASON = "server_reason"
         const val EXTRA_CANDIDATES = "candidates"
         const val EXTRA_OCR_MS = "ocr_ms"
         const val EXTRA_FRAME_MS = "frame_ms"
@@ -64,10 +63,10 @@ class ProjectionCaptureService : Service() {
     private var controls: ManualFloatingControls? = null
     private var screenWidth = 0
     private var screenHeight = 0
-    @Volatile private var pendingRoiBounds: Rect? = null
     private val captureRequested = AtomicBoolean(false)
     private val processing = AtomicBoolean(false)
-    private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    private val uploadSequence = AtomicInteger(0)
+    private val uploadSessionId = UUID.randomUUID().toString()
     private var isStopping = false
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -100,7 +99,7 @@ class ProjectionCaptureService : Service() {
                         intent.getParcelableExtra(EXTRA_RESULT_DATA)
                     } ?: error("Missing MediaProjection consent result")
                     startCapture(resultCode, data)
-                    updateNotification("Manual ROI ready · automatic OCR disabled")
+                    updateNotification("Server upload ready · tap CAPTURE & SEND")
                 } catch (error: Exception) {
                     broadcast(ACTION_ERROR, error.javaClass.simpleName + ": " + (error.message ?: "Capture startup failed"))
                     stopCapture()
@@ -166,7 +165,7 @@ class ProjectionCaptureService : Service() {
             getSystemService(WINDOW_SERVICE) as WindowManager,
             onCapture = { requestManualCapture() }
         ).also { it.show(screenWidth, screenHeight) }
-        broadcast(ACTION_METRIC, "ONE_TAP_READY · tap SCAN & ANALYZE; fixed right-axis ROI 82–98% / 15–85%")
+        broadcast(ACTION_METRIC, "SERVER_READY · tap CAPTURE & SEND to upload one full-screen frame")
     }
 
     private fun requestManualCapture() {
@@ -175,29 +174,21 @@ class ProjectionCaptureService : Service() {
                 controls?.setStatus("Capture session is not active", true)
                 return
             }
-            val selectedBounds = controls?.presetRoiBounds()
-            if (selectedBounds == null || selectedBounds.width() <= 0 || selectedBounds.height() <= 0) {
-                controls?.setStatus("Preset price-tag region is unavailable · retry", true)
-                showCaptureToast("Preset price-tag region is unavailable")
-                return
-            }
             if (processing.get() || !captureRequested.compareAndSet(false, true)) {
                 controls?.setStatus("Scan already in progress", false)
                 return
             }
-            pendingRoiBounds = Rect(selectedBounds)
             controls?.hideForCapture()
-            updateNotification("One-tap scan · waiting for one frame")
+            updateNotification("Capturing one frame for server upload…")
         } catch (error: Exception) {
             captureRequested.set(false)
-            pendingRoiBounds = null
             controls?.showAfterFrame()
             controls?.setStatus("Capture request failed · tap to retry", true)
             reportCaptureFailure("CAPTURE_REQUEST", error)
         }
     }
 
-    /** Idle frames are discarded. A single frame is retained only after the user taps Capture. */
+    /** Idle frames are discarded. A single full-screen frame is retained only after the user taps Capture & Send. */
     private fun analyzeRequestedFrame(source: ImageReader) {
         if (!captureRequested.get() || !processing.compareAndSet(false, true)) {
             runCatching { source.acquireLatestImage()?.close() }
