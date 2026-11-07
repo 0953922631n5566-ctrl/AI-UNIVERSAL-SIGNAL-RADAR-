@@ -43,4 +43,18 @@ class PriceTextParserTest {
         assertEquals(null, result.value)
         assertFalse(result.isAmbiguous)
     }
+    @Test fun stripsNonNumericOcrNoiseBeforeValidation() {
+        assertEquals("1.135475", PriceTextParser.sanitizeOcrText("EUR/USD: 1.135475 CALL"))
+        assertEquals("1.135475", PriceTextParser.parse("EUR/USD: 1.135475 CALL").value)
+    }
+
+    @Test fun normalizesCommonOcrCharacterConfusions() {
+        assertEquals("1.135475", PriceTextParser.parse("I.135475").value)
+        assertEquals("1.135475", PriceTextParser.parse("1,135475").value)
+    }
+
+    @Test fun sanitizerKeepsOnlyDigitsAndDecimalPoints() {
+        assertEquals("1.135475", PriceTextParser.sanitizeOcrText("1.13S475!"))
+    }
+
 }
