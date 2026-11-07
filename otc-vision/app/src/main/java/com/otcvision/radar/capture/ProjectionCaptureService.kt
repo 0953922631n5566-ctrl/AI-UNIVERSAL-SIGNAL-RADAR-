@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
@@ -17,6 +18,8 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
+import android.os.PowerManager
+import android.os.BatteryManager
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.view.WindowManager
@@ -58,6 +61,7 @@ class ProjectionCaptureService : Service() {
     private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     private val roiConfig = RoiConfig.defaults()
     private var isStopping = false
+    private lateinit var benchmarkRecorder: OcrBenchmarkRecorder
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
@@ -120,6 +124,7 @@ class ProjectionCaptureService : Service() {
         val activeProjection = manager.getMediaProjection(resultCode, data)
             ?: error("Android did not provide a MediaProjection instance")
         projection = activeProjection
+        benchmarkRecorder = OcrBenchmarkRecorder(this).also { it.reset() }
 
         val metrics = displayMetrics()
         require(metrics.widthPixels > 0 && metrics.heightPixels > 0) { "Invalid display dimensions" }
@@ -196,11 +201,15 @@ class ProjectionCaptureService : Service() {
         chartCrop.recycle()
 
         if (priceCrop == null) {
+            val frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+            val heapKb = usedHeapKb()
+            val progress = recordBenchmark("NO_ORANGE_TAG", null, -1L, frameMs, heapKb)
             processing.set(false)
             broadcast(
                 ACTION_METRIC,
-                "NO_ORANGE_TAG · right-axis scan " + scanRect.width() + "x" + scanRect.height(),
-                frameMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+                "NO_ORANGE_TAG · right-axis scan " + scanRect.width() + "x" + scanRect.height() + progress,
+                frameMs = frameMs,
+                memoryKb = heapKb
             )
             return
         }
@@ -216,16 +225,16 @@ class ProjectionCaptureService : Service() {
                 val ocrMs = (System.nanoTime() - ocrStartedAt) / 1_000_000L
                 val parsed = PriceTextParser.parse(result.text)
                 val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
-                val runtime = Runtime.getRuntime()
-                val usedMemoryKb = (runtime.totalMemory() - runtime.freeMemory()) / 1024L
+                val usedMemoryKb = usedHeapKb()
                 val status = when {
                     parsed.isAmbiguous -> "AMBIGUOUS"
                     parsed.value != null -> "PRICE_READ"
                     else -> "NO_VALID_PRICE"
                 }
+                val progress = recordBenchmark(status, parsed.value, ocrMs, frameAgeMs, usedMemoryKb)
                 broadcast(
                     ACTION_METRIC,
-                    status + " · orange tag anchored · chart ROI " + chartRoiPixels + " px",
+                    status + " · orange tag anchored · chart ROI " + chartRoiPixels + " px" + progress,
                     price = parsed.value,
                     candidates = parsed.candidates.joinToString(","),
                     ocrMs = ocrMs,
@@ -234,12 +243,50 @@ class ProjectionCaptureService : Service() {
                 )
             }
             .addOnFailureListener { error ->
-                broadcast(ACTION_ERROR, "ML Kit OCR failed: " + (error.localizedMessage ?: error.javaClass.simpleName))
+                val frameAgeMs = (System.currentTimeMillis() - frameStartedAt).coerceAtLeast(0L)
+                val progress = recordBenchmark("OCR_FAILURE", null, -1L, frameAgeMs, usedHeapKb())
+                broadcast(ACTION_ERROR, "ML Kit OCR failed: " + (error.localizedMessage ?: error.javaClass.simpleName) + progress)
             }
             .addOnCompleteListener {
                 prepared.recycle()
                 processing.set(false)
             }
+    }
+
+    private fun usedHeapKb(): Long {
+        val runtime = Runtime.getRuntime()
+        return (runtime.totalMemory() - runtime.freeMemory()) / 1024L
+    }
+
+    private fun recordBenchmark(
+        status: String,
+        price: String?,
+        ocrMs: Long,
+        frameMs: Long,
+        heapKb: Long
+    ): String {
+        if (!::benchmarkRecorder.isInitialized) return ""
+        val thermalStatus = if (Build.VERSION.SDK_INT >= 29) {
+            getSystemService(PowerManager::class.java).currentThermalStatus
+        } else -1
+        val battery = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val rawTemp = battery?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
+        val batteryTemp = if (rawTemp >= 0) rawTemp / 10f else null
+        val summary = benchmarkRecorder.record(
+            OcrBenchmarkRecorder.Sample(status, price, ocrMs, frameMs, heapKb, thermalStatus, batteryTemp)
+        )
+        if (summary != null) {
+            val rate = String.format(java.util.Locale.US, "%.1f", summary.extractionRate)
+            val batteryMax = summary.maxBatteryTempC?.toString()?.plus("C") ?: "n/a"
+            return " · BENCHMARK_COMPLETE " + summary.samples + "/100" +
+                " · extraction " + rate + "%" +
+                " · OCR avg/max " + summary.meanOcrMs + "/" + summary.maxOcrMs + "ms" +
+                " · peak heap " + summary.peakHeapKb + "KB" +
+                " · thermal max " + summary.maxThermalStatus +
+                " · battery max " + batteryMax +
+                " · CSV " + summary.csvFile.name + " (exact-match labels pending)"
+        }
+        return " · benchmark " + benchmarkRecorder.currentCount() + "/100"
     }
 
     private fun displayMetrics(): DisplayMetrics {
