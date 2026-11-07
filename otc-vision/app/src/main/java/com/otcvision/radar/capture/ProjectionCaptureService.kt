@@ -29,10 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.UUID
 
 /**
- * Manual capture service:
- * - ImageReader only drains frames while idle.
- * - A user tap arms exactly one frame for ROI extraction and OCR.
- * - No timer, anchor scan, polling OCR loop, or background auto-analysis exists.
+ * Server-side capture transmitter:
+ * - ImageReader discards frames while idle.
+ * - A user tap arms exactly one full-screen frame for HTTPS upload.
+ * - No local OCR, image pre-processing, polling analysis, or automatic capture exists.
  */
 class ProjectionCaptureService : Service() {
     companion object {
@@ -377,7 +377,6 @@ class ProjectionCaptureService : Service() {
 
     override fun onDestroy() {
         stopCapture()
-        runCatching { recognizer.close() }
         super.onDestroy()
     }
 
