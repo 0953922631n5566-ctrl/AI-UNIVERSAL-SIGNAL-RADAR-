@@ -2,7 +2,7 @@
 
 **Branch:** `feature/otc-vision-apk`  
 **Scope:** isolated Android local screen capture, orange-tag OCR, and local benchmark  
-**Status:** implementation committed; CI and Xiaomi 11T field benchmark pending.
+**Status:** CI build and parser unit tests passed; Xiaomi 11T 100-sample field benchmark pending.
 
 ## Integrated
 - Dynamic orange-tag detection and padded ROI anchoring on the right price axis.
@@ -12,6 +12,15 @@
 - Capture automatically logs 100 consecutive processed outcomes (price read, no tag, or OCR failure) to a CSV in the app-specific Documents directory (or internal app files if external app storage is unavailable).
 - Per-sample telemetry: extraction status, parsed price, OCR/frame latency, heap, Android thermal status, and battery temperature if exposed.
 - Completion summary reports extraction rate, mean/max OCR latency, peak heap, max thermal status, and max battery temperature.
+
+## CI build verification — 2026-11-07
+- GitHub Actions run #30 / ID `42337050038` completed successfully.
+- Source commit built: `c0c9a92452c146efa1aeff4249b5ed8191761e16`.
+- Parser unit tests: **8 passed, 0 failed (100%)**.
+- APK artifact: `otc-vision-finetuned-debug-apk`, artifact ID `13560336155`, 22,435,944-byte ZIP; expires 2026-11-21.
+- APK size: 46,421,384 bytes.
+- APK SHA-256: `df69199c119119cf5c10b14830af3dc4bba10ca1a0adfad4df201107534e5398` (independently matched the checksum inside the downloaded artifact).
+- Build run: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/actions/runs/42337050038
 
 ## Benchmark interpretation
 - Extraction rate is not exact-match accuracy.
