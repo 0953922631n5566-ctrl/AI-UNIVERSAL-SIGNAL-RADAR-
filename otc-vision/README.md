@@ -1,4 +1,4 @@
-# OTC Vision Signal Radar — Phase 1
+# OTC Vision Signal Radar — Dynamic Price Tag OCR
 
 Standalone Android application under `otc-vision/`, isolated from the legacy Android app, backend, and Main Market workflows.
 
@@ -17,29 +17,18 @@ gradle --no-daemon :app:assembleDebug
 ```
 APK output: `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Phase 1 implementation
-- Explicit MediaProjection consent for each capture session.
-- Foreground service with Android `mediaProjection` type and ongoing notification.
-- ImageReader screen-frame acquisition with bounded frame rate and lifecycle cleanup.
-- Two normalized ROIs: price-label and candle-chart.
-- Grayscale, contrast adjustment, and 3x3 median noise reduction for price OCR.
-- Bundled Google ML Kit Latin text recognizer (on-device model).
-- Conservative parser: one numeric candidate is displayed; zero candidates returns NO_PRICE; multiple candidates returns AMBIGUOUS.
-- Per-observation OCR latency, frame age, and app heap-use metrics.
+## Dynamic price-tag pipeline
+- The right-axis scan ROI spans x=78–99.5% and y=10–90% of the captured screen.
+- Each frame is scanned for orange pixels using HSV hue/saturation/value thresholds.
+- Connected-component detection selects a compact horizontal orange container and calculates a padded bounding box around its current position.
+- OCR runs only on that detected tag crop; when no orange tag is found, the frame reports `NO_ORANGE_TAG` rather than OCRing chart labels.
+- Orange-tag preprocessing maps the orange container to white and contrasting glyph pixels to dark grayscale.
+- Price parser accepts only 1–3 integer digits plus exactly 5–6 fractional digits (for example `1.13520` or `1.135203`). Multiple valid candidates remain `AMBIGUOUS`; no valid token is `NO_VALID_PRICE`.
 
-## ROI calibration warning
-Initial fractions in `RoiConfig.kt` are placeholders, not broker-specific calibration. The price ROI defaults to an upper-right region; the chart ROI defaults to the central chart area. Adjust and validate against the actual OTC platform before measuring accuracy. Candle geometry/OHLC inference and CALL/PUT strategy decisions are not part of Phase 1.
+## Xiaomi 11T validation
+Run the app against the real broker layout and verify the tag is detected at top, middle, and bottom of the right-axis scan range. Check that `NO_ORANGE_TAG` appears when the tag is absent and that chart-axis numbers are not returned as prices. Record exact-match ground truth separately; OCR detection alone does not establish accuracy.
 
-## Xiaomi 11T benchmark protocol
-1. Install the debug APK on Xiaomi 11T / Android 14.
-2. Open the OTC broker chart manually and ensure the selected capture areas contain no sensitive account details.
-3. Start capture and approve Android's system consent prompt.
-4. Collect at least 100 observations per broker layout across normal, low-contrast, zoomed, and moving-price conditions.
-5. Record median/p95 OCR latency, exact-match price accuracy, ambiguous/no-read rate, app heap, and device temperature over a 15-minute run.
-6. Repeat with app switching, screen rotation, permission revocation, and battery saver.
-7. Stop capture and verify the ongoing notification disappears.
+The code change does not claim a completed 100-sample benchmark. Accuracy, latency distribution, memory, battery, and thermal stability must be measured on the actual Xiaomi 11T with known reference prices.
 
-The app displays per-observation OCR latency and heap use. Physical accuracy, thermal throttling, and sustained memory measurements require execution on the actual Xiaomi 11T with representative OTC broker screens; CI cannot establish these results.
-
-## Capture implementation note
-CameraX ImageAnalysis is intended for camera frames. MediaProjection screen frames are consumed through Android ImageReader, which is the appropriate source here. No camera permission or camera stream is requested.
+## Capture implementation
+MediaProjection screen frames are consumed through Android ImageReader. No camera permission or camera stream is requested. Phase 1 remains OCR-only: candle geometry/OHLC inference, CALL/PUT strategy decisions, alerts, and trade execution are out of scope.
