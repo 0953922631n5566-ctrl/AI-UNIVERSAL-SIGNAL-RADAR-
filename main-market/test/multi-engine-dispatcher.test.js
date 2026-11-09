@@ -62,6 +62,21 @@ test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in 
   assert.match(blocked.reason, /^VETO: missing M1 candle gap/);
 });
 
+test("single directional engine needs high score and full M1 context confirmation", async () => {
+  const market = sidewayFixture();
+  const results = [
+    { engine: "pullback_retest", direction: "CALL", score: 66, confidence: 66, reason: "retest", validity: true },
+    { engine: "safety_noise_guard", direction: "NO_SIGNAL", score: 0, confidence: 100, reason: "PASS: safe", validity: true }
+  ];
+  const out = engines.centralDispatcher(results, "SIDEWAY", {
+    indicators: { emaBullishAlignment: 3, emaBearishAlignment: 0, plusDI: 20, minusDI: 15,
+      macdHistogram: 0.00001, rsi: 53, volatilityRatio: 1 },
+    higherTimeframe: { direction: "CALL" }
+  });
+  assert.equal(out.signal, "CALL");
+  assert.equal(out.singleEngineConfirmation, true);
+});
+
 test("Safety Noise Guard has VETO authority when live data is stale", async () => {
   const market = sidewayFixture();
   market.tickAgeSeconds = 40;
