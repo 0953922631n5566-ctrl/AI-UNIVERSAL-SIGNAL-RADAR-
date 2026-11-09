@@ -52,7 +52,7 @@ test("M1 source window remains 50 context plus 4 entry candles", () => {
 
 test("technical indicator snapshot contains finite M1 EMA, RSI, MACD and ATR values", () => {
   const values = buildTechnicalIndicators(history(80));
-  for (const key of ["ema9", "ema21", "ema50", "rsi14", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20"]) {
+  for (const key of ["ema9", "ema21", "ema50", "emaSpreadPercent", "rsi14", "rsi14Previous", "rsi14Change", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20", "microSupport8", "microResistance8", "microRange8"]) {
     assert.ok(Number.isFinite(values[key]), key + " should be finite");
   }
 });
@@ -93,6 +93,32 @@ test("Gemini alone returns the directional decision in schema-constrained JSON",
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.generationConfig.responseMimeType, "application/json");
   assert.equal(body.generationConfig.responseSchema.properties.signal.enum.includes("STANDBY"), true);
+});
+
+
+test("Gemini accepts a confirmed SIDEWAY edge setup as a directional signal", async () => {
+  clearGeminiAnalysisCache();
+  const candles = history(54, 0);
+  const sidewayDecision = {
+    signal: "CALL", regime: "SIDEWAY", confidence: 72,
+    reason: "เกิดแรงปฏิเสธราคาบริเวณแนวรับย่อยและโมเมนตัมแท่งล่าสุดกลับเป็นบวก",
+    evidence: ["ราคาใกล้ microSupport8", "แท่งล่าสุดปิดเขียวและ RSI14 เปลี่ยนเป็นบวก"],
+    riskFlags: ["แนวต้านย่อยอยู่ใกล้"], summary: "มีจังหวะเด้งจากขอบล่างของกรอบ"
+  };
+  const { fetchImpl, calls } = mockFetch(sidewayDecision);
+  const result = await analyzeWithGemini({
+    symbol: "TEST/SIDEWAY-EDGE", candles,
+    indicators: buildTechnicalIndicators(candles),
+    apiKey: "unit-test-key", fetchImpl, now: Date.now()
+  });
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.regime, "SIDEWAY");
+  assert.equal(calls.length, 1);
+  const requestBody = JSON.parse(calls[0].init.body);
+  const sentIndicators = JSON.parse(requestBody.contents[0].parts[0].text).indicators;
+  assert.ok(Number.isFinite(sentIndicators.microSupport8));
+  assert.ok(Number.isFinite(sentIndicators.microResistance8));
+  assert.ok(Number.isFinite(sentIndicators.rsi14Change));
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
