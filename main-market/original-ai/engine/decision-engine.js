@@ -52,7 +52,8 @@ function decide(ctx, candidate) {
   if (!ctx || ctx.regime === 'UNCLEAR' || !ctx.indicators)
     return standby(ctx, candidate, ctx?.reason || 'Market context unavailable');
   if (ctx.regime === 'SIDEWAY' || ctx.regime === 'RANGING') {
-    const singleEnginePass = hasHighConvictionSingleEngine(ctx, candidate);\n    const rangeVote = candidate?.strategy === 'RANGE_BOUND_SWING' &&
+    const singleEnginePass = hasHighConvictionSingleEngine(ctx, candidate);
+    const rangeVote = candidate?.strategy === 'RANGE_BOUND_SWING' &&
       candidate?.engineResults?.some(r => r.engine === 'range_bound_swing' &&
         r.direction === candidate.signal && r.validity);
     const i = ctx.indicators || {};
