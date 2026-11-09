@@ -28,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ANALYZER";
 const ARCHITECTURE_ID = "GEMINI-PRIMARY-ANALYZER";
-const VERSION = "2026-11-09-gemini-primary-analyzer-observability-v2";
+const VERSION = "2026-11-09-gemini-free-tier-window-guard-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -43,6 +43,7 @@ function newFeed(symbol) {
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
+    geminiWindowCandleEpoch: null, geminiWindowResult: null, geminiWindowPromise: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -217,15 +218,42 @@ function classifyError(error) {
 async function evaluate(feed) {
  const now = Date.now();
  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
- });
- const result = applySignalReleaseGate(rawResult);
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+ const inGeminiWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
+ const restFallback = feed.restStatus === "READY" &&
+   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
+ let rawResult;
+ if (inGeminiWindow) {
+   if (feed.geminiWindowCandleEpoch !== sourceCandleEpoch) {
+     feed.geminiWindowCandleEpoch = sourceCandleEpoch;
+     feed.geminiWindowResult = null;
+     feed.geminiWindowPromise = null;
+   }
+   if (!feed.geminiWindowPromise && !feed.geminiWindowResult) {
+     console.info("[gemini] M1 request window opened", {
+       symbol: feed.symbol, candleEpoch: sourceCandleEpoch,
+       secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000
+     });
+     feed.geminiWindowPromise = analyzeMarket(feed.candles, {
+       now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+     }).then(value => {
+       feed.geminiWindowResult = value;
+       return value;
+     }).finally(() => { feed.geminiWindowPromise = null; });
+   }
+   if (feed.geminiWindowPromise) rawResult = await feed.geminiWindowPromise;
+   else rawResult = feed.geminiWindowResult;
+ } else if (feed.geminiWindowCandleEpoch === sourceCandleEpoch && feed.geminiWindowResult) {
+   rawResult = feed.geminiWindowResult;
+ } else {
+   rawResult = standby("รอช่วงเรียก Gemini เฉพาะ T-10 ถึง T-5 ก่อนปิดแท่ง M1", {
+     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "WINDOW_CLOSED"
+   });
+ }
+ const result = applySignalReleaseGate(rawResult);
+
 
  if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
