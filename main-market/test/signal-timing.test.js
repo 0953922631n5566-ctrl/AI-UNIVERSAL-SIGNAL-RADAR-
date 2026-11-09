@@ -31,5 +31,9 @@ test("per-target-candle dedupe blocks repeats without suppressing the next candl
   assert.equal(canDispatchSignal(base), true);
   assert.equal(canDispatchSignal({ ...base, lastDispatchedCandle: candle }), false);
   assert.equal(canDispatchSignal({ ...base, lastDispatchedAt: now - 1000 }), true);
-  assert.equal(canDispatchSignal({ ...base, candleEpoch: candle + 60, lastDispatchedCandle: candle, lastDispatchedAt: now - 1000 }), true);
+  const nextNow = openAt + 60000 + 3000;
+  assert.equal(canDispatchSignal({
+    candleEpoch: candle + 60, tickAt: nextNow - 1000, now: nextNow,
+    lastDispatchedCandle: candle, lastDispatchedAt: now
+  }), true);
 });
