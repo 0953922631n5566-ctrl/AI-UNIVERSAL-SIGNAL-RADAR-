@@ -178,7 +178,25 @@ const MIN_ENGINE_SUPPORT = 2;
 const MIN_DISPATCH_SCORE = 50;
 const MIN_CONFLICT_MARGIN = 0.15;
 
-function centralDispatcher(results, regime) {
+function singleEngineContextPass(context, direction) {
+  const i = context?.indicators || {};
+  const m5 = context?.higherTimeframe?.direction;
+  const emaAligned = direction === 'CALL'
+    ? Number(i.emaBullishAlignment) >= 2
+    : Number(i.emaBearishAlignment) >= 2;
+  const diAligned = direction === 'CALL' ? i.plusDI > i.minusDI : i.minusDI > i.plusDI;
+  const macdAligned = direction === 'CALL'
+    ? Number.isFinite(i.macdHistogram) && i.macdHistogram > 0
+    : Number.isFinite(i.macdHistogram) && i.macdHistogram < 0;
+  const rsiAligned = Number.isFinite(i.rsi) && (direction === 'CALL'
+    ? i.rsi >= 45 && i.rsi <= 65
+    : i.rsi >= 35 && i.rsi <= 55);
+  const m5Aligned = !m5 || m5 === 'UNCLEAR' || m5 === direction;
+  const volatilitySafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 2.0;
+  return emaAligned && diAligned && macdAligned && rsiAligned && m5Aligned && volatilitySafe;
+}
+
+function centralDispatcher(results, regime, context = {}) {
   const safety = results.find(r => r.engine === 'safety_noise_guard');
   if (!safety || !safety.validity || safety.reason.startsWith('VETO:'))
     return { signal: 'STANDBY', score: 0, strategy: 'SAFETY_VETO', reason: safety?.reason || 'VETO: Safety engine unavailable', engineResults: results };
@@ -198,13 +216,13 @@ function centralDispatcher(results, regime) {
   const winningWeight = Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0));
   const score = clamp(Math.round(votes[winner] / winningWeight));
   const confidence = clamp(Math.round(confidenceVotes[winner] / winningWeight));
-  if (supportCount < MIN_ENGINE_SUPPORT || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
+  const highConvictionSingle = supportCount === 1 && engines[loser].length === 0 &&\n    score >= 65 && singleEngineContextPass(context, winner);\n  if ((!highConvictionSingle && supportCount < MIN_ENGINE_SUPPORT) || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, score floor ${MIN_DISPATCH_SCORE}, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
   }
   if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing')) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
   }
-  return { signal: winner, score, confidence, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
+  return { signal: winner, score, confidence, singleEngineConfirmation: highConvictionSingle, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
 }
 async function evaluateEngineBatch(marketData, engineList = ENGINES) {
   const settled = await Promise.allSettled(engineList.map(engine => Promise.resolve().then(() => engine(marketData))));
@@ -218,7 +236,7 @@ async function evaluateEngineBatch(marketData, engineList = ENGINES) {
 async function evaluateAllEngines(marketData) {
   const batch = await evaluateEngineBatch(marketData);
   const results = batch.results;
-  const decision = centralDispatcher(results, marketData?.regime);
+  const decision = centralDispatcher(results, marketData?.regime, marketData);
   return { ...decision, engineResults: results, engineSummary: {
     total: results.length, fulfilled: batch.fulfilled, failed: batch.failed,
     safetyVeto: !results.some(r => r.engine === 'safety_noise_guard' && r.validity && !r.reason.startsWith('VETO:'))
