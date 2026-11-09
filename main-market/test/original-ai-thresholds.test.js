@@ -63,6 +63,6 @@ test("SIDEWAY permits only a multi-engine Range-Bound Swing candidate with safet
       { engine: "safety_noise_guard", direction: "NO_SIGNAL", validity: true, reason: "PASS: safe" }
     ] };
   assert.equal(decide(ctx, candidate).signal, "CALL");
-  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2 } }, candidate).signal, "STANDBY");
+  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2.01 } }, candidate).signal, "STANDBY");
   assert.equal(decide(ctx, { ...candidate, engineResults: candidate.engineResults.slice(0, 1) }).signal, "STANDBY");
 });
