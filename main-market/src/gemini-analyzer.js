@@ -3,7 +3,17 @@ const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 const cache = new Map();
 const SUCCESS_CACHE_MS = 70_000;
 const FAILURE_CACHE_MS = 8_000;
-const REQUEST_TIMEOUT_MS = 12_000;
+const REQUEST_TIMEOUT_MS = 8_000;
+const MAX_RETRIES = 2;
+const BASE_BACKOFF_MS = 350;
+let keyCursor = 0;
+
+function resolveApiKeys(apiKey, apiKeys) {
+  const configured = Array.isArray(apiKeys) ? apiKeys : String(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/);
+  return [...new Set([...configured, apiKey || process.env.GEMINI_API_KEY || ""].map(v => String(v || "").trim()).filter(Boolean))];
+}
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function retryable429Message(message) { return !/(per[- ]day|daily quota|requests per day|quota.*exhausted.*day)/i.test(message || ""); }
 
 const RESPONSE_SCHEMA = {
   type: "OBJECT",
@@ -128,88 +138,85 @@ function validateDecision(value) {
   };
 }
 
-async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now, requestId, startedAt }) {
+async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, now, requestId, startedAt, sleepImpl = sleep, randomImpl = Math.random }) {
   const model = process.env.GEMINI_MODEL || MODEL;
-  console.info("[gemini] request_started", {
-    requestId, symbol, timeframe: "M1", model, candleCount: candles.length,
-    latestClosedCandleEpoch: candles.at(-1)?.epoch ?? null,
-    analysisTimestamp: new Date(now).toISOString()
-  });
-  const payload = {
-    symbol,
-    timeframe: "M1",
-    analysisTimestamp: new Date(now).toISOString(),
+  const payload = { symbol, timeframe: "M1", analysisTimestamp: new Date(now).toISOString(),
     candleCount: candles.length,
-    closedCandles: candles.map(c => ({
-      epoch: c.epoch, open: c.open, high: c.high, low: c.low, close: c.close
-    })),
-    indicators,
-    task: "Decide the next M1 direction from the supplied evidence. Do not treat the current in-progress candle as closed."
-  };
-  const response = await fetchImpl(API_URL + encodeURIComponent(model) + ":generateContent", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: [{ role: "user", parts: [{ text: JSON.stringify(payload) }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 700,
-        responseMimeType: "application/json",
-        responseSchema: RESPONSE_SCHEMA
+    closedCandles: candles.map(c => ({ epoch: c.epoch, open: c.open, high: c.high, low: c.low, close: c.close })),
+    indicators, task: "Decide the next M1 direction from the supplied evidence. Do not treat the current in-progress candle as closed." };
+  let lastError;
+  const attempts = MAX_RETRIES + 1;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const keyIndex = (keyCursor + attempt) % apiKeys.length;
+    console.info("[gemini] request_started", { requestId, symbol, timeframe: "M1", model,
+      attempt: attempt + 1, keySlot: keyIndex + 1, keyCount: apiKeys.length,
+      candleCount: candles.length, latestClosedCandleEpoch: candles.at(-1)?.epoch ?? null,
+      analysisTimestamp: new Date(now).toISOString() });
+    try {
+      const response = await fetchImpl(API_URL + encodeURIComponent(model) + ":generateContent", {
+        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKeys[keyIndex] },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+          contents: [{ role: "user", parts: [{ text: JSON.stringify(payload) }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 700, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }
+        })
+      });
+      if (!response.ok) {
+        let detail = "";
+        try { detail = (await response.clone().json())?.error?.message || ""; } catch {}
+        const error = new Error(response.status === 429 ? "Gemini rate limit" :
+          response.status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + response.status + ")");
+        error.status = response.status; error.detail = detail; throw error;
       }
-    })
-  });
-  if (!response.ok) {
-    const status = response.status;
-    throw new Error(status === 429 ? "Gemini rate limit" : status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + status + ")");
+      const body = await response.json();
+      const text = body?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
+      if (!text) throw new Error("Gemini returned no JSON candidate");
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { throw new Error("Gemini returned invalid JSON"); }
+      const decision = validateDecision(parsed);
+      keyCursor = (keyIndex + 1) % apiKeys.length;
+      console.info("[gemini] response_success", { requestId, symbol, timeframe: "M1", model,
+        httpStatus: response.status, durationMs: Date.now() - startedAt, attempt: attempt + 1,
+        keySlot: keyIndex + 1, signal: decision.signal, regime: decision.regime, confidence: decision.confidence });
+      return decision;
+    } catch (error) {
+      lastError = error;
+      if (error?.status !== 429 || !retryable429Message(error?.detail) || attempt >= attempts - 1) throw error;
+      const delayMs = Math.min(2_000, BASE_BACKOFF_MS * (2 ** attempt)) + Math.floor(randomImpl() * 200);
+      console.warn("[gemini] retry_scheduled", { requestId, symbol, status: error.status,
+        attempt: attempt + 1, nextKeySlot: ((keyIndex + 1) % apiKeys.length) + 1,
+        delayMs, reason: "HTTP_429_EXPONENTIAL_BACKOFF" });
+      await sleepImpl(delayMs);
+    }
   }
-  const body = await response.json();
-  const text = body?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
-  if (!text) throw new Error("Gemini returned no JSON candidate");
-  let parsed;
-  try { parsed = JSON.parse(text); }
-  catch { throw new Error("Gemini returned invalid JSON"); }
-  const decision = validateDecision(parsed);
-  console.info("[gemini] response_success", {
-    requestId, symbol, timeframe: "M1", model, httpStatus: response.status,
-    durationMs: Date.now() - startedAt, signal: decision.signal,
-    regime: decision.regime, confidence: decision.confidence
-  });
-  return decision;
+  throw lastError || new Error("Gemini request attempts exhausted");
 }
 
 /** One Gemini request per symbol/closed-candle epoch; in-flight calls are shared. */
-export async function analyzeWithGemini({ symbol, candles, indicators, apiKey = process.env.GEMINI_API_KEY,
-  fetchImpl = globalThis.fetch, now = Date.now() }) {
-  if (!apiKey) return standby("GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน Render Environment");
+export async function analyzeWithGemini({ symbol, candles, indicators,
+  apiKey = process.env.GEMINI_API_KEY, apiKeys, fetchImpl = globalThis.fetch,
+  now = Date.now(), sleepImpl = sleep, randomImpl = Math.random }) {
+  const keys = resolveApiKeys(apiKey, apiKeys);
+  if (!keys.length) return standby("GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน Render Environment");
   if (typeof fetchImpl !== "function") return standby("เซิร์ฟเวอร์ไม่มี fetch สำหรับเรียก Gemini");
   const key = String(symbol || "UNKNOWN") + ":" + String(candles.at(-1)?.epoch ?? "NO_EPOCH");
   const cached = cache.get(key);
-  if (cached && (cached.promise || cached.expiresAt > now)) {
-    return cached.promise || cached.result;
-  }
-  const requestId = key;
-  const startedAt = Date.now();
-  const promise = requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now, requestId, startedAt })
+  if (cached && (cached.promise || cached.expiresAt > now)) return cached.promise || cached.result;
+  const requestId = key, startedAt = Date.now();
+  const promise = requestGemini({ symbol, candles, indicators, apiKeys: keys, fetchImpl,
+    now, requestId, startedAt, sleepImpl, randomImpl })
     .catch(error => {
-      console.error("[gemini] request_failed", {
-        requestId, symbol, timeframe: "M1", model: MODEL,
-        durationMs: Date.now() - startedAt,
-        errorName: error?.name || "Error", error: error?.message || String(error)
-      });
+      console.error("[gemini] request_failed", { requestId, symbol, timeframe: "M1", model: MODEL,
+        durationMs: Date.now() - startedAt, httpStatus: error?.status || null,
+        errorName: error?.name || "Error", error: error?.message || String(error) });
       return standby("Gemini วิเคราะห์ไม่สำเร็จ: " + error.message, { providerStatus: "ERROR" });
     })
     .then(result => {
       const failed = result.signal === "STANDBY" && result.providerStatus === "ERROR";
-      console.info("[gemini] final_decision", {
-        requestId, symbol, timeframe: "M1", model: MODEL,
-        signal: result.signal, regime: result.regime,
-        confidence: result.confidence ?? result.score ?? 0,
-        providerStatus: failed ? "ERROR" : "SUCCESS",
-        reason: result.reason
-      });
+      console.info("[gemini] final_decision", { requestId, symbol, timeframe: "M1", model: MODEL,
+        signal: result.signal, regime: result.regime, confidence: result.confidence ?? result.score ?? 0,
+        providerStatus: failed ? "ERROR" : "SUCCESS", reason: result.reason });
       cache.set(key, { result, expiresAt: Date.now() + (failed ? FAILURE_CACHE_MS : SUCCESS_CACHE_MS) });
       return result;
     });

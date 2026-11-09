@@ -106,6 +106,49 @@ test("one symbol/closed-candle epoch makes only one Gemini request even with rep
   assert.equal(calls.length, 1);
 });
 
+test("Gemini rotates configured keys and retries transient 429 with exponential backoff", async () => {
+  clearGeminiAnalysisCache();
+  const candles = history(54);
+  const usedKeys = [], delays = [];
+  let attempt = 0;
+  const fetchImpl = async (_url, init) => {
+    usedKeys.push(init.headers["x-goog-api-key"]);
+    attempt++;
+    if (attempt === 1) return {
+      ok: false, status: 429,
+      clone: () => ({ json: async () => ({ error: { message: "Rate limit exceeded for requests per minute" } }) })
+    };
+    return {
+      ok: true, status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(geminiResponse("CALL")) }] } }] })
+    };
+  };
+  const result = await analyzeWithGemini({
+    symbol: "TEST/ROTATION", candles, indicators: buildTechnicalIndicators(candles),
+    apiKeys: ["free-key-a", "free-key-b"], fetchImpl, now: Date.now(),
+    sleepImpl: async ms => delays.push(ms), randomImpl: () => 0
+  });
+  assert.equal(result.signal, "CALL");
+  assert.deepEqual(usedKeys, ["free-key-a", "free-key-b"]);
+  assert.deepEqual(delays, [350]);
+});
+
+test("Gemini does not retry a daily quota exhaustion 429", async () => {
+  clearGeminiAnalysisCache();
+  const candles = history(54);
+  let calls = 0;
+  const result = await analyzeWithGemini({
+    symbol: "TEST/DAILY-QUOTA", candles, indicators: buildTechnicalIndicators(candles),
+    apiKey: "free-key", fetchImpl: async () => {
+      calls++;
+      return { ok: false, status: 429,
+        clone: () => ({ json: async () => ({ error: { message: "Requests per day quota exceeded" } }) }) };
+    }, now: Date.now(), sleepImpl: async () => assert.fail("daily quota must not retry")
+  });
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(calls, 1);
+});
+
 test("missing Gemini key fails closed and never uses a local directional fallback", async () => {
   clearGeminiAnalysisCache();
   const result = await analyzeMarket(history(54), {

@@ -28,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ANALYZER";
 const ARCHITECTURE_ID = "GEMINI-PRIMARY-ANALYZER";
-const VERSION = "2026-11-09-gemini-primary-analyzer-observability-v2";
+const VERSION = "2026-11-09-gemini-free-tier-window-guard-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -43,6 +43,7 @@ function newFeed(symbol) {
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
+    geminiWindowCandleEpoch: null, geminiWindowResult: null, geminiWindowPromise: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -217,15 +218,48 @@ function classifyError(error) {
 async function evaluate(feed) {
  const now = Date.now();
  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
- });
- const result = applySignalReleaseGate(rawResult);
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+ const inGeminiWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
+ const restFallback = feed.restStatus === "READY" &&
+   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
+ let rawResult;
+ if (inGeminiWindow) {
+   if (feed.geminiWindowCandleEpoch !== sourceCandleEpoch) {
+     feed.geminiWindowCandleEpoch = sourceCandleEpoch;
+     feed.geminiWindowResult = null;
+     feed.geminiWindowPromise = null;
+   }
+   if (!feed.geminiWindowPromise && !feed.geminiWindowResult) {
+     console.info("[gemini] M1 request window opened", {
+       symbol: feed.symbol, candleEpoch: sourceCandleEpoch,
+       secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000
+     });
+     feed.geminiWindowPromise = analyzeMarket(feed.candles, {
+       now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+     }).then(value => {
+       feed.geminiWindowResult = value;
+       return value;
+     }).catch(error => {
+       const failed = standby("Gemini วิเคราะห์ไม่สำเร็จ: " + (error?.message || String(error)), {
+         strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "ERROR"
+       });
+       feed.geminiWindowResult = failed;
+       return failed;
+     }).finally(() => { feed.geminiWindowPromise = null; });
+   }
+   if (feed.geminiWindowPromise) rawResult = await feed.geminiWindowPromise;
+   else rawResult = feed.geminiWindowResult;
+ } else if (feed.geminiWindowCandleEpoch === sourceCandleEpoch && feed.geminiWindowResult) {
+   rawResult = feed.geminiWindowResult;
+ } else {
+   rawResult = standby("รอช่วงเรียก Gemini เฉพาะ T-10 ถึง T-5 ก่อนปิดแท่ง M1", {
+     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "WINDOW_CLOSED"
+   });
+ }
+ const result = applySignalReleaseGate(rawResult);
+
 
  if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
@@ -852,7 +886,7 @@ app.get("/health", (_req, res) => {
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "GEMINI_PRIMARY_ANALYZER", engines: 1, decisionAuthority: "GEMINI_ONLY", safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_GEMINI_JSON_DECISION_TO_TIMING_GUARD" },
-    analyzer: { provider: "GEMINI", model: GEMINI_MODEL, configured: Boolean(process.env.GEMINI_API_KEY), role: "SOLE_DIRECTIONAL_ANALYZER", jsonOutput: true, localDirectionalFallback: false },
+    analyzer: { provider: "GEMINI", model: GEMINI_MODEL, configured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS), role: "SOLE_DIRECTIONAL_ANALYZER", jsonOutput: true, localDirectionalFallback: false },
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
@@ -869,7 +903,8 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "GEMINI_PRIMARY_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
+      geminiApiKeyCount: [...new Set([...(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/), process.env.GEMINI_API_KEY || ""].map(v => v.trim()).filter(Boolean))].length,
       geminiModel: GEMINI_MODEL,
       geminiIsSoleAnalyzer: true,
       localDirectionalFallback: false
