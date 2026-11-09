@@ -51,6 +51,36 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
   assert.equal(out.strategy, "RANGE_BOUND_SWING");
 });
 
+test("System 10 chooses the higher weighted score from nine directional voters", () => {
+  const voters = [
+    { engine: "trend_breakout", direction: "CALL", score: 70, confidence: 70, reason: "bullish", validity: true },
+    { engine: "pin_bar_reversal", direction: "PUT", score: 60, confidence: 60, reason: "bearish", validity: true },
+    ...Array.from({ length: 7 }, (_, i) => ({
+      engine: `idle_${i}`, direction: "NO_SIGNAL", score: 0, confidence: 0, reason: "no setup", validity: true
+    }))
+  ];
+  const safetyGuard = { engine: "safety_noise_guard", direction: "NO_SIGNAL", score: 0,
+    confidence: 100, reason: "PASS: safe", validity: true };
+  const out = engines.centralDispatcher(voters, "SIDEWAY", { safetyGuard });
+  assert.equal(out.signal, "CALL");
+  assert.equal(out.strategy, "AI10_DIRECTION_AGGREGATOR");
+  assert.equal(out.aggregation.decisionBy, "SYSTEM_10");
+  assert.ok(out.aggregation.callScore > out.aggregation.putScore);
+  assert.equal(out.engineResults.length, 9);
+});
+
+test("System 10 does not invent a direction when nine-system scores are tied", () => {
+  const voters = [
+    { engine: "trend_breakout", direction: "CALL", score: 70, confidence: 70, reason: "bullish", validity: true },
+    { engine: "pin_bar_reversal", direction: "PUT", score: 70, confidence: 70, reason: "bearish", validity: true }
+  ];
+  const safetyGuard = { engine: "safety_noise_guard", direction: "NO_SIGNAL", score: 0,
+    confidence: 100, reason: "PASS: safe", validity: true };
+  const out = engines.centralDispatcher(voters, "UPTREND", { safetyGuard });
+  assert.equal(out.signal, "STANDBY");
+  assert.match(out.reason, /tied/i);
+});
+
 test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest three candles", () => {
   const historicalGap = sidewayFixture();
   historicalGap.candles[150].epoch += 60;
