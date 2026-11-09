@@ -48,6 +48,20 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
   assert.equal(out.strategy, "RANGE_BOUND_SWING");
 });
 
+test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest three candles", () => {
+  const historicalGap = sidewayFixture();
+  historicalGap.candles[150].epoch += 60;
+  for (let n = 151; n < historicalGap.candles.length; n++) historicalGap.candles[n].epoch += 60;
+  const tolerated = engines.runSafetyNoiseGuard(historicalGap);
+  assert.equal(tolerated.validity, true, tolerated.reason);
+
+  const recentGap = sidewayFixture();
+  recentGap.candles[199].epoch += 60;
+  const blocked = engines.runSafetyNoiseGuard(recentGap);
+  assert.equal(blocked.validity, false);
+  assert.match(blocked.reason, /^VETO: missing M1 candle gap/);
+});
+
 test("Safety Noise Guard has VETO authority when live data is stale", async () => {
   const market = sidewayFixture();
   market.tickAgeSeconds = 40;
