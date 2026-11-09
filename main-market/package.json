@@ -23,6 +23,9 @@
     "engineCount": 10,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "PROMISE_ALL_SETTLED",
-    "decisionAuthority": "CENTRAL_AI_DISPATCHER"
+    "decisionAuthority": "SYSTEM_10_WEIGHTED_DIRECTION_AGGREGATOR",
+    "directionalVoters": 9,
+    "aggregator": 1,
+    "safetyValidation": "INDEPENDENT_VETO"
   }
 }
