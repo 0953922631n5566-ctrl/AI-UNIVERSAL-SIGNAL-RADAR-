@@ -1,152 +1,104 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
-import { analyzeMarket } from "../src/analyzer.js";
-import { createRequire } from "node:module";
+import { analyzeMarket, NextM1Analyzer } from "../src/analyzer.js";
 
-const require = createRequire(import.meta.url);
-const { analyzeMarket: analyzeOriginal, prepareMarket, finalizeMarket } =
-  require("../original-ai/engine/analyze-market.js");
-const { decide, MIN_SCORE, MIN_TREND_ADX, hasStrongTrendMomentum } =
-  require("../original-ai/engine/decision-engine.js");
-
-function history(count = 220) {
-  let price = 1.08;
+function history(count = 220, direction = 1) {
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
-  return Array.from({ length: count }, (_, i) => {
-    const delta = Math.sin(i * 1.7) * 0.00005 + Math.sin(i * 0.37) * 0.000025;
-    const open = price, close = price + delta, epoch = start + i * 60;
-    price = close;
-    return { time: new Date(epoch * 1000).toISOString(), epoch, open,
-      high: Math.max(open, close) + 0.000015, low: Math.min(open, close) - 0.000015,
-      close, live: false };
-  });
+  const candles = [];
+  let previous = 1.08;
+  for (let i = 0; i < count; i++) {
+    const close = 1.08 + direction * i * 0.00004 + Math.sin(i * 0.9) * 0.00015;
+    const open = i === count - 1
+      ? close - direction * 0.00012
+      : previous;
+    const epoch = start + i * 60;
+    candles.push({
+      time: new Date(epoch * 1000).toISOString(), epoch,
+      open, high: Math.max(open, close) + 0.00002,
+      low: Math.min(open, close) - 0.00002, close, live: false
+    });
+    previous = close;
+  }
+  return candles;
 }
 
-test("System-10 aggregate passes through without legacy trend and sideways re-vetoes", () => {
-  const candidate = {
-    signal: "CALL", score: 40, confidence: 20, strategy: "AI10_DIRECTION_AGGREGATOR",
-    reason: "Nine-system weighted vote selected CALL",
-    aggregation: { decisionBy: "SYSTEM_10", callScore: 80, putScore: 30 },
-    safetyGuard: { validity: true, reason: "PASS: safety checks passed" }
-  };
-  const result = decide({
-    regime: "SIDEWAY", higherTimeframe: { direction: "PUT" },
-    indicators: { adx: 5, volatilityRatio: 2.5, rsi: 20 }
-  }, candidate);
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.strategy, "AI10_DIRECTION_AGGREGATOR");
-});
-
-test("Original AI warm-up is 50 context plus 4 entry closed M1 candles", () => {
+test("existing source window remains 50 context plus 4 entry candles", () => {
   assert.equal(MIN_CLOSED_CANDLES, 54);
   assert.equal(HISTORY_CANDLES, 54);
   assert.equal(MAX_CANDLES, 60);
 });
 
-test("Live analyzer routes through async ten-engine dispatcher", async () => {
+test("Next-M1 WMA and HMA calculations return finite aligned values", () => {
+  const engine = new NextM1Analyzer();
+  const candles = history(80);
+  const wma = engine.calculateWMA(candles, 3, "close");
+  const hma = engine.calculateHMA(candles, 7);
+  assert.equal(wma.length, candles.length);
+  assert.equal(wma.slice(0, 2).every(value => value === null), true);
+  assert.ok(Number.isFinite(wma.at(-1)));
+  assert.ok(Number.isFinite(hma.at(-1)));
+});
+
+test("Next-M1 RSI handles normal, all-gain and flat markets without NaN", () => {
+  const engine = new NextM1Analyzer();
+  assert.ok(engine.calculateRSI(Array.from({ length: 20 }, (_, i) => 1 + i * 0.01)) === 100);
+  assert.equal(engine.calculateRSI(Array(20).fill(1)), 50);
+  assert.equal(engine.calculateRSI([1, 2, 3]), null);
+});
+
+test("HMA 50 warm-up correctly waits for 56 closed candles", () => {
+  const engine = new NextM1Analyzer();
+  assert.equal(engine.evaluateSignal(history(55)).signal, "STANDBY");
+  assert.match(engine.evaluateSignal(history(55)).reason, /56 closed/);
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(engine.evaluateSignal(history(56)).signal));
+});
+
+test("uptrend with bullish candle and RSI in allowed band produces CALL", () => {
+  const result = new NextM1Analyzer().evaluateSignal(history(220, 1));
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.confidence, "HIGH");
+  assert.equal(result.strategy, "NEXT_M1_HMA_RSI_TREND");
+  assert.ok(result.indicators.rsi > 50 && result.indicators.rsi < 75);
+});
+
+test("downtrend with bearish candle and RSI in allowed band produces PUT", () => {
+  const result = new NextM1Analyzer().evaluateSignal(history(220, -1));
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.confidence, "HIGH");
+  assert.equal(result.strategy, "NEXT_M1_HMA_RSI_TREND");
+  assert.ok(result.indicators.rsi < 50 && result.indicators.rsi > 25);
+});
+
+test("source quality gate blocks missing, malformed, stale or unapproved data", async () => {
   const candles = history();
-  const routed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
-  assert.ok(["CALL", "PUT", "STANDBY"].includes(routed.signal));
-  assert.ok(routed.engineResults);
-  assert.equal(routed.engineResults.length, 9);
-  assert.equal(routed.engineSummary.directionalEngines, 9);
-  assert.equal(routed.engineSummary.aggregator, 1);
-  assert.equal(routed.engineSummary.total, 10);
-  assert.equal(routed.engineSummary.failed, 0);
-  assert.equal(routed.livePriceReady, true);
-  assert.equal(routed.dataMode, "STREAMING");
-  assert.ok(routed.higherTimeframe);
-  assert.equal("assistant" in routed, false);
-  assert.equal("historicalDirection" in routed, false);
-});
-
-test("Original engine API ignores any legacy assistant argument", () => {
-  const candles = history().slice(-MIN_CLOSED_CANDLES);
-  const direct = analyzeOriginal(candles);
-  const legacyArgument = analyzeOriginal(candles, {
-    decisionReady: true, historicalDirection: "PUT", directionalSharePercent: 99, analogueCount: 500
-  });
-  assert.deepEqual(legacyArgument, direct);
-  assert.deepEqual(finalizeMarket(prepareMarket(candles)), direct);
-});
-
-test("Decision engine uses strict score and ADX thresholds with M1 momentum during M5 transition", () => {
-  assert.equal(MIN_SCORE, 45);
-  assert.equal(MIN_TREND_ADX, 14);
-  const base = {
-    regime: "UPTREND",
-    higherTimeframe: { direction: "CALL" },
-    indicators: { adx: 14, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
-      rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
-  };
-  const candidate = { signal: "CALL", score: 45, strategy: "UPTREND", reason: "valid" };
-  assert.equal(decide(base, candidate).signal, "CALL");
-  assert.equal(decide(base, { ...candidate, score: 44 }).signal, "STANDBY");
-  assert.equal(hasStrongTrendMomentum(base, candidate), true);
-  assert.equal(hasStrongTrendMomentum({ ...base, higherTimeframe: { direction: "PUT" } }, candidate), true);
-  assert.equal(decide({ ...base, higherTimeframe: { direction: "UNCLEAR" } }, candidate).signal, "CALL");
-  const bearish = { regime: "DOWNTREND", higherTimeframe: { direction: "UNCLEAR" }, indicators: {
-    adx: 25, plusDI: 10, minusDI: 30, macdHistogram: -0.0001, rsi: 40,
-    volatilityRatio: 1, nearResistance: false, nearSupport: false
-  }};
-  assert.equal(decide(bearish, { signal: "PUT", score: 65, strategy: "DOWNTREND" }).signal, "PUT");
-  assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 13.99 } }, candidate).signal, "STANDBY");
-});
-
-test("Sideways high-conviction single-engine candidate passes only with full independent confirmation", () => {
-  const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "CALL" }, indicators: {
-    emaBullishAlignment: 3, emaBearishAlignment: 0, plusDI: 22, minusDI: 14,
-    macdHistogram: 0.0001, rsi: 54, volatilityRatio: 1
-  }};
-  const engineResults = [
-    { engine: "pullback_retest", direction: "CALL", validity: true },
-    { engine: "safety_noise_guard", direction: "NO_SIGNAL", validity: true, reason: "PASS: safe" }
-  ];
-  const candidate = { signal: "CALL", score: 66, strategy: "UPTREND", engineResults };
-  assert.equal(decide(ctx, candidate).signal, "CALL");
-  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, macdHistogram: -0.0001 } }, candidate).signal, "STANDBY");
-  assert.equal(decide({ ...ctx, higherTimeframe: { direction: "PUT" } }, candidate).signal, "STANDBY");
-  assert.equal(decide(ctx, { ...candidate, score: 64 }).signal, "STANDBY");
-});
-
-test("Sideways market is always blocked, even with an attractive candidate score", () => {
-  const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "CALL" },
-    indicators: { volatilityRatio: 1, nearSupport: true, nearResistance: false } };
-  assert.equal(decide(ctx, { signal: "CALL", score: 100, strategy: "SIDEWAY" }).signal, "STANDBY");
-});
-
-test("Volatility safety gate still blocks extreme and unsupported high volatility", () => {
-  const candidate = { signal: "CALL", score: 100, strategy: "UPTREND", reason: "candidate" };
-  const ctx = { regime: "UPTREND", higherTimeframe: { direction: "CALL" },
-    indicators: { adx: 30, plusDI: 30, minusDI: 10, macdHistogram: 0.0001,
-      rsi: 55, volatilityRatio: 2.3, nearResistance: false, nearSupport: false } };
-  assert.equal(decide(ctx, candidate).signal, "CALL");
-  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, volatilityRatio: 2.81 } }, candidate).signal, "STANDBY");
-});
-
-test("Missing, malformed, stale or unapproved source data fails closed", async () => {
-  const candles = history();
-  assert.equal((await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false })).signal, "STANDBY");
+  assert.equal((await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: null, allowRestFallback: false
+  })).signal, "STANDBY");
   const malformed = history();
   malformed.at(-1).high = malformed.at(-1).low - 0.1;
   assert.equal((await analyzeMarket(malformed, { tickAgeSeconds: 0 })).signal, "STANDBY");
   const stale = history();
   stale.forEach(c => { c.epoch -= 600; });
   assert.equal((await analyzeMarket(stale, { now: Date.now(), tickAgeSeconds: 0 })).signal, "STANDBY");
+  assert.equal((await analyzeMarket([], { tickAgeSeconds: 0 })).signal, "STANDBY");
 });
 
-test("Fresh REST fallback is accepted only when explicitly enabled", async () => {
+test("fresh REST fallback remains available only when explicitly enabled", async () => {
   const candles = history();
-  const allowed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: true });
+  const allowed = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: null, allowRestFallback: true
+  });
   assert.equal(allowed.dataMode, "REST_FALLBACK");
   assert.equal(allowed.livePriceReady, true);
-  const blocked = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: null, allowRestFallback: false });
+  const blocked = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: null, allowRestFallback: false
+  });
   assert.equal(blocked.signal, "STANDBY");
 });
 
-test("Current live candle is excluded from Original AI closed-candle window", async () => {
+test("current live candle is excluded from closed-candle analysis", async () => {
   const candles = history();
   const liveEpoch = Math.floor(Date.now() / 60000) * 60;
   candles.push({ ...candles.at(-1), epoch: liveEpoch, live: true });
@@ -155,12 +107,13 @@ test("Current live candle is excluded from Original AI closed-candle window", as
   assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
 });
 
-test("Analyzer requires 50 context plus 4 latest closed entry candles", async () => {
-  const short = await analyzeMarket(history(53), { now: Date.now(), tickAgeSeconds: 0 });
-  assert.equal(short.signal, "STANDBY");
-  assert.equal(short.requiredCandles, 54);
-  const ready = await analyzeMarket(history(54), { now: Date.now(), tickAgeSeconds: 0 });
-  assert.equal(ready.livePriceReady, true);
-  assert.equal(ready.closedCandleCount, 54);
-  assert.deepEqual(ready.analysisWindow, { contextCandles: 50, entryCandles: 4, total: 54 });
+test("analyzer reports required history and preserves the application result contract", async () => {
+  const result = await analyzeMarket(history(54), { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(result.livePriceReady, true);
+  assert.equal(result.closedCandleCount, 54);
+  assert.equal(result.requiredCandles, 54);
+  assert.deepEqual(result.analysisWindow, { contextCandles: 50, entryCandles: 4, total: 54 });
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
+  assert.equal(result.confidenceMeaning, "RULE_CONDITION_MATCH_NOT_WIN_PROBABILITY");
+  assert.equal(result.strategy, "NEXT_M1_HMA_RSI_TREND");
 });
