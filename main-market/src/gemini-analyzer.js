@@ -9,8 +9,15 @@ const BASE_BACKOFF_MS = 350;
 let keyCursor = 0;
 
 function resolveApiKeys(apiKey, apiKeys) {
-  const configured = Array.isArray(apiKeys) ? apiKeys : String(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/);
-  return [...new Set([...configured, apiKey || process.env.GEMINI_API_KEY || ""].map(v => String(v || "").trim()).filter(Boolean))];
+  // An explicitly supplied empty key means "no key" (also makes tests deterministic).
+  // Only read Render environment keys when the caller omits both key arguments.
+  const useEnvironment = apiKey === undefined && apiKeys === undefined;
+  const configured = Array.isArray(apiKeys) ? apiKeys
+    : useEnvironment ? String(process.env.GEMINI_API_KEYS || "").split(/[\\n,;]+/) : [];
+  const primary = apiKey === undefined
+    ? (useEnvironment ? process.env.GEMINI_API_KEY || "" : "")
+    : apiKey;
+  return [...new Set([...configured, primary].map(v => String(v || "").trim()).filter(Boolean))];
 }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function retryable429Message(message) { return !/(per[- ]day|daily quota|requests per day|quota.*exhausted.*day)/i.test(message || ""); }
@@ -195,7 +202,7 @@ async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, 
 
 /** One Gemini request per symbol/closed-candle epoch; in-flight calls are shared. */
 export async function analyzeWithGemini({ symbol, candles, indicators,
-  apiKey = process.env.GEMINI_API_KEY, apiKeys, fetchImpl = globalThis.fetch,
+  apiKey, apiKeys, fetchImpl = globalThis.fetch,
   now = Date.now(), sleepImpl = sleep, randomImpl = Math.random }) {
   const keys = resolveApiKeys(apiKey, apiKeys);
   if (!keys.length) return standby("GEMINI_API_KEY ยังไม่ได้ตั้งค่าใน Render Environment");
