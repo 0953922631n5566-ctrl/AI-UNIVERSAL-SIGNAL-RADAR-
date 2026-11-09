@@ -1,39 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  canDispatchSignal, isFreshSignalTick, isSignalEntryWindow,
-  SIGNAL_DISPATCH_COOLDOWN_MS
+  canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow,
+  isSignalFinalizeWindow, signalHoldExpiresAt
 } from "../src/signal-timing.js";
 
 const candle = 1_800_000_000;
 const openAt = candle * 1000;
 
-test("entry dispatch window covers the full target M1 candle", () => {
-  assert.equal(isSignalEntryWindow(candle, openAt), true);
-  assert.equal(isSignalEntryWindow(candle, openAt + 1000), true);
-  assert.equal(isSignalEntryWindow(candle, openAt + 5000), true);
-  assert.equal(isSignalEntryWindow(candle, openAt + 59999), true);
-  assert.equal(isSignalEntryWindow(candle, openAt - 1), false);
-  assert.equal(isSignalEntryWindow(candle, openAt + 60001), false);
-  assert.equal(isSignalEntryWindow(candle + 60, openAt + 5000), false);
+test("PREPARE_ALERT is active only from T-10s until T-5s", () => {
+  assert.equal(isPrepareAlertWindow(candle, openAt + 49_999), false);
+  assert.equal(isPrepareAlertWindow(candle, openAt + 50_000), true);
+  assert.equal(isPrepareAlertWindow(candle, openAt + 54_999), true);
+  assert.equal(isPrepareAlertWindow(candle, openAt + 55_000), false);
+  assert.equal(isPrepareAlertWindow(candle, openAt + 60_000), false);
 });
 
-test("entry dispatch requires a Streaming tick no older than five seconds", () => {
-  assert.equal(isFreshSignalTick(openAt + 4000, openAt + 4000), true);
-  assert.equal(isFreshSignalTick(openAt, openAt + 5000), true);
-  assert.equal(isFreshSignalTick(openAt, openAt + 5001), false);
+test("CALL/PUT finalization is allowed only during the final five seconds", () => {
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 54_999), false);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 55_000), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 59_999), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 60_000), false);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 54_000), false);
+});
+
+test("finalization requires a fresh Streaming tick and deduplicates each source candle", () => {
+  const now = openAt + 55_000;
+  const base = { candleEpoch: candle, tickAt: now - 1_000, now };
+  assert.equal(canFinalizeSignal(base), true);
+  assert.equal(canFinalizeSignal({ ...base, lastDispatchedCandle: candle }), false);
+  assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
+  assert.equal(canFinalizeSignal({ ...base, now: openAt + 60_000 }), false);
+});
+
+test("Streaming tick freshness is limited to five seconds", () => {
+  assert.equal(isFreshSignalTick(openAt + 4_000, openAt + 4_000), true);
+  assert.equal(isFreshSignalTick(openAt, openAt + 5_000), true);
+  assert.equal(isFreshSignalTick(openAt, openAt + 5_001), false);
   assert.equal(isFreshSignalTick(openAt + 1, openAt), false);
 });
 
-test("per-target-candle dedupe blocks repeats without suppressing the next candle", () => {
-  const now = openAt + 3000;
-  const base = { candleEpoch: candle, tickAt: now - 1000, now };
-  assert.equal(canDispatchSignal(base), true);
-  assert.equal(canDispatchSignal({ ...base, lastDispatchedCandle: candle }), false);
-  assert.equal(canDispatchSignal({ ...base, lastDispatchedAt: now - 1000 }), true);
-  const nextNow = openAt + 60000 + 3000;
-  assert.equal(canDispatchSignal({
-    candleEpoch: candle + 60, tickAt: nextNow - 1000, now: nextNow,
-    lastDispatchedCandle: candle, lastDispatchedAt: now
-  }), true);
+test("signal expires exactly 30 seconds after the target candle opens", () => {
+  assert.equal(signalHoldExpiresAt(candle + 60), openAt + 90_000);
 });
