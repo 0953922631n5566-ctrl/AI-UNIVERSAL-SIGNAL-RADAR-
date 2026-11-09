@@ -170,7 +170,7 @@ test("invalid Gemini JSON or an API failure returns STANDBY instead of a heurist
 });
 
 test("the selected Gemini model is an explicit stable Flash model", () => {
-  assert.equal(GEMINI_MODEL, "gemini-3.6-flash");
+  assert.equal(GEMINI_MODEL, "gemini-2.5-flash-lite");
 });
 
 test("Gemini emits structured request, response, and final decision observability events", async () => {
