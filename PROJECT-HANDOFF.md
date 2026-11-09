@@ -1735,3 +1735,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Follow-up timing-window changes are committed in `3419789dfad99f2d08d8a654eb016b40633d3707`, `1dcb1a2ffe64552bc2f272b2e2b251daa572f2e0`, and `714cb5d5ebc8f1abc7944e80444ccbf3a2341084`; Render auto-deploy and full tests for the final commit must be rechecked.
 - Live health at the intermediate deploy: `ok=true`, EUR/USD M1, monitoring=true, Twelve Data pool 10/10 available, Android client auth configured. Public signal snapshot was still STANDBY because the former 5-second entry gate had elapsed; this motivated the timing-window follow-up.
 - Signal remains manual-only and unvalidated out-of-sample. Deterministic direction on weak/neutral data is an instruction-following output mode, not evidence of predictive accuracy. No broker orders are placed.
+
+
+### Final production verification — 2026-11-09
+- Final functional source commit: `1f710e5931cbfe59fd93c8da91a4615b0ef81e6f`; Render deploy `dep-dborosefephs73c8u4n0` reached `live`.
+- Render build completed successfully; full Node test suite: 67 passed / 0 failed. JavaScript syntax-check chain completed as part of postinstall.
+- Live `/health`: `ok=true`, Main Market, EUR/USD M1, monitoring enabled, Twelve Data key pool 10/10 available, Android client auth configured, REST fallback enabled.
+- Live `/api/public/signal` snapshot at 2026-11-09T12:29:34Z: EUR/USD `PUT`, DOWNTREND, weighted directional score -8, RSI 44.33, HMA 7/21/50 aligned down, candle body ratio 60%, API ONLINE/SUPPORTED, Streaming tick age 1 second, 54 closed candles, signal held through target M1 window. This is a single live state observation, not a performance or accuracy validation.
+- Signal output is now allowed throughout the full target M1 candle (0–60 seconds), with <=5-second Streaming tick freshness and per-candle dedupe; global cooldown removed so one late candle does not suppress the next candle.
+- STANDBY is still intentionally retained for invalid/missing/stale market data, insufficient history, API lock, or unavailable fresh source. The system does not fabricate prices or directional outputs during a data-quality failure.
+- No APK, UI, auth/session, Telegram chat-message, OCR, or broker execution changes were made. Manual trading only. OOS/backtest/paper-trading validation remains outstanding; no predictive edge is claimed.
