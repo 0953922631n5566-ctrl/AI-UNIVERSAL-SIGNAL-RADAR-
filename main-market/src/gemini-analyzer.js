@@ -4,7 +4,8 @@ const cache = new Map();
 const SUCCESS_CACHE_MS = 70_000;
 const FAILURE_CACHE_MS = 8_000;
 const REQUEST_TIMEOUT_MS = 8_000;
-const MAX_RETRIES = 2;
+// Free-tier policy: exactly one HTTP attempt per M1 candle; never retry HTTP 429.
+const MAX_RETRIES = 0;
 const BASE_BACKOFF_MS = 350;
 let keyCursor = 0;
 
