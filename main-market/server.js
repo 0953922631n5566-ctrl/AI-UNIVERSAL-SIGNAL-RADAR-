@@ -27,7 +27,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "AI-10 CORE";
 const ARCHITECTURE_ID = "AI-10-CORE";
-const VERSION = "2026-11-09-telegram-mini-app-50plus4-v1";
+const VERSION = "2026-11-09-telegram-mini-app-six-pair-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -123,12 +123,15 @@ function publicFeed(feed) {
 function snapshot() {
   const feed = feeds.get(selectedSymbol);
   const data = publicFeed(feed);
+  const pairs = Object.fromEntries(SYMBOLS.map(symbol => [
+    symbol, publicFeed(feeds.get(symbol))
+  ]));
   return {
     ...data,
     symbols: SYMBOLS,
     selectedSymbol,
     selectedSymbols: [selectedSymbol],
-    pairs: { [selectedSymbol]: data },
+    pairs,
     monitoring,
     connected: data.apiStatus === "ONLINE",
     serverOnline: true,
@@ -737,6 +740,18 @@ app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
   console.info("[mini-app] open session created");
   res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000),
     user: { id: userId, firstName: "Guest" } });
+});
+app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const symbol = resolveSymbol(req.body?.symbol);
+  if (!symbol) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้", symbols: SYMBOLS });
+  try {
+    await select(symbol);
+    noCache(res);
+    res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
+  } catch (error) {
+    console.error("[mini-app] pair selection failed", symbol, error.message);
+    res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
+  }
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
