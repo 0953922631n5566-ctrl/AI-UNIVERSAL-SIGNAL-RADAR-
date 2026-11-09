@@ -26,8 +26,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "AI-10 CORE";
-const ARCHITECTURE_ID = "AI-10-CORE";
+const SYSTEM_NAME = "GEMINI PRIMARY ANALYZER";
+const ARCHITECTURE_ID = "GEMINI-PRIMARY-ANALYZER";
 const VERSION = "2026-11-09-gemini-primary-analyzer-v1";
 const app = express();
 const server = http.createServer(app);
@@ -836,7 +836,7 @@ app.get("/health", (_req, res) => {
       contextCandles: 50,
       entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
-      streamingRequiredForSignals: false,
+      streamingRequiredForSignals: true,
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
