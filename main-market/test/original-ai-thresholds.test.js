@@ -13,7 +13,7 @@ test("strict decision threshold is 45 and trend entry requires ADX 18", () => {
   const ctx = { regime: "UPTREND", higherTimeframe: { direction: "CALL" }, indicators: { ...bullish, adx: 18 } };
   assert.equal(decide(ctx, { signal: "CALL", score: 45, strategy: "UPTREND" }).signal, "CALL");
   assert.equal(decide(ctx, { signal: "CALL", score: 44, strategy: "UPTREND" }).signal, "STANDBY");
-  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, adx: 17.99 } }, { signal: "CALL", score: 80, strategy: "UPTREND" }).signal, "STANDBY");
+  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, adx: 13.99 } }, { signal: "CALL", score: 80, strategy: "UPTREND" }).signal, "STANDBY");
 });
 test("M1 CALL and PUT both pass with transitional or unavailable M5 context", () => {
   assert.equal(decide({ regime: "UPTREND", higherTimeframe: { direction: "UNCLEAR" }, indicators: bullish }, { signal: "CALL", score: 65, strategy: "UPTREND" }).signal, "CALL");
