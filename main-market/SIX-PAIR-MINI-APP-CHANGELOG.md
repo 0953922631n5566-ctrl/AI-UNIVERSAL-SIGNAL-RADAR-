@@ -29,3 +29,13 @@
 - Real signals trigger a color-coded flashing signal panel, an on-screen alert banner, and device vibration / Telegram haptic feedback where supported.
 - Alerts are generated only while the Mini App is open and visible; hidden/background pages pause polling and cannot guarantee sound.
 - No changes to analysis logic, signal timing, thresholds, API usage, or backend endpoints.
+
+
+## Next-M1 Forecast V2 — isolated validation branch (2026-11-09)
+- Branch `feature/next-m1-forecast-v2`; no production deployment or changes to `main-market` yet.
+- Market context/indicators now use all 54 latest closed M1 candles so regime and technical values are aligned with the latest four entry candles.
+- System 10 now aggregates weighted evidence across independent analyst groups, requiring at least two analysts from two groups by default, score >=60 and directional conflict margin >=0.12. A single-engine exception requires score >=70 plus at least five independent technical confirmations.
+- Added M1 regime, M5 conflict, elevated volatility, nearby support/resistance and extreme RSI filters. Evidence-strength score is not a probability of winning.
+- Forecast dispatch moves to the first 0–5 seconds of the target candle, using only the previous fully closed candle and a fresh live tick. Signals are not backdated if the entry window is missed. Old signals are cleared at target-candle rollover; visibility extends through the target candle.
+- Server records entry tick vs target-candle close outcomes, rolling last-100 stats and structured logs.
+- This is an experimental formula revision. No out-of-sample or live paper-trading accuracy has been established.

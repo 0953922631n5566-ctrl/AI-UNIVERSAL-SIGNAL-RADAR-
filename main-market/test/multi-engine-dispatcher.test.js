@@ -53,9 +53,10 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
 
 test("System 10 chooses the higher weighted score from nine directional voters", () => {
   const voters = [
-    { engine: "trend_breakout", direction: "CALL", score: 70, confidence: 70, reason: "bullish", validity: true },
-    { engine: "pin_bar_reversal", direction: "PUT", score: 60, confidence: 60, reason: "bearish", validity: true },
-    ...Array.from({ length: 7 }, (_, i) => ({
+    { engine: "trend_breakout", direction: "CALL", score: 72, confidence: 72, reason: "bullish breakout", validity: true },
+    { engine: "candlestick_pattern", direction: "CALL", score: 64, confidence: 64, reason: "bullish engulfing", validity: true },
+    { engine: "pin_bar_reversal", direction: "PUT", score: 60, confidence: 60, reason: "bearish rejection", validity: true },
+    ...Array.from({ length: 6 }, (_, i) => ({
       engine: `idle_${i}`, direction: "NO_SIGNAL", score: 0, confidence: 0, reason: "no setup", validity: true
     }))
   ];
@@ -78,7 +79,7 @@ test("System 10 does not invent a direction when nine-system scores are tied", (
     confidence: 100, reason: "PASS: safe", validity: true };
   const out = engines.centralDispatcher(voters, "UPTREND", { safetyGuard });
   assert.equal(out.signal, "STANDBY");
-  assert.match(out.reason, /tied/i);
+  assert.match(out.reason, /balanced/i);
 });
 
 test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest four candles", () => {
@@ -98,16 +99,18 @@ test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in 
 test("single directional engine needs high score and full M1 context confirmation", async () => {
   const market = sidewayFixture();
   const results = [
-    { engine: "pullback_retest", direction: "CALL", score: 66, confidence: 66, reason: "retest", validity: true },
+    { engine: "trend_breakout", direction: "CALL", score: 72, confidence: 72, reason: "breakout", validity: true },
     { engine: "safety_noise_guard", direction: "NO_SIGNAL", score: 0, confidence: 100, reason: "PASS: safe", validity: true }
   ];
   const out = engines.centralDispatcher(results, "SIDEWAY", {
-    indicators: { emaBullishAlignment: 3, emaBearishAlignment: 0, plusDI: 20, minusDI: 15,
-      macdHistogram: 0.00001, rsi: 53, volatilityRatio: 1 },
+    indicators: { emaBullishAlignment: 3, emaBearishAlignment: 0, plusDI: 24, minusDI: 12,
+      macdHistogram: 0.00001, rsi: 53, adx: 22, volatilityRatio: 1 },
     higherTimeframe: { direction: "CALL" }
   });
   assert.equal(out.signal, "CALL");
   assert.equal(out.aggregation.callSupport, 1);
+  assert.equal(out.aggregation.singleEngineConfirmation, true);
+  assert.equal(out.confidenceMeaning, "EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY");
   assert.equal(out.strategy, "AI10_DIRECTION_AGGREGATOR");
 });
 

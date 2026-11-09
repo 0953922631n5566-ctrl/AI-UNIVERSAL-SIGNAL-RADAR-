@@ -11,7 +11,8 @@ export const MAX_CANDLES = 60;
 export const REST_SYNC_SECONDS = 180;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
-export const SIGNAL_HOLD_SECONDS = 40;
+// Keep the forecast visible through its full target M1 candle.
+export const SIGNAL_HOLD_SECONDS = 65;
 export const CLIENT_LEASE_SECONDS = 12;
 export const normalizeSymbol = value =>
   String(value ?? "").replace(/\s+/g, "").toUpperCase();

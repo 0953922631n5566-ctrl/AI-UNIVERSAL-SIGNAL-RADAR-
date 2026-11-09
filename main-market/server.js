@@ -42,6 +42,7 @@ function newFeed(symbol) {
     activeSignal: null, activeUntil: 0, signalCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
+    pendingForecast: null, forecastHistory: [],
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -75,6 +76,17 @@ function feedStatus(feed) {
   if (feed.streamStatus === "UNSUPPORTED" || feed.streamStatus === "ERROR" ||
       feed.streamStatus === "TIMEOUT") return "REST_ONLY";
   return feed.tickAt ? "STALE" : "REST_ONLY";
+}
+
+function forecastStats(feed) {
+  const rows = Array.isArray(feed.forecastHistory) ? feed.forecastHistory : [];
+  const wins = rows.filter(x => x.outcome === "WIN").length;
+  const losses = rows.filter(x => x.outcome === "LOSS").length;
+  const neutral = rows.filter(x => x.outcome === "FLAT").length;
+  const decided = wins + losses;
+  return { sample: rows.length, wins, losses, neutral,
+    winRate: decided ? Math.round(wins / decided * 1000) / 10 : null,
+    note: "Observed next-M1 entry-to-close outcomes; not a guarantee or backtest" };
 }
 
 function publicFeed(feed) {
@@ -115,6 +127,7 @@ function publicFeed(feed) {
     signalExpiresAt: feed.activeSignal
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
+    forecastStats: forecastStats(feed),
     preAlertSignal: feed.preAlertSignal,
     source: "Twelve Data REST + live-price Streaming"
   };
@@ -211,6 +224,15 @@ async function evaluate(feed) {
    lastDispatchedAt: feed.lastDispatchedAt,
    lastDispatchedCandle: feed.lastDispatchedCandle
  });
+ // A signal belongs to one target candle only. Never carry the prior candle's
+ // CALL/PUT into a new M1 entry window.
+ if (feed.activeSignal && triggerCandleEpoch !== null &&
+     feed.signalCandle !== triggerCandleEpoch) {
+   feed.activeSignal = null;
+   feed.activeUntil = 0;
+   feed.signalCandle = null;
+   feed.alertId = null;
+ }
  const analysisCandleId = result.lastCandleEpoch ?? null;
  if (feed.preAlertCandle !== analysisCandleId) {
    feed.preAlertCandle = analysisCandleId;
@@ -220,21 +242,26 @@ async function evaluate(feed) {
  if (result.signal === "CALL" || result.signal === "PUT") {
    if (feed.activeSignal && now < feed.activeUntil) {
      result.signal = feed.activeSignal;
-     result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+     result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
    } else if (timingEligible && feed.signalCandle !== triggerCandleEpoch) {
      feed.activeSignal = result.signal;
      feed.activeUntil = now + SIGNAL_HOLD_SECONDS * 1000;
      feed.signalCandle = triggerCandleEpoch;
      feed.alertId = `${triggerCandleEpoch}:${result.signal}`;
+     feed.pendingForecast = {
+       alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
+       targetCandleEpoch: triggerCandleEpoch, signalAt: now,
+       entryAt: feed.tickAt, entryPrice: feed.lastTick
+     };
    } else {
      result.signal = "STANDBY";
      result.reason = triggerCandleEpoch === null
        ? "รอแท่ง M1 ปัจจุบันและราคา Streaming สด"
        : tickAge === null || tickAge > 5
-         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในหน้าต่างก่อนปิดแท่ง"
+         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีหลังเปิดแท่งเป้าหมาย"
          : feed.signalCandle === triggerCandleEpoch
            ? "ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน"
-           : "รอหน้าต่างส่งสัญญาณ 3–5 วินาทีก่อนปิดแท่ง M1";
+           : "รอข้อมูลเพื่อยืนยันภายใน 5 วินาทีแรกของแท่ง M1 เป้าหมาย";
    }
  } else if (feed.activeSignal && now < feed.activeUntil) {
    const restFresh = restFallback && Number.isFinite(result.ageSeconds) &&
@@ -250,7 +277,7 @@ async function evaluate(feed) {
      return;
    }
    result.signal = feed.activeSignal;
-   result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+   result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
  } else if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
    feed.activeUntil = 0;
@@ -265,7 +292,7 @@ async function evaluate(feed) {
    lastTickPrice: feed.lastTick,
    alertId: feed.alertId,
    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
-   signalTimingWindowSeconds: [5, 3]
+   signalTimingWindowSeconds: [0, 5]
  };
 }
 
@@ -295,7 +322,26 @@ function applyTick(feed, price, epoch) {
   const minute = Math.floor(epoch / 60) * 60;
   const current = feed.candles.at(-1);
   if (!current || current.epoch < minute) {
-    if (current) current.live = false;
+    if (current) {
+      current.live = false;
+      const pending = feed.pendingForecast;
+      if (pending && pending.targetCandleEpoch === current.epoch &&
+          Number.isFinite(pending.entryPrice) && pending.entryPrice > 0 &&
+          Number.isFinite(current.close) && current.close > 0) {
+        const outcome = current.close === pending.entryPrice ? "FLAT"
+          : pending.signal === "CALL"
+            ? current.close > pending.entryPrice ? "WIN" : "LOSS"
+            : current.close < pending.entryPrice ? "WIN" : "LOSS";
+        const record = {
+          ...pending, exitAt: Date.now(), exitPrice: current.close,
+          outcome, priceChange: current.close - pending.entryPrice
+        };
+        feed.forecastHistory.push(record);
+        feed.forecastHistory = feed.forecastHistory.slice(-100);
+        feed.pendingForecast = null;
+        console.info("[forecast] next-M1 result", record);
+      }
+    }
     feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
       epoch: minute, open: price, high: price, low: price, close: price, live: true
@@ -378,16 +424,16 @@ function startRestTimer() {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // 250ms cadence keeps dispatch inside the 3–5s pre-close window; actual
-  // eligibility also requires a Streaming tick no older than five seconds.
+  // Re-evaluate during the first five seconds of the newly opened target candle.
+  // The direction uses only the latest fully closed M1 candle.
   let evaluationBusy = false;
   signalTimer = setInterval(async () => {
     if (!monitoring || evaluationBusy) return;
     const feed = feeds.get(selectedSymbol);
     const current = feed?.candles.at(-1);
     if (!current?.live) return;
-    const remainingMs = (current.epoch + 60) * 1000 - Date.now();
-    if (remainingMs < 3000 || remainingMs > 5000) return;
+    const elapsedMs = Date.now() - current.epoch * 1000;
+    if (elapsedMs < 0 || elapsedMs > 5000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);

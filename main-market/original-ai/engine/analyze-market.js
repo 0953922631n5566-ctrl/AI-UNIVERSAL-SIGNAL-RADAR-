@@ -12,7 +12,8 @@ function prepareMarket(candles) {
   const window = Array.isArray(candles) ? candles.slice(-ANALYSIS_CANDLES) : [];
   const contextCandles = window.slice(0, CONTEXT_CANDLES);
   const entryCandles = window.slice(-ENTRY_CANDLES);
-  const context = buildMarketContext(contextCandles);
+  // Indicators/regime must use the newest closed M1 candle, not the older 50-candle warm-up slice.
+  const context = buildMarketContext(window);
   const candidate = routeStrategy({ ...context, candles: window, contextCandles, entryCandles });
   return { context, candidate, analysisWindow: { contextCandles: contextCandles.length, entryCandles: entryCandles.length, total: window.length } };
 }
@@ -43,7 +44,8 @@ async function analyzeMarketMulti(candles, options = {}) {
   const window = Array.isArray(candles) ? candles.slice(-ANALYSIS_CANDLES) : [];
   const contextCandles = window.slice(0, CONTEXT_CANDLES);
   const entryCandles = window.slice(-ENTRY_CANDLES);
-  const context = buildMarketContext(contextCandles);
+  // Indicators/regime must use the newest closed M1 candle, not the older 50-candle warm-up slice.
+  const context = buildMarketContext(window);
   const candidate = await evaluateAllEngines({
     ...context, candles: window, contextCandles, entryCandles,
     now: options.now, tickAgeSeconds: options.tickAgeSeconds,
