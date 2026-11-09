@@ -151,7 +151,7 @@ function runSafetyNoiseGuard(data) {
   if (!streamFresh && !restFresh)
     return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: live tick and permitted REST candle are stale', false);
   const recentCandles = candles.slice(-3);
-  const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 60);
+  const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 120);
   if (gap) return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: missing M1 candle gap in analysis window', false);
   const i = data.indicators || {};
   if (Number.isFinite(i.volatilityRatio) && i.volatilityRatio > 2.8)
