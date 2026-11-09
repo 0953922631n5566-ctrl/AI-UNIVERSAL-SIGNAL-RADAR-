@@ -823,7 +823,7 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
-    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "GEMINI_PRIMARY_ANALYZER", engines: 1, decisionAuthority: "GEMINI_ONLY", safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS", signalDecisionPath: "SOURCE_GATE_TO_GEMINI_JSON_DECISION_TO_TIMING_GUARD" },
+    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "GEMINI_PRIMARY_ANALYZER", engines: 1, decisionAuthority: "GEMINI_ONLY", safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_GEMINI_JSON_DECISION_TO_TIMING_GUARD" },
     analyzer: { provider: "GEMINI", model: GEMINI_MODEL, configured: Boolean(process.env.GEMINI_API_KEY), role: "SOLE_DIRECTIONAL_ANALYZER", jsonOutput: true, localDirectionalFallback: false },
     configuration: {
       telegramMiniAppAuthConfigured: false,
