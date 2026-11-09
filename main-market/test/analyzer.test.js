@@ -48,11 +48,26 @@ test("Next-M1 RSI handles normal, all-gain and flat markets without NaN", () => 
   assert.equal(engine.calculateRSI([1, 2, 3]), null);
 });
 
-test("HMA 50 warm-up correctly waits for 56 closed candles", () => {
+test("every valid candle receives CALL or PUT while HMA 50 warms up", () => {
   const engine = new NextM1Analyzer();
-  assert.equal(engine.evaluateSignal(history(55)).signal, "STANDBY");
-  assert.match(engine.evaluateSignal(history(55)).reason, /56 closed/);
-  assert.ok(["CALL", "PUT", "STANDBY"].includes(engine.evaluateSignal(history(56)).signal));
+  for (const count of [54, 55, 56, 80]) {
+    assert.ok(["CALL", "PUT"].includes(engine.evaluateSignal(history(count)).signal));
+  }
+});
+
+test("flat valid market gets a deterministic low-evidence direction, not a random vote", () => {
+  const engine = new NextM1Analyzer();
+  const flat = history(54);
+  for (const candle of flat) {
+    candle.open = 1.08;
+    candle.high = 1.0801;
+    candle.low = 1.0799;
+    candle.close = 1.08;
+  }
+  const result = engine.evaluateSignal(flat);
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.confidence, "LOW");
+  assert.equal(result.indicators.tieBreak, "NEUTRAL_DEFAULT_CALL");
 });
 
 test("aligned bullish HMA and valid RSI/candle conditions produce CALL", () => {
