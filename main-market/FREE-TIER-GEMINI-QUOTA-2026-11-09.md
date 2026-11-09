@@ -1,10 +1,13 @@
 # Gemini Free-Tier Request Controls — 2026-11-09
 
-- Gemini HTTP requests are issued only during the active M1 T-10 to T-5 window.
-- The result is retained for that live candle and reused at T-5; repeated market ticks do not trigger repeated API requests.
-- A new live M1 candle opens a new request window. If the window is missed, the service stays STANDBY rather than making a late request.
-- HTTP 429 transient rate limits use at most two retries with exponential backoff and jitter. Daily-quota exhaustion is not retried.
-- Optional key pool: set `GEMINI_API_KEYS` to comma-, semicolon-, or newline-separated API keys. The existing `GEMINI_API_KEY` remains supported.
-- Key rotation is best-effort failover. Google applies Gemini RPM/TPM/RPD limits per Google Cloud project, not per API key. Multiple keys belonging to the same project do not increase that project's quota; separate projects have separate quota buckets subject to Google's terms and account limits.
-- No Pay-as-you-go billing or automatic billing changes are performed.
-- The existing source-quality, T-5 fresh-stream, signal-release and Gemini-only decision gates remain unchanged.
+- Production model baseline: gemini-3.5-flash-lite.
+- The production flow issues at most one Gemini HTTP attempt per eligible EUR/USD M1 candle, in the T-5 finalization window.
+- PREPARE T-10 is UI-only and does not call Gemini.
+- Repeated market ticks share the same in-flight/result for that M1 candle; no late request is made if the T-5 window is missed.
+- HTTP 429 is not retried in the same candle. The system remains fail-closed / STANDBY when Gemini cannot return a valid decision.
+- Optional GEMINI_API_KEYS key pool and GEMINI_API_KEY remain credentials only; multiple keys in the same Google Cloud project do not multiply that project's model quota.
+- Gemini quota monitor counts outbound HTTP attempts by UTC calendar day and records HTTP 429 responses.
+- GEMINI_DAILY_REQUEST_BUDGET is an optional owner-configured reference used only for 80% / 95% warning thresholds. It must be set from the actual applicable Google console quota. If absent, the Mini App shows request counts and 429 events without a percentage.
+- The displayed count/percentage is observational telemetry, not Google's authoritative remaining-quota value.
+- Mini App warnings are in-page while the Telegram Mini App is open and polling; they are not Telegram chat messages or background pushes while closed.
+- Monitoring adds no Gemini calls and does not change the model, prompt, T-5 timing, signal logic, or safety gates.
