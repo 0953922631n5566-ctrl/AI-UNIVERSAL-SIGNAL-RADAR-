@@ -10,7 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { canDispatchSignal } from "./src/signal-timing.js";
+import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
@@ -40,6 +40,7 @@ function newFeed(symbol) {
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
+    signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -186,6 +187,9 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
   feed.activeSignal = null;
   feed.activeUntil = 0;
   feed.signalCandle = null;
+  feed.signalSourceCandle = null;
+  feed.signalTriggeredAt = 0;
+  feed.preAlertStatus = null;
   feed.preAlertSignal = null;
   feed.preAlertCandle = null;
   feed.alertId = null;
@@ -218,103 +222,102 @@ async function evaluate(feed) {
  });
  const result = applySignalReleaseGate(rawResult);
  const currentCandle = feed.candles.at(-1);
- const triggerCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
- const timingEligible = triggerCandleEpoch !== null && canDispatchSignal({
-   candleEpoch: triggerCandleEpoch, tickAt: feed.tickAt, now,
-   lastDispatchedAt: feed.lastDispatchedAt,
-   lastDispatchedCandle: feed.lastDispatchedCandle
- });
- // A signal belongs to one target candle only. Never carry the prior candle's
- // CALL/PUT into a new M1 entry window.
- if (feed.activeSignal && triggerCandleEpoch !== null &&
-     feed.signalCandle !== triggerCandleEpoch) {
+ const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
+ const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+
+ if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
    feed.activeUntil = 0;
    feed.signalCandle = null;
+   feed.signalSourceCandle = null;
+   feed.signalTriggeredAt = 0;
    feed.alertId = null;
  }
- const analysisCandleId = result.lastCandleEpoch ?? null;
- if (feed.preAlertCandle !== analysisCandleId) {
-   feed.preAlertCandle = analysisCandleId;
-   feed.preAlertSignal = null;
- }
+ const activeForCurrentOrNext = Boolean(feed.activeSignal && now < feed.activeUntil &&
+   (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
- if (result.signal === "CALL" || result.signal === "PUT") {
-   if (feed.activeSignal && now < feed.activeUntil) {
-     result.signal = feed.activeSignal;
-     result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
-   } else if (timingEligible && feed.signalCandle !== triggerCandleEpoch) {
+ feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
+   isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+ feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
+ feed.preAlertSignal = null;
+
+ if (activeForCurrentOrNext) {
+   result.signal = feed.activeSignal;
+   result.reason = "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะถึง 30 วินาทีหลังแท่งใหม่เปิด";
+ } else if (sourceCandleEpoch !== null &&
+     isSignalFinalizeWindow(sourceCandleEpoch, now) &&
+     (result.signal === "CALL" || result.signal === "PUT")) {
+   const canFinalize = canFinalizeSignal({
+     candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+     lastDispatchedCandle: feed.lastDispatchedCandle
+   });
+   if (canFinalize) {
      feed.activeSignal = result.signal;
-     feed.activeUntil = now + SIGNAL_HOLD_SECONDS * 1000;
-     feed.signalCandle = triggerCandleEpoch;
-     feed.alertId = `${triggerCandleEpoch}:${result.signal}`;
+     feed.signalCandle = targetCandleEpoch;
+     feed.signalSourceCandle = sourceCandleEpoch;
+     feed.signalTriggeredAt = now;
+     feed.activeUntil = signalHoldExpiresAt(targetCandleEpoch);
+     feed.alertId = `${targetCandleEpoch}:${result.signal}`;
      feed.pendingForecast = {
        alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
-       targetCandleEpoch: triggerCandleEpoch, signalAt: now,
-       entryAt: feed.tickAt, entryPrice: feed.lastTick
+       targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null
      };
+     result.reason = "ยืนยันสัญญาณ T-5 สำหรับเข้าแท่ง M1 ถัดไป";
    } else {
      result.signal = "STANDBY";
-     result.reason = triggerCandleEpoch === null
-       ? "รอแท่ง M1 ปัจจุบันและราคา Streaming สด"
-       : tickAge === null || tickAge > 5
-         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีหลังเปิดแท่งเป้าหมาย"
-         : feed.signalCandle === triggerCandleEpoch
-           ? "ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน"
-           : "รอข้อมูลเพื่อยืนยันภายใน 5 วินาทีแรกของแท่ง M1 เป้าหมาย";
+     result.reason = tickAge === null || tickAge > 5
+       ? "ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในช่วง T-5"
+       : "ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
    }
  } else if (feed.activeSignal && now < feed.activeUntil) {
-   const restFresh = restFallback && Number.isFinite(result.ageSeconds) &&
-     result.ageSeconds <= MAX_CANDLE_AGE_SECONDS;
-   const streamFresh = feed.tickAt && now - feed.tickAt <= MAX_STREAM_AGE_SECONDS * 1000;
-   if (!restFresh && !streamFresh) {
-     feed.activeSignal = null;
-     feed.activeUntil = 0;
-     feed.signalCandle = triggerCandleEpoch;
-     feed.preAlertSignal = null;
-     feed.alertId = null;
-     feed.analysis = standby("ยกเลิกสัญญาณเดิม: แหล่งข้อมูลราคาไม่สดหรือไม่ผ่าน Data Quality Gate");
-     return;
+   result.signal = "STANDBY";
+   result.reason = "รอแท่ง M1 เป้าหมาย";
+ } else if (feed.preAlertStatus === "PREPARE_ALERT") {
+   result.signal = "STANDBY";
+   result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5";
+ } else {
+   result.signal = "STANDBY";
+   if (sourceCandleEpoch !== null && now < sourceCandleEpoch * 1000 + 50_000) {
+     result.reason = "รอช่วง PREPARE T-10 และยืนยัน CALL/PUT ที่ T-5";
+   } else if (sourceCandleEpoch !== null && now >= sourceCandleEpoch * 1000 + 60_000) {
+     result.reason = "รอแท่ง M1 ใหม่และข้อมูล Streaming";
    }
-   result.signal = feed.activeSignal;
-   result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
- } else if (feed.activeSignal && now >= feed.activeUntil) {
-   feed.activeSignal = null;
-   feed.activeUntil = 0;
  }
-
- if (result.signal === "CALL" || result.signal === "PUT") feed.preAlertSignal = result.signal;
- else if (!(feed.activeSignal && now < feed.activeUntil)) feed.preAlertSignal = null;
 
  feed.analysis = {
    ...result,
+   preAlertStatus: feed.preAlertStatus,
+   preAlertCandle: feed.preAlertCandle,
    tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
    lastTickPrice: feed.lastTick,
    alertId: feed.alertId,
+   signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
-   signalTimingWindowSeconds: [60, 0]
+   signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
+   signalTimingWindowSeconds: [5, 0]
  };
 }
 
 function dispatchSignalIfReady(feed) {
  const signal = feed.activeSignal;
- const candleEpoch = feed.signalCandle;
- if (!signal || !["CALL", "PUT"].includes(signal) || !feed.alertId) return;
+ const sourceCandleEpoch = feed.signalSourceCandle;
+ if (!signal || !["CALL", "PUT"].includes(signal) || !feed.alertId ||
+     !Number.isFinite(sourceCandleEpoch)) return;
  const now = Date.now();
- if (!canDispatchSignal({
-   candleEpoch, tickAt: feed.tickAt, now,
-   lastDispatchedAt: feed.lastDispatchedAt,
+ if (!canFinalizeSignal({
+   candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
    lastDispatchedCandle: feed.lastDispatchedCandle
  })) return;
  if (feed.lastDispatchedAlertId === feed.alertId) return;
 
- // Claim the candle and cooldown once; the Telegram Mini App reads state from authenticated polling.
  feed.lastDispatchedAt = now;
- feed.lastDispatchedCandle = candleEpoch;
+ feed.lastDispatchedCandle = sourceCandleEpoch;
  feed.lastDispatchedAlertId = feed.alertId;
- const alertId = feed.alertId;
- console.info("[signal] pre-close signal is available to authenticated Telegram Mini App polling", {
-   alertId, signal, candleEpoch, secondsBeforeClose: ((candleEpoch + 60) * 1000 - now) / 1000
+ console.info("[signal] T-5 next-candle signal is available to authenticated Telegram Mini App polling", {
+   alertId: feed.alertId, signal, sourceCandleEpoch,
+   targetCandleEpoch: feed.signalCandle,
+   secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
+   expiresAt: new Date(feed.activeUntil).toISOString()
  });
 }
 
@@ -357,6 +360,11 @@ function applyTick(feed, price, epoch) {
 
   feed.lastTick = price;
   feed.tickAt = Date.now();
+  if (feed.pendingForecast?.targetCandleEpoch === minute &&
+      !Number.isFinite(feed.pendingForecast.entryPrice)) {
+    feed.pendingForecast.entryAt = feed.tickAt;
+    feed.pendingForecast.entryPrice = price;
+  }
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
