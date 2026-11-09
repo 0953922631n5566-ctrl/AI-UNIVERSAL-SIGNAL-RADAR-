@@ -216,7 +216,9 @@ function centralDispatcher(results, regime, context = {}) {
   const winningWeight = Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0));
   const score = clamp(Math.round(votes[winner] / winningWeight));
   const confidence = clamp(Math.round(confidenceVotes[winner] / winningWeight));
-  const highConvictionSingle = supportCount === 1 && engines[loser].length === 0 &&\n    score >= 65 && singleEngineContextPass(context, winner);\n  if ((!highConvictionSingle && supportCount < MIN_ENGINE_SUPPORT) || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
+  const highConvictionSingle = supportCount === 1 && engines[loser].length === 0 &&
+    score >= 65 && singleEngineContextPass(context, winner);
+  if ((!highConvictionSingle && supportCount < MIN_ENGINE_SUPPORT) || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, score floor ${MIN_DISPATCH_SCORE}, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
   }
   if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing') && !highConvictionSingle) {
