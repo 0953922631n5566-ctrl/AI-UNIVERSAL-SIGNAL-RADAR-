@@ -57,11 +57,11 @@ test("Original engine API ignores any legacy assistant argument", () => {
 
 test("Decision engine uses strict score and ADX thresholds with M1 momentum during M5 transition", () => {
   assert.equal(MIN_SCORE, 45);
-  assert.equal(MIN_TREND_ADX, 18);
+  assert.equal(MIN_TREND_ADX, 14);
   const base = {
     regime: "UPTREND",
     higherTimeframe: { direction: "CALL" },
-    indicators: { adx: 18, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
+    indicators: { adx: 14, plusDI: 30, minusDI: 12, macdHistogram: 0.0001,
       rsi: 55, volatilityRatio: 1, nearResistance: false, nearSupport: false }
   };
   const candidate = { signal: "CALL", score: 45, strategy: "UPTREND", reason: "valid" };
@@ -75,7 +75,7 @@ test("Decision engine uses strict score and ADX thresholds with M1 momentum duri
     volatilityRatio: 1, nearResistance: false, nearSupport: false
   }};
   assert.equal(decide(bearish, { signal: "PUT", score: 65, strategy: "DOWNTREND" }).signal, "PUT");
-  assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 17.99 } }, candidate).signal, "STANDBY");
+  assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 13.99 } }, candidate).signal, "STANDBY");
 });
 
 test("Sideways market is always blocked, even with an attractive candidate score", () => {
