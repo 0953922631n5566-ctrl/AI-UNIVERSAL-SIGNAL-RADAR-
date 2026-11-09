@@ -39,7 +39,7 @@ function decide(ctx, candidate) {
     const safetyPass = candidate?.engineResults?.some(r =>
       r.engine === 'safety_noise_guard' && r.validity && r.reason.startsWith('PASS:'));
     if (!rangeVote || !rangeSafe || !safetyPass || !['CALL', 'PUT'].includes(candidate?.signal) ||
-        !Number.isFinite(candidate?.score) || candidate.score < 55)
+        !Number.isFinite(candidate?.score) || candidate.score < 50)
       return standby(ctx, candidate, 'Sideways/choppy regime; directional entry blocked unless Range-Bound Swing confirmation and safety checks pass');
     return { ...candidate, regime: ctx.regime };
   }
