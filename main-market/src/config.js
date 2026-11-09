@@ -11,8 +11,8 @@ export const MAX_CANDLES = 60;
 export const REST_SYNC_SECONDS = 180;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
-// Keep the forecast visible through its full target M1 candle.
-export const SIGNAL_HOLD_SECONDS = 65;
+// Keep the entry signal visible for exactly 30 seconds after the target M1 candle opens.
+export const SIGNAL_HOLD_SECONDS = 30;
 export const CLIENT_LEASE_SECONDS = 12;
 export const normalizeSymbol = value =>
   String(value ?? "").replace(/\s+/g, "").toUpperCase();
