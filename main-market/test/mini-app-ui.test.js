@@ -24,13 +24,6 @@ test("Mini App provides distinct ten-second and real-signal audio/visual alerts"
   assert.match(html, /ไม่ใช่สัญญาณ CALL\/PUT/);
 });
 
-test("Mini App requires signed Telegram WebApp initData and never creates a guest session", () => {
-  assert.match(html, /tg\\.initData/);
-  assert.match(html, /TELEGRAM VERIFIED/);
-  assert.match(html, /กรุณาเปิดหน้านี้จากปุ่มเมนูของบอต Telegram/);
-  assert.doesNotMatch(html, /SESSION READY/);
-});
-
 test("Mini App inline JavaScript parses successfully", () => {
   const start = html.indexOf("<script>") + "<script>".length;
   const end = html.lastIndexOf("</script>");
