@@ -57,7 +57,7 @@ test("HMA 50 warm-up correctly waits for 56 closed candles", () => {
 
 test("aligned bullish HMA and valid RSI/candle conditions produce CALL", () => {
   const engine = new NextM1Analyzer();
-  engine.calculateHMA = (_candles, period) => Array(220).fill(period === 7 ? 3 : period === 21 ? 2 : 1);
+  engine.calculateHMA = (candles, period) => { const price = candles.at(-1).close; return Array(candles.length).fill(price - (period === 7 ? 0.0001 : period === 21 ? 0.0002 : 0.0003)); };
   engine.calculateRSI = () => 60;
   engine.analyzeCandle = () => ({ isBullish: true, isValidBody: true, bodyRatio: 0.7 });
   const result = engine.evaluateSignal(history(220, 1));
@@ -69,7 +69,7 @@ test("aligned bullish HMA and valid RSI/candle conditions produce CALL", () => {
 
 test("aligned bearish HMA and valid RSI/candle conditions produce PUT", () => {
   const engine = new NextM1Analyzer();
-  engine.calculateHMA = (_candles, period) => Array(220).fill(period === 7 ? 1 : period === 21 ? 2 : 3);
+  engine.calculateHMA = (candles, period) => { const price = candles.at(-1).close; return Array(candles.length).fill(price + (period === 7 ? 0.0001 : period === 21 ? 0.0002 : 0.0003)); };
   engine.calculateRSI = () => 40;
   engine.analyzeCandle = () => ({ isBullish: false, isValidBody: true, bodyRatio: 0.7 });
   const result = engine.evaluateSignal(history(220, -1));
