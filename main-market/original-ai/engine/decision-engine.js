@@ -49,6 +49,16 @@ function hasHighConvictionSingleEngine(ctx, candidate) {
 }
 
 function decide(ctx, candidate) {
+  // System 10 has already aggregated the nine directional votes. Do not
+  // re-run legacy trend/ADX/RSI/sideways filters against its chosen direction.
+  if (candidate?.strategy === 'AI10_DIRECTION_AGGREGATOR') {
+    const safety = candidate.safetyGuard;
+    if (!safety || !safety.validity || !safety.reason?.startsWith('PASS:'))
+      return standby(ctx, candidate, safety?.reason || 'VETO: Safety validation unavailable');
+    if (['CALL', 'PUT'].includes(candidate.signal))
+      return { ...candidate, regime: ctx?.regime || 'UNCLEAR' };
+    return { ...candidate, regime: ctx?.regime || 'UNCLEAR', signal: 'STANDBY' };
+  }
   if (!ctx || ctx.regime === 'UNCLEAR' || !ctx.indicators)
     return standby(ctx, candidate, ctx?.reason || 'Market context unavailable');
   if (ctx.regime === 'SIDEWAY' || ctx.regime === 'RANGING') {
