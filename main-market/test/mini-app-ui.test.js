@@ -14,7 +14,8 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
-  const scripts = [...html.matchAll(/<script>([\\s\\S]*?)<\\/script>/g)];
-  assert.ok(scripts.length > 0, "expected an inline Mini App script");
-  assert.doesNotThrow(() => new Script(scripts.at(-1)[1]));
+  const start = html.indexOf("<script>") + "<script>".length;
+  const end = html.lastIndexOf("</script>");
+  assert.ok(start >= "<script>".length && end > start, "expected an inline Mini App script");
+  assert.doesNotThrow(() => new Script(html.slice(start, end)));
 });
