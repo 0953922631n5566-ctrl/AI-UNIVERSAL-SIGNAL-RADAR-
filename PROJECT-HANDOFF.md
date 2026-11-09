@@ -1784,3 +1784,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added indicator fields: EMA spread %, previous RSI and RSI change, 8-candle micro support/resistance and micro range. Existing EMA/RSI/MACD/ATR calculations and decision schema are retained.
 - Gemini model, one-request-per-closed-M1-candle cache/single-shot behavior, T-5 scheduler, quota monitor, Twelve Data source, authentication and Mini App UI are not intentionally changed.
 - Unit coverage added for the new indicator fields and a valid SIDEWAY CALL response. CI must pass before merge; production deploy occurs only after owner approval of the PR.
+
+
+## 2026-11-10 — Lowered directional evidence threshold (isolated PR)
+- Branch: `feature/sideway-one-plus-one-evidence`, based on the verified production baseline after SIDEWAY Trading Mode PR #48; production branch and Render service are unchanged.
+- User-confirmed threshold: **one clear primary directional signal + one independent confirming signal** for CALL/PUT decisions. This replaces the prior requirement for at least two independent supporting clues in SIDEWAY/range setups.
+- The prompt requires the confirming clue to come from a different evidence family; multiple descriptions of the same candle move cannot be double-counted. A support/resistance touch alone is not confirmation. Example: bullish rejection/short-term momentum at a range edge as primary, plus RSI14 slope/change or distinct follow-through as confirmation.
+- Existing fail-closed source/data-quality and Streaming freshness gates, mid-range/indecisive/conflicting-evidence safeguards, Gemini model, single-shot-per-candle behavior, T-5 timing, Twelve Data, Mini App UI/auth, and quota monitor remain unchanged.
+- Updated only `main-market/src/gemini-analyzer.js` prompt and `main-market/test/analyzer.test.js` prompt regression assertions. No merge or production deploy has been performed; CI and review are pending. The lower evidence threshold may increase signal frequency but does not establish accuracy or profitability.

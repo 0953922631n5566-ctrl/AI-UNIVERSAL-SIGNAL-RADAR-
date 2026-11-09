@@ -93,6 +93,9 @@ test("Gemini alone returns the directional decision in schema-constrained JSON",
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.generationConfig.responseMimeType, "application/json");
   assert.equal(body.generationConfig.responseSchema.properties.signal.enum.includes("STANDBY"), true);
+  const systemPrompt = body.systemInstruction.parts[0].text;
+  assert.match(systemPrompt, /one clear primary directional signal PLUS one independent confirming signal/i);
+  assert.match(systemPrompt, /Do not require two additional clues/i);
 });
 
 
