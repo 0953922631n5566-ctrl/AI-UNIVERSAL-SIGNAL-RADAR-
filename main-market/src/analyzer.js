@@ -79,11 +79,11 @@ export class NextM1Analyzer {
   evaluateSignal(candles) {
     if (!Array.isArray(candles) || candles.length < 56) {
       return { signal: "STANDBY", reason: "HMA 50 warm-up requires 56 closed M1 candles",
-        confidence: null, price: candles?.at(-1)?.close ?? null };
+        confidence: null, price: candles?.at(-1)?.close ?? null, strategy: "NEXT_M1_HMA_RSI_TREND" };
     }
     const closes = candles.map(c => c.close);
     if (closes.some(value => !Number.isFinite(value))) {
-      return { signal: "STANDBY", reason: "Invalid close price in analysis window" };
+      return { signal: "STANDBY", reason: "Invalid close price in analysis window", strategy: "NEXT_M1_HMA_RSI_TREND" };
     }
 
     const current = candles.at(-1);
