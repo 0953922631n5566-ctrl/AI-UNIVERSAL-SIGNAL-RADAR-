@@ -154,3 +154,13 @@ test("Current live candle is excluded from Original AI closed-candle window", as
   assert.equal(result.closedCandleCount, 220);
   assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
 });
+
+test("Analyzer requires 50 context plus 4 latest closed entry candles", async () => {
+  const short = await analyzeMarket(history(53), { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(short.signal, "STANDBY");
+  assert.equal(short.requiredCandles, 54);
+  const ready = await analyzeMarket(history(54), { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(ready.livePriceReady, true);
+  assert.equal(ready.closedCandleCount, 54);
+  assert.deepEqual(ready.analysisWindow, { contextCandles: 50, entryCandles: 4, total: 54 });
+});
