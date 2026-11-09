@@ -8,9 +8,9 @@ const { classifyTrendRegime, MIN_TREND_ADX: SCANNER_ADX, buildHigherTimeframeCon
 const bullish = { adx: 25, plusDI: 28, minusDI: 10, macdHistogram: 0.0004, rsi: 60, volatilityRatio: 1, nearResistance: false, nearSupport: false };
 const bearish = { adx: 25, plusDI: 10, minusDI: 28, macdHistogram: -0.0004, rsi: 40, volatilityRatio: 1, nearResistance: false, nearSupport: false };
 
-test("strict decision threshold is 45 and trend entry requires ADX 18", () => {
-  assert.equal(MIN_SCORE, 45); assert.equal(MIN_TREND_ADX, 18);
-  const ctx = { regime: "UPTREND", higherTimeframe: { direction: "CALL" }, indicators: { ...bullish, adx: 18 } };
+test("decision threshold is 45 and adaptive M1 trend entry requires ADX 14", () => {
+  assert.equal(MIN_SCORE, 45); assert.equal(MIN_TREND_ADX, 14);
+  const ctx = { regime: "UPTREND", higherTimeframe: { direction: "CALL" }, indicators: { ...bullish, adx: 14 } };
   assert.equal(decide(ctx, { signal: "CALL", score: 45, strategy: "UPTREND" }).signal, "CALL");
   assert.equal(decide(ctx, { signal: "CALL", score: 44, strategy: "UPTREND" }).signal, "STANDBY");
   assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, adx: 13.99 } }, { signal: "CALL", score: 80, strategy: "UPTREND" }).signal, "STANDBY");
@@ -46,12 +46,12 @@ test("M5 context is derived from M1 history without another market-data request"
   const m5 = buildHigherTimeframeContext(candles); assert.equal(m5.candleCount, 40); assert.equal(m5.direction, "CALL");
 });
 test("trend regime classification uses M1 ADX, EMA alignment and DI independent of M5", () => {
-  assert.equal(SCANNER_ADX, 18);
-  const bull = { bullishAlignment: 2, bearishAlignment: 1, adx: 18, plusDI: 24, minusDI: 15 };
-  const bear = { bullishAlignment: 1, bearishAlignment: 2, adx: 18, plusDI: 15, minusDI: 24 };
+  assert.equal(SCANNER_ADX, 14);
+  const bull = { bullishAlignment: 2, bearishAlignment: 1, adx: 14, plusDI: 24, minusDI: 15 };
+  const bear = { bullishAlignment: 1, bearishAlignment: 2, adx: 14, plusDI: 15, minusDI: 24 };
   assert.equal(classifyTrendRegime({ ...bull, higherTimeframe: { direction: "UNCLEAR" } }).regime, "UPTREND");
   assert.equal(classifyTrendRegime({ ...bear, higherTimeframe: { direction: "CALL" } }).regime, "DOWNTREND");
-  assert.equal(classifyTrendRegime({ ...bull, adx: 17.99 }), null);
+  assert.equal(classifyTrendRegime({ ...bull, adx: 13.99 }), null);
 });
 
 test("SIDEWAY permits only a multi-engine Range-Bound Swing candidate with safety approval", () => {
