@@ -109,11 +109,13 @@ export class NextM1Analyzer {
     // Weighted directional vote: trend alignment has the largest influence;
     // momentum, price location and candle direction refine the vote.
     let directionalScore = 0;
-    directionalScore += hmaFast > hmaMid ? 2 : hmaFast < hmaMid ? -2 : 0;
-    directionalScore += hmaMid > hmaSlow ? 2 : hmaMid < hmaSlow ? -2 : 0;
+    const epsilon = Math.max(1e-10, Math.abs(current.close) * 1e-8);
+    const compare = (a, b) => a - b > epsilon ? 1 : a - b < -epsilon ? -1 : 0;
+    directionalScore += compare(hmaFast, hmaMid) * 2;
+    directionalScore += compare(hmaMid, hmaSlow) * 2;
     directionalScore += rsi >= 55 ? 1 : rsi <= 45 ? -1 : 0;
-    directionalScore += current.close > hmaFast ? 1 : current.close < hmaFast ? -1 : 0;
-    directionalScore += closes.at(-1) > closes.at(-5) ? 1 : closes.at(-1) < closes.at(-5) ? -1 : 0;
+    directionalScore += compare(current.close, hmaFast);
+    directionalScore += compare(closes.at(-1), closes.at(-5));
     if (candle.bodyRatio >= 0.20) directionalScore += candle.isBullish ? 1 : -1;
 
     // Every valid, sufficiently populated candle receives one deterministic
