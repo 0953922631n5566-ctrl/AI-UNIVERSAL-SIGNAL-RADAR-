@@ -24,11 +24,35 @@ function standby(ctx, candidate, reason) {
     engineResults: candidate?.engineResults || null, engineSummary: candidate?.engineSummary || null };
 }
 
+function hasHighConvictionSingleEngine(ctx, candidate) {
+  const results = candidate?.engineResults;
+  if (!Array.isArray(results) || candidate?.score < 65) return false;
+  const votes = results.filter(r => r.validity && ['CALL', 'PUT'].includes(r.direction));
+  if (votes.length !== 1 || votes[0].direction !== candidate.signal) return false;
+  const i = ctx?.indicators || {}, direction = candidate.signal;
+  const safetyPass = results.some(r => r.engine === 'safety_noise_guard' &&
+    r.validity && r.reason.startsWith('PASS:'));
+  const emaAligned = direction === 'CALL'
+    ? Number(i.emaBullishAlignment) >= 2
+    : Number(i.emaBearishAlignment) >= 2;
+  const diAligned = direction === 'CALL' ? i.plusDI > i.minusDI : i.minusDI > i.plusDI;
+  const macdAligned = Number.isFinite(i.macdHistogram) &&
+    (direction === 'CALL' ? i.macdHistogram > 0 : i.macdHistogram < 0);
+  const rsiAligned = Number.isFinite(i.rsi) && (direction === 'CALL'
+    ? i.rsi >= 45 && i.rsi <= 65
+    : i.rsi >= 35 && i.rsi <= 55);
+  const m5 = ctx?.higherTimeframe?.direction;
+  const m5Aligned = !m5 || m5 === 'UNCLEAR' || m5 === direction;
+  const volatilitySafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 2.0;
+  return safetyPass && emaAligned && diAligned && macdAligned &&
+    rsiAligned && m5Aligned && volatilitySafe;
+}
+
 function decide(ctx, candidate) {
   if (!ctx || ctx.regime === 'UNCLEAR' || !ctx.indicators)
     return standby(ctx, candidate, ctx?.reason || 'Market context unavailable');
   if (ctx.regime === 'SIDEWAY' || ctx.regime === 'RANGING') {
-    const rangeVote = candidate?.strategy === 'RANGE_BOUND_SWING' &&
+    const singleEnginePass = hasHighConvictionSingleEngine(ctx, candidate);\n    const rangeVote = candidate?.strategy === 'RANGE_BOUND_SWING' &&
       candidate?.engineResults?.some(r => r.engine === 'range_bound_swing' &&
         r.direction === candidate.signal && r.validity);
     const i = ctx.indicators || {};
@@ -38,7 +62,7 @@ function decide(ctx, candidate) {
         : i.nearResistance === true && Number.isFinite(i.rsi) && i.rsi >= 55);
     const safetyPass = candidate?.engineResults?.some(r =>
       r.engine === 'safety_noise_guard' && r.validity && r.reason.startsWith('PASS:'));
-    if (!rangeVote || !rangeSafe || !safetyPass || !['CALL', 'PUT'].includes(candidate?.signal) ||
+    if ((!rangeVote && !singleEnginePass) || (!singleEnginePass && !rangeSafe) || !safetyPass || !['CALL', 'PUT'].includes(candidate?.signal) ||
         !Number.isFinite(candidate?.score) || candidate.score < 50)
       return standby(ctx, candidate, 'Sideways/choppy regime; directional entry blocked unless Range-Bound Swing confirmation and safety checks pass');
     return { ...candidate, regime: ctx.regime };
@@ -76,5 +100,5 @@ function decide(ctx, candidate) {
   return { ...candidate, regime: ctx.regime };
 }
 
-module.exports = { decide, MIN_SCORE, MIN_TREND_ADX, M5_COUNTERTREND_ADX,
+module.exports = { decide, MIN_SCORE, MIN_TREND_ADX, hasHighConvictionSingleEngine, M5_COUNTERTREND_ADX,
   M5_COUNTERTREND_SCORE, hasStrongTrendMomentum };
