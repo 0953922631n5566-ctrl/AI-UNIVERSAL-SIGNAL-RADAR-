@@ -150,7 +150,8 @@ function runSafetyNoiseGuard(data) {
   const restFresh = data.allowRestFallback === true && Number.isFinite(data.ageSeconds) && data.ageSeconds <= 180;
   if (!streamFresh && !restFresh)
     return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: live tick and permitted REST candle are stale', false);
-  const recentCandles = candles.slice(-3);\n  const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 60);
+  const recentCandles = candles.slice(-3);
+  const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 60);
   if (gap) return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: missing M1 candle gap in analysis window', false);
   const i = data.indicators || {};
   if (Number.isFinite(i.volatilityRatio) && i.volatilityRatio > 2.8)
@@ -173,7 +174,11 @@ const WEIGHTS = Object.freeze({
   candlestick_pattern: 0.9, range_bound_swing: 1.15, compression_squeeze: 1,
   momentum_divergence: 0.85, volume_order_flow: 0.8, pullback_retest: 1.05
 });
-const MIN_ENGINE_SUPPORT = 2;\nconst MIN_DISPATCH_SCORE = 50;\nconst MIN_CONFLICT_MARGIN = 0.15;\n\nfunction centralDispatcher(results, regime) {
+const MIN_ENGINE_SUPPORT = 2;
+const MIN_DISPATCH_SCORE = 50;
+const MIN_CONFLICT_MARGIN = 0.15;
+
+function centralDispatcher(results, regime) {
   const safety = results.find(r => r.engine === 'safety_noise_guard');
   if (!safety || !safety.validity || safety.reason.startsWith('VETO:'))
     return { signal: 'STANDBY', score: 0, strategy: 'SAFETY_VETO', reason: safety?.reason || 'VETO: Safety engine unavailable', engineResults: results };
