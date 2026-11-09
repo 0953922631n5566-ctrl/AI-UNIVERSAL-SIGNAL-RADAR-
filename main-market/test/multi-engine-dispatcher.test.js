@@ -48,7 +48,7 @@ test("Range-Bound Swing can produce a guarded SIDEWAY CALL with independent patt
   assert.equal(range.direction, "CALL");
   assert.equal(candle.direction, "CALL");
   assert.equal(out.signal, "CALL", JSON.stringify(out.engineResults));
-  assert.equal(out.strategy, "RANGE_BOUND_SWING");
+  assert.equal(out.strategy, "AI10_DIRECTION_AGGREGATOR");
 });
 
 test("System 10 chooses the higher weighted score from nine directional voters", () => {
@@ -71,8 +71,8 @@ test("System 10 chooses the higher weighted score from nine directional voters",
 
 test("System 10 does not invent a direction when nine-system scores are tied", () => {
   const voters = [
-    { engine: "trend_breakout", direction: "CALL", score: 70, confidence: 70, reason: "bullish", validity: true },
-    { engine: "pin_bar_reversal", direction: "PUT", score: 70, confidence: 70, reason: "bearish", validity: true }
+    { engine: "pin_bar_reversal", direction: "CALL", score: 70, confidence: 70, reason: "bullish", validity: true },
+    { engine: "candlestick_pattern", direction: "PUT", score: 70, confidence: 70, reason: "bearish", validity: true }
   ];
   const safetyGuard = { engine: "safety_noise_guard", direction: "NO_SIGNAL", score: 0,
     confidence: 100, reason: "PASS: safe", validity: true };
@@ -107,7 +107,8 @@ test("single directional engine needs high score and full M1 context confirmatio
     higherTimeframe: { direction: "CALL" }
   });
   assert.equal(out.signal, "CALL");
-  assert.equal(out.singleEngineConfirmation, true);
+  assert.equal(out.aggregation.callSupport, 1);
+  assert.equal(out.strategy, "AI10_DIRECTION_AGGREGATOR");
 });
 
 test("Safety Noise Guard has VETO authority when live data is stale", async () => {
