@@ -15,3 +15,6 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 .pairing{margin:12px 0;padding:16px;border:1px solid #28473a;border-radius:14px;background:#0d1b15;display:grid;gap:10px}.pairing[hidden]{display:none}.pairing b{font-size:14px}.pairing p{margin:0;color:#a9b8af;font-size:12px}.pairing input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #365346;border-radius:9px;background:#07110d;color:#e7f4eb;font:inherit;box-sizing:border-box}.pairing input:focus{outline:2px solid #3b9a67}
+
+/* Neutral dashboard state: no STANDBY label; internal decision state remains unchanged. */
+.signal-panel.neutral{border-color:#39483e;background:#17231b}.signal-panel.neutral .signal-light{border-color:#59685d;background:#202e24}.signal-panel.neutral .signal-light span{background:#7c897f}.signal-panel.neutral .signal-text strong{color:#d6e0d8}
