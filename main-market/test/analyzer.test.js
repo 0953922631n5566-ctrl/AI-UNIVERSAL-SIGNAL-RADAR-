@@ -78,6 +78,22 @@ test("Decision engine uses strict score and ADX thresholds with M1 momentum duri
   assert.equal(decide({ ...base, indicators: { ...base.indicators, adx: 13.99 } }, candidate).signal, "STANDBY");
 });
 
+test("Sideways high-conviction single-engine candidate passes only with full independent confirmation", () => {
+  const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "CALL" }, indicators: {
+    emaBullishAlignment: 3, emaBearishAlignment: 0, plusDI: 22, minusDI: 14,
+    macdHistogram: 0.0001, rsi: 54, volatilityRatio: 1
+  }};
+  const engineResults = [
+    { engine: "pullback_retest", direction: "CALL", validity: true },
+    { engine: "safety_noise_guard", direction: "NO_SIGNAL", validity: true, reason: "PASS: safe" }
+  ];
+  const candidate = { signal: "CALL", score: 66, strategy: "UPTREND", engineResults };
+  assert.equal(decide(ctx, candidate).signal, "CALL");
+  assert.equal(decide({ ...ctx, indicators: { ...ctx.indicators, macdHistogram: -0.0001 } }, candidate).signal, "STANDBY");
+  assert.equal(decide({ ...ctx, higherTimeframe: { direction: "PUT" } }, candidate).signal, "STANDBY");
+  assert.equal(decide(ctx, { ...candidate, score: 64 }).signal, "STANDBY");
+});
+
 test("Sideways market is always blocked, even with an attractive candidate score", () => {
   const ctx = { regime: "SIDEWAY", higherTimeframe: { direction: "CALL" },
     indicators: { volatilityRatio: 1, nearSupport: true, nearResistance: false } };
