@@ -219,10 +219,10 @@ function centralDispatcher(results, regime, context = {}) {
   const highConvictionSingle = supportCount === 1 && engines[loser].length === 0 &&\n    score >= 65 && singleEngineContextPass(context, winner);\n  if ((!highConvictionSingle && supportCount < MIN_ENGINE_SUPPORT) || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, score floor ${MIN_DISPATCH_SCORE}, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
   }
-  if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing')) {
+  if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing') && !highConvictionSingle) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
   }
-  return { signal: winner, score, confidence, singleEngineConfirmation: highConvictionSingle, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
+  return { signal: winner, score, confidence, singleEngineConfirmation: highConvictionSingle, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: highConvictionSingle ? `High-conviction single-engine ${winner}: score ${score}; M1 context independently confirmed` : `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
 }
 async function evaluateEngineBatch(marketData, engineList = ENGINES) {
   const settled = await Promise.allSettled(engineList.map(engine => Promise.resolve().then(() => engine(marketData))));
