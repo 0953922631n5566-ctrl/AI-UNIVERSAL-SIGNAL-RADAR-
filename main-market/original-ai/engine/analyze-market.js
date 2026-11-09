@@ -1,14 +1,20 @@
 'use strict';
 
 const { buildMarketContext } = require('../scanner/market-context');
+const CONTEXT_CANDLES = 50;
+const ENTRY_CANDLES = 4;
+const ANALYSIS_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
 const { routeStrategy } = require('./strategy-router');
 const { decide } = require('./decision-engine');
 const { evaluateAllEngines } = require('./multi-engine-dispatcher');
 
 function prepareMarket(candles) {
-  const context = buildMarketContext(candles);
-  const candidate = routeStrategy(context);
-  return { context, candidate };
+  const window = Array.isArray(candles) ? candles.slice(-ANALYSIS_CANDLES) : [];
+  const contextCandles = window.slice(0, CONTEXT_CANDLES);
+  const entryCandles = window.slice(-ENTRY_CANDLES);
+  const context = buildMarketContext(contextCandles);
+  const candidate = routeStrategy({ ...context, candles: window, contextCandles, entryCandles });
+  return { context, candidate, analysisWindow: { contextCandles: contextCandles.length, entryCandles: entryCandles.length, total: window.length } };
 }
 
 function finalizeMarket(prepared) {
@@ -22,7 +28,8 @@ function finalizeMarket(prepared) {
     higherTimeframe: context.higherTimeframe || null,
     regimeConfidence: context.confidence || 0,
     engineResults: candidate?.engineResults || null,
-    engineSummary: candidate?.engineSummary || null
+    engineSummary: candidate?.engineSummary || null,
+    analysisWindow: prepared?.analysisWindow || { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: ANALYSIS_CANDLES }
   };
 }
 
@@ -33,16 +40,17 @@ function finalizeMarket(prepared) {
  * remain vetoes, while legacy directional re-filtering is bypassed for the aggregate.
  */
 async function analyzeMarketMulti(candles, options = {}) {
-  const context = buildMarketContext(candles);
+  const window = Array.isArray(candles) ? candles.slice(-ANALYSIS_CANDLES) : [];
+  const contextCandles = window.slice(0, CONTEXT_CANDLES);
+  const entryCandles = window.slice(-ENTRY_CANDLES);
+  const context = buildMarketContext(contextCandles);
   const candidate = await evaluateAllEngines({
-    ...context,
-    candles,
-    now: options.now,
-    tickAgeSeconds: options.tickAgeSeconds,
-    allowRestFallback: options.allowRestFallback,
-    ageSeconds: options.ageSeconds
+    ...context, candles: window, contextCandles, entryCandles,
+    now: options.now, tickAgeSeconds: options.tickAgeSeconds,
+    allowRestFallback: options.allowRestFallback, ageSeconds: options.ageSeconds
   });
-  return finalizeMarket({ context, candidate });
+  return finalizeMarket({ context, candidate,
+    analysisWindow: { contextCandles: contextCandles.length, entryCandles: entryCandles.length, total: window.length } });
 }
 
 // Synchronous legacy helpers remain available for deterministic diagnostics/tests;

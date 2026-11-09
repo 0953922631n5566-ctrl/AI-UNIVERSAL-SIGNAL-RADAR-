@@ -1697,3 +1697,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Backend-only identity/documentation change. Android source and Build 16 APK were not changed or rebuilt.
 - Deployment and live runtime identity must be rechecked after Render completes the auto-deploy. Do not claim the new response headers or health fields are live until that check succeeds.
 - Existing limitations remain: rule-based/manual-only signal release; no OOS or profitability validation is implied by the architecture name or software tests.
+
+
+## 2026-11-09 — Telegram Mini App migration and 50+4 M1 analysis
+
+- User explicitly cancelled further Android APK builds and requested signal display inside the Telegram Mini App. Do not generate, package, or request installation of an APK for this project.
+- Implementation branch: `feature/telegram-mini-app-50plus4`; intended target: `main-market`. Keep the existing Main Market repository and branch lineage.
+- Analysis window: 50 fully closed M1 context candles plus the latest 4 fully closed M1 entry candles (54 total). The 50 context candles feed regime/EMA/RSI/MACD/ADX/DI/volatility/support-resistance context. The latest 4 candles are the entry pattern window. In-progress candle is excluded.
+- The nine directional engines vote; System 10 aggregates weighted CALL/PUT scores. Safety Noise Guard independently vetoes invalid/stale/gapped/noisy data. No random direction on tie/no-vote.
+- Telegram Mini App page: `/signal`; bot menu URL target: `https://ai-signal-radar-main-market.onrender.com/signal`. Mini App authentication validates Telegram `initData` server-side using `TELEGRAM_BOT_TOKEN`; never expose that token to frontend code.
+- Optional access restriction: set `TELEGRAM_ALLOWED_USER_IDS` to comma-separated Telegram numeric user IDs. Init data freshness is controlled by `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS` (default 86400).
+- The Mini App reads state via authenticated `GET /api/telegram/signal` polling. It does not send CALL/PUT messages to Telegram chats/groups. No FCM push or APK notification delivery is part of this Mini App path. While the Mini App is closed, its screen cannot update; the app polls while open.
+- Required Render environment variable before Telegram launch: a newly rotated `TELEGRAM_BOT_TOKEN`. Any previously pasted/exposed token must be revoked with BotFather and replaced; do not reuse the exposed token.
+- Configure the bot's Main Mini App / menu button in BotFather (or Bot API) to open the URL above after deployment. Do not send chat messages as a signal transport.
+- Existing Android authentication routes and old dashboard files are retained as dormant legacy compatibility only; they are not the product delivery path and no APK build is requested.
+- Validation gates before production: unit tests, JS syntax checks, Render deploy health, `/health` reporting 54 history candles and Telegram auth configured, then authenticated Mini App session + signal polling. Do not claim production-ready until verified.

@@ -8,7 +8,7 @@ const { volatility } = require('../indicators/volatility');
 const { supportResistance } = require('../indicators/support-resistance');
 
 const MIN_TREND_ADX = 14;
-const MIN_M5_CANDLES = 22;
+const MIN_M5_CANDLES = 8;
 
 function candleEpoch(candle, index) {
   if (Number.isFinite(candle?.epoch)) return candle.epoch;
@@ -58,15 +58,15 @@ function buildHigherTimeframeContext(candles) {
     return { direction: 'UNCLEAR', candleCount: bars.length, reason: 'M5 bars are incomplete or contain gaps' };
   }
   const closes = bars.map(bar => bar.close);
-  const ema9 = ema(closes, 9), ema21 = ema(closes, 21);
-  const priorEma21 = ema(closes.slice(0, -1), 21), close = closes.at(-1);
-  if (![ema9, ema21, priorEma21, close].every(Number.isFinite)) {
+  const ema5 = ema(closes, 5), ema8 = ema(closes, 8);
+  const priorEma5 = ema(closes.slice(0, -1), 5), close = closes.at(-1);
+  if (![ema5, ema8, priorEma5, close].every(Number.isFinite)) {
     return { direction: 'UNCLEAR', candleCount: bars.length, reason: 'M5 indicator calculation incomplete' };
   }
   let direction = 'UNCLEAR';
-  if (ema9 > ema21 && close > ema21 && ema21 > priorEma21) direction = 'CALL';
-  if (ema9 < ema21 && close < ema21 && ema21 < priorEma21) direction = 'PUT';
-  return { direction, candleCount: bars.length, ema9, ema21, close,
+  if (ema5 > ema8 && close > ema8 && ema5 > priorEma5) direction = 'CALL';
+  if (ema5 < ema8 && close < ema8 && ema5 < priorEma5) direction = 'PUT';
+  return { direction, candleCount: bars.length, ema5, ema8, close,
     reason: direction === 'UNCLEAR' ? 'M5 trend is flat or conflicting' : `M5 ${direction} trend context` };
 }
 
@@ -88,20 +88,20 @@ function classifyTrendRegime({ bullishAlignment, bearishAlignment, adx: adxValue
 }
 
 function scanTrend(c) {
-  if (!Array.isArray(c) || c.length < 200) {
+  if (!Array.isArray(c) || c.length < 50) {
     return { regime: 'UNCLEAR', confidence: 0, reason: 'Insufficient closed candles', indicators: null };
   }
   const higherTimeframe = buildHigherTimeframeContext(c);
   const closes = c.map(x => x.close);
-  const e9 = ema(closes, 9), e21 = ema(closes, 21), e50 = ema(closes, 50), e200 = ema(closes, 200);
+  const e9 = ema(closes, 9), e21 = ema(closes, 21), e34 = ema(closes, 34), e50 = ema(closes, 50);
   const rv = rsi(closes), m = macd(closes), d = adx(c), v = volatility(c), sr = supportResistance(c);
-  if ([e9, e21, e50, e200, rv, m?.histogram, d?.adx, d?.plusDI, d?.minusDI,
+  if ([e9, e21, e34, e50, rv, m?.histogram, d?.adx, d?.plusDI, d?.minusDI,
     v?.averageRange, sr?.support, sr?.resistance].some(x => !Number.isFinite(x))) {
     return { regime: 'UNCLEAR', confidence: 0, reason: 'Indicator calculation incomplete', indicators: null, higherTimeframe };
   }
   const last = c.at(-1), prev = c.at(-2);
-  const bullishAlignment = Number(e9 > e21) + Number(e21 > e50) + Number(e50 > e200);
-  const bearishAlignment = Number(e9 < e21) + Number(e21 < e50) + Number(e50 < e200);
+  const bullishAlignment = Number(e9 > e21) + Number(e21 > e34) + Number(e34 > e50);
+  const bearishAlignment = Number(e9 < e21) + Number(e21 < e34) + Number(e34 < e50);
   const nearSupport = last.close - sr.support <= v.averageRange * 0.25;
   const nearResistance = sr.resistance - last.close <= v.averageRange * 0.25;
   const bullBreak = last.close > prev.high && last.close > e21;
@@ -121,7 +121,7 @@ function scanTrend(c) {
     }
   }
   return { regime, confidence, reason, higherTimeframe, indicators: {
-    ema9: e9, ema21: e21, ema50: e50, ema200: e200,
+    ema9: e9, ema21: e21, ema34: e34, ema50: e50,
     emaBullishAlignment: bullishAlignment, emaBearishAlignment: bearishAlignment,
     rsi: rv, macdHistogram: m.histogram, adx: d.adx, plusDI: d.plusDI, minusDI: d.minusDI,
     support: sr.support, resistance: sr.resistance, averageRange: v.averageRange,
