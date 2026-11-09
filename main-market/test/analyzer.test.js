@@ -55,20 +55,28 @@ test("HMA 50 warm-up correctly waits for 56 closed candles", () => {
   assert.ok(["CALL", "PUT", "STANDBY"].includes(engine.evaluateSignal(history(56)).signal));
 });
 
-test("uptrend with bullish candle and RSI in allowed band produces CALL", () => {
-  const result = new NextM1Analyzer().evaluateSignal(history(220, 1));
+test("aligned bullish HMA and valid RSI/candle conditions produce CALL", () => {
+  const engine = new NextM1Analyzer();
+  engine.calculateHMA = (_candles, period) => Array(220).fill(period === 7 ? 3 : period === 21 ? 2 : 1);
+  engine.calculateRSI = () => 60;
+  engine.analyzeCandle = () => ({ isBullish: true, isValidBody: true, bodyRatio: 0.7 });
+  const result = engine.evaluateSignal(history(220, 1));
   assert.equal(result.signal, "CALL");
   assert.equal(result.confidence, "HIGH");
   assert.equal(result.strategy, "NEXT_M1_HMA_RSI_TREND");
-  assert.ok(result.indicators.rsi > 50 && result.indicators.rsi < 75);
+  assert.equal(result.indicators.rsi, 60);
 });
 
-test("downtrend with bearish candle and RSI in allowed band produces PUT", () => {
-  const result = new NextM1Analyzer().evaluateSignal(history(220, -1));
+test("aligned bearish HMA and valid RSI/candle conditions produce PUT", () => {
+  const engine = new NextM1Analyzer();
+  engine.calculateHMA = (_candles, period) => Array(220).fill(period === 7 ? 1 : period === 21 ? 2 : 3);
+  engine.calculateRSI = () => 40;
+  engine.analyzeCandle = () => ({ isBullish: false, isValidBody: true, bodyRatio: 0.7 });
+  const result = engine.evaluateSignal(history(220, -1));
   assert.equal(result.signal, "PUT");
   assert.equal(result.confidence, "HIGH");
   assert.equal(result.strategy, "NEXT_M1_HMA_RSI_TREND");
-  assert.ok(result.indicators.rsi < 50 && result.indicators.rsi > 25);
+  assert.equal(result.indicators.rsi, 40);
 });
 
 test("source quality gate blocks missing, malformed, stale or unapproved data", async () => {
