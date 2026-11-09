@@ -661,7 +661,7 @@ function rateLimitAuth(req, res, next) {
   const key = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
   const recent = (authRequests.get(key) || []).filter(time => now - time < 5 * 60 * 1000);
-  if (recent.length >= 10) return res.status(429).json({ ok: false, error: "ยืนยันตัวตนถี่เกินไป กรุณารอสักครู่" });
+  if (recent.length >= 30) { res.setHeader("Retry-After", "60"); return res.status(429).json({ ok: false, error: "ยืนยันตัวตนถี่เกินไป กรุณารอสักครู่ 60 วินาที" }); }
   recent.push(now);
   authRequests.set(key, recent);
   next();
