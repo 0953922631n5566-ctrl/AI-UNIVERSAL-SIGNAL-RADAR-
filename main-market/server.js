@@ -9,6 +9,7 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { GEMINI_MODEL } from "./src/gemini-analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
@@ -27,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "AI-10 CORE";
 const ARCHITECTURE_ID = "AI-10-CORE";
-const VERSION = "2026-11-09-telegram-mini-app-six-pair-v1";
+const VERSION = "2026-11-09-gemini-primary-analyzer-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -218,7 +219,7 @@ async function evaluate(feed) {
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  const rawResult = await analyzeMarket(feed.candles, {
-   now, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
  const result = applySignalReleaseGate(rawResult);
  const currentCandle = feed.candles.at(-1);
@@ -822,7 +823,8 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
-    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", decisionAuthority: "CENTRAL_AI_DISPATCHER", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
+    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "GEMINI_PRIMARY_ANALYZER", engines: 1, decisionAuthority: "GEMINI_ONLY", safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS", signalDecisionPath: "SOURCE_GATE_TO_GEMINI_JSON_DECISION_TO_TIMING_GUARD" },
+    analyzer: { provider: "GEMINI", model: GEMINI_MODEL, configured: Boolean(process.env.GEMINI_API_KEY), role: "SOLE_DIRECTIONAL_ANALYZER", jsonOutput: true, localDirectionalFallback: false },
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
@@ -838,7 +840,11 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED"
+      signalReleaseStatus: "GEMINI_PRIMARY_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+      geminiModel: GEMINI_MODEL,
+      geminiIsSoleAnalyzer: true,
+      localDirectionalFallback: false
     }
   });
 });
