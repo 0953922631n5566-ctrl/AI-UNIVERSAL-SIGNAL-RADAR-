@@ -1774,3 +1774,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Automated tests were rewritten to cover indicator inputs, JSON schema request, CALL/PUT output from mocked Gemini responses, per-candle request caching, malformed response fail-closed behavior, missing-key STANDBY, and preserved source guards.
 - CI verification (2026-11-09): final code commit 85b1bd1155f0a1e373b4435814fe8c2a1457bc68 passed Main Market Checks run 42624874661 and Main Market Telegram Mini App Checks run 42624874644. Both ran 67 tests, 67 passed / 0 failed; npm install/postinstall syntax checks and the 50+4 Telegram Mini App wiring check passed.
 - Production branch main-market and Render service remain unchanged. PR #39 is open and ready for review. Before merge, verify GEMINI_API_KEY is configured in Render without exposing its value; after merge/deploy, verify health metadata, a real Gemini API response, and authenticated Mini App polling. No live Gemini API call or market-performance/OOS validation has yet been performed.
+
+
+## Sideway Trading Mode update (feature branch; pending PR validation)
+- Branch: `feature/sideway-trading-mode`.
+- Scope is limited to the Main Market Gemini analyzer prompt and its indicator payload. The existing source-quality/timing gate in `main-market/src/analyzer.js` remains unchanged; stale/missing candles or stale streaming data still return STANDBY before Gemini is called.
+- SIDEWAY/UNCLEAR classification alone is no longer a reason for Gemini to choose STANDBY. The prompt now permits CALL/PUT only for evidence-backed range-edge setups: micro support/resistance over the latest 8 closed candles, short-term candle momentum/rejection, and RSI direction/change; at least two independent clues are required.
+- EMA9/EMA21 are contextual rather than a mandatory veto for a confirmed range-edge reversal. RSI 45–55 can be considered with aligned short-term momentum; mid-range, indecisive candles, false breaks, insufficient room, or conflicting evidence remain STANDBY.
+- Added indicator fields: EMA spread %, previous RSI and RSI change, 8-candle micro support/resistance and micro range. Existing EMA/RSI/MACD/ATR calculations and decision schema are retained.
+- Gemini model, one-request-per-closed-M1-candle cache/single-shot behavior, T-5 scheduler, quota monitor, Twelve Data source, authentication and Mini App UI are not intentionally changed.
+- Unit coverage added for the new indicator fields and a valid SIDEWAY CALL response. CI must pass before merge; production deploy occurs only after owner approval of the PR.
