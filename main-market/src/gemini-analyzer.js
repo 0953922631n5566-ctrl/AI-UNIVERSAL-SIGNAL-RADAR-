@@ -163,11 +163,6 @@ async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, n
   });
   if (!response.ok) {
     const status = response.status;
-    console.error("[gemini] request_failed", {
-      requestId, symbol, timeframe: "M1", model, httpStatus: status,
-      durationMs: Date.now() - startedAt,
-      error: status === 429 ? "Gemini rate limit" : status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + status + ")"
-    });
     throw new Error(status === 429 ? "Gemini rate limit" : status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + status + ")");
   }
   const body = await response.json();
