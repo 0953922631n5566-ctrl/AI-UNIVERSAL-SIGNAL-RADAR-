@@ -38,10 +38,10 @@ function runTrendBreakoutEngine(data) {
 function runTrendContinuationEngine(data) {
   const b = base(data, 'trend_continuation'); if (b.error) return b.error;
   const { c, p, i, range } = b;
-  const call = Number.isFinite(i.adx) && i.adx >= 18 && i.plusDI > i.minusDI &&
+  const call = Number.isFinite(i.adx) && i.adx >= 14 && i.plusDI > i.minusDI &&
     i.macdHistogram > 0 && i.rsi >= 45 && i.rsi <= 72 &&
     c.close > c.open && c.close > p.close && (c.close - c.low) / range >= 0.68;
-  const put = Number.isFinite(i.adx) && i.adx >= 18 && i.minusDI > i.plusDI &&
+  const put = Number.isFinite(i.adx) && i.adx >= 14 && i.minusDI > i.plusDI &&
     i.macdHistogram < 0 && i.rsi >= 28 && i.rsi <= 55 &&
     c.close < c.open && c.close < p.close && (c.high - c.close) / range >= 0.68;
   if (call) return choose('trend_continuation', 'CALL', 70, 'ADX, DI, MACD, RSI and candle flow confirm bullish continuation');
@@ -78,7 +78,7 @@ function runRangeBoundSwingEngine(data) {
   const nearSupport = i.nearSupport === true, nearResistance = i.nearResistance === true;
   const bullReject = (c.close - c.low) / range >= 0.68 && c.close > c.open;
   const bearReject = (c.high - c.close) / range >= 0.68 && c.close < c.open;
-  if (nearSupport && bullReject && Number.isFinite(i.rsi) && i.rsi <= 45 && (i.volatilityRatio ?? 99) <= 1.8)
+  if (nearSupport && bullReject && Number.isFinite(i.rsi) && i.rsi <= 45 && (i.volatilityRatio ?? 99) <= 2.0)
     return choose('range_bound_swing', 'CALL', 68, 'Range swing: support rejection with subdued volatility and RSI confirmation');
   if (nearResistance && bearReject && Number.isFinite(i.rsi) && i.rsi >= 55 && (i.volatilityRatio ?? 99) <= 1.8)
     return choose('range_bound_swing', 'PUT', 68, 'Range swing: resistance rejection with subdued volatility and RSI confirmation');
@@ -150,7 +150,7 @@ function runSafetyNoiseGuard(data) {
   const restFresh = data.allowRestFallback === true && Number.isFinite(data.ageSeconds) && data.ageSeconds <= 180;
   if (!streamFresh && !restFresh)
     return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: live tick and permitted REST candle are stale', false);
-  const gap = candles.slice(-30).some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 60);
+  const recentCandles = candles.slice(-3);\n  const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 60);
   if (gap) return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: missing M1 candle gap in analysis window', false);
   const i = data.indicators || {};
   if (Number.isFinite(i.volatilityRatio) && i.volatilityRatio > 2.8)
@@ -159,7 +159,7 @@ function runSafetyNoiseGuard(data) {
   const last = latest ? rangeOf(latest) : 0;
   if (avg > 0 && last / avg > 3.5)
     return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: latest candle is an abnormal noise spike', false);
-  return result('safety_noise_guard', 'NO_SIGNAL', 0, 100, 'PASS: source freshness, OHLC integrity and noise checks passed', true);
+  return result('safety_noise_guard', 'NO_SIGNAL', 0, 100, 'PASS: source freshness, OHLC integrity, last-3-candle continuity and noise checks passed', true);
 }
 
 const ENGINES = Object.freeze([
@@ -173,7 +173,7 @@ const WEIGHTS = Object.freeze({
   candlestick_pattern: 0.9, range_bound_swing: 1.15, compression_squeeze: 1,
   momentum_divergence: 0.85, volume_order_flow: 0.8, pullback_retest: 1.05
 });
-function centralDispatcher(results, regime) {
+const MIN_ENGINE_SUPPORT = 2;\nconst MIN_DISPATCH_SCORE = 50;\nconst MIN_CONFLICT_MARGIN = 0.15;\n\nfunction centralDispatcher(results, regime) {
   const safety = results.find(r => r.engine === 'safety_noise_guard');
   if (!safety || !safety.validity || safety.reason.startsWith('VETO:'))
     return { signal: 'STANDBY', score: 0, strategy: 'SAFETY_VETO', reason: safety?.reason || 'VETO: Safety engine unavailable', engineResults: results };
@@ -193,8 +193,8 @@ function centralDispatcher(results, regime) {
   const winningWeight = Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0));
   const score = clamp(Math.round(votes[winner] / winningWeight));
   const confidence = clamp(Math.round(confidenceVotes[winner] / winningWeight));
-  if (supportCount < 2 || score < 55 || margin < 0.22) {
-    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
+  if (supportCount < MIN_ENGINE_SUPPORT || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
+    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, score floor ${MIN_DISPATCH_SCORE}, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
   }
   if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing')) {
     return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
