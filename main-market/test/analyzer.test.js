@@ -106,31 +106,29 @@ test("one symbol/closed-candle epoch makes only one Gemini request even with rep
   assert.equal(calls.length, 1);
 });
 
-test("Gemini rotates configured keys and retries transient 429 with exponential backoff", async () => {
+test("Gemini makes exactly one HTTP attempt and does not retry transient 429 on Free Tier", async () => {
   clearGeminiAnalysisCache();
   const candles = history(54);
   const usedKeys = [], delays = [];
-  let attempt = 0;
+  let calls = 0;
   const fetchImpl = async (_url, init) => {
+    calls++;
     usedKeys.push(init.headers["x-goog-api-key"]);
-    attempt++;
-    if (attempt === 1) return {
+    return {
       ok: false, status: 429,
       clone: () => ({ json: async () => ({ error: { message: "Rate limit exceeded for requests per minute" } }) })
     };
-    return {
-      ok: true, status: 200,
-      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(geminiResponse("CALL")) }] } }] })
-    };
   };
   const result = await analyzeWithGemini({
-    symbol: "TEST/ROTATION", candles, indicators: buildTechnicalIndicators(candles),
+    symbol: "TEST/SINGLE-SHOT-429", candles, indicators: buildTechnicalIndicators(candles),
     apiKeys: ["free-key-a", "free-key-b"], fetchImpl, now: Date.now(),
     sleepImpl: async ms => delays.push(ms), randomImpl: () => 0
   });
-  assert.equal(result.signal, "CALL");
-  assert.deepEqual(usedKeys, ["free-key-a", "free-key-b"]);
-  assert.deepEqual(delays, [350]);
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(calls, 1);
+  assert.deepEqual(usedKeys, ["free-key-a"]);
+  assert.deepEqual(delays, []);
+  assert.equal(result.providerStatus, "ERROR");
 });
 
 test("Gemini does not retry a daily quota exhaustion 429", async () => {
