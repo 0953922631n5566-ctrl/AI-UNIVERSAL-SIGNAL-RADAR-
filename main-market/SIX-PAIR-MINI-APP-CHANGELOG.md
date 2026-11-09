@@ -20,3 +20,12 @@
 - Existing AI 9 + System 10 analysis, signal release gate, signal timing, and 40-second signal hold.
 - Existing 2-second Mini App polling and M1 countdown display.
 - No simultaneous six-pair scanning; no change to analysis thresholds or decision logic.
+
+
+## Two-stage sound and visual alerts — 2026-11-09
+- Added an explicit one-tap sound unlock/test control to satisfy mobile browser audio autoplay restrictions.
+- A single short two-tone warning plays once when the current M1 candle has 10 seconds or less remaining. It is explicitly labeled as a watch-only reminder, not a CALL/PUT signal.
+- A distinct multi-tone alert plays on a new server-issued CALL/PUT alertId. CALL and PUT use different tone sequences.
+- Real signals trigger a color-coded flashing signal panel, an on-screen alert banner, and device vibration / Telegram haptic feedback where supported.
+- Alerts are generated only while the Mini App is open and visible; hidden/background pages pause polling and cannot guarantee sound.
+- No changes to analysis logic, signal timing, thresholds, API usage, or backend endpoints.
