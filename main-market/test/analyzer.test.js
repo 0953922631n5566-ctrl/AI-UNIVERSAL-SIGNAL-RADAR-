@@ -35,7 +35,9 @@ test("Live analyzer routes through async ten-engine dispatcher", async () => {
   const routed = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
   assert.ok(["CALL", "PUT", "STANDBY"].includes(routed.signal));
   assert.ok(routed.engineResults);
-  assert.equal(routed.engineResults.length, 10);
+  assert.equal(routed.engineResults.length, 9);
+  assert.equal(routed.engineSummary.directionalEngines, 9);
+  assert.equal(routed.engineSummary.aggregator, 1);
   assert.equal(routed.engineSummary.total, 10);
   assert.equal(routed.engineSummary.failed, 0);
   assert.equal(routed.livePriceReady, true);
