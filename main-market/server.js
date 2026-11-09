@@ -43,7 +43,8 @@ function newFeed(symbol) {
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
-    geminiWindowCandleEpoch: null, geminiWindowResult: null, geminiWindowPromise: null,
+    geminiWindowCandleEpoch: null, geminiWindowAttemptedCandleEpoch: null,
+    geminiWindowResult: null, geminiWindowPromise: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -221,20 +222,27 @@ async function evaluate(feed) {
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
- const inGeminiWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
+ // Gemini is invoked once at T-5 only; PREPARE (T-10..T-5) is UI-only.
+ const inGeminiWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now) &&
+   Number.isFinite(tickAge) && tickAge <= 5;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  let rawResult;
  if (inGeminiWindow) {
    if (feed.geminiWindowCandleEpoch !== sourceCandleEpoch) {
      feed.geminiWindowCandleEpoch = sourceCandleEpoch;
+     feed.geminiWindowAttemptedCandleEpoch = null;
      feed.geminiWindowResult = null;
      feed.geminiWindowPromise = null;
    }
-   if (!feed.geminiWindowPromise && !feed.geminiWindowResult) {
-     console.info("[gemini] M1 request window opened", {
+   if (feed.geminiWindowAttemptedCandleEpoch !== sourceCandleEpoch &&
+       !feed.geminiWindowPromise && !feed.geminiWindowResult) {
+     // Mark before awaiting so overlapping tick/timer evaluations cannot create a second request.
+     feed.geminiWindowAttemptedCandleEpoch = sourceCandleEpoch;
+     console.info("[gemini] T-5 single-shot window entered", {
        symbol: feed.symbol, candleEpoch: sourceCandleEpoch,
-       secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000
+       secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
+       requestLimit: "ONE_ATTEMPT_PER_M1_CANDLE"
      });
      feed.geminiWindowPromise = analyzeMarket(feed.candles, {
        now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
@@ -250,12 +258,17 @@ async function evaluate(feed) {
      }).finally(() => { feed.geminiWindowPromise = null; });
    }
    if (feed.geminiWindowPromise) rawResult = await feed.geminiWindowPromise;
-   else rawResult = feed.geminiWindowResult;
+   else rawResult = feed.geminiWindowResult || standby("Gemini ถูกเรียกไปแล้ว 1 ครั้งสำหรับแท่ง M1 นี้");
  } else if (feed.geminiWindowCandleEpoch === sourceCandleEpoch && feed.geminiWindowResult) {
    rawResult = feed.geminiWindowResult;
  } else {
-   rawResult = standby("รอช่วงเรียก Gemini เฉพาะ T-10 ถึง T-5 ก่อนปิดแท่ง M1", {
-     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "WINDOW_CLOSED"
+   const inFinalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
+   const reason = inFinalizeWindow
+     ? "ข้าม Gemini: ต้องมี Streaming tick สดไม่เกิน 5 วินาทีในช่วง T-5"
+     : "รอเรียก Gemini เพียงครั้งเดียวที่ T-5 ก่อนปิดแท่ง M1";
+   rawResult = standby(reason, {
+     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI",
+     providerStatus: inFinalizeWindow ? "WAITING_FOR_FRESH_TICK" : "WINDOW_CLOSED"
    });
  }
  const result = applySignalReleaseGate(rawResult);
