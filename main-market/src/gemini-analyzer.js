@@ -145,7 +145,7 @@ async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, 
     closedCandles: candles.map(c => ({ epoch: c.epoch, open: c.open, high: c.high, low: c.low, close: c.close })),
     indicators, task: "Decide the next M1 direction from the supplied evidence. Do not treat the current in-progress candle as closed." };
   let lastError;
-  const attempts = Math.min(MAX_RETRIES + 1, Math.max(1, apiKeys.length));
+  const attempts = MAX_RETRIES + 1;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const keyIndex = (keyCursor + attempt) % apiKeys.length;
     console.info("[gemini] request_started", { requestId, symbol, timeframe: "M1", model,
