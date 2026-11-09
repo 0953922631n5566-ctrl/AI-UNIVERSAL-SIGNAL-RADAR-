@@ -1745,3 +1745,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Signal output is now allowed throughout the full target M1 candle (0–60 seconds), with <=5-second Streaming tick freshness and per-candle dedupe; global cooldown removed so one late candle does not suppress the next candle.
 - STANDBY is still intentionally retained for invalid/missing/stale market data, insufficient history, API lock, or unavailable fresh source. The system does not fabricate prices or directional outputs during a data-quality failure.
 - No APK, UI, auth/session, Telegram chat-message, OCR, or broker execution changes were made. Manual trading only. OOS/backtest/paper-trading validation remains outstanding; no predictive edge is claimed.
+
+
+## 2026-11-09 — M1 PREPARE T-10 / Signal T-5 / 30-second hold
+
+- Production branch: `main-market`; Render service: `ai-signal-radar-main-market`.
+- Server timing helpers in `main-market/src/signal-timing.js` define PREPARE at elapsed 50,000–54,999 ms of the current M1 candle and direction finalization at 55,000–59,999 ms.
+- During PREPARE, the API exposes `preAlertStatus=PREPARE_ALERT`; the Telegram Mini App displays the non-directional amber state “PREPARE / เฝ้าระวัง” and does not show CALL/PUT.
+- At T-5, the server finalizes the analyzer's CALL/PUT candidate for the next M1 candle, subject to the existing fresh-data and per-candle deduplication gates. It assigns the next candle epoch as the target.
+- The signal expiry is anchored to target-candle open + 30,000 ms. The Mini App alert toast and signal panel use the server's `signalExpiresAt` so they clear at the same expiry rather than starting an unrelated 30-second timer.
+- Forecast entry price is captured from the first Streaming tick of the target candle, not from the pre-close candle.
+- Updated `main-market/public/signal.html` and `main-market/test/signal-timing.test.js` / `main-market/test/mini-app-ui.test.js`. Regression coverage includes PREPARE boundaries, T-5 boundaries, tick freshness, per-candle dedupe, exact target +30s expiry, Mini App UI text and inline-script parsing.
+- Final code/UI commit: `a505d1b94275040efb316b573c3969586b86384a`; Render deploy `dep-dbos65ivcj2c739okm1g` reached `live`.
+- Live verification: `/health` returned `ok:true`; `/signal` served the updated T-10/T-5/30-second instructions. This verifies deployment and page delivery, not actual handset sound/haptic timing or signal profitability.
+- No broker execution, auto-order, OCR, APK, or Telegram chat-message delivery was added. Existing analyzer decision logic was not modified. Data-quality/freshness gates remain active.
