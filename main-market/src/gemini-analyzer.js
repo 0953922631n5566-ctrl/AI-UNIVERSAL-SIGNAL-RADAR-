@@ -1,4 +1,4 @@
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 const cache = new Map();
 const SUCCESS_CACHE_MS = 70_000;
