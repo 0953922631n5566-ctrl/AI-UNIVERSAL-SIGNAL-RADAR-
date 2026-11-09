@@ -1,3 +1,4 @@
+import { recordGeminiRequestStarted, recordGeminiRequestFinished } from "./gemini-quota-monitor.js";
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
 const cache = new Map();
@@ -160,7 +161,9 @@ async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, 
       attempt: attempt + 1, keySlot: keyIndex + 1, keyCount: apiKeys.length,
       candleCount: candles.length, latestClosedCandleEpoch: candles.at(-1)?.epoch ?? null,
       analysisTimestamp: new Date(now).toISOString() });
+    let quotaRequestFinished = false;
     try {
+      recordGeminiRequestStarted({ model });
       const response = await fetchImpl(API_URL + encodeURIComponent(model) + ":generateContent", {
         method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKeys[keyIndex] },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -170,6 +173,8 @@ async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, 
           generationConfig: { temperature: 0.1, maxOutputTokens: 700, responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA }
         })
       });
+      recordGeminiRequestFinished({ status: response.status, model });
+      quotaRequestFinished = true;
       if (!response.ok) {
         let detail = "";
         try { detail = (await response.clone().json())?.error?.message || ""; } catch {}
@@ -189,6 +194,10 @@ async function requestGemini({ symbol, candles, indicators, apiKeys, fetchImpl, 
         keySlot: keyIndex + 1, signal: decision.signal, regime: decision.regime, confidence: decision.confidence });
       return decision;
     } catch (error) {
+      if (!quotaRequestFinished) {
+        recordGeminiRequestFinished({ status: Number(error?.status) || 0, model });
+        quotaRequestFinished = true;
+      }
       lastError = error;
       if (error?.status !== 429 || !retryable429Message(error?.detail) || attempt >= attempts - 1) throw error;
       const delayMs = Math.min(2_000, BASE_BACKOFF_MS * (2 ** attempt)) + Math.floor(randomImpl() * 200);

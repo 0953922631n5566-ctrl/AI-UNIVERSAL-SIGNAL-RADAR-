@@ -10,6 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { GEMINI_MODEL } from "./src/gemini-analyzer.js";
+import { getGeminiQuotaStatus } from "./src/gemini-quota-monitor.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
@@ -160,7 +161,8 @@ function snapshot() {
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    apiPool: twelveDataKeyPool.publicStatus()
+    apiPool: twelveDataKeyPool.publicStatus(),
+    geminiQuota: getGeminiQuotaStatus()
   };
 }
 
@@ -919,6 +921,8 @@ app.get("/health", (_req, res) => {
       geminiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
       geminiApiKeyCount: [...new Set([...(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/), process.env.GEMINI_API_KEY || ""].map(v => v.trim()).filter(Boolean))].length,
       geminiModel: GEMINI_MODEL,
+      geminiQuotaMonitor: true,
+      geminiDailyRequestBudgetConfigured: getGeminiQuotaStatus().budgetConfigured,
       geminiIsSoleAnalyzer: true,
       localDirectionalFallback: false
     }
