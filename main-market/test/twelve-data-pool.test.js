@@ -20,3 +20,16 @@ test("successful key is promoted and its cooldown is cleared", () => {
   pool.markSuccess("first");
   assert.equal(pool.getActiveKey(), "first");
 });
+
+test("ten configured keys are represented individually and cooldown keys are unavailable", () => {
+  const keys = Array.from({ length: 10 }, (_, index) => `secret-key-${index + 1}`);
+  const pool = new TwelveDataKeyPool(keys);
+  pool.markFailure(keys[2], { kind: "RATE_LIMIT", message: "quota exceeded" });
+  const status = pool.publicStatus();
+  assert.equal(status.configuredCount, 10);
+  assert.equal(status.keyStates.length, 10);
+  assert.equal(status.keyStates[0].available, true);
+  assert.equal(status.keyStates[2].status, "COOLDOWN");
+  assert.equal(status.keyStates[2].available, false);
+  assert.equal(JSON.stringify(status).includes("secret-key"), false);
+});
