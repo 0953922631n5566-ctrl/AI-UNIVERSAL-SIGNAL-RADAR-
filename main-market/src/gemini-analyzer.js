@@ -128,8 +128,13 @@ function validateDecision(value) {
   };
 }
 
-async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now }) {
+async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now, requestId, startedAt }) {
   const model = process.env.GEMINI_MODEL || MODEL;
+  console.info("[gemini] request_started", {
+    requestId, symbol, timeframe: "M1", model, candleCount: candles.length,
+    latestClosedCandleEpoch: candles.at(-1)?.epoch ?? null,
+    analysisTimestamp: new Date(now).toISOString()
+  });
   const payload = {
     symbol,
     timeframe: "M1",
@@ -158,6 +163,11 @@ async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, n
   });
   if (!response.ok) {
     const status = response.status;
+    console.error("[gemini] request_failed", {
+      requestId, symbol, timeframe: "M1", model, httpStatus: status,
+      durationMs: Date.now() - startedAt,
+      error: status === 429 ? "Gemini rate limit" : status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + status + ")"
+    });
     throw new Error(status === 429 ? "Gemini rate limit" : status >= 500 ? "Gemini service unavailable" : "Gemini API request rejected (" + status + ")");
   }
   const body = await response.json();
@@ -166,7 +176,13 @@ async function requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, n
   let parsed;
   try { parsed = JSON.parse(text); }
   catch { throw new Error("Gemini returned invalid JSON"); }
-  return validateDecision(parsed);
+  const decision = validateDecision(parsed);
+  console.info("[gemini] response_success", {
+    requestId, symbol, timeframe: "M1", model, httpStatus: response.status,
+    durationMs: Date.now() - startedAt, signal: decision.signal,
+    regime: decision.regime, confidence: decision.confidence
+  });
+  return decision;
 }
 
 /** One Gemini request per symbol/closed-candle epoch; in-flight calls are shared. */
@@ -179,10 +195,26 @@ export async function analyzeWithGemini({ symbol, candles, indicators, apiKey = 
   if (cached && (cached.promise || cached.expiresAt > now)) {
     return cached.promise || cached.result;
   }
-  const promise = requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now })
-    .catch(error => standby("Gemini วิเคราะห์ไม่สำเร็จ: " + error.message, { providerStatus: "ERROR" }))
+  const requestId = key;
+  const startedAt = Date.now();
+  const promise = requestGemini({ symbol, candles, indicators, apiKey, fetchImpl, now, requestId, startedAt })
+    .catch(error => {
+      console.error("[gemini] request_failed", {
+        requestId, symbol, timeframe: "M1", model: MODEL,
+        durationMs: Date.now() - startedAt,
+        errorName: error?.name || "Error", error: error?.message || String(error)
+      });
+      return standby("Gemini วิเคราะห์ไม่สำเร็จ: " + error.message, { providerStatus: "ERROR" });
+    })
     .then(result => {
       const failed = result.signal === "STANDBY" && result.providerStatus === "ERROR";
+      console.info("[gemini] final_decision", {
+        requestId, symbol, timeframe: "M1", model: MODEL,
+        signal: result.signal, regime: result.regime,
+        confidence: result.confidence ?? result.score ?? 0,
+        providerStatus: failed ? "ERROR" : "SUCCESS",
+        reason: result.reason
+      });
       cache.set(key, { result, expiresAt: Date.now() + (failed ? FAILURE_CACHE_MS : SUCCESS_CACHE_MS) });
       return result;
     });
