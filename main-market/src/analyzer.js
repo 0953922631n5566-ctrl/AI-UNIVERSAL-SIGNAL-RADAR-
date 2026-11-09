@@ -77,8 +77,8 @@ export class NextM1Analyzer {
   }
 
   evaluateSignal(candles) {
-    if (!Array.isArray(candles) || candles.length < 56) {
-      return { signal: "STANDBY", reason: "HMA 50 warm-up requires 56 closed M1 candles",
+    if (!Array.isArray(candles) || candles.length < MIN_CLOSED_CANDLES) {
+      return { signal: "STANDBY", reason: `Insufficient closed M1 candles (${candles?.length ?? 0}/${MIN_CLOSED_CANDLES})`,
         confidence: null, price: candles?.at(-1)?.close ?? null, strategy: "NEXT_M1_HMA_RSI_TREND" };
     }
     const closes = candles.map(c => c.close);
@@ -90,33 +90,68 @@ export class NextM1Analyzer {
     const previous = candles.at(-2);
     const hmaFast = this.calculateHMA(candles, 7).at(-1);
     const hmaMid = this.calculateHMA(candles, 21).at(-1);
-    const hmaSlow = this.calculateHMA(candles, 50).at(-1);
+    const calculatedHmaSlow = this.calculateHMA(candles, 50).at(-1);
+    // HMA-50 needs 56 observations to fully warm up. During the first two
+    // valid source-window candles, use SMA-50 as a transparent slow-trend proxy.
+    const hmaSlow = Number.isFinite(calculatedHmaSlow)
+      ? calculatedHmaSlow
+      : closes.slice(-50).reduce((sum, value) => sum + value, 0) / 50;
     const rsi = this.calculateRSI(closes, 14);
     if (![hmaFast, hmaMid, hmaSlow, rsi].every(Number.isFinite)) {
-      return { signal: "STANDBY", reason: "Indicators are not warmed up",
-        price: current.close, indicators: { hmaFast, hmaMid, hmaSlow, rsi } };
+      return { signal: "STANDBY", reason: "Indicator input is invalid", price: current.close,
+        indicators: { hmaFast, hmaMid, hmaSlow, rsi }, strategy: "NEXT_M1_HMA_RSI_TREND" };
     }
 
     const candle = this.analyzeCandle(current, previous);
     const isUptrend = hmaFast > hmaMid && hmaMid > hmaSlow;
     const isDowntrend = hmaFast < hmaMid && hmaMid < hmaSlow;
-    const callTrigger = isUptrend && rsi > 50 && rsi < 75 &&
-      candle.isBullish && candle.isValidBody && current.close > hmaFast;
-    const putTrigger = isDowntrend && rsi < 50 && rsi > 25 &&
-      !candle.isBullish && candle.isValidBody && current.close < hmaFast;
-    const indicators = { hmaFast, hmaMid, hmaSlow, rsi,
-      candleBodyRatio: candle.bodyRatio, trend: isUptrend ? "UPTREND" :
-        isDowntrend ? "DOWNTREND" : "UNALIGNED" };
 
-    if (callTrigger) return { signal: "CALL", confidence: "HIGH",
-      reason: "Uptrend HMA aligned, Strong Bullish Candle, RSI Momentum OK",
-      price: current.close, indicators, strategy: "NEXT_M1_HMA_RSI_TREND" };
-    if (putTrigger) return { signal: "PUT", confidence: "HIGH",
-      reason: "Downtrend HMA aligned, Strong Bearish Candle, RSI Momentum OK",
-      price: current.close, indicators, strategy: "NEXT_M1_HMA_RSI_TREND" };
-    return { signal: "STANDBY",
-      reason: "Market consolidating or conditions not met",
-      price: current.close, indicators, strategy: "NEXT_M1_HMA_RSI_TREND" };
+    // Weighted directional vote: trend alignment has the largest influence;
+    // momentum, price location and candle direction refine the vote.
+    let directionalScore = 0;
+    directionalScore += hmaFast > hmaMid ? 2 : hmaFast < hmaMid ? -2 : 0;
+    directionalScore += hmaMid > hmaSlow ? 2 : hmaMid < hmaSlow ? -2 : 0;
+    directionalScore += rsi >= 55 ? 1 : rsi <= 45 ? -1 : 0;
+    directionalScore += current.close > hmaFast ? 1 : current.close < hmaFast ? -1 : 0;
+    directionalScore += closes.at(-1) > closes.at(-5) ? 1 : closes.at(-1) < closes.at(-5) ? -1 : 0;
+    if (candle.bodyRatio >= 0.20) directionalScore += candle.isBullish ? 1 : -1;
+
+    // Every valid, sufficiently populated candle receives one deterministic
+    // direction. A zero vote uses the latest short-horizon price slope, then
+    // the close-vs-open direction; an exact tie is explicitly marked LOW.
+    let tieBreak = "WEIGHTED_VOTE";
+    if (directionalScore === 0) {
+      tieBreak = "SHORT_SLOPE";
+      const slope = closes.at(-1) - closes.at(-5);
+      if (slope > 0) directionalScore = 0.01;
+      else if (slope < 0) directionalScore = -0.01;
+      else {
+        tieBreak = "LATEST_CANDLE";
+        if (current.close > current.open) directionalScore = 0.01;
+        else if (current.close < current.open) directionalScore = -0.01;
+        else {
+          tieBreak = "NEUTRAL_DEFAULT_CALL";
+          directionalScore = 0.001;
+        }
+      }
+    }
+
+    const signal = directionalScore >= 0 ? "CALL" : "PUT";
+    const strength = Math.abs(directionalScore);
+    const confidence = strength >= 4 ? "HIGH" : strength >= 2 ? "MEDIUM" : "LOW";
+    const indicators = {
+      hmaFast, hmaMid, hmaSlow, rsi, directionalScore,
+      tieBreak, candleBodyRatio: candle.bodyRatio,
+      trend: isUptrend ? "UPTREND" : isDowntrend ? "DOWNTREND" : "UNALIGNED"
+    };
+    return {
+      signal, confidence,
+      reason: tieBreak === "NEUTRAL_DEFAULT_CALL"
+        ? "Neutral market: deterministic CALL tie-break; evidence is weak"
+        : `Weighted directional vote ${directionalScore.toFixed(2)}; ${tieBreak}`,
+      price: current.close, indicators, strategy: "NEXT_M1_HMA_RSI_TREND",
+      confidenceMeaning: "DIRECTIONAL_EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY"
+    };
   }
 }
 
