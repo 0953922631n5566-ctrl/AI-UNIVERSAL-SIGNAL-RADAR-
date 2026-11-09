@@ -241,6 +241,12 @@ async function evaluate(feed) {
      }).then(value => {
        feed.geminiWindowResult = value;
        return value;
+     }).catch(error => {
+       const failed = standby("Gemini วิเคราะห์ไม่สำเร็จ: " + (error?.message || String(error)), {
+         strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "ERROR"
+       });
+       feed.geminiWindowResult = failed;
+       return failed;
      }).finally(() => { feed.geminiWindowPromise = null; });
    }
    if (feed.geminiWindowPromise) rawResult = await feed.geminiWindowPromise;
@@ -897,7 +903,8 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "GEMINI_PRIMARY_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),\n      geminiApiKeyCount: [...new Set([...(process.env.GEMINI_API_KEYS || "").split(/[\\n,;]+/), process.env.GEMINI_API_KEY || ""].map(v => v.trim()).filter(Boolean))].length,
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
+      geminiApiKeyCount: [...new Set([...(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/), process.env.GEMINI_API_KEY || ""].map(v => v.trim()).filter(Boolean))].length,
       geminiModel: GEMINI_MODEL,
       geminiIsSoleAnalyzer: true,
       localDirectionalFallback: false
