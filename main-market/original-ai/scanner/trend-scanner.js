@@ -7,7 +7,7 @@ const { adx } = require('../indicators/adx');
 const { volatility } = require('../indicators/volatility');
 const { supportResistance } = require('../indicators/support-resistance');
 
-const MIN_TREND_ADX = 18;
+const MIN_TREND_ADX = 14;
 const MIN_M5_CANDLES = 22;
 
 function candleEpoch(candle, index) {
