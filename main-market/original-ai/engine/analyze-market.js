@@ -28,8 +28,9 @@ function finalizeMarket(prepared) {
 
 /**
  * Main production decision path: build one shared market context, evaluate all
- * ten independent strategy engines concurrently, then pass the dispatcher
- * result through the Original AI safety/decision gate.
+ * nine directional strategy engines concurrently; system 10 aggregates their
+ * weighted votes. Independent source/data-quality and Safety Noise Guard checks
+ * remain vetoes, while legacy directional re-filtering is bypassed for the aggregate.
  */
 async function analyzeMarketMulti(candles, options = {}) {
   const context = buildMarketContext(candles);
