@@ -80,7 +80,7 @@ function runRangeBoundSwingEngine(data) {
   const bearReject = (c.high - c.close) / range >= 0.68 && c.close < c.open;
   if (nearSupport && bullReject && Number.isFinite(i.rsi) && i.rsi <= 45 && (i.volatilityRatio ?? 99) <= 2.0)
     return choose('range_bound_swing', 'CALL', 68, 'Range swing: support rejection with subdued volatility and RSI confirmation');
-  if (nearResistance && bearReject && Number.isFinite(i.rsi) && i.rsi >= 55 && (i.volatilityRatio ?? 99) <= 1.8)
+  if (nearResistance && bearReject && Number.isFinite(i.rsi) && i.rsi >= 55 && (i.volatilityRatio ?? 99) <= 2.0)
     return choose('range_bound_swing', 'PUT', 68, 'Range swing: resistance rejection with subdued volatility and RSI confirmation');
   return result('range_bound_swing', 'NO_SIGNAL', 0, 0, 'No confirmed support/resistance swing setup', true);
 }
