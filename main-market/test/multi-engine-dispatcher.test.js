@@ -6,16 +6,16 @@ const require = createRequire(import.meta.url);
 const engines = require("../original-ai/engine/multi-engine-dispatcher.js");
 
 function sidewayFixture() {
-  const start = Math.floor(Date.now() / 60000) * 60 - 200 * 60;
-  const candles = Array.from({ length: 200 }, (_, n) => {
+  const start = Math.floor(Date.now() / 60000) * 60 - 54 * 60;
+  const candles = Array.from({ length: 54 }, (_, n) => {
     const open = 1.10000 + Math.sin(n * 0.8) * 0.000015;
     const close = open + (n % 2 ? 0.000006 : -0.000006);
     return { epoch: start + n * 60, open, close,
       high: Math.max(open, close) + 0.00005,
       low: Math.min(open, close) - 0.00005, live: false };
   });
-  candles[198] = { ...candles[198], open: 1.10005, close: 1.09995, high: 1.10008, low: 1.09992 };
-  candles[199] = { ...candles[199], open: 1.09990, close: 1.10010, high: 1.10012, low: 1.09985 };
+  candles[52] = { ...candles[52], open: 1.10005, close: 1.09995, high: 1.10008, low: 1.09992 };
+  candles[53] = { ...candles[53], open: 1.09990, close: 1.10010, high: 1.10012, low: 1.09985 };
   return { candles, regime: "SIDEWAY", indicators: {
     adx: 13, plusDI: 20, minusDI: 15, macdHistogram: 0.000001, rsi: 40,
     volatilityRatio: 1, nearSupport: true, nearResistance: false,
@@ -81,15 +81,15 @@ test("System 10 does not invent a direction when nine-system scores are tied", (
   assert.match(out.reason, /tied/i);
 });
 
-test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest three candles", () => {
+test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest four candles", () => {
   const historicalGap = sidewayFixture();
-  historicalGap.candles[150].epoch += 60;
-  for (let n = 151; n < historicalGap.candles.length; n++) historicalGap.candles[n].epoch += 60;
+  historicalGap.candles[35].epoch += 60;
+  for (let n = 36; n < historicalGap.candles.length; n++) historicalGap.candles[n].epoch += 60;
   const tolerated = engines.runSafetyNoiseGuard(historicalGap);
   assert.equal(tolerated.validity, true, tolerated.reason);
 
   const recentGap = sidewayFixture();
-  recentGap.candles[199].epoch += 120;
+  recentGap.candles[53].epoch += 120;
   const blocked = engines.runSafetyNoiseGuard(recentGap);
   assert.equal(blocked.validity, false);
   assert.match(blocked.reason, /^VETO: missing M1 candle gap/);

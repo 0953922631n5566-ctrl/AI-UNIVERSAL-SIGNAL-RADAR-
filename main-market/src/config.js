@@ -1,11 +1,13 @@
 export const SYMBOLS = Object.freeze(["EUR/USD"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
-// Original AI regime scanner needs 200 completed M1 candles for EMA200/ADX context.
-export const MIN_CLOSED_CANDLES = 200;
-export const HISTORY_CANDLES = 200;
-// Keep room for the in-progress live candle without evicting required closed history.
-export const MAX_CANDLES = 220;
+// Analysis window: 50 closed M1 context candles + 4 latest closed entry candles.
+export const CONTEXT_CANDLES = 50;
+export const ENTRY_CANDLES = 4;
+export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
+export const HISTORY_CANDLES = MIN_CLOSED_CANDLES;
+// Keep room for the in-progress live candle without evicting the 54 closed candles.
+export const MAX_CANDLES = 60;
 export const REST_SYNC_SECONDS = 180;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;

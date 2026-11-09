@@ -6,8 +6,8 @@ import { TwelveDataKeyPool } from "../src/twelve-data-pool.js";
 test("REST fetch automatically fails over from a quota-limited key", async () => {
   const pool = new TwelveDataKeyPool(["first-key", "second-key"]);
   const now = Date.UTC(2026, 10, 6, 8, 0, 0);
-  const values = Array.from({ length: 200 }, (_, index) => {
-    const time = new Date(now - (200 - index) * 60_000).toISOString().slice(0, 16).replace("T", " ");
+  const values = Array.from({ length: 54 }, (_, index) => {
+    const time = new Date(now - (54 - index) * 60_000).toISOString().slice(0, 16).replace("T", " ");
     return { datetime: time, open: "1.1000", high: "1.1010", low: "1.0990", close: "1.1005" };
   });
   const attempted = [];
@@ -25,7 +25,7 @@ test("REST fetch automatically fails over from a quota-limited key", async () =>
     }
   });
   assert.deepEqual(attempted, ["first-key", "second-key"]);
-  assert.equal(result.candles.length, 200);
+  assert.equal(result.candles.length, 54);
   assert.equal(pool.publicStatus().activeKeyNumber, 2);
   assert.equal(pool.publicStatus().availableCount, 1);
 });

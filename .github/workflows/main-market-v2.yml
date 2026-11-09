@@ -1,7 +1,7 @@
-name: Main Market v2 Rewrite Checks
+name: Main Market Telegram Mini App Checks
 on:
   push:
-    branches: [rewrite/main-market-v2]
+    branches: [main-market]
     paths: ["main-market/**", ".github/workflows/main-market-v2.yml"]
   pull_request:
     branches: [main-market]
@@ -19,21 +19,21 @@ jobs:
           cache-dependency-path: main-market/package.json
       - name: Install and run tests
         run: cd main-market && npm install
-      - name: Verify direct Android client authentication wiring
+      - name: Verify 50+4 Telegram Mini App wiring
         run: |
           cd main-market
-          grep -Fq 'const API_ORIGIN=window.location.origin;' public/app.js
-          grep -Fq 'ANDROID_CLIENT_TOKEN' server.js
-          grep -Fq 'requireDeviceSession' server.js
-          grep -Fq 'Access-Control-Allow-Headers' server.js
-          grep -Fq 'AndroidBridge' public/app.js
-          grep -Fq 'androidClientAuthConfigured' server.js
-          grep -Fq 'ORIGINAL_AI' server.js
+          grep -Fq 'TELEGRAM_BOT_TOKEN' server.js
+          grep -Fq 'requireTelegramSession' server.js
+          grep -Fq '/api/telegram/session' server.js
+          grep -Fq '/api/telegram/signal' server.js
+          grep -Fq 'telegram-web-app.js' public/signal.html
+          grep -Fq 'export const CONTEXT_CANDLES = 50;' src/config.js
+          grep -Fq 'export const ENTRY_CANDLES = 4;' src/config.js
+          grep -Fq 'export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;' src/config.js
+          grep -Fq 'export const HISTORY_CANDLES = MIN_CLOSED_CANDLES;' src/config.js
           grep -Fq 'historicalAnalogueWorker: "BYPASSED"' server.js
-          grep -Fq 'export const MIN_CLOSED_CANDLES = 200;' src/config.js
-          grep -Fq 'export const HISTORY_CANDLES = 200;' src/config.js
-          test ! -e src/telegram-auth.js
-          ! grep -Eqi 'Telegram|telegram|initData|BOT_TOKEN' public/app.js server.js public/index.html
+          ! grep -Fq 'sendSignalPush' server.js
+          ! grep -Eqi 'sendMessage|sendPhoto|sendDocument' server.js public/signal.html
       - name: Syntax-check application modules
         run: |
           cd main-market
@@ -42,4 +42,8 @@ jobs:
           node --check src/analyzer.js
           node --check src/twelve-data.js
           node --check src/client-auth.js
+          node --check src/telegram-auth.js
           node --check public/app.js
+          node --check original-ai/engine/multi-engine-dispatcher.js
+          node --check original-ai/engine/analyze-market.js
+          node --check original-ai/scanner/trend-scanner.js

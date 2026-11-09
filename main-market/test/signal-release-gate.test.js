@@ -9,14 +9,14 @@ test("out-of-sample validation status is informational, not a runtime lock", () 
 
 test("genuine Original AI CALL and PUT candidates are preserved with an explicit validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({ signal, reason: "candidate from deterministic Original AI analyzer", evidence: ["200 closed M1 candles"], alertId: "candidate-id" });
+    const result = applySignalReleaseGate({ signal, reason: "candidate from deterministic Original AI analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
     assert.equal(result.signal, signal);
     assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /out-of-sample/);
-    assert.deepEqual(result.evidence, ["200 closed M1 candles"]);
+    assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
 });
 

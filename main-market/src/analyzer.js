@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import { MIN_CLOSED_CANDLES, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS } from "./config.js";
+import { MIN_CLOSED_CANDLES, CONTEXT_CANDLES, ENTRY_CANDLES, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS } from "./config.js";
 
 const require = createRequire(import.meta.url);
 const { analyzeMarketMulti } = require("../original-ai/engine/analyze-market.js");
@@ -50,7 +50,8 @@ export async function analyzeMarket(candles, options = {}) {
       strategy: "NONE", indicators: null, livePriceReady: false,
       lastCandleEpoch: gate.lastCandleEpoch, dataMode: gate.mode,
       ageSeconds: gate.ageSeconds, closedCandleCount: gate.closed.length,
-      requiredCandles: MIN_CLOSED_CANDLES
+      requiredCandles: MIN_CLOSED_CANDLES,
+      analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES }
     };
   }
 
@@ -65,6 +66,7 @@ export async function analyzeMarket(candles, options = {}) {
     ageSeconds: gate.ageSeconds,
     livePriceReady: true,
     closedCandleCount: gate.closed.length,
-    requiredCandles: MIN_CLOSED_CANDLES
+    requiredCandles: MIN_CLOSED_CANDLES,
+    analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES }
   };
 }

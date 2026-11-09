@@ -1,7 +1,7 @@
 'use strict';
 
 const DIRECTIONS = new Set(['CALL', 'PUT']);
-const MIN_CANDLES = 30;
+const MIN_CANDLES = 4;
 const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Number.isFinite(n) ? n : lo));
 const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN;
 const rangeOf = c => Math.max(c.high - c.low, 1e-12);
@@ -15,11 +15,16 @@ function result(engine, direction = 'NO_SIGNAL', score = 0, confidence = 0, reas
 }
 function base(data, engine) {
   const candles = data?.candles;
-  if (!Array.isArray(candles) || candles.length < MIN_CANDLES || !candles.slice(-MIN_CANDLES).every(validCandle))
-    return { error: result(engine, 'NO_SIGNAL', 0, 0, 'Insufficient or invalid OHLC history', false) };
-  const c = candles.at(-1), p = candles.at(-2), i = data.indicators || {};
+  const entryCandles = Array.isArray(data?.entryCandles) ? data.entryCandles
+    : Array.isArray(candles) ? candles.slice(-MIN_CANDLES) : [];
+  const contextCandles = Array.isArray(data?.contextCandles) ? data.contextCandles
+    : Array.isArray(candles) ? candles.slice(0, -MIN_CANDLES) : [];
+  if (!Array.isArray(candles) || candles.length < 54 || entryCandles.length < MIN_CANDLES ||
+      !candles.slice(-54).every(validCandle) || !entryCandles.slice(-MIN_CANDLES).every(validCandle))
+    return { error: result(engine, 'NO_SIGNAL', 0, 0, 'Insufficient or invalid 50+4 closed M1 analysis window', false) };
+  const c = entryCandles.at(-1), p = entryCandles.at(-2), i = data.indicators || {};
   if (!c || !p) return { error: result(engine) };
-  return { candles, c, p, i, range: rangeOf(c), body: bodyOf(c) };
+  return { candles, contextCandles, entryCandles, c, p, i, range: rangeOf(c), body: bodyOf(c) };
 }
 function choose(engine, direction, score, reason) {
   if (!DIRECTIONS.has(direction) || score < 45) return result(engine, 'NO_SIGNAL', 0, 0, reason || 'No qualifying setup', true);
@@ -28,7 +33,7 @@ function choose(engine, direction, score, reason) {
 
 function runTrendBreakoutEngine(data) {
   const b = base(data, 'trend_breakout'); if (b.error) return b.error;
-  const { candles, c, range } = b, prior = candles.slice(-21, -1);
+  const { contextCandles, c, range } = b, prior = contextCandles.slice(-20);
   const high = Math.max(...prior.map(x => x.high)), low = Math.min(...prior.map(x => x.low));
   const closeStrength = c.close > c.open ? (c.close - c.low) / range : (c.high - c.close) / range;
   if (c.close > high && closeStrength >= 0.72) return choose('trend_breakout', 'CALL', 72, 'Closed candle broke the 20-candle resistance with strong close');
@@ -60,7 +65,7 @@ function runPinBarReversalEngine(data) {
 }
 function runCandlestickPatternEngine(data) {
   const b = base(data, 'candlestick_pattern'); if (b.error) return b.error;
-  const { candles } = b, a = candles.at(-2), c = candles.at(-1), q = candles.at(-3);
+  const { entryCandles } = b, a = entryCandles.at(-2), c = entryCandles.at(-1), q = entryCandles.at(-3);
   const bullishEngulf = a.close < a.open && c.close > c.open && c.open <= a.close && c.close >= a.open;
   const bearishEngulf = a.close > a.open && c.close < c.open && c.open >= a.close && c.close <= a.open;
   const qBody = bodyOf(q), aBody = bodyOf(a), cBody = bodyOf(c);
@@ -86,8 +91,8 @@ function runRangeBoundSwingEngine(data) {
 }
 function runCompressionSqueezeEngine(data) {
   const b = base(data, 'compression_squeeze'); if (b.error) return b.error;
-  const { candles } = b, prior = candles.slice(-16, -1), recent = candles.slice(-6, -1);
-  const oldRange = mean(prior.map(rangeOf)), tightRange = mean(recent.map(rangeOf)), c = candles.at(-1);
+  const { contextCandles, entryCandles } = b, prior = contextCandles.slice(-15), recent = entryCandles.slice(0, -1);
+  const oldRange = mean(prior.map(rangeOf)), tightRange = mean(recent.map(rangeOf)), c = entryCandles.at(-1);
   const high = Math.max(...recent.map(x => x.high)), low = Math.min(...recent.map(x => x.low));
   if (!(oldRange > 0) || tightRange / oldRange > 0.68)
     return result('compression_squeeze', 'NO_SIGNAL', 0, 0, 'No measurable volatility compression', true);
@@ -142,15 +147,15 @@ function runPullbackRetestEngine(data) {
 }
 function runSafetyNoiseGuard(data) {
   const candles = data?.candles;
-  if (!Array.isArray(candles) || candles.length < 200 || !candles.slice(-200).every(validCandle))
-    return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: 200 valid closed candles are required', false);
+  if (!Array.isArray(candles) || candles.length < 54 || !candles.slice(-54).every(validCandle))
+    return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: 50 context + 4 entry closed candles are required', false);
   const now = Number.isFinite(data.now) ? data.now : Date.now();
   const latest = candles.at(-1), tickAge = data.tickAgeSeconds;
   const streamFresh = Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= 25;
   const restFresh = data.allowRestFallback === true && Number.isFinite(data.ageSeconds) && data.ageSeconds <= 180;
   if (!streamFresh && !restFresh)
     return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: live tick and permitted REST candle are stale', false);
-  const recentCandles = candles.slice(-3);
+  const recentCandles = candles.slice(-4);
   const gap = recentCandles.some((c, idx, arr) => idx > 0 && c.epoch - arr[idx - 1].epoch > 120);
   if (gap) return result('safety_noise_guard', 'NO_SIGNAL', 0, 0, 'VETO: missing M1 candle gap in analysis window', false);
   const i = data.indicators || {};

@@ -39,10 +39,10 @@ test("System-10 aggregate passes through without legacy trend and sideways re-ve
   assert.equal(result.strategy, "AI10_DIRECTION_AGGREGATOR");
 });
 
-test("Original AI data warm-up remains 200 closed M1 candles", () => {
-  assert.equal(MIN_CLOSED_CANDLES, 200);
-  assert.equal(HISTORY_CANDLES, 200);
-  assert.equal(MAX_CANDLES, 220);
+test("Original AI warm-up is 50 context plus 4 entry closed M1 candles", () => {
+  assert.equal(MIN_CLOSED_CANDLES, 54);
+  assert.equal(HISTORY_CANDLES, 54);
+  assert.equal(MAX_CANDLES, 60);
 });
 
 test("Live analyzer routes through async ten-engine dispatcher", async () => {
@@ -153,4 +153,14 @@ test("Current live candle is excluded from Original AI closed-candle window", as
   const result = await analyzeMarket(candles, { now: Date.now(), tickAgeSeconds: 0 });
   assert.equal(result.closedCandleCount, 220);
   assert.equal(result.lastCandleEpoch, candles.at(-2).epoch);
+});
+
+test("Analyzer requires 50 context plus 4 latest closed entry candles", async () => {
+  const short = await analyzeMarket(history(53), { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(short.signal, "STANDBY");
+  assert.equal(short.requiredCandles, 54);
+  const ready = await analyzeMarket(history(54), { now: Date.now(), tickAgeSeconds: 0 });
+  assert.equal(ready.livePriceReady, true);
+  assert.equal(ready.closedCandleCount, 54);
+  assert.deepEqual(ready.analysisWindow, { contextCandles: 50, entryCandles: 4, total: 54 });
 });

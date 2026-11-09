@@ -5,12 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
+import { validateTelegramWebAppInitData } from "./src/telegram-auth.js";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { sendSignalPush, firebaseAdminStatus } from "./src/push-notifications-v2.js";
 import { canDispatchSignal } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -21,12 +21,17 @@ import {
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TELEGRAM_ALLOWED_USER_IDS = new Set(String(process.env.TELEGRAM_ALLOWED_USER_IDS || "")
+  .split(",").map(value => value.trim()).filter(Boolean));
+const TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = Math.max(60, Number(process.env.TELEGRAM_INIT_DATA_MAX_AGE_SECONDS || 86400));
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
+const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "AI-10 CORE";
 const ARCHITECTURE_ID = "AI-10-CORE";
-const VERSION = "2026-11-07-ai-10-core-v1";
+const VERSION = "2026-11-09-telegram-mini-app-50plus4-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -105,6 +110,7 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: feed.candles.filter(c => !c.live).length,
     requiredCandles: MIN_CLOSED_CANDLES,
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -276,22 +282,14 @@ function dispatchSignalIfReady(feed) {
  })) return;
  if (feed.lastDispatchedAlertId === feed.alertId) return;
 
- // Claim the candle and 55-second cooldown before the asynchronous FCM call.
+ // Claim the candle and cooldown once; the Telegram Mini App reads state from authenticated polling.
  feed.lastDispatchedAt = now;
  feed.lastDispatchedCandle = candleEpoch;
  feed.lastDispatchedAlertId = feed.alertId;
  const alertId = feed.alertId;
- const payload = {
-   symbol: feed.symbol, signal, alertId,
-   price: feed.lastTick, reason: feed.analysis?.reason || "M1 pre-close signal"
- };
- console.info("[signal] pre-close dispatch claimed", {
-   alertId, candleEpoch, secondsBeforeClose: ((candleEpoch + 60) * 1000 - now) / 1000
+ console.info("[signal] pre-close signal is available to authenticated Telegram Mini App polling", {
+   alertId, signal, candleEpoch, secondsBeforeClose: ((candleEpoch + 60) * 1000 - now) / 1000
  });
- void sendSignalPush(payload).then(result => {
-   if (result.sent) console.info("[push] signal notification sent", alertId);
-   else console.warn("[push] signal notification not sent", alertId, result.reason || "UNKNOWN");
- }).catch(error => console.warn("[push] delivery failed", alertId, error.message));
 }
 
 function applyTick(feed, price, epoch) {
@@ -640,6 +638,25 @@ function requireDeviceSession(req, res, next) {
   next();
 }
 
+function telegramSessionForRequest(req) {
+  const authorization = String(req.headers.authorization || "");
+  const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  const session = /^[a-f0-9]{64}$/i.test(bearer) ? telegramSessions.get(bearer) : null;
+  if (!session) return null;
+  if (session.expiresAt <= Date.now()) {
+    telegramSessions.delete(bearer);
+    return null;
+  }
+  return session;
+}
+
+function requireTelegramSession(req, res, next) {
+  const session = telegramSessionForRequest(req);
+  if (!session) return res.status(401).json({ ok: false, error: "Telegram Mini App session หมดอายุ กรุณาเปิดแอปใหม่" });
+  req.telegramUserId = session.userId;
+  next();
+}
+
 function rateLimitAuth(req, res, next) {
   const key = req.ip || req.socket.remoteAddress || "unknown";
   const now = Date.now();
@@ -699,6 +716,7 @@ app.get("/api/public/signal", (_req, res) => {
       statusMessage: state.statusMessage, dataMode: state.dataMode,
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
+      analysisWindow: state.analysisWindow,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
@@ -713,9 +731,31 @@ app.get("/api/public/signal", (_req, res) => {
     }
   });
 });
+app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
+  if (!TELEGRAM_BOT_TOKEN) {
+    return res.status(503).json({ ok: false, error: "Telegram Mini App ยังไม่ได้ตั้งค่า TELEGRAM_BOT_TOKEN บน Render" });
+  }
+  const verified = validateTelegramWebAppInitData(req.body?.initData, TELEGRAM_BOT_TOKEN, {
+    maxAgeSeconds: TELEGRAM_INIT_DATA_MAX_AGE_SECONDS
+  });
+  if (!verified) return res.status(401).json({ ok: false, error: "Telegram initData ไม่ถูกต้องหรือหมดอายุ" });
+  const userId = String(verified.user.id);
+  if (TELEGRAM_ALLOWED_USER_IDS.size && !TELEGRAM_ALLOWED_USER_IDS.has(userId)) {
+    return res.status(403).json({ ok: false, error: "บัญชี Telegram นี้ไม่ได้รับอนุญาตให้ใช้ Mini App" });
+  }
+  const token = randomBytes(32).toString("hex");
+  telegramSessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+  noCache(res);
+  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000),
+    user: { id: userId, firstName: String(verified.user.first_name || "").slice(0, 64) } });
+});
+app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
+  noCache(res);
+  res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
+});
 app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
-app.get("/", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "index.html")); });
+app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/app.js", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "app.js")); });
 app.get("/styles.css", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "styles.css")); });
 app.get("/health", (_req, res) => {
@@ -723,15 +763,18 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
-    authentication: { mode: "ANDROID_CLIENT", configured: Boolean(CLIENT_TOKEN) },
+    authentication: { mode: "TELEGRAM_MINI_APP", configured: Boolean(TELEGRAM_BOT_TOKEN) },
     architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", decisionAuthority: "CENTRAL_AI_DISPATCHER", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
     configuration: {
+      telegramMiniAppAuthConfigured: Boolean(TELEGRAM_BOT_TOKEN),
+      telegramAllowedUserIdsConfigured: TELEGRAM_ALLOWED_USER_IDS.size > 0,
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
-      ...firebaseAdminStatus(),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
+      contextCandles: 50,
+      entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: false,
       restFallbackEnabled: true,
@@ -817,7 +860,7 @@ server.listen(PORT, () => {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
-    firebaseAdminConfigured: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_JSON),
+    telegramMiniAppConfigured: Boolean(TELEGRAM_BOT_TOKEN),
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
@@ -835,5 +878,8 @@ setInterval(() => {
   const now = Date.now();
   for (const [token, session] of sessions) {
     if (session.expiresAt <= now) sessions.delete(token);
+  }
+  for (const [token, session] of telegramSessions) {
+    if (session.expiresAt <= now) telegramSessions.delete(token);
   }
 }, 5 * 60 * 1000).unref();
