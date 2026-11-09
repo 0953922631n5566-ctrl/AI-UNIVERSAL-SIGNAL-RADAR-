@@ -89,6 +89,7 @@ export function createGeminiQuotaMonitor({ dailyBudget = null, clock = () => Dat
       budgetSource: budget ? "GEMINI_DAILY_REQUEST_BUDGET_ENV" : "NOT_CONFIGURED",
       usagePercent,
       window: "UTC_CALENDAR_DAY",
+      counterPersistence: "IN_MEMORY_RESETS_ON_RENDER_RESTART",
       quotaSource: "SERVER_OBSERVED_REQUESTS_NOT_GOOGLE_REMAINING_QUOTA"
     };
   }
