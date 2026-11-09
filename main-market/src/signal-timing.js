@@ -1,12 +1,13 @@
-export const SIGNAL_PRE_CLOSE_MIN_MS = 3000;
-export const SIGNAL_PRE_CLOSE_MAX_MS = 5000;
+export const SIGNAL_ENTRY_WINDOW_MAX_MS = 5000;
 export const SIGNAL_DISPATCH_COOLDOWN_MS = 55000;
 export const SIGNAL_MAX_TICK_AGE_MS = 5000;
 
-export function isSignalPreCloseWindow(candleEpoch, now = Date.now()) {
+// The forecast is for the candle that has just opened. Only the first five
+// seconds are eligible; late results are discarded rather than backdated.
+export function isSignalEntryWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
-  const remaining = (candleEpoch + 60) * 1000 - now;
-  return remaining >= SIGNAL_PRE_CLOSE_MIN_MS && remaining <= SIGNAL_PRE_CLOSE_MAX_MS;
+  const elapsed = now - candleEpoch * 1000;
+  return elapsed >= 0 && elapsed <= SIGNAL_ENTRY_WINDOW_MAX_MS;
 }
 
 export function isFreshSignalTick(tickAt, now = Date.now()) {
@@ -18,7 +19,7 @@ export function canDispatchSignal({ candleEpoch, tickAt, now = Date.now(),
   lastDispatchedAt = 0, lastDispatchedCandle = null } = {}) {
   const cooldownElapsed = !lastDispatchedAt ||
     now - lastDispatchedAt >= SIGNAL_DISPATCH_COOLDOWN_MS;
-  return isSignalPreCloseWindow(candleEpoch, now) &&
+  return isSignalEntryWindow(candleEpoch, now) &&
     isFreshSignalTick(tickAt, now) &&
     lastDispatchedCandle !== candleEpoch &&
     cooldownElapsed;
