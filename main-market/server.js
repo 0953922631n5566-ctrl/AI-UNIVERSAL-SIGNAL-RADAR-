@@ -28,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ANALYZER";
 const ARCHITECTURE_ID = "GEMINI-PRIMARY-ANALYZER";
-const VERSION = "2026-11-09-gemini-primary-analyzer-v1";
+const VERSION = "2026-11-09-gemini-primary-analyzer-observability-v2";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -42,6 +42,7 @@ function newFeed(symbol) {
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
+    lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -242,11 +243,38 @@ async function evaluate(feed) {
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
+ if (feed.preAlertStatus === "PREPARE_ALERT" &&
+     feed.lastPrepareLoggedCandle !== sourceCandleEpoch) {
+   feed.lastPrepareLoggedCandle = sourceCandleEpoch;
+   console.info("[timing] T-10 PREPARE window entered", {
+     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
+     secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
+     directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
+   });
+ }
+ const finalizeWindow = sourceCandleEpoch !== null &&
+   isSignalFinalizeWindow(sourceCandleEpoch, now);
+ const finalizeEligible = finalizeWindow &&
+   (result.signal === "CALL" || result.signal === "PUT") &&
+   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+     lastDispatchedCandle: feed.lastDispatchedCandle });
+ if (finalizeWindow && feed.lastFinalizeLoggedCandle !== sourceCandleEpoch) {
+   feed.lastFinalizeLoggedCandle = sourceCandleEpoch;
+   console.info("[timing] T-5 FINALIZE window entered", {
+     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
+     candidateSignal: result.signal, eligible: finalizeEligible,
+     tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
+     reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
+       : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
+       : result.signal === "STANDBY" ? "GEMINI_RETURNED_STANDBY"
+       : "CANDLE_ALREADY_FINALIZED"
+   });
+ }
+
  if (activeForCurrentOrNext) {
    result.signal = feed.activeSignal;
    result.reason = "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะถึง 30 วินาทีหลังแท่งใหม่เปิด";
- } else if (sourceCandleEpoch !== null &&
-     isSignalFinalizeWindow(sourceCandleEpoch, now) &&
+ } else if (finalizeWindow &&
      (result.signal === "CALL" || result.signal === "PUT")) {
    const canFinalize = canFinalizeSignal({
      candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
