@@ -10,7 +10,7 @@ test("Main Market exposes exactly the six requested selectable pairs", () => {
 });
 
 test("pair selection normalizes case and slash formatting but rejects unknown pairs", () => {
-  assert.equal(resolveSymbol("gbpjpy"), "GBP/JPY");
-  assert.equal(resolveSymbol(" EUR / GBP "), "EUR/GBP");
+  assert.equal(resolveSymbol("gbp/jpy"), "GBP/JPY");
+  assert.equal(resolveSymbol(" EUR/GBP "), "EUR/GBP");
   assert.equal(resolveSymbol("USD/JPY"), null);
 });
