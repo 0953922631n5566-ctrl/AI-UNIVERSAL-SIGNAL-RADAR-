@@ -23,9 +23,9 @@ function sidewayFixture() {
   }, tickAgeSeconds: 2, allowRestFallback: false, ageSeconds: 1, now: Date.now() };
 }
 
-test("all ten engines return the strict common result contract", async () => {
+test("nine directional engines return the strict result contract and system 10 aggregates them", async () => {
   const out = await engines.evaluateAllEngines(sidewayFixture());
-  assert.equal(out.engineResults.length, 10);
+  assert.equal(out.engineResults.length, 9);
   for (const item of out.engineResults) {
     assert.equal(typeof item.direction, "string");
     assert.ok(["CALL", "PUT", "NO_SIGNAL"].includes(item.direction));
@@ -35,6 +35,9 @@ test("all ten engines return the strict common result contract", async () => {
     assert.equal(typeof item.validity, "boolean");
   }
   assert.equal(out.engineSummary.total, 10);
+  assert.equal(out.engineSummary.directionalEngines, 9);
+  assert.equal(out.engineSummary.aggregator, 1);
+  assert.equal(out.engineSummary.safetyGuard, "PASS");
   assert.equal(out.engineSummary.failed, 0);
 });
 
@@ -82,7 +85,7 @@ test("Safety Noise Guard has VETO authority when live data is stale", async () =
   market.tickAgeSeconds = 40;
   market.allowRestFallback = false;
   const out = await engines.evaluateAllEngines(market);
-  const safety = out.engineResults.find(x => x.engine === "safety_noise_guard");
+  const safety = out.safetyGuard;
   assert.equal(safety.validity, false);
   assert.match(safety.reason, /^VETO:/);
   assert.equal(out.signal, "STANDBY");
