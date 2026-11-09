@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/gemini-analyzer.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,14 +17,14 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "AI-10 CORE",
-    "displayName": "AI-10 CORE — Ten-Engine Multi-Strategy Architecture",
-    "engineCount": 10,
+    "name": "Gemini Primary Analyzer",
+    "displayName": "Gemini Primary Analyzer + System Guard",
+    "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "PROMISE_ALL_SETTLED",
-    "decisionAuthority": "SYSTEM_10_WEIGHTED_DIRECTION_AGGREGATOR",
-    "directionalVoters": 9,
-    "aggregator": 1,
-    "safetyValidation": "INDEPENDENT_VETO"
+    "executionModel": "ONE_GEMINI_REQUEST_PER_CLOSED_M1_CANDLE",
+    "decisionAuthority": "GEMINI_ONLY",
+    "directionalVoters": 1,
+    "aggregator": 0,
+    "safetyValidation": "DATA_QUALITY_AND_TIMING_GUARDS"
   }
 }

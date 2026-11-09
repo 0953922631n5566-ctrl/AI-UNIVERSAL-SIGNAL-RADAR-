@@ -24,6 +24,8 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
+  assert.match(html, /GEMINI PRIMARY ANALYZER/);
+  assert.match(html, /Gemini เป็นผู้วิเคราะห์หลักเพียงตัวเดียว/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {

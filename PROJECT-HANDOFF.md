@@ -1759,3 +1759,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Final code/UI commit: `a505d1b94275040efb316b573c3969586b86384a`; Render deploy `dep-dbos65ivcj2c739okm1g` reached `live`.
 - Live verification: `/health` returned `ok:true`; `/signal` served the updated T-10/T-5/30-second instructions. This verifies deployment and page delivery, not actual handset sound/haptic timing or signal profitability.
 - No broker execution, auto-order, OCR, APK, or Telegram chat-message delivery was added. Existing analyzer decision logic was not modified. Data-quality/freshness gates remain active.
+
+
+## 2026-11-09 — Gemini Primary Analyzer + System Guard (isolated implementation branch)
+
+- User approved Option 2: Gemini is the sole directional analyst; the existing application remains responsible for Twelve Data transport, source quality, streaming freshness, M1 timing, Mini App delivery, and manual-only use.
+- Implementation branch: feature/gemini-primary-analyzer, created from production branch main-market. No production branch or Render service was changed in this implementation checkpoint.
+- Replaced the live src/analyzer.js decision route with a source-quality gate followed by one Gemini decision. The old HMA/RSI deterministic CALL/PUT rule is no longer called by the production analyzer. The legacy ten-engine modules remain dormant and are not imported by the production decision path.
+- Added src/gemini-analyzer.js: server-side Gemini REST generateContent, JSON response schema, explicit GEMINI_MODEL (default gemini-3.6-flash), one in-flight/cached request per symbol and latest closed-candle epoch, and strict response validation. No local directional fallback is allowed.
+- Gemini receives the latest 54 closed M1 candles (50 context + 4 entry) and deterministic technical descriptors (EMA 9/21/50, RSI14, MACD, ATR14, support/resistance, candle body and recent closes). These are inputs only; no technical rule or other AI votes on the direction.
+- Fail-closed behavior: absent GEMINI_API_KEY, Gemini API failure, malformed JSON, or invalid schema => STANDBY. System guards remain responsible for valid OHLC, sufficient history, candle freshness, streaming freshness, T-10 PREPARE, T-5 finalization, per-candle dedupe, and target candle +30s expiry.
+- Render secret requirement before production merge/deploy: set GEMINI_API_KEY in the existing service environment. Optional GEMINI_MODEL defaults to gemini-3.6-flash. Do not place the key in GitHub, Mini App JavaScript, or chat.
+- Health metadata now reports Gemini provider/model/configured status and declares Gemini as the sole analyzer. Mini App branding and analyzer validation note were updated; timing UI and Telegram session/API transport were not changed.
+- Automated tests were rewritten to cover indicator inputs, JSON schema request, CALL/PUT output from mocked Gemini responses, per-candle request caching, malformed response fail-closed behavior, missing-key STANDBY, and preserved source guards.
+- CI verification (2026-11-09): final code commit 85b1bd1155f0a1e373b4435814fe8c2a1457bc68 passed Main Market Checks run 42624874661 and Main Market Telegram Mini App Checks run 42624874644. Both ran 67 tests, 67 passed / 0 failed; npm install/postinstall syntax checks and the 50+4 Telegram Mini App wiring check passed.
+- Production branch main-market and Render service remain unchanged. PR #39 is open and ready for review. Before merge, verify GEMINI_API_KEY is configured in Render without exposing its value; after merge/deploy, verify health metadata, a real Gemini API response, and authenticated Mini App polling. No live Gemini API call or market-performance/OOS validation has yet been performed.
