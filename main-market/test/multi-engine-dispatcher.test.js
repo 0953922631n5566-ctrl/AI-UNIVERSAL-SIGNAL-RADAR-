@@ -79,7 +79,7 @@ test("System 10 does not invent a direction when nine-system scores are tied", (
     confidence: 100, reason: "PASS: safe", validity: true };
   const out = engines.centralDispatcher(voters, "UPTREND", { safetyGuard });
   assert.equal(out.signal, "STANDBY");
-  assert.match(out.reason, /tied/i);
+  assert.match(out.reason, /balanced/i);
 });
 
 test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in the latest four candles", () => {
