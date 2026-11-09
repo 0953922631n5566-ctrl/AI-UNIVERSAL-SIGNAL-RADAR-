@@ -9,7 +9,7 @@ const BASE_BACKOFF_MS = 350;
 let keyCursor = 0;
 
 function resolveApiKeys(apiKey, apiKeys) {
-  const configured = Array.isArray(apiKeys) ? apiKeys : String(process.env.GEMINI_API_KEYS || "").split(/[\\n,;]+/);
+  const configured = Array.isArray(apiKeys) ? apiKeys : String(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/);
   return [...new Set([...configured, apiKey || process.env.GEMINI_API_KEY || ""].map(v => String(v || "").trim()).filter(Boolean))];
 }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
