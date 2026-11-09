@@ -13,15 +13,17 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App provides distinct ten-second and real-signal audio/visual alerts", () => {
+test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 seconds into the next candle", () => {
   assert.match(html, /id="soundEnable"/);
-  assert.match(html, /function triggerPreAlert/);
-  assert.match(html, /remainingMs<=10000/);
-  assert.match(html, /function triggerSignalAlert/);
+  assert.match(html, /PREPARE \/ เฝ้าระวัง/);
+  assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /m\.alertId/);
+  assert.match(html, /function triggerSignalAlert/);
+  assert.match(html, /signalExpiresAt/);
+  assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.match(html, /ไม่ใช่สัญญาณ CALL\/PUT/);
+  assert.match(html, /T-5/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
