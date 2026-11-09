@@ -38,7 +38,7 @@ test("Mini App inline JavaScript parses successfully", () => {
 
 test("dashboard audio timing follows backend PREPARE T-10 and signal finalization T-5", () => {
   assert.match(dashboardJs, /latestPreAlertStatus\(\)==="PREPARE_ALERT"/);
-  assert.match(dashboardJs, /remaining\\s*>\\s*5/);
+  assert.match(dashboardJs, /remaining\s*>\s*5/);
   assert.match(dashboardJs, /remaining <= 5/);
   assert.match(dashboardJs, /key+":5"/);
   assert.doesNotMatch(dashboardJs, /remaining <= 3/);
