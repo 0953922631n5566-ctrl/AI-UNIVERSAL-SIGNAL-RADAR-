@@ -5,7 +5,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
-import { inspectTelegramWebAppInitData } from "./src/telegram-auth.js";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
@@ -21,10 +20,7 @@ import {
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
 const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_ALLOWED_USER_IDS = new Set(String(process.env.TELEGRAM_ALLOWED_USER_IDS || "")
-  .split(",").map(value => value.trim()).filter(Boolean));
-const TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = Math.max(60, Number(process.env.TELEGRAM_INIT_DATA_MAX_AGE_SECONDS || 86400));
+// TELEGRAM_BOT_TOKEN is intentionally optional; open Mini App sessions do not validate Telegram initData.
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
@@ -732,46 +728,15 @@ app.get("/api/public/signal", (_req, res) => {
   });
 });
 app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
-  if (!TELEGRAM_BOT_TOKEN) {
-    console.warn("[telegram-auth] rejected", { reason: "missing_bot_token" });
-    return res.status(503).json({ ok: false, error: "Telegram Mini App ยังไม่ได้ตั้งค่า TELEGRAM_BOT_TOKEN บน Render" });
-  }
-  const initData = typeof req.body?.initData === "string" ? req.body.initData : "";
-  const checked = inspectTelegramWebAppInitData(initData, TELEGRAM_BOT_TOKEN, {
-    maxAgeSeconds: TELEGRAM_INIT_DATA_MAX_AGE_SECONDS
-  });
-  if (!checked.ok) {
-    console.warn("[telegram-auth] validation failed", {
-      reason: checked.reason,
-      initDataPresent: Boolean(initData),
-      initDataLength: initData.length,
-      authAgeSeconds: Number.isFinite(checked.ageSeconds) ? checked.ageSeconds : null,
-      maxAgeSeconds: TELEGRAM_INIT_DATA_MAX_AGE_SECONDS
-    });
-    const messages = {
-      missing_init_data: "Telegram ไม่ได้ส่ง initData มาให้หน้า Mini App กรุณาตรวจ Menu Button ว่าตั้งเป็น Web App",
-      missing_bot_token: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า Telegram Bot Token",
-      expired_init_data: "Telegram initData หมดอายุ กรุณาปิดแล้วเปิด Mini App ใหม่",
-      auth_date_in_future: "เวลา auth_date จาก Telegram ไม่ตรงกับเวลาเซิร์ฟเวอร์",
-      signature_mismatch: "ลายเซ็น initData ไม่ตรงกับ Bot Token ที่ตั้งไว้บน Render กรุณาตรวจว่าเป็น Token ของ @Nghasdrbot",
-      missing_or_malformed_hash: "Telegram initData ไม่มี hash ที่ถูกต้อง",
-      invalid_auth_date: "Telegram initData ไม่มี auth_date ที่ถูกต้อง",
-      invalid_user_json: "ข้อมูลผู้ใช้จาก Telegram มีรูปแบบไม่ถูกต้อง",
-      missing_or_invalid_user: "ไม่พบข้อมูลบัญชีผู้ใช้ที่ยืนยันโดย Telegram",
-      malformed_query: "รูปแบบ Telegram initData ไม่ถูกต้อง"
-    };
-    return res.status(401).json({ ok: false, code: checked.reason, error: messages[checked.reason] || "Telegram authentication failed" });
-  }
-  const verified = checked.data;
-  const userId = String(verified.user.id);
-  if (TELEGRAM_ALLOWED_USER_IDS.size && !TELEGRAM_ALLOWED_USER_IDS.has(userId)) {
-    return res.status(403).json({ ok: false, error: "บัญชี Telegram นี้ไม่ได้รับอนุญาตให้ใช้ Mini App" });
-  }
+  // Open Mini App access: issue a short-lived server session without requiring Telegram initData or BotFather token.
+  // Access control is intentionally left to the app owner.
   const token = randomBytes(32).toString("hex");
+  const userId = "open-mini-app";
   telegramSessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
   noCache(res);
+  console.info("[mini-app] open session created");
   res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000),
-    user: { id: userId, firstName: String(verified.user.first_name || "").slice(0, 64) } });
+    user: { id: userId, firstName: "Guest" } });
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -787,11 +752,11 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
-    authentication: { mode: "TELEGRAM_MINI_APP", configured: Boolean(TELEGRAM_BOT_TOKEN) },
+    authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "TEN_ENGINE_MULTI_STRATEGY", engines: 10, dispatcher: "PROMISE_ALL_SETTLED", decisionAuthority: "CENTRAL_AI_DISPATCHER", safetyNoiseGuardVeto: true, historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_TEN_ENGINES_TO_ORIGINAL_AI_SAFETY_GATE" },
     configuration: {
-      telegramMiniAppAuthConfigured: Boolean(TELEGRAM_BOT_TOKEN),
-      telegramAllowedUserIdsConfigured: TELEGRAM_ALLOWED_USER_IDS.size > 0,
+      telegramMiniAppAuthConfigured: false,
+      miniAppOpenAccess: true,
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
@@ -879,23 +844,12 @@ wss.on("connection", socket => {
 
 server.listen(PORT, () => {
   console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
-  if (TELEGRAM_BOT_TOKEN) {
-    fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`, { signal: AbortSignal.timeout(8000) })
-      .then(response => response.json())
-      .then(result => console.info("[telegram-auth] bot identity check", {
-        apiOk: Boolean(result?.ok),
-        botId: result?.result?.id || null,
-        botUsername: result?.result?.username || null,
-        expectedBotMatches: String(result?.result?.username || "").toLowerCase() === "nghasdrbot"
-      }))
-      .catch(error => console.warn("[telegram-auth] bot identity check failed", { error: error.name || "request_failed" }));
-  }
   console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
-    telegramMiniAppConfigured: Boolean(TELEGRAM_BOT_TOKEN),
+    miniAppOpenAccess: true,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
