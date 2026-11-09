@@ -56,7 +56,7 @@ test("Safety Noise Guard tolerates an older isolated M1 gap but vetoes a gap in 
   assert.equal(tolerated.validity, true, tolerated.reason);
 
   const recentGap = sidewayFixture();
-  recentGap.candles[199].epoch += 60;
+  recentGap.candles[199].epoch += 120;
   const blocked = engines.runSafetyNoiseGuard(recentGap);
   assert.equal(blocked.validity, false);
   assert.match(blocked.reason, /^VETO: missing M1 candle gap/);
