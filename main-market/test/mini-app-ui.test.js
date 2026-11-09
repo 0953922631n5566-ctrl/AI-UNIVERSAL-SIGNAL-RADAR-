@@ -29,6 +29,15 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /Gemini เป็นผู้วิเคราะห์หลักเพียงตัวเดียว/);
 });
 
+test("Mini App exposes Gemini request usage and explicit quota-estimate warnings", () => {
+  assert.match(ui, /id="quotaRequests"/);
+  assert.match(ui, /id="quota429"/);
+  assert.match(ui, /GEMINI_DAILY_REQUEST_BUDGET/);
+  assert.match(ui, /m\.geminiQuota/);
+  assert.match(ui, /DAILY_BUDGET_80|DAILY_BUDGET_95|HTTP_429/);
+  assert.match(ui, /not Google|ไม่ใช่ข้อมูลโควต้าจริงจาก Google|ไม่ใช่ยอดโควต้าจริงจาก Google/);
+});
+
 test("Mini App inline JavaScript parses successfully", () => {
   const start = html.indexOf("<script>") + "<script>".length;
   const end = html.lastIndexOf("</script>");
