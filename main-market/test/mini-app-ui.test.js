@@ -5,6 +5,7 @@ import { Script } from "node:vm";
 
 const html = readFileSync(new URL("../public/signal.html", import.meta.url), "utf8");
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const quotaMonitorJs = readFileSync(new URL("../src/gemini-quota-monitor.js", import.meta.url), "utf8");
 
 test("Mini App includes all six selectable currency pairs and ten API slots", () => {
   for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
@@ -30,12 +31,14 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
 });
 
 test("Mini App exposes Gemini request usage and explicit quota-estimate warnings", () => {
-  assert.match(ui, /id="quotaRequests"/);
-  assert.match(ui, /id="quota429"/);
-  assert.match(ui, /GEMINI_DAILY_REQUEST_BUDGET/);
-  assert.match(ui, /m\.geminiQuota/);
-  assert.match(ui, /DAILY_BUDGET_80|DAILY_BUDGET_95|HTTP_429/);
-  assert.match(ui, /not Google|ไม่ใช่ข้อมูลโควต้าจริงจาก Google|ไม่ใช่ยอดโควต้าจริงจาก Google/);
+  assert.match(html, /id="quotaRequests"/);
+  assert.match(html, /id="quota429"/);
+  assert.match(html, /GEMINI_DAILY_REQUEST_BUDGET/);
+  assert.match(html, /m\.geminiQuota/);
+  assert.match(quotaMonitorJs, /DAILY_BUDGET_80/);
+  assert.match(quotaMonitorJs, /DAILY_BUDGET_95/);
+  assert.match(quotaMonitorJs, /HTTP_429/);
+  assert.match(html, /ไม่ใช่ยอดโควต้าจริงจาก Google/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
