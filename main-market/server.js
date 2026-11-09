@@ -108,7 +108,7 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: feed.lastTick,
     candleCount: feed.candles.length,
-    closedCandleCount: feed.candles.filter(c => !c.live).length,
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
     analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
     nextCandleAt: feed.candles.length
