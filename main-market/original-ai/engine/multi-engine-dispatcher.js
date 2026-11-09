@@ -163,68 +163,75 @@ function runSafetyNoiseGuard(data) {
   return result('safety_noise_guard', 'NO_SIGNAL', 0, 100, 'PASS: source freshness, OHLC integrity, last-3-candle continuity and noise checks passed', true);
 }
 
+// Nine directional analysts. System 10 is the score aggregator, not a market analyst.
 const ENGINES = Object.freeze([
   runTrendBreakoutEngine, runTrendContinuationEngine, runPinBarReversalEngine,
   runCandlestickPatternEngine, runRangeBoundSwingEngine, runCompressionSqueezeEngine,
-  runMomentumDivergenceEngine, runVolumeOrderFlowEngine, runPullbackRetestEngine,
-  runSafetyNoiseGuard
+  runMomentumDivergenceEngine, runVolumeOrderFlowEngine, runPullbackRetestEngine
 ]);
 const WEIGHTS = Object.freeze({
   trend_breakout: 1.15, trend_continuation: 1.1, pin_bar_reversal: 0.9,
   candlestick_pattern: 0.9, range_bound_swing: 1.15, compression_squeeze: 1,
   momentum_divergence: 0.85, volume_order_flow: 0.8, pullback_retest: 1.05
 });
-const MIN_ENGINE_SUPPORT = 2;
-const MIN_DISPATCH_SCORE = 50;
-const MIN_CONFLICT_MARGIN = 0.15;
-
-function singleEngineContextPass(context, direction) {
-  const i = context?.indicators || {};
-  const m5 = context?.higherTimeframe?.direction;
-  const emaAligned = direction === 'CALL'
-    ? Number(i.emaBullishAlignment) >= 2
-    : Number(i.emaBearishAlignment) >= 2;
-  const diAligned = direction === 'CALL' ? i.plusDI > i.minusDI : i.minusDI > i.plusDI;
-  const macdAligned = direction === 'CALL'
-    ? Number.isFinite(i.macdHistogram) && i.macdHistogram > 0
-    : Number.isFinite(i.macdHistogram) && i.macdHistogram < 0;
-  const rsiAligned = Number.isFinite(i.rsi) && (direction === 'CALL'
-    ? i.rsi >= 45 && i.rsi <= 65
-    : i.rsi >= 35 && i.rsi <= 55);
-  const m5Aligned = !m5 || m5 === 'UNCLEAR' || m5 === direction;
-  const volatilitySafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 2.0;
-  return emaAligned && diAligned && macdAligned && rsiAligned && m5Aligned && volatilitySafe;
-}
+const MIN_ENGINE_SUPPORT = 1;
+const MIN_DISPATCH_SCORE = 0;
+const MIN_CONFLICT_MARGIN = 0;
 
 function centralDispatcher(results, regime, context = {}) {
-  const safety = results.find(r => r.engine === 'safety_noise_guard');
-  if (!safety || !safety.validity || safety.reason.startsWith('VETO:'))
-    return { signal: 'STANDBY', score: 0, strategy: 'SAFETY_VETO', reason: safety?.reason || 'VETO: Safety engine unavailable', engineResults: results };
-  const votes = { CALL: 0, PUT: 0 }, confidenceVotes = { CALL: 0, PUT: 0 }, engines = { CALL: [], PUT: [] };
-  for (const r of results) {
+  const safety = context.safetyGuard || results.find(r => r.engine === 'safety_noise_guard');
+  if (!safety || !safety.validity || safety.reason.startsWith('VETO:')) {
+    return { signal: 'STANDBY', score: 0, confidence: 0,
+      strategy: 'AI10_DIRECTION_AGGREGATOR',
+      reason: safety?.reason || 'VETO: Safety validation unavailable',
+      safetyGuard: safety || null, engineResults: results,
+      aggregation: { decisionBy: 'SYSTEM_10', callScore: 0, putScore: 0, callSupport: 0, putSupport: 0 } };
+  }
+
+  const directional = results.filter(r => r.engine !== 'safety_noise_guard');
+  const votes = { CALL: 0, PUT: 0 }, engines = { CALL: [], PUT: [] };
+  const weightTotals = { CALL: 0, PUT: 0 };
+  for (const r of directional) {
     if (!r.validity || !DIRECTIONS.has(r.direction)) continue;
-    const weight = WEIGHTS[r.engine] || 0;
-    votes[r.direction] += weight * r.score;
-    confidenceVotes[r.direction] += weight * r.confidence;
+    const weight = WEIGHTS[r.engine] || 1;
+    votes[r.direction] += weight * clamp(r.score);
+    weightTotals[r.direction] += weight;
     engines[r.direction].push(r.engine);
   }
-  const winner = votes.CALL === votes.PUT ? null : votes.CALL > votes.PUT ? 'CALL' : 'PUT';
+
+  const callScore = Math.round(votes.CALL);
+  const putScore = Math.round(votes.PUT);
+  const winner = callScore === putScore ? null : callScore > putScore ? 'CALL' : 'PUT';
+  const aggregation = {
+    decisionBy: 'SYSTEM_10',
+    method: 'WEIGHTED_SCORE_SUM',
+    callScore, putScore,
+    callSupport: engines.CALL.length,
+    putSupport: engines.PUT.length,
+    directionalSystems: 9
+  };
+  if (!winner) {
+    return { signal: 'STANDBY', score: 0, confidence: 0,
+      strategy: 'AI10_DIRECTION_AGGREGATOR',
+      reason: callScore === 0 && putScore === 0
+        ? 'No directional votes from the nine analysis systems'
+        : 'Nine-system weighted vote is tied; no direction selected',
+      aggregation, safetyGuard: safety, engineResults: directional };
+  }
+
   const loser = winner === 'CALL' ? 'PUT' : 'CALL';
-  if (!winner) return { signal: 'STANDBY', score: 0, strategy: 'MULTI_ENGINE', reason: 'No directional engine consensus', engineResults: results };
-  const total = votes.CALL + votes.PUT, margin = total > 0 ? (votes[winner] - votes[loser]) / total : 0;
+  const winningAverage = weightTotals[winner] > 0 ? votes[winner] / weightTotals[winner] : 0;
+  const total = votes.CALL + votes.PUT;
+  const margin = total > 0 ? Math.abs(votes.CALL - votes.PUT) / total : 0;
   const supportCount = engines[winner].length;
-  const winningWeight = Math.max(1, engines[winner].reduce((s, name) => s + (WEIGHTS[name] || 1), 0));
-  const score = clamp(Math.round(votes[winner] / winningWeight));
-  const confidence = clamp(Math.round(confidenceVotes[winner] / winningWeight));
-  const highConvictionSingle = supportCount === 1 && engines[loser].length === 0 &&
-    score >= 65 && singleEngineContextPass(context, winner);
-  if ((!highConvictionSingle && supportCount < MIN_ENGINE_SUPPORT) || score < MIN_DISPATCH_SCORE || margin < MIN_CONFLICT_MARGIN) {
-    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: `Insufficient engine consensus: ${winner} support ${supportCount}/9, score floor ${MIN_DISPATCH_SCORE}, conflict margin ${Math.round(margin * 100)}%`, engineResults: results };
-  }
-  if (['SIDEWAY', 'RANGING'].includes(regime) && !engines[winner].includes('range_bound_swing') && !highConvictionSingle) {
-    return { signal: 'STANDBY', score, confidence, strategy: 'MULTI_ENGINE', reason: 'SIDEWAY mode requires a confirmed Range-Bound Swing engine vote', engineResults: results };
-  }
-  return { signal: winner, score, confidence, singleEngineConfirmation: highConvictionSingle, strategy: engines[winner].includes('range_bound_swing') ? 'RANGE_BOUND_SWING' : regime === 'REVERSAL' ? 'REVERSAL' : winner === 'CALL' ? 'UPTREND' : 'DOWNTREND', reason: highConvictionSingle ? `High-conviction single-engine ${winner}: score ${score}; M1 context independently confirmed` : `Multi-engine consensus ${winner}: ${supportCount} supporting engines; ${engines[loser].length} conflicting engines; margin ${Math.round(margin * 100)}%`, engineResults: results };
+  return {
+    signal: winner,
+    score: clamp(Math.round(winningAverage)),
+    confidence: clamp(Math.round(margin * 100)),
+    strategy: 'AI10_DIRECTION_AGGREGATOR',
+    reason: `System 10 selected ${winner}: weighted score ${callScore} vs ${putScore}; ${supportCount}/9 systems support ${winner}`,
+    aggregation, safetyGuard: safety, engineResults: directional
+  };
 }
 async function evaluateEngineBatch(marketData, engineList = ENGINES) {
   const settled = await Promise.allSettled(engineList.map(engine => Promise.resolve().then(() => engine(marketData))));
@@ -236,13 +243,25 @@ async function evaluateEngineBatch(marketData, engineList = ENGINES) {
     failed: settled.filter(x => x.status === 'rejected').length };
 }
 async function evaluateAllEngines(marketData) {
-  const batch = await evaluateEngineBatch(marketData);
-  const results = batch.results;
-  const decision = centralDispatcher(results, marketData?.regime, marketData);
-  return { ...decision, engineResults: results, engineSummary: {
-    total: results.length, fulfilled: batch.fulfilled, failed: batch.failed,
-    safetyVeto: !results.some(r => r.engine === 'safety_noise_guard' && r.validity && !r.reason.startsWith('VETO:'))
-  }};
+  const [batch, safety] = await Promise.all([
+    evaluateEngineBatch(marketData),
+    Promise.resolve().then(() => runSafetyNoiseGuard(marketData)).catch(error =>
+      result('safety_noise_guard', 'NO_SIGNAL', 0, 0,
+        `VETO: Safety validation failed: ${error?.message || 'unknown'}`, false))
+  ]);
+  const decision = centralDispatcher(batch.results, marketData?.regime, {
+    ...marketData, safetyGuard: safety
+  });
+  return {
+    ...decision,
+    engineResults: batch.results,
+    engineSummary: {
+      total: 10, directionalEngines: 9, aggregator: 1,
+      fulfilled: batch.fulfilled, failed: batch.failed,
+      safetyGuard: safety.validity && safety.reason.startsWith('PASS:') ? 'PASS' : 'VETO',
+      safetyVeto: !(safety.validity && safety.reason.startsWith('PASS:'))
+    }
+  };
 }
 module.exports = { evaluateAllEngines, evaluateEngineBatch, centralDispatcher, runTrendBreakoutEngine,
   runTrendContinuationEngine, runPinBarReversalEngine, runCandlestickPatternEngine,
