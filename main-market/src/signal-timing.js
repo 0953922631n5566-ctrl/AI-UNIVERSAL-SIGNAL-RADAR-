@@ -1,9 +1,9 @@
-export const SIGNAL_ENTRY_WINDOW_MAX_MS = 5000;
-export const SIGNAL_DISPATCH_COOLDOWN_MS = 55000;
+export const SIGNAL_ENTRY_WINDOW_MAX_MS = 60000;
+export const SIGNAL_DISPATCH_COOLDOWN_MS = 0;
 export const SIGNAL_MAX_TICK_AGE_MS = 5000;
 
-// The forecast is for the candle that has just opened. Only the first five
-// seconds are eligible; late results are discarded rather than backdated.
+// The forecast targets the current M1 candle using the latest fully closed candle.
+// Permit dispatch throughout that target candle; per-candle dedupe prevents repeats.
 export function isSignalEntryWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
