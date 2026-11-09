@@ -13,6 +13,17 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
   assert.match(html, /apiKeys/);
 });
 
+test("Mini App provides distinct ten-second and real-signal audio/visual alerts", () => {
+  assert.match(html, /id="soundEnable"/);
+  assert.match(html, /function triggerPreAlert/);
+  assert.match(html, /remainingMs<=10000/);
+  assert.match(html, /function triggerSignalAlert/);
+  assert.match(html, /m\.alertId/);
+  assert.match(html, /alert-flash-call/);
+  assert.match(html, /alert-flash-put/);
+  assert.match(html, /ไม่ใช่สัญญาณ CALL\/PUT/);
+});
+
 test("Mini App inline JavaScript parses successfully", () => {
   const start = html.indexOf("<script>") + "<script>".length;
   const end = html.lastIndexOf("</script>");
