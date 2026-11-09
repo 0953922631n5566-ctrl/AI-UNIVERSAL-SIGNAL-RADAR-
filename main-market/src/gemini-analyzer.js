@@ -13,7 +13,7 @@ function resolveApiKeys(apiKey, apiKeys) {
   // Only read Render environment keys when the caller omits both key arguments.
   const useEnvironment = apiKey === undefined && apiKeys === undefined;
   const configured = Array.isArray(apiKeys) ? apiKeys
-    : useEnvironment ? String(process.env.GEMINI_API_KEYS || "").split(/[\\n,;]+/) : [];
+    : useEnvironment ? String(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/) : [];
   const primary = apiKey === undefined
     ? (useEnvironment ? process.env.GEMINI_API_KEY || "" : "")
     : apiKey;
