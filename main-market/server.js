@@ -292,7 +292,7 @@ async function evaluate(feed) {
    lastTickPrice: feed.lastTick,
    alertId: feed.alertId,
    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
-   signalTimingWindowSeconds: [0, 5]
+   signalTimingWindowSeconds: [60, 0]
  };
 }
 
@@ -424,7 +424,7 @@ function startRestTimer() {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Re-evaluate during the first five seconds of the newly opened target candle.
+  // Re-evaluate during the full newly opened target M1 candle.
   // The direction uses only the latest fully closed M1 candle.
   let evaluationBusy = false;
   signalTimer = setInterval(async () => {
@@ -433,7 +433,7 @@ function startSignalTimer() {
     const current = feed?.candles.at(-1);
     if (!current?.live) return;
     const elapsedMs = Date.now() - current.epoch * 1000;
-    if (elapsedMs < 0 || elapsedMs > 5000) return;
+    if (elapsedMs < 0 || elapsedMs > 60000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);
