@@ -24,6 +24,21 @@ function history(count = 220) {
   });
 }
 
+test("System-10 aggregate passes through without legacy trend and sideways re-vetoes", () => {
+  const candidate = {
+    signal: "CALL", score: 40, confidence: 20, strategy: "AI10_DIRECTION_AGGREGATOR",
+    reason: "Nine-system weighted vote selected CALL",
+    aggregation: { decisionBy: "SYSTEM_10", callScore: 80, putScore: 30 },
+    safetyGuard: { validity: true, reason: "PASS: safety checks passed" }
+  };
+  const result = decide({
+    regime: "SIDEWAY", higherTimeframe: { direction: "PUT" },
+    indicators: { adx: 5, volatilityRatio: 2.5, rsi: 20 }
+  }, candidate);
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.strategy, "AI10_DIRECTION_AGGREGATOR");
+});
+
 test("Original AI data warm-up remains 200 closed M1 candles", () => {
   assert.equal(MIN_CLOSED_CANDLES, 200);
   assert.equal(HISTORY_CANDLES, 200);
