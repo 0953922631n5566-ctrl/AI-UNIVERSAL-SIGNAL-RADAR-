@@ -1,7 +1,7 @@
 'use strict';
 
 const MIN_SCORE = 45;
-const MIN_TREND_ADX = 18;
+const MIN_TREND_ADX = 14;
 const M5_COUNTERTREND_ADX = 25;
 const M5_COUNTERTREND_SCORE = 65;
 
@@ -32,7 +32,7 @@ function decide(ctx, candidate) {
       candidate?.engineResults?.some(r => r.engine === 'range_bound_swing' &&
         r.direction === candidate.signal && r.validity);
     const i = ctx.indicators || {};
-    const rangeSafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 1.8 &&
+    const rangeSafe = Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 2.0 &&
       (candidate?.signal === 'CALL'
         ? i.nearSupport === true && Number.isFinite(i.rsi) && i.rsi <= 45
         : i.nearResistance === true && Number.isFinite(i.rsi) && i.rsi >= 55);
