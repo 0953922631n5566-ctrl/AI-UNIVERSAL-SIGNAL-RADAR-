@@ -1,4 +1,4 @@
-export const SYMBOLS = Object.freeze(["EUR/USD"]);
+export const SYMBOLS = Object.freeze(["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
 // Analysis window: 50 closed M1 context candles + 4 latest closed entry candles.
@@ -20,7 +20,7 @@ export function resolveSymbol(value) {
   return SYMBOLS.find(symbol => normalizeSymbol(symbol) === normalized) ?? null;
 }
 export const MIN_CANDLES = MIN_CLOSED_CANDLES;
-export const DEFAULT_SYMBOLS = Object.freeze([DEFAULT_SYMBOL]);
+export const DEFAULT_SYMBOLS = Object.freeze([...SYMBOLS]);
 
 export const DIRECTIONAL_THRESHOLD = 53;
 export const ANALOGUE_PATTERN_CANDLES = 8;
