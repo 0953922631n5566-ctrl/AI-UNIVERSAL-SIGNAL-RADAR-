@@ -8,6 +8,7 @@
 
 ## Accuracy boundary
 - The service counts requests it actually sends to Gemini, grouped by UTC calendar day.
+- Counters are held in process memory and reset on a Render service restart as well as at UTC midnight; usage percentages can therefore undercount after a restart. This first version does not claim durable historical accounting.
 - Google does not provide remaining project quota through this application request path. The displayed percentage is an estimate only when the owner explicitly configures GEMINI_DAILY_REQUEST_BUDGET using the applicable Google AI Studio / Cloud quota for this project and model.
 - If that environment variable is absent or invalid, the Mini App shows request counts and HTTP 429 events but does not invent a percentage.
 - The in-app toast is delivered while the Telegram Mini App is open and polling. It is not a Telegram chat message or a background push when the Mini App is closed.
