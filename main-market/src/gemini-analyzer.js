@@ -42,9 +42,13 @@ const SYSTEM_INSTRUCTION = [
   "You are the sole market-direction analyst for a EUR/USD-style spot FX M1 signal system.",
   "Analyze only the supplied closed M1 OHLC candles and calculated technical indicators.",
   "You alone choose CALL, PUT, or STANDBY. No other AI or voting engines participate.",
-  "Do not force a direction. Choose STANDBY when evidence is mixed, weak, late, contradictory, or insufficient.",
+  "Do not force a direction. STANDBY is appropriate when there is no actionable setup, price is mid-range, evidence is contradictory, or data is insufficient; SIDEWAY or UNCLEAR regime alone is NOT a reason to return STANDBY.",
+  "Evaluate SIDEWAY/range conditions for an evidence-based edge trade: CALL may be considered near microSupport8/support20 after bullish rejection or a clear bullish short-term candle-momentum turn; PUT may be considered near microResistance8/resistance20 after bearish rejection or a clear bearish short-term momentum turn.",
+  "For range trades, prioritize the last 3–4 closed candle bodies/directions, net change, wick rejection, proximity to microSupport8/microResistance8, and RSI14 direction/change. Require at least two independent supporting clues; do not trade merely because price touches a level.",
+  "EMA9/EMA21 alignment is supporting context, not a mandatory veto for a well-confirmed range-edge reversal. Interpret RSI14 flexibly: values around the neutral 45–55 zone can support a range trade when RSI slope and candle momentum agree; do not require extreme overbought/oversold readings.",
+  "Do not issue CALL/PUT from the middle of a range, on tiny indecisive candles, on a false break without follow-through, or when the nearest opposing range boundary leaves inadequate room. Keep STANDBY in those cases.",
   "Do not invent prices, indicators, volume, news, or market context. FX volume may be unavailable; never infer real exchange volume.",
-  "Consider trend, momentum, MACD, RSI, volatility, candle structure, support/resistance and the latest four closed candles.",
+  "Consider trend, momentum, MACD, RSI level and slope, volatility, candle structure, 8-candle micro support/resistance, 20-candle support/resistance and the latest four closed candles.",
   "Confidence is evidence strength from 0 to 100, never a win probability.",
   "Return only the JSON object required by the response schema. Use concise Thai reasons/evidence where possible.",
   "This is decision support only; never describe or initiate broker order execution."
@@ -87,7 +91,11 @@ export function buildTechnicalIndicators(candles) {
   const previous = candles.at(-2);
   const recent = candles.slice(-4);
   const supportWindow = candles.slice(-20);
+  const microWindow = candles.slice(-8);
   const ema12 = ema(closes, 12), ema26 = ema(closes, 26);
+  const ema9 = ema(closes, 9), ema21 = ema(closes, 21);
+  const currentRsi = rsi(closes, 14);
+  const previousRsi = rsi(closes.slice(0, -1), 14);
   const macdLine = ema12 !== null && ema26 !== null ? ema12 - ema26 : null;
   const macdSeries = [];
   for (let i = 25; i < closes.length; i++) {
@@ -99,12 +107,18 @@ export function buildTechnicalIndicators(candles) {
   const atr14 = ranges.length >= 14 ? ranges.slice(-14).reduce((a, b) => a + b, 0) / 14 : null;
   const range = last.high - last.low;
   return {
-    ema9: ema(closes, 9), ema21: ema(closes, 21), ema50: ema(closes, 50),
-    rsi14: rsi(closes, 14), macd: macdLine, macdSignal,
+    ema9, ema21, ema50: ema(closes, 50),
+    emaSpreadPercent: ema9 !== null && ema21 !== null && last.close > 0 ? (ema9 - ema21) / last.close * 100 : null,
+    rsi14: currentRsi, rsi14Previous: previousRsi,
+    rsi14Change: currentRsi !== null && previousRsi !== null ? currentRsi - previousRsi : null,
+    macd: macdLine, macdSignal,
     macdHistogram: macdLine !== null && macdSignal !== null ? macdLine - macdSignal : null,
     atr14, atrPercent: atr14 !== null && last.close > 0 ? atr14 / last.close * 100 : null,
     support20: Math.min(...supportWindow.map(c => c.low)),
     resistance20: Math.max(...supportWindow.map(c => c.high)),
+    microSupport8: Math.min(...microWindow.map(c => c.low)),
+    microResistance8: Math.max(...microWindow.map(c => c.high)),
+    microRange8: Math.max(...microWindow.map(c => c.high)) - Math.min(...microWindow.map(c => c.low)),
     lastCandleBodyRatio: range > 0 ? Math.abs(last.close - last.open) / range : 0,
     lastCandleDirection: last.close > last.open ? "BULLISH" : last.close < last.open ? "BEARISH" : "DOJI",
     previousClose: previous?.close ?? null,
