@@ -242,7 +242,7 @@ async function evaluate(feed) {
  if (result.signal === "CALL" || result.signal === "PUT") {
    if (feed.activeSignal && now < feed.activeUntil) {
      result.signal = feed.activeSignal;
-     result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+     result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
    } else if (timingEligible && feed.signalCandle !== triggerCandleEpoch) {
      feed.activeSignal = result.signal;
      feed.activeUntil = now + SIGNAL_HOLD_SECONDS * 1000;
@@ -258,10 +258,10 @@ async function evaluate(feed) {
      result.reason = triggerCandleEpoch === null
        ? "รอแท่ง M1 ปัจจุบันและราคา Streaming สด"
        : tickAge === null || tickAge > 5
-         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในหน้าต่างก่อนปิดแท่ง"
+         ? "ข้ามสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีหลังเปิดแท่งเป้าหมาย"
          : feed.signalCandle === triggerCandleEpoch
            ? "ป้องกันการแจ้งซ้ำภายในแท่ง M1 เดียวกัน"
-           : "รอหน้าต่างส่งสัญญาณ 3–5 วินาทีก่อนปิดแท่ง M1";
+           : "รอข้อมูลเพื่อยืนยันภายใน 5 วินาทีแรกของแท่ง M1 เป้าหมาย";
    }
  } else if (feed.activeSignal && now < feed.activeUntil) {
    const restFresh = restFallback && Number.isFinite(result.ageSeconds) &&
@@ -277,7 +277,7 @@ async function evaluate(feed) {
      return;
    }
    result.signal = feed.activeSignal;
-   result.reason = "ติดตามสัญญาณเดิมในช่วงถือสัญญาณ 40 วินาที";
+   result.reason = "ติดตามสัญญาณของแท่ง M1 เป้าหมายจนจบช่วงเข้า";
  } else if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
    feed.activeUntil = 0;
@@ -292,7 +292,7 @@ async function evaluate(feed) {
    lastTickPrice: feed.lastTick,
    alertId: feed.alertId,
    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
-   signalTimingWindowSeconds: [5, 3]
+   signalTimingWindowSeconds: [0, 5]
  };
 }
 
