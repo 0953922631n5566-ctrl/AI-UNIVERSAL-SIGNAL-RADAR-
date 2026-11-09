@@ -223,7 +223,8 @@ async function evaluate(feed) {
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
  // Gemini is invoked once at T-5 only; PREPARE (T-10..T-5) is UI-only.
- const inGeminiWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
+ const inGeminiWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now) &&
+   Number.isFinite(tickAge) && tickAge <= 5;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  let rawResult;
@@ -261,8 +262,13 @@ async function evaluate(feed) {
  } else if (feed.geminiWindowCandleEpoch === sourceCandleEpoch && feed.geminiWindowResult) {
    rawResult = feed.geminiWindowResult;
  } else {
-   rawResult = standby("รอเรียก Gemini เพียงครั้งเดียวที่ T-5 ก่อนปิดแท่ง M1", {
-     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "WINDOW_CLOSED"
+   const inFinalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
+   const reason = inFinalizeWindow
+     ? "ข้าม Gemini: ต้องมี Streaming tick สดไม่เกิน 5 วินาทีในช่วง T-5"
+     : "รอเรียก Gemini เพียงครั้งเดียวที่ T-5 ก่อนปิดแท่ง M1";
+   rawResult = standby(reason, {
+     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI",
+     providerStatus: inFinalizeWindow ? "WAITING_FOR_FRESH_TICK" : "WINDOW_CLOSED"
    });
  }
  const result = applySignalReleaseGate(rawResult);
