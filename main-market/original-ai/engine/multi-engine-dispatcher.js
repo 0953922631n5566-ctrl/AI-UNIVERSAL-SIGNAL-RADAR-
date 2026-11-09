@@ -179,62 +179,154 @@ const WEIGHTS = Object.freeze({
   candlestick_pattern: 0.9, range_bound_swing: 1.15, compression_squeeze: 1,
   momentum_divergence: 0.85, volume_order_flow: 0.8, pullback_retest: 1.05
 });
-const MIN_ENGINE_SUPPORT = 1;
-const MIN_DISPATCH_SCORE = 0;
-const MIN_CONFLICT_MARGIN = 0;
+const ENGINE_GROUP = Object.freeze({
+  trend_breakout: "TREND",
+  trend_continuation: "TREND",
+  pullback_retest: "TREND",
+  pin_bar_reversal: "CANDLE",
+  candlestick_pattern: "CANDLE",
+  range_bound_swing: "RANGE",
+  compression_squeeze: "VOLATILITY",
+  momentum_divergence: "MOMENTUM",
+  volume_order_flow: "VOLUME"
+});
+const MIN_ENGINE_SUPPORT = 2;
+const MIN_INDEPENDENT_GROUPS = 2;
+const MIN_DISPATCH_SCORE = 60;
+const MIN_CONFLICT_MARGIN = 0.12;
+
+function alignedConfirmations(context, direction) {
+  const i = context?.indicators || {};
+  const call = direction === "CALL";
+  const checks = [
+    (call ? Number(i.emaBullishAlignment) : Number(i.emaBearishAlignment)) >= 2,
+    call ? i.plusDI > i.minusDI : i.minusDI > i.plusDI,
+    Number.isFinite(i.macdHistogram) && (call ? i.macdHistogram > 0 : i.macdHistogram < 0),
+    Number.isFinite(i.rsi) && (call ? i.rsi >= 45 && i.rsi <= 70 : i.rsi >= 30 && i.rsi <= 55),
+    Number.isFinite(i.adx) && i.adx >= 18,
+    !context?.higherTimeframe?.direction || context.higherTimeframe.direction === "UNCLEAR" ||
+      context.higherTimeframe.direction === direction,
+    Number.isFinite(i.volatilityRatio) && i.volatilityRatio <= 2.0
+  ];
+  return checks.filter(Boolean).length;
+}
 
 function centralDispatcher(results, regime, context = {}) {
-  const safety = context.safetyGuard || results.find(r => r.engine === 'safety_noise_guard');
-  if (!safety || !safety.validity || safety.reason.startsWith('VETO:')) {
-    return { signal: 'STANDBY', score: 0, confidence: 0,
-      strategy: 'AI10_DIRECTION_AGGREGATOR',
-      reason: safety?.reason || 'VETO: Safety validation unavailable',
-      safetyGuard: safety || null, engineResults: results,
-      aggregation: { decisionBy: 'SYSTEM_10', callScore: 0, putScore: 0, callSupport: 0, putSupport: 0 } };
-  }
+  const safety = context.safetyGuard || results.find(r => r.engine === "safety_noise_guard");
+  const veto = reason => ({
+    signal: "STANDBY", score: 0, confidence: 0, evidenceStrength: 0,
+    confidenceMeaning: "EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY",
+    strategy: "AI10_DIRECTION_AGGREGATOR", reason,
+    safetyGuard: safety || null, engineResults: results.filter(r => r.engine !== "safety_noise_guard"),
+    aggregation: { decisionBy: "SYSTEM_10", callScore: 0, putScore: 0,
+      callSupport: 0, putSupport: 0, independentGroups: 0 }
+  });
+  if (!safety || !safety.validity || !String(safety.reason || "").startsWith("PASS:"))
+    return veto(safety?.reason || "VETO: Safety validation unavailable");
 
-  const directional = results.filter(r => r.engine !== 'safety_noise_guard');
-  const votes = { CALL: 0, PUT: 0 }, engines = { CALL: [], PUT: [] };
-  const weightTotals = { CALL: 0, PUT: 0 };
+  const i = context.indicators || {};
+  if (!["UPTREND", "DOWNTREND", "SIDEWAY", "RANGING", "REVERSAL"].includes(regime))
+    return veto("Market regime is UNCLEAR; wait for a measurable setup");
+  if (Number.isFinite(i.volatilityRatio) && i.volatilityRatio > 2.8)
+    return veto("VETO: extreme M1 volatility expansion");
+  if (Number.isFinite(i.volatilityRatio) && i.volatilityRatio > 2.0)
+    return veto("Volatility is elevated; wait for a cleaner next-candle entry");
+
+  const directional = results.filter(r => r.engine !== "safety_noise_guard");
+  const votes = { CALL: 0, PUT: 0 }, weightTotals = { CALL: 0, PUT: 0 };
+  const engines = { CALL: [], PUT: [] }, groups = { CALL: new Set(), PUT: new Set() };
   for (const r of directional) {
     if (!r.validity || !DIRECTIONS.has(r.direction)) continue;
     const weight = WEIGHTS[r.engine] || 1;
     votes[r.direction] += weight * clamp(r.score);
     weightTotals[r.direction] += weight;
     engines[r.direction].push(r.engine);
+    groups[r.direction].add(ENGINE_GROUP[r.engine] || r.engine);
   }
-
-  const callScore = Math.round(votes.CALL);
-  const putScore = Math.round(votes.PUT);
-  const winner = callScore === putScore ? null : callScore > putScore ? 'CALL' : 'PUT';
-  const aggregation = {
-    decisionBy: 'SYSTEM_10',
-    method: 'WEIGHTED_SCORE_SUM',
-    callScore, putScore,
-    callSupport: engines.CALL.length,
-    putSupport: engines.PUT.length,
-    directionalSystems: 9
+  const callScore = Math.round(votes.CALL), putScore = Math.round(votes.PUT);
+  const winner = callScore === putScore ? null : callScore > putScore ? "CALL" : "PUT";
+  if (!winner) return {
+    signal: "STANDBY", score: 0, confidence: 0, evidenceStrength: 0,
+    confidenceMeaning: "EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY",
+    strategy: "AI10_DIRECTION_AGGREGATOR",
+    reason: callScore === 0 && putScore === 0
+      ? "No directional setup confirmed by the nine analysts"
+      : "CALL and PUT evidence are balanced; no direction selected",
+    aggregation: { decisionBy: "SYSTEM_10", method: "WEIGHTED_INDEPENDENT_EVIDENCE",
+      callScore, putScore, callSupport: engines.CALL.length, putSupport: engines.PUT.length,
+      callGroups: [...groups.CALL], putGroups: [...groups.PUT], independentGroups: 0 },
+    safetyGuard: safety, engineResults: directional
   };
-  if (!winner) {
-    return { signal: 'STANDBY', score: 0, confidence: 0,
-      strategy: 'AI10_DIRECTION_AGGREGATOR',
-      reason: callScore === 0 && putScore === 0
-        ? 'No directional votes from the nine analysis systems'
-        : 'Nine-system weighted vote is tied; no direction selected',
-      aggregation, safetyGuard: safety, engineResults: directional };
+
+  const loser = winner === "CALL" ? "PUT" : "CALL";
+  const avg = weightTotals[winner] ? votes[winner] / weightTotals[winner] : 0;
+  const margin = (votes[winner] - votes[loser]) / Math.max(votes[winner] + votes[loser], 1);
+  const supportCount = engines[winner].length;
+  const independentGroups = groups[winner].size;
+  const singleEnginePass = supportCount === 1 && avg >= 70 &&
+    alignedConfirmations(context, winner) >= 5;
+  if ((supportCount < MIN_ENGINE_SUPPORT || independentGroups < MIN_INDEPENDENT_GROUPS) && !singleEnginePass)
+    return {
+      signal: "STANDBY", score: Math.round(avg), confidence: 0, evidenceStrength: 0,
+      confidenceMeaning: "EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY",
+      strategy: "AI10_DIRECTION_AGGREGATOR",
+      reason: "Directional evidence is too concentrated in one analyst; need independent confirmation",
+      aggregation: { decisionBy: "SYSTEM_10", method: "WEIGHTED_INDEPENDENT_EVIDENCE",
+        callScore, putScore, callSupport: engines.CALL.length, putSupport: engines.PUT.length,
+        callGroups: [...groups.CALL], putGroups: [...groups.PUT], independentGroups,
+        margin: Number(margin.toFixed(3)) },
+      safetyGuard: safety, engineResults: directional
+    };
+  if (avg < MIN_DISPATCH_SCORE)
+    return veto(`Weighted directional score below minimum (${MIN_DISPATCH_SCORE})`);
+  if (margin < MIN_CONFLICT_MARGIN)
+    return veto("CALL/PUT conflict is too close for a reliable entry");
+
+  const oppositeRegime = (regime === "UPTREND" && winner === "PUT") ||
+    (regime === "DOWNTREND" && winner === "CALL");
+  if (oppositeRegime && (independentGroups < 3 || avg < 68))
+    return veto("Signal opposes the M1 trend without enough independent reversal evidence");
+
+  const m5 = context.higherTimeframe?.direction;
+  if (m5 && m5 !== "UNCLEAR" && m5 !== winner &&
+      (independentGroups < 3 || !Number.isFinite(i.adx) || i.adx < 22 || avg < 68))
+    return veto("M5 context conflicts with M1; stronger multi-engine reversal evidence required");
+
+  if (regime === "SIDEWAY" || regime === "RANGING") {
+    const rangeVote = engines[winner].includes("range_bound_swing");
+    const breakoutVote = engines[winner].includes("trend_breakout");
+    if (!rangeVote && !breakoutVote)
+      return veto("Sideways market: wait for a confirmed range-boundary rejection or range breakout");
   }
 
-  const loser = winner === 'CALL' ? 'PUT' : 'CALL';
-  const winningAverage = weightTotals[winner] > 0 ? votes[winner] / weightTotals[winner] : 0;
-  const total = votes.CALL + votes.PUT;
-  const margin = total > 0 ? Math.abs(votes.CALL - votes.PUT) / total : 0;
-  const supportCount = engines[winner].length;
+  if (winner === "CALL" && i.nearResistance && !engines.CALL.includes("trend_breakout") && !engines.CALL.includes("compression_squeeze"))
+    return veto("Resistance is too close to the CALL entry");
+  if (winner === "PUT" && i.nearSupport && !engines.PUT.includes("trend_breakout") && !engines.PUT.includes("compression_squeeze"))
+    return veto("Support is too close to the PUT entry");
+  if (winner === "CALL" && Number.isFinite(i.rsi) && i.rsi > 78)
+    return veto("CALL blocked: M1 RSI is overbought");
+  if (winner === "PUT" && Number.isFinite(i.rsi) && i.rsi < 22)
+    return veto("PUT blocked: M1 RSI is oversold");
+
+  const totalConfiguredWeight = Object.values(WEIGHTS).reduce((sum, weight) => sum + weight, 0);
+  const coverage = weightTotals[winner] / totalConfiguredWeight;
+  const groupFactor = Math.min(1, independentGroups / 3);
+  const evidenceStrength = clamp(Math.round(
+    35 * (avg / 100) + 25 * Math.min(1, coverage / 0.4) +
+    20 * groupFactor + 20 * Math.max(0, margin)
+  ));
+  const aggregation = {
+    decisionBy: "SYSTEM_10", method: "WEIGHTED_INDEPENDENT_EVIDENCE",
+    callScore, putScore, callSupport: engines.CALL.length, putSupport: engines.PUT.length,
+    callGroups: [...groups.CALL], putGroups: [...groups.PUT], independentGroups,
+    margin: Number(margin.toFixed(3)), supportCoverage: Number(coverage.toFixed(3)),
+    singleEngineConfirmation: singleEnginePass
+  };
   return {
-    signal: winner,
-    score: clamp(Math.round(winningAverage)),
-    confidence: clamp(Math.round(margin * 100)),
-    strategy: 'AI10_DIRECTION_AGGREGATOR',
-    reason: `System 10 selected ${winner}: weighted score ${callScore} vs ${putScore}; ${supportCount}/9 systems support ${winner}`,
+    signal: winner, score: clamp(Math.round(avg)), confidence: evidenceStrength,
+    evidenceStrength, confidenceMeaning: "EVIDENCE_STRENGTH_NOT_WIN_PROBABILITY",
+    strategy: "AI10_DIRECTION_AGGREGATOR",
+    reason: `System 10 selected ${winner}: weighted score ${callScore} vs ${putScore}; ${supportCount}/9 analysts across ${independentGroups} independent groups`,
     aggregation, safetyGuard: safety, engineResults: directional
   };
 }
