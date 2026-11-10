@@ -65,9 +65,13 @@ export function detectMultiStageReversal(candles) {
     ? "UPTREND"
     : last.close < ema5[lastIndex] && ema5[lastIndex] < ema5[lastIndex - 1]
       ? "DOWNTREND" : "UNCLEAR";
+  const priorTrend = previous.close > ema5[lastIndex - 1] && ema5[lastIndex - 1] > ema5[lastIndex - 2]
+    ? "UPTREND"
+    : previous.close < ema5[lastIndex - 1] && ema5[lastIndex - 1] < ema5[lastIndex - 2]
+      ? "DOWNTREND" : "UNCLEAR";
 
-  const bearishBreak = trend !== "DOWNTREND" && last.close < swingLow;
-  const bullishBreak = trend !== "UPTREND" && last.close > swingHigh;
+  const bearishBreak = priorTrend === "UPTREND" && last.close < swingLow;
+  const bullishBreak = priorTrend === "DOWNTREND" && last.close > swingHigh;
   if (bearishBreak || bullishBreak) {
     return {
       stage: "REVERSAL_CONFIRMED", trend,
