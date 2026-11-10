@@ -17,15 +17,35 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Gemini Primary EMA5 Slope + Fakeout Analyzer",
-    "displayName": "Gemini + EMA5 Slope Reversal + S/R Fakeout + Strict Standby",
+    "name": "Main Market Advanced Partial Scoring Engine",
+    "displayName": "Partial Scoring 75/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "GEMINI_PRIMARY_WITH_DETERMINISTIC_EMA5_AND_MARKET_CLARITY_GUARDS",
-    "decisionAuthority": "GEMINI_PRIMARY_SYSTEM_GUARDS",
+    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
+    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "SOURCE_QUALITY_EMA5_SLOPE_FAKEOUT_AND_STRICT_SIDEWAY_STANDBY",
-    "externalAiCalls": true
+    "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
+    "externalAiCalls": false,
+    "scoreWeights": {
+      "ema5SlopeReversal": 30,
+      "srFakeout": 30,
+      "proximityMomentum": 20,
+      "trendContext": 20
+    },
+    "thresholds": {
+      "callPut": 75,
+      "prepare": 45,
+      "standbyBelow": 45
+    },
+    "candles": {
+      "context": 50,
+      "entry": 4,
+      "totalClosed": 54
+    },
+    "killSwitches": [
+      "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
+      "ABNORMAL_ATR_SPIKE"
+    ]
   }
 }
