@@ -28,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
 const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-10-api-pool-100-history-v1";
+const VERSION = "2026-11-10-api-pool-100-history-recovery-shadow-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -892,6 +892,13 @@ app.get("/health", (_req, res) => {
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
+    },
+    recovery: {
+      enabled: true, mode: "SHADOW_ONLY", status: "BACKEND_ONLY",
+      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
+      minimumSignalScore: 65, maxAttemptsPerLoss: 1, maxWaitCandles: 3,
+      martingale: false, altersMiniApp: false, emitsAdditionalSignals: false,
+      stateStorage: "IN_MEMORY_PER_PAIR_RESETS_ON_PROCESS_RESTART"
     },
     configuration: {
       telegramMiniAppAuthConfigured: false,
