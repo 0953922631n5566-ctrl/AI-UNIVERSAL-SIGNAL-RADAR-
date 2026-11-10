@@ -107,6 +107,7 @@ export class TwelveDataKeyPool {
     const now = Date.now();
     const availableCount = this.keys.filter(key => (this.cooldowns.get(key) || 0) <= now).length;
     const activeKey = this.getActiveKey();
+    const nextRestKey = this.getRestCandidates()[0] || null;
     return {
       configured: this.keys.length > 0,
       configuredCount: this.keys.length,
@@ -119,7 +120,7 @@ export class TwelveDataKeyPool {
       }),
       rotation: this.keys.length > 1 ? "FAILOVER_POOL" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
       restRotation: this.keys.length > 1 ? "ROUND_ROBIN" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
-      nextRestKeyNumber: this.getRestCandidates()[0] ? this.keys.indexOf(this.getRestCandidates()[0]) + 1 : null,
+      nextRestKeyNumber: nextRestKey ? this.keys.indexOf(nextRestKey) + 1 : null,
       lastFailure: this.lastError ? { kind: this.lastError.kind, message: this.lastError.message } : null
     };
   }
