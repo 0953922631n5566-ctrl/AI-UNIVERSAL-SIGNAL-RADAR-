@@ -156,7 +156,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -854,11 +854,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "EMA_5_20_WICK_REJECTION", engines: 1,
+      decisionEngine: "EMA_5_20_RELAXED_TREND_FLOW", engines: 1,
       decisionAuthority: "LOCAL_TECHNICAL_ONLY",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_5_20_WICK_REJECTION_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_5_20_RELAXED_TREND_FLOW_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_TECHNICAL", model: null, configured: true,
@@ -880,10 +880,10 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaWickRejection: {
         emaFast: 5, emaTrend: 20,
-        touchRule: "WICK_TOUCH_EMA5_AND_CLOSE_BACK_ON_TREND_SIDE",
+        touchRule: "NOT_REQUIRED",\n        proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",\n        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
         minWickBodyRatio: 1.0, minWickRangeRatio: 0.25,
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
