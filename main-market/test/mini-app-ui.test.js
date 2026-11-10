@@ -25,7 +25,7 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.match(html, /GEMINI · EMA5 MULTI-STAGE REVERSAL/);
+  assert.match(html, /GEMINI · EMA5 SLOPE + S/R FAKEOUT + STRICT STANDBY/);
   assert.match(html, /EMA5/);
   assert.match(html, /REVERSAL WARNING/);
   assert.match(html, /REVERSAL CONFIRMED/);
@@ -35,10 +35,15 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
 });
 
 test("Mini App identifies Gemini EMA5 multi-stage reversal and exposes all three stages", () => {
-  assert.match(html, /GEMINI · EMA5 MULTI-STAGE REVERSAL/);
+  assert.match(html, /GEMINI · EMA5 SLOPE + S/R FAKEOUT + STRICT STANDBY/);
   assert.match(html, /TREND · แนวโน้ม EMA5 ยังทำงาน/);
   assert.match(html, /REVERSAL WARNING · แรงเดิมเริ่มอ่อน/);
   assert.match(html, /REVERSAL CONFIRMED · โครงสร้างราคาเปลี่ยนแล้ว/);
+  assert.match(html, /EMA5 SLOPE REVERSAL · รอ Gemini ยืนยัน/);
+  assert.match(html, /BEAR TRAP · แนวรับหลอก → CALL/);
+  assert.match(html, /BULL TRAP · แนวต้านหลอก → PUT/);
+  assert.match(html, /STANDBY · ตลาดไซด์เวย์ งดออกออเดอร์/);
+  assert.match(html, /STRICT STANDBY/);
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
