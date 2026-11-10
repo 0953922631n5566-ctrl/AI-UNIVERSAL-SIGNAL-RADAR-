@@ -25,14 +25,14 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.match(html, /EMA 5\/20 WICK REJECTION/);
+  assert.match(html, /EMA 5\/20 RELAXED TREND FLOW/);
   assert.match(html, /EMA 5\/20/);
-  assert.match(html, /EMA 5\/20 WICK REJECTION/);
+  assert.match(html, /EMA 5\/20 RELAXED TREND FLOW/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|Gemini|GEMINI|geminiQuota/);
 });
 
-test("Mini App identifies EMA 5/20 Wick Rejection and removes obsolete analyzer branding", () => {
-  assert.match(html, /EMA 5\/20 WICK REJECTION/);
+test("Mini App identifies EMA 5/20 Relaxed Trend Flow and removes obsolete analyzer branding", () => {
+  assert.match(html, /EMA 5\/20 RELAXED TREND FLOW/);
   assert.doesNotMatch(html, /GEMINI|Gemini|geminiQuota|quotaRequests|quota429/);
 });
 
