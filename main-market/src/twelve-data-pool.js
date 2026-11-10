@@ -29,6 +29,7 @@ export class TwelveDataKeyPool {
   constructor(keys = parseConfiguredKeys()) {
     this.keys = [...new Set(keys.map(value => String(value ?? "").trim()).filter(Boolean))];
     this.activeIndex = 0;
+    this.restIndex = 0;
     this.cooldowns = new Map();
     this.failures = new Map();
     this.lastError = null;
@@ -51,6 +52,25 @@ export class TwelveDataKeyPool {
     return candidates[0] || null;
   }
 
+  getRestCandidates() {
+    if (!this.keys.length) return [];
+    const now = Date.now();
+    return this.keys.map((key, index) => ({ key, index }))
+      .sort((a, b) => ((a.index - this.restIndex + this.keys.length) % this.keys.length) -
+                      ((b.index - this.restIndex + this.keys.length) % this.keys.length))
+      .filter(item => (this.cooldowns.get(item.key) || 0) <= now)
+      .map(item => item.key);
+  }
+
+  markRestSuccess(key) {
+    if (!key) return;
+    this.cooldowns.delete(key);
+    this.failures.delete(key);
+    const index = this.keys.indexOf(key);
+    if (index >= 0) this.restIndex = (index + 1) % this.keys.length;
+    this.lastError = null;
+  }
+
   markSuccess(key) {
     if (!key) return;
     this.cooldowns.delete(key);
@@ -67,7 +87,10 @@ export class TwelveDataKeyPool {
     this.cooldowns.set(key, Date.now() + cooldown);
     this.failures.set(key, (this.failures.get(key) || 0) + 1);
     const index = this.keys.indexOf(key);
-    if (index >= 0 && this.keys.length) this.activeIndex = (index + 1) % this.keys.length;
+    if (index >= 0 && this.keys.length) {
+      this.activeIndex = (index + 1) % this.keys.length;
+      this.restIndex = (index + 1) % this.keys.length;
+    }
     this.lastError = { kind, message: String(error?.message || error || "Provider error") };
   }
 
@@ -95,6 +118,8 @@ export class TwelveDataKeyPool {
         return { number: index + 1, status: !available ? "COOLDOWN" : credential === activeKey ? "ACTIVE" : "READY", available, cooldownRemainingMs: Math.max(0, until - now), failures: this.failures.get(credential) || 0 };
       }),
       rotation: this.keys.length > 1 ? "FAILOVER_POOL" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
+      restRotation: this.keys.length > 1 ? "ROUND_ROBIN" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
+      nextRestKeyNumber: this.getRestCandidates()[0] ? this.keys.indexOf(this.getRestCandidates()[0]) + 1 : null,
       lastFailure: this.lastError ? { kind: this.lastError.kind, message: this.lastError.message } : null
     };
   }
