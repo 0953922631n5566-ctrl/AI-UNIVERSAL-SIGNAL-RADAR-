@@ -262,13 +262,13 @@ function smoothTrendCandles(direction, count = 54) {
 test("M1 engine catches confirmed two-candle bullish continuation without waiting for a fresh EMA cross", () => {
   const result = calculatePureTechnicalSignal(smoothTrendCandles(1));
   assert.equal(result.signal, "CALL");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50_TREND_CONTINUATION");
+  assert.equal(result.entryType, "TREND_CONTINUATION");
 });
 
 test("M1 engine catches confirmed two-candle bearish continuation without waiting for a fresh EMA cross", () => {
   const result = calculatePureTechnicalSignal(smoothTrendCandles(-1));
   assert.equal(result.signal, "PUT");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50_TREND_CONTINUATION");
+  assert.equal(result.entryType, "TREND_CONTINUATION");
 });
 
 test("M1 engine remains symmetric: bullish and bearish trend continuation use mirrored rules", () => {
