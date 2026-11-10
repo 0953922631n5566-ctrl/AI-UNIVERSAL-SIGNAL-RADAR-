@@ -30,7 +30,7 @@ jobs:
           grep -Fq 'export const CONTEXT_CANDLES = 50;' src/config.js
           grep -Fq 'export const ENTRY_CANDLES = 4;' src/config.js
           grep -Fq 'export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;' src/config.js
-          grep -Fq 'export const HISTORY_CANDLES = MIN_CLOSED_CANDLES;' src/config.js
+          grep -Fq 'export const HISTORY_CANDLES = 100;' src/config.js
           grep -Fq 'historicalAnalogueWorker: "BYPASSED"' server.js
           ! grep -Fq 'sendSignalPush' server.js
           ! grep -Eqi 'sendMessage|sendPhoto|sendDocument' server.js public/signal.html
@@ -40,6 +40,7 @@ jobs:
           node --check server.js
           node --check src/config.js
           node --check src/analyzer.js
+          node --check src/recovery.js
           node --check src/twelve-data.js
           node --check src/client-auth.js
           node --check src/telegram-auth.js
