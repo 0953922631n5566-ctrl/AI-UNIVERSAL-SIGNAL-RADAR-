@@ -881,9 +881,10 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      pureTechnical: {
-        emaFast: 3, emaSignal: 8, emaTrend: 50,
-        atrExtensionGuard: 1.25,
+      emaWickRejection: {
+        emaFast: 5, emaTrend: 20,
+        touchRule: "WICK_TOUCH_EMA5_AND_CLOSE_BACK_ON_TREND_SIDE",
+        minWickBodyRatio: 1.0, minWickRangeRatio: 0.25,
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }
