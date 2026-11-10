@@ -168,14 +168,13 @@ test("Gemini does not retry a daily quota exhaustion 429", async () => {
   assert.equal(calls, 1);
 });
 
-test("missing Gemini key fails closed and never uses a local directional fallback", async () => {
-  clearGeminiAnalysisCache();
+test("local EMA analyzer does not require a Gemini API key", async () => {
   const result = await analyzeMarket(history(54), {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-KEY", geminiApiKey: ""
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
-  assert.equal(result.signal, "STANDBY");
-  assert.match(result.reason, /GEMINI_API_KEY/);
-  assert.equal(result.provider, "GEMINI");
+  assert.equal(result.provider, "LOCAL_TECHNICAL");
+  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
 test("invalid Gemini JSON or an API failure returns STANDBY instead of a heuristic vote", async () => {
