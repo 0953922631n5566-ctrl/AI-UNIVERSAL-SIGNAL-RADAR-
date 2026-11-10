@@ -85,7 +85,7 @@ test("analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", asy
   });
   assert.equal(calls.length, 1);
   assert.equal(result.provider, "GEMINI");
-  assert.equal(result.strategy, "GEMINI_PRIMARY_EMA5_MULTI_STAGE_REVERSAL");
+  assert.equal(result.strategy, "GEMINI_PRIMARY_EMA5_SLOPE_FAKEOUT_STRICT_STANDBY");
   assert.equal(result.closedCandleCount, 54);
   assert.ok(["TREND", "REVERSAL_WARNING", "REVERSAL_CONFIRMED", "UNCLEAR"].includes(result.reversal.stage));
   const requestBody = JSON.parse(calls[0].init.body);
