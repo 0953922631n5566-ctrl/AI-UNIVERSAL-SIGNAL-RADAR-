@@ -4,12 +4,12 @@ import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED, SIGNAL_VALIDATION_STA
 
 test("out-of-sample validation status is informational, not a runtime lock", () => {
   assert.equal(SIGNAL_RELEASE_VALIDATED, false);
-  assert.equal(SIGNAL_VALIDATION_STATUS, "GEMINI_PRIMARY_MANUAL_ONLY_NOT_OOS_VALIDATED");
+  assert.equal(SIGNAL_VALIDATION_STATUS, "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
-test("Gemini CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
+test("EMA 5/20 CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({ signal, reason: "candidate from Gemini primary analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
+    const result = applySignalReleaseGate({ signal, reason: "candidate from EMA 5/20 Wick Rejection analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
     assert.equal(result.signal, signal);
     assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
