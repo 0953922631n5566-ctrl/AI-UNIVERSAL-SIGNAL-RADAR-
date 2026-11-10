@@ -14,7 +14,7 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 seconds into the next candle", () => {
+test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seconds into the next candle", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -25,25 +25,21 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("GEMINI · EMA5 SLOPE + S/R FAKEOUT + STRICT STANDBY"));
+  assert.ok(html.includes("PARTIAL SCORING 75/45 · CHOPPY/ATR KILL SWITCH"));
   assert.match(html, /EMA5/);
-  assert.match(html, /REVERSAL WARNING/);
-  assert.match(html, /REVERSAL CONFIRMED/);
   assert.match(html, /id="reversal"/);
-  assert.match(html, /m\.reversal\?\.stage/);
+  assert.match(html, /m\.scores\?\.CALL/);
+  assert.match(html, /SCORING BREAKDOWN/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
 });
 
-test("Mini App identifies Gemini EMA5 multi-stage reversal and exposes all three stages", () => {
-  assert.ok(html.includes("GEMINI · EMA5 SLOPE + S/R FAKEOUT + STRICT STANDBY"));
-  assert.match(html, /TREND · แนวโน้ม EMA5 ยังทำงาน/);
-  assert.match(html, /REVERSAL WARNING · แรงเดิมเริ่มอ่อน/);
-  assert.match(html, /REVERSAL CONFIRMED · โครงสร้างราคาเปลี่ยนแล้ว/);
-  assert.match(html, /EMA5 SLOPE REVERSAL · รอ Gemini ยืนยัน/);
-  assert.match(html, /BEAR TRAP · แนวรับหลอก → CALL/);
-  assert.match(html, /BULL TRAP · แนวต้านหลอก → PUT/);
-  assert.match(html, /STANDBY · ตลาดไซด์เวย์ งดออกออเดอร์/);
-  assert.match(html, /STRICT STANDBY/);
+test("Mini App identifies Partial Scoring and exposes weighted score breakdown", () => {
+  assert.ok(html.includes("PARTIAL SCORING 75/45 · CHOPPY/ATR KILL SWITCH"));
+  assert.match(html, /SCORING BREAKDOWN/);
+  assert.match(html, /m\.scores\?\.PUT/);
+  assert.match(html, /m\.components\|\|\{\}/);
+  assert.match(html, /m\.killSwitch/);
+  assert.match(html, /PARTIAL SCORING 75\/45/);
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
