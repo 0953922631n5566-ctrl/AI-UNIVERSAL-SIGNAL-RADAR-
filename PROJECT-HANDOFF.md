@@ -1823,3 +1823,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Existing source-quality checks and server timing/stream freshness gates were not changed in this patch. T-5 finalization and fresh Streaming tick requirement remain; this strategy update does not yet remove that timing limitation.
 - Added tests for bullish and bearish continuation symmetry in `main-market/test/analyzer.test.js`.
 - Validation pending: GitHub Actions CI and Render deploy. No live trade performance, accuracy, or profitability claim is made. No broker auto-ordering is added.
+
+
+## 2026-11-10 — EMA5-only Trend Flow (user-approved production change; validation pending)
+- User explicitly approved replacing EMA5/EMA20 directional gating with EMA5-only position logic for Main Market M1.
+- Implementation branch: `feature/ema5-only-trend-flow`, based on current production `main-market`.
+- CALL: latest closed M1 close above EMA5, EMA5 rising, and bullish candle/close momentum.
+- PUT: latest closed M1 close below EMA5, EMA5 falling, and bearish candle/close momentum.
+- EMA20 is retained only as an informational metric; it does not gate or veto CALL/PUT.
+- Removed the EMA5 ATR-proximity requirement, exact touch/wick requirements, and all EMA20 direction/slope gates.
+- Existing source-quality/freshness guards, closed-candle analysis, T-10 PREPARE, T-5 finalization, per-candle deduplication, 30-second signal hold, Twelve Data pool, Telegram Mini App authentication and manual-only operation remain unchanged.
+- Added regression tests proving CALL/PUT can pass when EMA20 is on the opposite side, and that ATR proximity/touch/wick checks are not required.
+- Pending: run full CI, review PR, merge to `main-market`, verify Render deploy and live endpoints. No claim of predictive accuracy or profitability; OOS/backtest/paper-trading validation remains outstanding.
