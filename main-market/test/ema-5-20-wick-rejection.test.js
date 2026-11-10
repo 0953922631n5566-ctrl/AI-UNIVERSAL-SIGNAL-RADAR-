@@ -31,8 +31,8 @@ test("PUT accepts bearish EMA5-only trend flow without EMA20 gating", () => {
   const result = calculatePureTechnicalSignal(trendCandles(-1));
   assert.equal(result.signal, "PUT");
   assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
-  assert.equal(result.metrics.aboveEma5, true);
-  assert.equal(result.metrics.ema5Rising, true);
+  assert.equal(result.metrics.belowEma5, true);
+  assert.equal(result.metrics.ema5Falling, true);
 });
 
 test("EMA5 position and trend flow are sufficient even when price is far from EMA5", () => {
