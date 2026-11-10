@@ -17,15 +17,15 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "EMA5 Only Trend Flow Analyzer",
-    "displayName": "EMA5 Only Trend Flow + System Guard",
+    "name": "Gemini Primary EMA5 Slope + Fakeout Analyzer",
+    "displayName": "Gemini + EMA5 Slope Reversal + S/R Fakeout + Strict Standby",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_CLOSED_M1_EMA5_ONLY_TREND_FLOW",
-    "decisionAuthority": "LOCAL_TECHNICAL_ONLY",
+    "executionModel": "GEMINI_PRIMARY_WITH_DETERMINISTIC_EMA5_AND_MARKET_CLARITY_GUARDS",
+    "decisionAuthority": "GEMINI_PRIMARY_SYSTEM_GUARDS",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "DATA_QUALITY_AND_TIMING_GUARDS",
-    "externalAiCalls": false
+    "safetyValidation": "SOURCE_QUALITY_EMA5_SLOPE_FAKEOUT_AND_STRICT_SIDEWAY_STANDBY",
+    "externalAiCalls": true
   }
 }
