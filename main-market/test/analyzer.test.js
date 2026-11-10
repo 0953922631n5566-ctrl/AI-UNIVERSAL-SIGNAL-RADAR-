@@ -346,6 +346,21 @@ test("multi-stage detector identifies EMA5 trend without EMA20 gating", () => {
   assert.equal(state.warning, null);
 });
 
+test("multi-stage detector raises an early bearish warning before EMA5 trend breaks", () => {
+  const candles = reversalTestCandles(1);
+  const previous = candles.at(-2);
+  const last = candles.at(-1);
+  last.open = previous.close + 0.00002;
+  last.close = previous.close + 0.000005;
+  last.high = previous.close + 0.0002;
+  last.low = last.close - 0.000005;
+  const state = detectMultiStageReversal(candles);
+  assert.equal(state.trend, "UPTREND");
+  assert.equal(state.stage, "REVERSAL_WARNING");
+  assert.equal(state.warning, "BEARISH");
+  assert.equal(state.confirmedDirection, null);
+});
+
 test("multi-stage detector confirms bearish reversal only after a prior swing-low close break", () => {
   const candles = reversalTestCandles(1);
   const last = candles.at(-1);
