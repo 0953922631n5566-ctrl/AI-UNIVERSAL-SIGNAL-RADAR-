@@ -75,7 +75,7 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("analyzeMarket uses local EMA 5/20 Wick Rejection and makes no Gemini HTTP request", async () => {
+test("analyzeMarket uses local EMA5-only Trend Flow and makes no Gemini HTTP request", async () => {
   const candles = history(54, 1);
   let calls = 0;
   const result = await analyzeMarket(candles, {
@@ -85,7 +85,7 @@ test("analyzeMarket uses local EMA 5/20 Wick Rejection and makes no Gemini HTTP 
   });
   assert.equal(calls, 0);
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
+  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
   assert.equal(result.closedCandleCount, 54);
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
@@ -173,7 +173,7 @@ test("local EMA analyzer does not require a Gemini API key", async () => {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
+  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
@@ -259,11 +259,57 @@ function smoothTrendCandles(direction, count = 54) {
   });
 }
 
-test("EMA 5/20 relaxed trend flow accepts nearby directional continuation without wick rejection", () => {
+test("EMA5-only trend flow accepts nearby directional continuation without wick rejection", () => {
   const bullish = calculatePureTechnicalSignal(smoothTrendCandles(1));
   const bearish = calculatePureTechnicalSignal(smoothTrendCandles(-1));
   assert.equal(bullish.signal, "CALL");
   assert.equal(bearish.signal, "PUT");
-  assert.equal(bullish.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
-  assert.equal(bearish.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
+  assert.equal(bullish.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(bearish.strategy, "EMA5_ONLY_TREND_FLOW");
+});
+
+
+function reversalCandles(direction, count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  const candles = [];
+  for (let i = 0; i < count; i++) {
+    const base = 1.1 + (direction === 1 ? -1 : 1) * i * 0.0001;
+    const turn = Math.max(0, i - (count - 4));
+    const close = base + direction * turn * 0.00015;
+    const open = close - direction * 0.00005;
+    candles.push({
+      epoch: start + i * 60, open,
+      high: Math.max(open, close) + 0.00003,
+      low: Math.min(open, close) - 0.00003,
+      close, live: false
+    });
+  }
+  return candles;
+}
+
+test("EMA20 never blocks an EMA5-confirmed CALL or PUT", () => {
+  const bullish = calculatePureTechnicalSignal(reversalCandles(1));
+  const bearish = calculatePureTechnicalSignal(reversalCandles(-1));
+  assert.equal(bullish.signal, "CALL");
+  assert.equal(bullish.metrics.aboveEma5, true);
+  assert.equal(bullish.metrics.ema5Rising, true);
+  assert.ok(bullish.metrics.ema20 > bullish.metrics.ema5);
+  assert.equal(bullish.metrics.ema20InformationalOnly, true);
+  assert.equal(bearish.signal, "PUT");
+  assert.equal(bearish.metrics.belowEma5, true);
+  assert.equal(bearish.metrics.ema5Falling, true);
+  assert.ok(bearish.metrics.ema20 < bearish.metrics.ema5);
+  assert.equal(bearish.metrics.ema20InformationalOnly, true);
+});
+
+test("EMA5-only strategy does not require EMA5 touch, ATR proximity, or wick size", () => {
+  const bullish = calculatePureTechnicalSignal(smoothTrendCandles(1));
+  const bearish = calculatePureTechnicalSignal(smoothTrendCandles(-1));
+  assert.equal(bullish.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(bearish.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(bullish.metrics.aboveEma5, true);
+  assert.equal(bearish.metrics.belowEma5, true);
+  assert.equal("proximityLimit" in bullish.metrics, false);
+  assert.equal("nearEma5" in bullish.metrics, false);
 });

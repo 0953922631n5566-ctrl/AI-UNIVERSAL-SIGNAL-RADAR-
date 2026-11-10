@@ -25,9 +25,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EMA 5/20 RELAXED TREND FLOW ANALYZER";
-const ARCHITECTURE_ID = "EMA-5-20-RELAXED-TREND-FLOW";
-const VERSION = "2026-11-10-ema-5-20-relaxed-trend-flow-v1";
+const SYSTEM_NAME = "EMA5 ONLY TREND FLOW ANALYZER";
+const ARCHITECTURE_ID = "EMA5-ONLY-TREND-FLOW";
+const VERSION = "2026-11-10-ema5-only-trend-flow-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -156,7 +156,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -880,12 +880,12 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
-        emaFast: 5, emaTrend: 20,
+        emaFast: 5, emaTrend: 20, emaTrendRole: "INFORMATIONAL_ONLY",
         touchRule: "NOT_REQUIRED",
-        proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",
-        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
+        proximityRule: "NOT_REQUIRED",
+        trendFlowRule: "EMA5_POSITION_AND_EMA5_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }
