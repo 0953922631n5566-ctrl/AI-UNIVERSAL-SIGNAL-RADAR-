@@ -18,7 +18,7 @@
   },
   "radarArchitecture": {
     "name": "Main Market Advanced Partial Scoring Engine",
-    "displayName": "Partial Scoring 75/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
+    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
@@ -34,7 +34,7 @@
       "trendContext": 20
     },
     "thresholds": {
-      "callPut": 75,
+      "callPut": 65,
       "prepare": 45,
       "standbyBelow": 45
     },
