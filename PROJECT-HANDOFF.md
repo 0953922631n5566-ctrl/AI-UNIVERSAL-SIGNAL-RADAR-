@@ -1861,3 +1861,5 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated the Gemini prompt with EMA5 and reversal-stage semantics; updated health architecture metadata to report Gemini + multi-stage reversal; added syntax check for the new module.
 - Added unit tests for Gemini integration, early warning before EMA5 cross, confirmed swing break, insufficient history, and existing data guards. GitHub Actions results are pending; no test pass is claimed until CI completes.
 - No Telegram chat messages, APK, OCR, OTC, broker execution, or Render deployment changes are included. Manual trading only. No predictive accuracy or profitability is claimed; backtest/OOS/paper validation remains required.
+
+- PR #65 is open and marked ready for review: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/65. It has not been merged; no Render deployment or production change has occurred.
