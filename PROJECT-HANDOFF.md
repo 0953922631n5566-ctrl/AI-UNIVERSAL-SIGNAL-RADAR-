@@ -1925,3 +1925,5 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Recovery state and forecast history are in-memory per pair and reset on process restart; no persistence service is introduced in this phase.
 - Added unit tests for open/close outcomes, invalid data, loss arming, expiry, one-attempt enforcement and no re-arming after recovery.
 - CI/PR review required before any merge. This implementation step does not merge or deploy; production remains unchanged.
+
+- CI follow-up: the first PR run passed all 106 tests (102 passed, 4 skipped) and Main Market Checks, but the Telegram Mini App workflow failed on its stale `HISTORY_CANDLES = MIN_CLOSED_CANDLES` assertion. The live Main Market config intentionally retains 100 history candles while the analyzer decision window is 54. The isolated PR updates only that workflow assertion to 100 and adds a syntax check for the recovery module; no Mini App source or behavior is changed.
