@@ -17,11 +17,11 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "EMA 5/20 Wick Rejection Analyzer",
-    "displayName": "EMA 5/20 Wick Rejection + System Guard",
+    "name": "EMA 5/20 Relaxed Trend Flow Analyzer",
+    "displayName": "EMA 5/20 Relaxed Trend Flow + System Guard",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_CLOSED_M1_EMA5_20_WICK_REJECTION",
+    "executionModel": "LOCAL_CLOSED_M1_EMA5_20_RELAXED_TREND_FLOW",
     "decisionAuthority": "LOCAL_TECHNICAL_ONLY",
     "directionalVoters": 1,
     "aggregator": 0,
