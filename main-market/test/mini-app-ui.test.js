@@ -25,13 +25,13 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.match(html, /PURE TECHNICAL EMA 3\\/8\\/50/);
-  assert.match(html, /EMA 3\\/8\\/50/);
+  assert.match(html, /PURE TECHNICAL EMA 3\/8\/50/);
+  assert.match(html, /EMA 3\/8\/50/);
   assert.doesNotMatch(html, /Gemini|GEMINI|geminiQuota/);
 });
 
 test("Mini App removes obsolete Gemini quota UI and identifies local EMA analyzer", () => {
-  assert.match(html, /PURE TECHNICAL EMA 3\\/8\\/50/);
+  assert.match(html, /PURE TECHNICAL EMA 3\/8\/50/);
   assert.doesNotMatch(html, /GEMINI|Gemini|geminiQuota|quotaRequests|quota429/);
 });
 
