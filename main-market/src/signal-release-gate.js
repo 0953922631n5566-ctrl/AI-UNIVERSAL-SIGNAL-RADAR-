@@ -9,6 +9,6 @@ export function applySignalReleaseGate(result) {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseLocked: false,
     signalValidationStatus: SIGNAL_VALIDATION_STATUS,
-    signalValidationNote: "EMA 5/20 Wick Rejection เป็นเครื่องยนต์วิเคราะห์หลัก · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
+    signalValidationNote: "EMA 5/20 Relaxed Trend Flow เป็นเครื่องยนต์วิเคราะห์หลัก · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
   };
 }
