@@ -1883,3 +1883,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated package architecture metadata and /health architecture identifiers to describe Gemini-primary + EMA5 slope/fakeout + strict standby.
 - Added tests for both slope-shift directions, both fakeout directions, Gemini agreement/disagreement, and no-Gemini-call sideway blocking. Existing source freshness, 54-candle analysis window, T-10/T-5 timing, 30-second signal hold, API pool, Telegram Mini App, and manual-only constraints remain intended to be unchanged.
 - Validation status: awaiting GitHub Actions for the final feature-branch commit. PR #65 is not merged; no Render deployment or Production change has occurred. Obtain explicit workspace confirmation before accessing the Render account. Backtest/OOS/paper-trading validation remains outstanding; no profitability or accuracy claim.
+
+
+### Validation update — 2026-11-10
+- Final feature head before this handoff note: 62b0c341f0d05eba16814998e46110d4d56e8c34.
+- GitHub Actions Main Market Checks run 598 passed: 93 tests, 0 failures.
+- GitHub Actions Main Market Telegram Mini App Checks run 266 passed: 93 tests, 0 failures; 50+4 wiring and syntax checks passed.
+- PR #65 remains open, mergeable, and targets main-market. It is not merged.
+- Render workspace discovery returned one workspace, “กินนอน's workspace”; user confirmation is still required before reading or mutating Render resources. Production service remains srv-dbjls149v7es73ag0k4g on main-market.
+- No production deployment has occurred. Merge/deploy must wait until Render workspace is confirmed and the service's current configuration/deploy state is checked.
