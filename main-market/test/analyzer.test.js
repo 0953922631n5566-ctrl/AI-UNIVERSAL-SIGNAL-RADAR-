@@ -95,29 +95,17 @@ test("analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", asy
 });
 
 
-test("Gemini accepts a confirmed SIDEWAY edge setup as a directional signal", async () => {
-  clearGeminiAnalysisCache();
-  const candles = history(54, 0);
-  const sidewayDecision = {
-    signal: "CALL", regime: "SIDEWAY", confidence: 72,
-    reason: "เกิดแรงปฏิเสธราคาบริเวณแนวรับย่อยและโมเมนตัมแท่งล่าสุดกลับเป็นบวก",
-    evidence: ["ราคาใกล้ microSupport8", "แท่งล่าสุดปิดเขียวและ RSI14 เปลี่ยนเป็นบวก"],
-    riskFlags: ["แนวต้านย่อยอยู่ใกล้"], summary: "มีจังหวะเด้งจากขอบล่างของกรอบ"
-  };
-  const { fetchImpl, calls } = mockFetch(sidewayDecision);
-  const result = await analyzeWithGemini({
-    symbol: "TEST/SIDEWAY-EDGE", candles,
-    indicators: buildTechnicalIndicators(candles),
-    apiKey: "unit-test-key", fetchImpl, now: Date.now()
+test("strict sideway guard overrides Gemini direction and skips the external AI call", async () => {
+  const candles = flatSidewayCandles();
+  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
+  const result = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SIDEWAY-BLOCK",
+    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
-  assert.equal(result.signal, "CALL");
+  assert.equal(result.signal, "STANDBY");
   assert.equal(result.regime, "SIDEWAY");
-  assert.equal(calls.length, 1);
-  const requestBody = JSON.parse(calls[0].init.body);
-  const sentIndicators = JSON.parse(requestBody.contents[0].parts[0].text).indicators;
-  assert.ok(Number.isFinite(sentIndicators.microSupport8));
-  assert.ok(Number.isFinite(sentIndicators.microResistance8));
-  assert.ok(Number.isFinite(sentIndicators.rsi14Change));
+  assert.equal(result.reversal.stage, "SIDEWAY_STANDBY");
+  assert.equal(calls.length, 0);
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
@@ -378,4 +366,97 @@ test("multi-stage detector returns unclear for insufficient history", () => {
   const state = detectMultiStageReversal(reversalTestCandles(1).slice(-20));
   assert.equal(state.stage, "UNCLEAR");
   assert.equal(state.confirmedDirection, null);
+});
+
+
+function flatSidewayCandles(count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  let previous = 1.1;
+  return Array.from({ length: count }, (_, i) => {
+    const close = 1.1 + (i % 2 ? 0.000002 : -0.000002);
+    const open = previous;
+    const candle = {
+      epoch: start + i * 60, open,
+      high: Math.max(open, close) + 0.000012,
+      low: Math.min(open, close) - 0.000012,
+      close, live: false
+    };
+    previous = close;
+    return candle;
+  });
+}
+
+function slopeShiftCandles(direction = 1, count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  const candles = [];
+  let previous = 1.1;
+  for (let i = 0; i < count; i++) {
+    const close = 1.1 - i * 0.00004;
+    const open = previous;
+    candles.push({
+      epoch: start + i * 60, open,
+      high: Math.max(open, close) + 0.000015,
+      low: Math.min(open, close) - 0.000015,
+      close, live: false
+    });
+    previous = close;
+  }
+  const last = candles.at(-1);
+  const priorClose = last.close;
+  last.open = priorClose;
+  last.close = priorClose + direction * 0.0006;
+  last.high = Math.max(last.open, last.close) + 0.000015;
+  last.low = Math.min(last.open, last.close) - 0.000015;
+  return candles;
+}
+
+function fakeoutCandles(direction = 1, count = 54) {
+  const candles = slopeShiftCandles(direction, count);
+  const prior = candles.slice(-7, -1);
+  const swing = direction === 1
+    ? Math.min(...prior.map(c => c.low))
+    : Math.max(...prior.map(c => c.high));
+  const last = candles.at(-1);
+  if (direction === 1) {
+    last.open = prior.at(-1).close;
+    last.close = swing + 0.00018;
+    last.low = swing - 0.00024;
+    last.high = last.close + 0.000015;
+  } else {
+    last.open = prior.at(-1).close;
+    last.close = swing - 0.00018;
+    last.high = swing + 0.00024;
+    last.low = last.close - 0.000015;
+  }
+  return candles;
+}
+
+test("EMA5 slope shift from negative to positive confirms CALL only with price above EMA5", () => {
+  const state = detectMultiStageReversal(slopeShiftCandles(1));
+  assert.equal(state.stage, "SLOPE_REVERSAL");
+  assert.equal(state.confirmedDirection, "CALL");
+  assert.equal(state.slopeShiftToPositive, true);
+});
+
+test("EMA5 slope shift from positive to negative confirms PUT only with price below EMA5", () => {
+  const state = detectMultiStageReversal(slopeShiftCandles(-1));
+  assert.equal(state.stage, "SLOPE_REVERSAL");
+  assert.equal(state.confirmedDirection, "PUT");
+  assert.equal(state.slopeShiftToNegative, true);
+});
+
+test("support fakeout BEAR_TRAP maps to CALL with lower-wick rejection and EMA5 turn up", () => {
+  const state = detectMultiStageReversal(fakeoutCandles(1));
+  assert.equal(state.stage, "REVERSAL_CONFIRMED");
+  assert.equal(state.pattern, "BEAR_TRAP");
+  assert.equal(state.confirmedDirection, "CALL");
+});
+
+test("resistance fakeout BULL_TRAP maps to PUT with upper-wick rejection and EMA5 turn down", () => {
+  const state = detectMultiStageReversal(fakeoutCandles(-1));
+  assert.equal(state.stage, "REVERSAL_CONFIRMED");
+  assert.equal(state.pattern, "BULL_TRAP");
+  assert.equal(state.confirmedDirection, "PUT");
 });
