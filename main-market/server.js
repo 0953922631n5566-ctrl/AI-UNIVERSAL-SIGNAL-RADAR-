@@ -25,9 +25,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PURE TECHNICAL EMA 3/8/50 ANALYZER";
-const ARCHITECTURE_ID = "PURE-TECHNICAL-EMA-3-8-50";
-const VERSION = "2026-11-10-pure-technical-ema-3-8-50-v1";
+const SYSTEM_NAME = "EMA 5/20 WICK REJECTION ANALYZER";
+const ARCHITECTURE_ID = "EMA-5-20-WICK-REJECTION";
+const VERSION = "2026-11-10-ema-5-20-wick-rejection-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -854,11 +854,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PURE_TECHNICAL_EMA_3_8_50", engines: 1,
+      decisionEngine: "EMA_5_20_WICK_REJECTION", engines: 1,
       decisionAuthority: "LOCAL_TECHNICAL_ONLY",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_3_8_50_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_5_20_WICK_REJECTION_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_TECHNICAL", model: null, configured: true,
