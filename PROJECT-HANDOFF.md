@@ -1844,5 +1844,5 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render build logs confirm 83/83 tests passed, build successful, and process started with `[EMA5 ONLY TREND FLOW ANALYZER] MAIN MARKET v2 listening on 10000`.
 - Live `/health` returned `ok:true`, version `2026-11-10-ema5-only-trend-flow-v1`, Twelve Data pool 10/10 available, and `emaTrendRole=INFORMATIONAL_ONLY`; Mini App branding also showed EMA5 ONLY TREND FLOW.
 - Live `/api/public/signal` returned `strategy=EMA5_ONLY_TREND_FLOW`, EMA5 position/slope/momentum metrics, and a fresh streaming feed. At the observation time, the candidate was awaiting the T-5 finalization window as designed.
-- A health metadata follow-up was required because two descriptive architecture fields still carried the prior EMA5/EMA20 label; update them and verify the resulting auto-deploy before closing the task.
+- Follow-up commit `31ba306378674644167f399b170744922c3c09e0` corrected both health architecture fields to `EMA5_ONLY_TREND_FLOW` and `SOURCE_GATE_TO_EMA5_ONLY_TREND_FLOW_TO_TIMING_GUARD`; Render deploy `dep-dbpb9u67bikc73dcmjrg` reached `live`. Final documentation commit `427406fc250967e7d49c6cb0e22713cb04d1a17b` also reached `live` as deploy `dep-dbpb9vbnv7mc73bhr830`.
 - No external broker orders are placed. OOS/backtest/paper-trading validation remains outstanding.
