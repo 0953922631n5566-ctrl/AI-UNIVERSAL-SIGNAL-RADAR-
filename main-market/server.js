@@ -854,11 +854,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "EMA_5_20_RELAXED_TREND_FLOW", engines: 1,
+      decisionEngine: "EMA5_ONLY_TREND_FLOW", engines: 1,
       decisionAuthority: "LOCAL_TECHNICAL_ONLY",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_5_20_RELAXED_TREND_FLOW_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_EMA5_ONLY_TREND_FLOW_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_TECHNICAL", model: null, configured: true,
