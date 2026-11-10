@@ -1808,3 +1808,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No Gemini HTTP request is made by the new analyzeMarket decision path. Legacy Gemini helper/quota modules and server health metadata have not been removed or relabeled in this isolated analysis-only change to avoid modifying unrelated server behavior; they should not be interpreted as the active signal decision engine after this change.
 - This is not evidence of predictive accuracy. EMA crossover can still produce false signals; backtest, out-of-sample and paper-trading validation remain outstanding.
 - Branch: feature/pure-technical-ema-3-8-50. Await CI and review before merge/deploy.
+
+
+## 2026-11-10 — M1 entry timing and continuation strategy change (PR pending)
+
+- User confirmed the broker chart is EUR/USD 1-minute (M1).
+- Screenshot review identified the strategy's prior limitation: direction was emitted only on a fresh EMA 3/8 crossover with EMA 50 price-side confirmation. A mature multi-candle move could therefore remain STANDBY until a late crossover.
+- New isolated branch: `feature/m1-trend-continuation-entry`.
+- Updated `main-market/src/analyzer.js` to evaluate two symmetric entry families using closed M1 candles:
+  - Trend continuation: EMA 3/8/50 aligned, last two closed candles agree directionally, latest close advances in that direction, minimum candle body confirmation, and price is not more than 1.25 ATR away from EMA 3.
+  - Reversal confirmation: EMA 3/8 crossover, latest candle closes in the new direction, close is on the confirming side of EMA 50, and the same ATR extension guard passes.
+  - Both CALL and PUT use mirrored conditions. No direction is inferred from the live/in-progress candle.
+  - Overextended or weak-body moves remain STANDBY to avoid chasing price.
+- Existing source-quality checks and server timing/stream freshness gates were not changed in this patch. T-5 finalization and fresh Streaming tick requirement remain; this strategy update does not yet remove that timing limitation.
+- Added tests for bullish and bearish continuation symmetry in `main-market/test/analyzer.test.js`.
+- Validation pending: GitHub Actions CI and Render deploy. No live trade performance, accuracy, or profitability claim is made. No broker auto-ordering is added.

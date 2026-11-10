@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
-import { analyzeMarket, sourceGate } from "../src/analyzer.js";
+import { analyzeMarket, sourceGate, calculatePureTechnicalSignal } from "../src/analyzer.js";
 import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, GEMINI_MODEL } from "../src/gemini-analyzer.js";
 
 function history(count = 220, direction = 1) {
@@ -242,3 +242,41 @@ test("Gemini request failures emit a structured failure event and fail closed", 
     console.error = originalError;
   }
 });
+
+
+function smoothTrendCandles(direction, count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  return Array.from({ length: count }, (_, i) => {
+    const close = 1.1 + direction * i * 0.00004;
+    const open = close - direction * 0.00002;
+    return {
+      epoch: start + i * 60, open,
+      high: Math.max(open, close) + 0.00004,
+      low: Math.min(open, close) - 0.00004,
+      close, live: false
+    };
+  });
+}
+
+test("M1 engine catches confirmed two-candle bullish continuation without waiting for a fresh EMA cross", () => {
+  const result = calculatePureTechnicalSignal(smoothTrendCandles(1));
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.entryType, "TREND_CONTINUATION");
+});
+
+test("M1 engine catches confirmed two-candle bearish continuation without waiting for a fresh EMA cross", () => {
+  const result = calculatePureTechnicalSignal(smoothTrendCandles(-1));
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.entryType, "TREND_CONTINUATION");
+});
+
+test("M1 engine remains symmetric: bullish and bearish trend continuation use mirrored rules", () => {
+  const up = calculatePureTechnicalSignal(smoothTrendCandles(1));
+  const down = calculatePureTechnicalSignal(smoothTrendCandles(-1));
+  assert.equal(up.signal, "CALL");
+  assert.equal(down.signal, "PUT");
+  assert.equal(up.regime, "UPTREND");
+  assert.equal(down.regime, "DOWNTREND");
+});
+
