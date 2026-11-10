@@ -33,3 +33,15 @@ test("ten configured keys are represented individually and cooldown keys are una
   assert.equal(status.keyStates[2].available, false);
   assert.equal(JSON.stringify(status).includes("secret-key"), false);
 });
+
+test("REST requests rotate fairly across healthy configured keys", () => {
+  const pool = new TwelveDataKeyPool(["rest-one", "rest-two", "rest-three"]);
+  assert.deepEqual(pool.getRestCandidates(), ["rest-one", "rest-two", "rest-three"]);
+  pool.markRestSuccess("rest-one");
+  assert.deepEqual(pool.getRestCandidates(), ["rest-two", "rest-three", "rest-one"]);
+  pool.markRestSuccess("rest-two");
+  assert.deepEqual(pool.getRestCandidates(), ["rest-three", "rest-one", "rest-two"]);
+  assert.equal(pool.publicStatus().restRotation, "ROUND_ROBIN");
+  assert.equal(pool.publicStatus().nextRestKeyNumber, 3);
+  assert.equal(JSON.stringify(pool.publicStatus()).includes("rest-one"), false);
+});
