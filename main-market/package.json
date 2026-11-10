@@ -17,11 +17,11 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Pure Technical EMA 3/8/50 Analyzer",
-    "displayName": "Pure Technical EMA 3/8/50 + System Guard",
+    "name": "EMA 5/20 Wick Rejection Analyzer",
+    "displayName": "EMA 5/20 Wick Rejection + System Guard",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_CLOSED_M1_CANDLE_ANALYSIS",
+    "executionModel": "LOCAL_CLOSED_M1_EMA5_20_WICK_REJECTION",
     "decisionAuthority": "LOCAL_TECHNICAL_ONLY",
     "directionalVoters": 1,
     "aggregator": 0,
