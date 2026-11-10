@@ -514,7 +514,39 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  assert.equal(result.signal,"STANDBY");
  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
-test("Partial Scoring exposes requested 75/45 agile thresholds",()=>{
+test("Partial Scoring exposes requested 65/45 agile thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:75,prepare:45,standbyBelow:45});
+ assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45});
+});
+
+function moderateFakeoutCandles(count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  const candles = [];
+  let previous = 1.1;
+  for (let i = 0; i < count; i++) {
+    const open = previous;
+    const close = open + 0.00003;
+    candles.push({
+      epoch: start + i * 60, open,
+      high: close + 0.00025,
+      low: open - 0.00025,
+      close, live: false
+    });
+    previous = close;
+  }
+  const prior = candles.slice(-8, -2);
+  const swingLow = Math.min(...prior.map(c => c.low));
+  const last = candles.at(-1);
+  last.low = swingLow - 0.0001;
+  last.high = last.close + 0.00025;
+  return candles;
+}
+
+test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill switches", () => {
+  const result = scoreMarket(moderateFakeoutCandles());
+  assert.ok(result.scores.CALL >= 65 && result.scores.CALL < 75, JSON.stringify(result.scores));
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.thresholds.signal, 65);
+  assert.equal(result.riskFlags.length, 0);
 });

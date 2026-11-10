@@ -4,7 +4,7 @@ Status: **Locked production baseline**
 Service: `ai-signal-radar-main-market`  
 Branch: `main-market`  
 Default market checked: `EUR/USD · M1 · NON-OTC`  
-Decision engine: `LOCAL_PARTIAL_SCORING_75_AGILE`  
+Decision engine: `LOCAL_PARTIAL_SCORING_65_AGILE`  
 External AI/Gemini decision calls: **DISABLED / NOT USED**
 
 This document records the deployed parameter baseline. A lock means the implementation and configuration must not drift without an explicitly reviewed change, tests, and a new release. It does **not** claim a verified win rate or guarantee trading accuracy.
@@ -23,8 +23,8 @@ Partial points are retained within each component; do not convert the model to a
 
 ## 2. Decision thresholds — fixed
 
-- **CALL / PUT:** top directional score >= 75, provided neither kill switch is active.
-- **PREPARE:** top directional score 45–74, provided neither kill switch is active.
+- **CALL / PUT:** top directional score >= 65, provided neither kill switch is active.
+- **PREPARE:** top directional score 45–64, provided neither kill switch is active.
 - **STANDBY:** top directional score < 45, ambiguous direction, insufficient data, or either kill switch is active.
 
 The score is a rule-based score, not a probability of winning.

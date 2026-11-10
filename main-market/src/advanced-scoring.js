@@ -79,19 +79,19 @@ export function scoreMarket(candles) {
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=75){signal=direction;status="SIGNAL";}
+    if(top>=65){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 75`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_75_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_65_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
@@ -101,6 +101,6 @@ export function scoreMarket(candles) {
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
-    thresholds:{signal:75,prepare:45,standbyBelow:45}
+    thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
 }

@@ -146,8 +146,8 @@ export async function analyzeMarket(candles, options = {}) {
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
     signalValidationStatus:"PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"Partial Scoring 75/45 + Choppy/ATR Kill Switch · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
-    signalReleaseStatus:"PARTIAL_SCORING_75_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalValidationNote:"Partial Scoring 65/45 + Choppy/ATR Kill Switch · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
+    signalReleaseStatus:"PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };

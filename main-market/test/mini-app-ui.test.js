@@ -25,7 +25,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("PARTIAL SCORING 75/45 · CHOPPY/ATR KILL SWITCH"));
+  assert.ok(html.includes("PARTIAL SCORING 65/45 · CHOPPY/ATR KILL SWITCH"));
   assert.match(html, /EMA5/);
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -34,12 +34,12 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
 });
 
 test("Mini App identifies Partial Scoring and exposes weighted score breakdown", () => {
-  assert.ok(html.includes("PARTIAL SCORING 75/45 · CHOPPY/ATR KILL SWITCH"));
+  assert.ok(html.includes("PARTIAL SCORING 65/45 · CHOPPY/ATR KILL SWITCH"));
   assert.match(html, /SCORING BREAKDOWN/);
   assert.match(html, /m\.scores\?\.PUT/);
   assert.match(html, /m\.components\|\|\{\}/);
   assert.match(html, /m\.killSwitch/);
-  assert.match(html, /PARTIAL SCORING 75\/45/);
+  assert.match(html, /PARTIAL SCORING 65\/45/);
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
