@@ -147,11 +147,37 @@ export async function analyzeMarket(candles, options = {}) {
   const indicators = buildTechnicalIndicators(closedCandles);
   indicators.ema5 = reversal.ema5 ?? null;
   indicators.ema5Trend = reversal.trend;
+  indicators.ema5Slope = reversal.ema5Slope ?? null;
+  indicators.ema5SlopePrevious = reversal.slopePrevious ?? null;
+  indicators.ema5SlopeShiftToPositive = reversal.slopeShiftToPositive === true;
+  indicators.ema5SlopeShiftToNegative = reversal.slopeShiftToNegative === true;
   indicators.reversalStage = reversal.stage;
+  indicators.reversalPattern = reversal.pattern ?? null;
   indicators.reversalWarning = reversal.warning;
   indicators.reversalConfirmedDirection = reversal.confirmedDirection;
   indicators.reversalSwingHigh = reversal.swingHigh ?? null;
   indicators.reversalSwingLow = reversal.swingLow ?? null;
+  indicators.sidewayStandby = reversal.stage === "SIDEWAY_STANDBY";
+
+  if (reversal.stage === "SIDEWAY_STANDBY") {
+    const reason = reversal.reason;
+    return {
+      signal: "STANDBY", regime: "SIDEWAY", confidence: 0, score: 0,
+      reason, summary: reason, evidence: [reason, "EMA5 slope ไม่ชัดเจน", "ระบบบล็อก CALL/PUT จนกว่าจะมีทิศทางหรือแรงส่งชัดเจน"],
+      riskFlags: ["SIDEWAY_MARKET", "DIRECTIONAL_SIGNAL_BLOCKED"],
+      strategy: "GEMINI_PRIMARY_EMA5_SLOPE_FAKEOUT_STRICT_STANDBY",
+      provider: "SYSTEM_GUARD", model: null,
+      reversal: {
+        stage: reversal.stage, trend: reversal.trend, warning: reversal.warning,
+        confirmedDirection: null, pattern: reversal.pattern, reason: reversal.reason,
+        swingHigh: reversal.swingHigh ?? null, swingLow: reversal.swingLow ?? null,
+        ema5Slope: reversal.ema5Slope ?? null
+      },
+      indicators, ...base,
+      analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
+      signalReleaseStatus: "SIDEWAY_STRICT_STANDBY_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    };
+  }
 
   const geminiResult = await analyzeWithGemini({
     symbol: options.symbol || "EUR/USD", candles: closedCandles, indicators,
@@ -166,7 +192,7 @@ export async function analyzeMarket(candles, options = {}) {
     signal = "STANDBY";
     reason = reversal.reason + " — ระงับสัญญาณตามเทรนด์เดิมจนกว่าจะยืนยันโครงสร้าง";
     riskFlags.push("REVERSAL_WARNING_ACTIVE");
-  } else if (reversal.stage === "REVERSAL_CONFIRMED") {
+  } else if (reversal.stage === "REVERSAL_CONFIRMED" || reversal.stage === "SLOPE_REVERSAL") {
     if (geminiResult.signal !== reversal.confirmedDirection) {
       signal = "STANDBY";
       reason = reversal.reason + " — รอ Gemini ยืนยันทิศทางเดียวกัน";
@@ -184,13 +210,17 @@ export async function analyzeMarket(candles, options = {}) {
 
   const decisionResult = {
     ...geminiResult, signal, reason, summary: reason, riskFlags,
-    regime: reversal.stage === "REVERSAL_CONFIRMED" ? "REVERSAL" : geminiResult.regime,
-    strategy: "GEMINI_PRIMARY_EMA5_MULTI_STAGE_REVERSAL",
+    regime: reversal.stage === "REVERSAL_CONFIRMED" || reversal.stage === "SLOPE_REVERSAL" ? "REVERSAL" : geminiResult.regime,
+    strategy: "GEMINI_PRIMARY_EMA5_SLOPE_FAKEOUT_STRICT_STANDBY",
     provider: "GEMINI", model: geminiResult.model,
     reversal: {
       stage: reversal.stage, trend: reversal.trend, warning: reversal.warning,
-      confirmedDirection: reversal.confirmedDirection, reason: reversal.reason,
+      confirmedDirection: reversal.confirmedDirection, pattern: reversal.pattern ?? null,
+      reason: reversal.reason,
       swingHigh: reversal.swingHigh ?? null, swingLow: reversal.swingLow ?? null,
+      ema5Slope: reversal.ema5Slope ?? null,
+      slopeShiftToPositive: reversal.slopeShiftToPositive === true,
+      slopeShiftToNegative: reversal.slopeShiftToNegative === true,
       divergence: reversal.divergence ?? null,
       momentumFading: reversal.momentumFading ?? false
     },
@@ -201,11 +231,12 @@ export async function analyzeMarket(candles, options = {}) {
     evidence: [
       ...(Array.isArray(geminiResult.evidence) ? geminiResult.evidence : []),
       "EMA5 เป็นตัวกำหนดแนวโน้มหลัก; EMA20 ไม่ใช้เป็นตัวกรอง",
-      "Multi-Stage Reversal: " + reversal.stage
+      "Multi-Stage Reversal: " + reversal.stage,
+      "EMA5 slope shift / S/R fakeout: " + (reversal.pattern || "none")
     ],
     analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
     analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES },
-    signalReleaseStatus: "GEMINI_PRIMARY_EMA5_MULTI_STAGE_REVERSAL_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalReleaseStatus: "GEMINI_PRIMARY_EMA5_SLOPE_REVERSAL_SR_FAKEOUT_STRICT_STANDBY_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 
