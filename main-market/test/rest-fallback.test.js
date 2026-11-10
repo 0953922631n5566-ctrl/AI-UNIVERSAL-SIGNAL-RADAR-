@@ -20,7 +20,7 @@ test("fresh REST-only candles pass source gate only when fallback is explicitly 
   });
   assert.equal(result.dataMode, "REST_FALLBACK");
   assert.equal(result.livePriceReady, true);
-  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
+  assert.ok(["CALL", "PUT", "PREPARE", "STANDBY"].includes(result.signal));
   assert.equal("assistant" in result, false);
 });
 
