@@ -78,7 +78,7 @@ export function scoreMarket(candles) {
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&direction&&gap>=5){
+  if(!choppy&&!atrSpike&&direction){
     if(top>=75){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
