@@ -26,8 +26,8 @@ const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "EMA5 ONLY TREND FLOW ANALYZER";
-const ARCHITECTURE_ID = "EMA5-ONLY-TREND-FLOW";
-const VERSION = "2026-11-10-ema5-only-trend-flow-v1";
+const ARCHITECTURE_ID = "GEMINI-EMA5-SLOPE-FAKEOUT-STRICT-STANDBY";
+const VERSION = "2026-11-10-gemini-ema5-slope-fakeout-standby-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -854,11 +854,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "GEMINI_PRIMARY_EMA5_MULTI_STAGE_REVERSAL", engines: 1,
-      decisionAuthority: "GEMINI_WITH_EMA5_REVERSAL_SYSTEM_GUARD",
+      decisionEngine: "GEMINI_PRIMARY_EMA5_SLOPE_REVERSAL_SR_FAKEOUT", engines: 1,
+      decisionAuthority: "GEMINI_PRIMARY_WITH_EMA5_SLOPE_FAKEOUT_AND_STRICT_SIDEWAY_GUARD",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_GEMINI_WITH_EMA5_MULTI_STAGE_REVERSAL_GUARD_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_EMA5_SLOPE_SR_FAKEOUT_AND_SIDEWAY_GUARD_TO_GEMINI_CONFIRMATION_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "GEMINI", model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
@@ -881,15 +881,18 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "GEMINI_PRIMARY_EMA5_SLOPE_SR_FAKEOUT_STRICT_STANDBY_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "INFORMATIONAL_ONLY",
         touchRule: "NOT_REQUIRED",
         proximityRule: "NOT_REQUIRED",
-        trendFlowRule: "EMA5_POSITION_AND_EMA5_SLOPE_PLUS_GEMINI_DIRECTIONAL_CONFIRMATION",
+        trendFlowRule: "EMA5_POSITION_AND_SLOPE_SHIFT_PLUS_GEMINI_DIRECTIONAL_CONFIRMATION",
         directionalSource: "GEMINI_ON_CLOSED_M1_CANDLES_ONLY",
         externalAi: true,
-        reversalStages: ["TREND", "REVERSAL_WARNING", "REVERSAL_CONFIRMED"],
+        reversalStages: ["TREND", "REVERSAL_WARNING", "SLOPE_REVERSAL", "REVERSAL_CONFIRMED", "SIDEWAY_STANDBY"],
+        slopeReversal: "EMA5_SLOPE_SIGN_SHIFT_PLUS_PRICE_CONFIRMATION_PLUS_GEMINI_AGREEMENT",
+        supportResistanceFakeout: "SWING_LEVEL_WICK_SWEEP_CLOSE_BACK_INSIDE_PLUS_EMA5_SLOPE_SHIFT_PLUS_GEMINI_AGREEMENT",
+        sidewayPolicy: "STRICT_STANDBY_NO_RANGE_EDGE_TRADES",
         reversalWarning: "MOMENTUM_EXHAUSTION_OR_RSI_DIVERGENCE_OR_REJECTION",
         reversalConfirmation: "CLOSED_M1_MICRO_SWING_BREAK_PLUS_GEMINI_DIRECTION_MATCH"
       }
