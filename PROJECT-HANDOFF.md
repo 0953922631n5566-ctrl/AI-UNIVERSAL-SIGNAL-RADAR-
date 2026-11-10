@@ -1927,3 +1927,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - CI/PR review required before any merge. This implementation step does not merge or deploy; production remains unchanged.
 
 - CI follow-up: the first PR run passed all 106 tests (102 passed, 4 skipped) and Main Market Checks, but the Telegram Mini App workflow failed on its stale `HISTORY_CANDLES = MIN_CLOSED_CANDLES` assertion. The live Main Market config intentionally retains 100 history candles while the analyzer decision window is 54. The isolated PR updates only that workflow assertion to 100 and adds a syntax check for the recovery module; no Mini App source or behavior is changed.
+
+
+## 2026-11-10 — Recovery shadow health metadata
+
+- Follow-up branch `fix/main-market-recovery-health-metadata-20261110` adds explicit `/health.recovery` status and updates the service version string to `2026-11-10-api-pool-100-history-recovery-shadow-v1`.
+- This is observability-only: it does not change recovery state transitions, scoring, signals, API behavior, or any Mini App files.
+- Reports SHADOW_ONLY, M1 open-to-close grading, 65-point existing threshold, one attempt per normal LOSS, three-candle wait limit, no Martingale, no additional signals, and in-memory per-pair state reset on process restart.
