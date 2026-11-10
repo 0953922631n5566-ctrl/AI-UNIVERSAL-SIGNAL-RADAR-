@@ -1846,3 +1846,49 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` returned `strategy=EMA5_ONLY_TREND_FLOW`, EMA5 position/slope/momentum metrics, and a fresh streaming feed. At the observation time, the candidate was awaiting the T-5 finalization window as designed.
 - Follow-up commit `31ba306378674644167f399b170744922c3c09e0` corrected both health architecture fields to `EMA5_ONLY_TREND_FLOW` and `SOURCE_GATE_TO_EMA5_ONLY_TREND_FLOW_TO_TIMING_GUARD`; Render deploy `dep-dbpb9u67bikc73dcmjrg` reached `live`. Final documentation commit `427406fc250967e7d49c6cb0e22713cb04d1a17b` also reached `live` as deploy `dep-dbpb9vbnv7mc73bhr830`.
 - No external broker orders are placed. OOS/backtest/paper-trading validation remains outstanding.
+
+
+## 2026-11-10 — Multi-Stage Reversal Detection (isolated feature branch; PR validation pending)
+
+- User approved Dual-Stage Warning & Confirmation (three visible states): TREND, REVERSAL_WARNING, REVERSAL_CONFIRMED for EUR/USD M1 Main Market.
+- Feature branch: feature/multi-stage-reversal-detection, created from production main-market. No production branch or Render service was changed.
+- Important baseline reconciliation: the current production main-market after PR #64 is EMA5-only local analysis; the Gemini helper exists but was not active in the live decision route. The user explicitly requested Gemini for this feature, so this branch reactivates Gemini as the sole directional analyst, with EMA5 and reversal detection as deterministic system guards. The production branch remains untouched.
+- Added main-market/src/reversal-detection.js:
+  - TREND uses closed M1 price position and EMA5 slope.
+  - REVERSAL_WARNING is an early non-directional caution based on RSI divergence, rejection wick, or fading short-term momentum; it suppresses continuation signals and does not issue an opposite-side order signal.
+  - REVERSAL_CONFIRMED requires a closed M1 close beyond the previous six-candle micro swing high/low.
+- Updated main-market/src/analyzer.js to retain the existing source-quality/freshness gate, pass the 54 closed M1 candles and technical context to Gemini, require Gemini agreement with EMA5 during TREND, suppress directional output during REVERSAL_WARNING, and require Gemini to agree with the confirmed reversal direction during REVERSAL_CONFIRMED. EMA20 is not a directional filter.
+- Updated the Gemini prompt with EMA5 and reversal-stage semantics; updated health architecture metadata to report Gemini + multi-stage reversal; added syntax check for the new module.
+- Added unit tests for Gemini integration, early warning before EMA5 cross, confirmed swing break, insufficient history, and existing data guards. GitHub Actions results are pending; no test pass is claimed until CI completes.
+- No Telegram chat messages, APK, OCR, OTC, broker execution, or Render deployment changes are included. Manual trading only. No predictive accuracy or profitability is claimed; backtest/OOS/paper validation remains required.
+
+- PR #65 is open and marked ready for review: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/65. It has not been merged; no Render deployment or production change has occurred.
+
+
+## 2026-11-10 — EMA5 Slope Reversal, S/R Fakeout & Strict Sideway Standby
+
+- Extended the existing isolated feature/multi-stage-reversal-detection branch / PR #65; production main-market is unchanged.
+- EMA5 Slope Reversal:
+  - Detects a closed-candle EMA5 slope sign shift from negative/flat to positive or positive/flat to negative.
+  - Requires matching price position/candle momentum and an independent Gemini decision in the same direction before CALL/PUT can pass.
+- Support/Resistance Fakeout:
+  - BEAR_TRAP: price sweeps below the prior six-candle Swing Low, closes back above it with a lower-wick rejection, and EMA5 turns positive; candidate direction CALL.
+  - BULL_TRAP: price sweeps above the prior six-candle Swing High, closes back below it with an upper-wick rejection, and EMA5 turns negative; candidate direction PUT.
+  - Gemini must agree with the candidate direction; wick sweeps alone cannot trigger a signal.
+- Strict market-clarity guard:
+  - Flat/tight EMA5 conditions and weak mid-range conditions return SIDEWAY_STANDBY before Gemini is called.
+  - SIDEWAY/UNCLEAR and REVERSAL_WARNING states cannot emit directional signals.
+  - Gemini prompt explicitly forbids range-edge trading while the deterministic guard says SIDEWAY.
+- Mini App displays EMA5 SLOPE REVERSAL, BEAR TRAP → CALL, BULL TRAP → PUT, and SIDEWAY STANDBY states.
+- Updated package architecture metadata and /health architecture identifiers to describe Gemini-primary + EMA5 slope/fakeout + strict standby.
+- Added tests for both slope-shift directions, both fakeout directions, Gemini agreement/disagreement, and no-Gemini-call sideway blocking. Existing source freshness, 54-candle analysis window, T-10/T-5 timing, 30-second signal hold, API pool, Telegram Mini App, and manual-only constraints remain intended to be unchanged.
+- Validation status: awaiting GitHub Actions for the final feature-branch commit. PR #65 is not merged; no Render deployment or Production change has occurred. Obtain explicit workspace confirmation before accessing the Render account. Backtest/OOS/paper-trading validation remains outstanding; no profitability or accuracy claim.
+
+
+### Validation update — 2026-11-10
+- Final feature head before this handoff note: 62b0c341f0d05eba16814998e46110d4d56e8c34.
+- GitHub Actions Main Market Checks run 598 passed: 93 tests, 0 failures.
+- GitHub Actions Main Market Telegram Mini App Checks run 266 passed: 93 tests, 0 failures; 50+4 wiring and syntax checks passed.
+- PR #65 remains open, mergeable, and targets main-market. It is not merged.
+- Render workspace discovery returned one workspace, “กินนอน's workspace”; user confirmation is still required before reading or mutating Render resources. Production service remains srv-dbjls149v7es73ag0k4g on main-market.
+- No production deployment has occurred. Merge/deploy must wait until Render workspace is confirmed and the service's current configuration/deploy state is checked.

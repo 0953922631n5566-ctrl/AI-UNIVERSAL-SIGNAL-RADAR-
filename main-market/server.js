@@ -26,8 +26,8 @@ const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "EMA5 ONLY TREND FLOW ANALYZER";
-const ARCHITECTURE_ID = "EMA5-ONLY-TREND-FLOW";
-const VERSION = "2026-11-10-ema5-only-trend-flow-v1";
+const ARCHITECTURE_ID = "GEMINI-EMA5-SLOPE-FAKEOUT-STRICT-STANDBY";
+const VERSION = "2026-11-10-gemini-ema5-slope-fakeout-standby-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -156,7 +156,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "GEMINI_PRIMARY_EMA5_MULTI_STAGE_REVERSAL_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -221,7 +221,7 @@ async function evaluate(feed) {
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Direction is calculated locally from closed M1 candles; no external AI provider is called.
+ // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
  const rawResult = await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
@@ -854,15 +854,16 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "EMA5_ONLY_TREND_FLOW", engines: 1,
-      decisionAuthority: "LOCAL_TECHNICAL_ONLY",
+      decisionEngine: "GEMINI_PRIMARY_EMA5_SLOPE_REVERSAL_SR_FAKEOUT", engines: 1,
+      decisionAuthority: "GEMINI_PRIMARY_WITH_EMA5_SLOPE_FAKEOUT_AND_STRICT_SIDEWAY_GUARD",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_EMA5_ONLY_TREND_FLOW_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_EMA5_SLOPE_SR_FAKEOUT_AND_SIDEWAY_GUARD_TO_GEMINI_CONFIRMATION_TO_TIMING_GUARD"
     },
     analyzer: {
-      provider: "LOCAL_TECHNICAL", model: null, configured: true,
-      role: "SOLE_DIRECTIONAL_ANALYZER", externalAiCalls: false,
+      provider: "GEMINI", model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+      configured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
+      role: "SOLE_DIRECTIONAL_ANALYST_WITH_EMA5_REVERSAL_GUARD", externalAiCalls: true,
       closedCandlesOnly: true, localDirectionalFallback: false
     },
     configuration: {
@@ -880,14 +881,20 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "GEMINI_PRIMARY_EMA5_SLOPE_SR_FAKEOUT_STRICT_STANDBY_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "INFORMATIONAL_ONLY",
         touchRule: "NOT_REQUIRED",
         proximityRule: "NOT_REQUIRED",
-        trendFlowRule: "EMA5_POSITION_AND_EMA5_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
-        directionalSource: "CLOSED_M1_CANDLES_ONLY",
-        externalAi: false
+        trendFlowRule: "EMA5_POSITION_AND_SLOPE_SHIFT_PLUS_GEMINI_DIRECTIONAL_CONFIRMATION",
+        directionalSource: "GEMINI_ON_CLOSED_M1_CANDLES_ONLY",
+        externalAi: true,
+        reversalStages: ["TREND", "REVERSAL_WARNING", "SLOPE_REVERSAL", "REVERSAL_CONFIRMED", "SIDEWAY_STANDBY"],
+        slopeReversal: "EMA5_SLOPE_SIGN_SHIFT_PLUS_PRICE_CONFIRMATION_PLUS_GEMINI_AGREEMENT",
+        supportResistanceFakeout: "SWING_LEVEL_WICK_SWEEP_CLOSE_BACK_INSIDE_PLUS_EMA5_SLOPE_SHIFT_PLUS_GEMINI_AGREEMENT",
+        sidewayPolicy: "STRICT_STANDBY_NO_RANGE_EDGE_TRADES",
+        reversalWarning: "MOMENTUM_EXHAUSTION_OR_RSI_DIVERGENCE_OR_REJECTION",
+        reversalConfirmation: "CLOSED_M1_MICRO_SWING_BREAK_PLUS_GEMINI_DIRECTION_MATCH"
       }
     }
   });

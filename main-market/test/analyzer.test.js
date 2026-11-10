@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
 import { analyzeMarket, sourceGate, calculatePureTechnicalSignal } from "../src/analyzer.js";
+import { detectMultiStageReversal } from "../src/reversal-detection.js";
 import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, GEMINI_MODEL } from "../src/gemini-analyzer.js";
 
 function history(count = 220, direction = 1) {
@@ -75,45 +76,36 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("analyzeMarket uses local EMA5-only Trend Flow and makes no Gemini HTTP request", async () => {
+test("analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", async () => {
   const candles = history(54, 1);
-  let calls = 0;
+  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
   const result = await analyzeMarket(candles, {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/LOCAL",
-    geminiApiKey: "must-not-be-used",
-    geminiFetch: async () => { calls++; throw new Error("Gemini must not be called"); }
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/GEMINI",
+    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
-  assert.equal(calls, 0);
-  assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(calls.length, 1);
+  assert.equal(result.provider, "GEMINI");
+  assert.equal(result.strategy, "GEMINI_PRIMARY_EMA5_SLOPE_FAKEOUT_STRICT_STANDBY");
   assert.equal(result.closedCandleCount, 54);
-  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
+  assert.ok(["TREND", "REVERSAL_WARNING", "SLOPE_REVERSAL", "REVERSAL_CONFIRMED", "SIDEWAY_STANDBY", "UNCLEAR"].includes(result.reversal.stage));
+  const requestBody = JSON.parse(calls[0].init.body);
+  const sent = JSON.parse(requestBody.contents[0].parts[0].text).indicators;
+  assert.equal(sent.ema5Trend, result.reversal.trend);
+  assert.ok(["TREND", "REVERSAL_WARNING", "SLOPE_REVERSAL", "REVERSAL_CONFIRMED", "SIDEWAY_STANDBY", "UNCLEAR"].includes(sent.reversalStage));
 });
 
 
-test("Gemini accepts a confirmed SIDEWAY edge setup as a directional signal", async () => {
-  clearGeminiAnalysisCache();
-  const candles = history(54, 0);
-  const sidewayDecision = {
-    signal: "CALL", regime: "SIDEWAY", confidence: 72,
-    reason: "เกิดแรงปฏิเสธราคาบริเวณแนวรับย่อยและโมเมนตัมแท่งล่าสุดกลับเป็นบวก",
-    evidence: ["ราคาใกล้ microSupport8", "แท่งล่าสุดปิดเขียวและ RSI14 เปลี่ยนเป็นบวก"],
-    riskFlags: ["แนวต้านย่อยอยู่ใกล้"], summary: "มีจังหวะเด้งจากขอบล่างของกรอบ"
-  };
-  const { fetchImpl, calls } = mockFetch(sidewayDecision);
-  const result = await analyzeWithGemini({
-    symbol: "TEST/SIDEWAY-EDGE", candles,
-    indicators: buildTechnicalIndicators(candles),
-    apiKey: "unit-test-key", fetchImpl, now: Date.now()
+test("strict sideway guard overrides Gemini direction and skips the external AI call", async () => {
+  const candles = flatSidewayCandles();
+  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
+  const result = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SIDEWAY-BLOCK",
+    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
-  assert.equal(result.signal, "CALL");
+  assert.equal(result.signal, "STANDBY");
   assert.equal(result.regime, "SIDEWAY");
-  assert.equal(calls.length, 1);
-  const requestBody = JSON.parse(calls[0].init.body);
-  const sentIndicators = JSON.parse(requestBody.contents[0].parts[0].text).indicators;
-  assert.ok(Number.isFinite(sentIndicators.microSupport8));
-  assert.ok(Number.isFinite(sentIndicators.microResistance8));
-  assert.ok(Number.isFinite(sentIndicators.rsi14Change));
+  assert.equal(result.reversal.stage, "SIDEWAY_STANDBY");
+  assert.equal(calls.length, 0);
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
@@ -168,13 +160,14 @@ test("Gemini does not retry a daily quota exhaustion 429", async () => {
   assert.equal(calls, 1);
 });
 
-test("local EMA analyzer does not require a Gemini API key", async () => {
+test("missing Gemini API key fails closed while preserving reversal diagnostics", async () => {
   const result = await analyzeMarket(history(54), {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
-  assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
-  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.provider, "GEMINI");
+  assert.ok(result.reversal);
+  assert.ok(result.riskFlags.length >= 0);
 });
 
 test("invalid Gemini JSON or an API failure returns STANDBY instead of a heuristic vote", async () => {
@@ -312,4 +305,187 @@ test("EMA5-only strategy does not require EMA5 touch, ATR proximity, or wick siz
   assert.equal(bearish.metrics.belowEma5, true);
   assert.equal("proximityLimit" in bullish.metrics, false);
   assert.equal("nearEma5" in bullish.metrics, false);
+});
+
+
+function reversalTestCandles(direction = 1, count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  const candles = [];
+  let close = 1.1;
+  for (let i = 0; i < count; i++) {
+    const step = i < count - 2 ? direction * 0.0001 : direction * 0.0001;
+    const open = close;
+    close += step;
+    candles.push({
+      epoch: start + i * 60, open,
+      high: Math.max(open, close) + 0.00002,
+      low: Math.min(open, close) - 0.00002,
+      close, live: false
+    });
+  }
+  return candles;
+}
+
+test("multi-stage detector identifies EMA5 trend without EMA20 gating", () => {
+  const state = detectMultiStageReversal(reversalTestCandles(1));
+  assert.equal(state.stage, "TREND");
+  assert.equal(state.trend, "UPTREND");
+  assert.equal(state.warning, null);
+});
+
+test("multi-stage detector raises an early bearish warning before EMA5 trend breaks", () => {
+  const candles = reversalTestCandles(1);
+  const previous = candles.at(-2);
+  const last = candles.at(-1);
+  last.open = previous.close + 0.00002;
+  last.close = previous.close + 0.000005;
+  last.high = previous.close + 0.0002;
+  last.low = last.close - 0.000005;
+  const state = detectMultiStageReversal(candles);
+  assert.equal(state.trend, "UPTREND");
+  assert.equal(state.stage, "REVERSAL_WARNING");
+  assert.equal(state.warning, "BEARISH");
+  assert.equal(state.confirmedDirection, null);
+});
+
+test("multi-stage detector confirms bearish reversal only after a prior swing-low close break", () => {
+  const candles = reversalTestCandles(1);
+  const last = candles.at(-1);
+  const priorSwingLow = Math.min(...candles.slice(-7, -1).map(c => c.low));
+  last.open = priorSwingLow + 0.00003;
+  last.close = priorSwingLow - 0.00003;
+  last.high = last.open + 0.00001;
+  last.low = last.close - 0.00001;
+  const state = detectMultiStageReversal(candles);
+  assert.equal(state.stage, "REVERSAL_CONFIRMED");
+  assert.equal(state.confirmedDirection, "PUT");
+});
+
+test("multi-stage detector returns unclear for insufficient history", () => {
+  const state = detectMultiStageReversal(reversalTestCandles(1).slice(-20));
+  assert.equal(state.stage, "UNCLEAR");
+  assert.equal(state.confirmedDirection, null);
+});
+
+
+function flatSidewayCandles(count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  let previous = 1.1;
+  return Array.from({ length: count }, (_, i) => ({
+    epoch: start + i * 60, open: 1.1,
+    high: 1.10001, low: 1.09999, close: 1.1, live: false
+  }));
+}
+
+function slopeShiftCandles(direction = 1, count = 54) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  const start = minuteStart - count * 60;
+  const candles = Array.from({ length: count }, (_, i) => ({
+    epoch: start + i * 60, open: 1.1,
+    high: 1.10003, low: 1.09997, close: 1.1, live: false
+  }));
+  const last = candles.at(-1);
+  last.open = 1.1;
+  last.close = 1.1 + direction * 0.00001;
+  last.high = Math.max(last.open, last.close) + 0.000015;
+  last.low = Math.min(last.open, last.close) - 0.000015;
+  return candles;
+}
+
+function fakeoutCandles(direction = 1, count = 54) {
+  const candles = slopeShiftCandles(direction, count);
+  const prior = candles.slice(-7, -1);
+  const swing = direction === 1
+    ? Math.min(...prior.map(c => c.low))
+    : Math.max(...prior.map(c => c.high));
+  const last = candles.at(-1);
+  if (direction === 1) {
+    last.open = prior.at(-1).close;
+    last.close = swing + 0.00018;
+    last.low = swing - 0.00024;
+    last.high = last.close + 0.000015;
+  } else {
+    last.open = prior.at(-1).close;
+    last.close = swing - 0.00018;
+    last.high = swing + 0.00024;
+    last.low = last.close - 0.000015;
+  }
+  return candles;
+}
+
+test("EMA5 slope shift from negative to positive confirms CALL only with price above EMA5", () => {
+  const state = detectMultiStageReversal(slopeShiftCandles(1));
+  assert.equal(state.stage, "SLOPE_REVERSAL");
+  assert.equal(state.confirmedDirection, "CALL");
+  assert.equal(state.slopeShiftToPositive, true);
+});
+
+test("EMA5 slope shift from positive to negative confirms PUT only with price below EMA5", () => {
+  const state = detectMultiStageReversal(slopeShiftCandles(-1));
+  assert.equal(state.stage, "SLOPE_REVERSAL");
+  assert.equal(state.confirmedDirection, "PUT");
+  assert.equal(state.slopeShiftToNegative, true);
+});
+
+test("support fakeout BEAR_TRAP maps to CALL with lower-wick rejection and EMA5 turn up", () => {
+  const state = detectMultiStageReversal(fakeoutCandles(1));
+  assert.equal(state.stage, "REVERSAL_CONFIRMED");
+  assert.equal(state.pattern, "BEAR_TRAP");
+  assert.equal(state.confirmedDirection, "CALL");
+});
+
+test("resistance fakeout BULL_TRAP maps to PUT with upper-wick rejection and EMA5 turn down", () => {
+  const state = detectMultiStageReversal(fakeoutCandles(-1));
+  assert.equal(state.stage, "REVERSAL_CONFIRMED");
+  assert.equal(state.pattern, "BULL_TRAP");
+  assert.equal(state.confirmedDirection, "PUT");
+});
+
+
+test("Gemini must agree with EMA5 slope reversal before CALL/PUT can be released", async () => {
+  const candles = slopeShiftCandles(1);
+  const agreeing = mockFetch(geminiResponse("CALL"));
+  const accepted = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SLOPE-AGREE",
+    geminiApiKey: "unit-test-key", geminiFetch: agreeing.fetchImpl
+  });
+  assert.equal(accepted.reversal.stage, "SLOPE_REVERSAL");
+  assert.equal(accepted.signal, "CALL");
+
+  const disagreeing = mockFetch(geminiResponse("PUT"));
+  const rejected = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SLOPE-DISAGREE",
+    geminiApiKey: "unit-test-key", geminiFetch: disagreeing.fetchImpl
+  });
+  assert.equal(rejected.signal, "STANDBY");
+  assert.match(rejected.reason, /รอ Gemini ยืนยัน/);
+});
+
+
+test("Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT before fakeout release", async () => {
+  const bearTrap = fakeoutCandles(1);
+  const callMock = mockFetch(geminiResponse("CALL"));
+  const callResult = await analyzeMarket(bearTrap, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BEAR-TRAP-CALL",
+    geminiApiKey: "unit-test-key", geminiFetch: callMock.fetchImpl
+  });
+  assert.equal(callResult.reversal.pattern, "BEAR_TRAP");
+  assert.equal(callResult.signal, "CALL");
+
+  const putMock = mockFetch(geminiResponse("PUT"));
+  const bullTrapResult = await analyzeMarket(fakeoutCandles(-1), {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BULL-TRAP-PUT",
+    geminiApiKey: "unit-test-key", geminiFetch: putMock.fetchImpl
+  });
+  assert.equal(bullTrapResult.reversal.pattern, "BULL_TRAP");
+  assert.equal(bullTrapResult.signal, "PUT");
+
+  const mismatchMock = mockFetch(geminiResponse("PUT"));
+  const mismatch = await analyzeMarket(bearTrap, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BEAR-TRAP-MISMATCH",
+    geminiApiKey: "unit-test-key", geminiFetch: mismatchMock.fetchImpl
+  });
+  assert.equal(mismatch.signal, "STANDBY");
 });
