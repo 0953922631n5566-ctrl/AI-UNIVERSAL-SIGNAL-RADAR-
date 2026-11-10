@@ -27,7 +27,8 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /T-5/);
   assert.match(html, /EMA 5\/20 WICK REJECTION/);
   assert.match(html, /EMA 5\/20/);
-  assert.match(html, /EMA 5\/20 WICK REJECTION/);\n  assert.doesNotMatch(html, /EMA 3\/8\/50|Gemini|GEMINI|geminiQuota/);
+  assert.match(html, /EMA 5\/20 WICK REJECTION/);
+  assert.doesNotMatch(html, /EMA 3\/8\/50|Gemini|GEMINI|geminiQuota/);
 });
 
 test("Mini App identifies EMA 5/20 Wick Rejection and removes obsolete analyzer branding", () => {
