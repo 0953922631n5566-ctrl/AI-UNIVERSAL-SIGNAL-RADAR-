@@ -61,7 +61,7 @@ function averageTrueRange(candles, period = 14) {
 function decision(signal, regime, reason, evidence, metrics, strategy, confidence = 70) {
   return {
     signal, regime, confidence, score: confidence, reason, evidence, riskFlags: [],
-    summary: reason, strategy: `PURE_TECHNICAL_EMA_3_8_50_${strategy}`,
+    summary: reason, strategy: "PURE_TECHNICAL_EMA_3_8_50", entryType: strategy,
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
