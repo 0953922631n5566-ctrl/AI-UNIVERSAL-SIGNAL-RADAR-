@@ -27,7 +27,7 @@ export function evaluateM1Outcome(signal, candle) {
 
 export function armRecoveryAfterLoss(state, record) {
   const current = state || createRecoveryState();
-  if (record?.mode === "RECOVERY_SHADOW" || record?.outcome !== "LOSS" ||
+  if (record?.mode === "RECOVERY_ACTIVE" || record?.outcome !== "LOSS" ||
       !Number.isFinite(record.targetCandleEpoch)) return current;
   return { status: "ARMED", armedByAlertId: record.alertId || null,
     armedAtCandleEpoch: record.targetCandleEpoch,
@@ -43,7 +43,7 @@ export function inspectRecoveryWindow(state, sourceCandleEpoch) {
   if (sourceCandleEpoch > current.expiresAtCandleEpoch) {
     return { state: { ...createRecoveryState(), lastOutcome: "EXPIRED" }, mode: "NORMAL" };
   }
-  return { state: current, mode: "RECOVERY_SHADOW" };
+  return { state: current, mode: "RECOVERY_ACTIVE" };
 }
 
 export function markRecoveryAttempt(state, record) {
@@ -62,6 +62,6 @@ export function settleRecoveryAttempt(state, record) {
 }
 
 export const RECOVERY_POLICY = Object.freeze({
-  mode: "SHADOW_ONLY", expiryMinutes: 1, maxAttemptsPerLoss: 1,
+  mode: "ACTIVE", expiryMinutes: 1, maxAttemptsPerLoss: 1,
   maxWaitCandles: MAX_WAIT_CANDLES, martingale: false, minimumScore: 65
 });
