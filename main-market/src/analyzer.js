@@ -50,21 +50,21 @@ function emaSeries(values, period) {
 function decision(signal, regime, reason, evidence, metrics, confidence = 70) {
   return {
     signal, regime, confidence, score: confidence, reason, evidence, riskFlags: [],
-    summary: reason, strategy: "EMA_5_20_RELAXED_TREND_FLOW", entryType: "EMA5_TREND_FLOW",
+    summary: reason, strategy: "EMA5_ONLY_TREND_FLOW", entryType: "EMA5_TREND_FLOW",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
 
 /**
- * Closed-candle M1 EMA 5/20 Relaxed Proximity & Trend Flow:
- * - EMA 20 defines the directional zone.
- * - EMA 5 slope plus EMA 20 slope confirm trend flow.
- * - Price need only be near EMA 5 (ATR-scaled); exact touch and wick shape are not required.
- * - A directional close / progress versus the prior close confirms momentum.
+ * Closed-candle M1 EMA5-only Trend Flow:
+ * - CALL: close above EMA5, EMA5 rising, and bullish candle/close momentum.
+ * - PUT: close below EMA5, EMA5 falling, and bearish candle/close momentum.
+ * - EMA20 is calculated for reference/diagnostics only and never gates direction.
+ * - No EMA5 touch, ATR proximity, wick-size, or EMA20 alignment requirement.
  */
 export function calculatePureTechnicalSignal(candles) {
-  if (!Array.isArray(candles) || candles.length < 21) {
-    return { signal: "STANDBY", reason: "ต้องมีแท่งปิดอย่างน้อย 21 แท่งเพื่อคำนวณ EMA 20", evidence: [] };
+  if (!Array.isArray(candles) || candles.length < 6) {
+    return { signal: "STANDBY", reason: "ต้องมีแท่งปิดอย่างน้อย 6 แท่งเพื่อคำนวณ EMA 5", evidence: [] };
   }
   if (!candles.every(c => c && [c.open, c.high, c.low, c.close].every(Number.isFinite))) {
     return { signal: "STANDBY", reason: "ข้อมูล OHLC ไม่ถูกต้อง", evidence: [] };
@@ -72,72 +72,54 @@ export function calculatePureTechnicalSignal(candles) {
 
   const closes = candles.map(c => c.close);
   const ema5 = emaSeries(closes, 5);
-  const ema20 = emaSeries(closes, 20);
+  const ema20 = emaSeries(closes, 20); // informational only; not used in the decision
   const index = closes.length - 1;
   const previous = candles[index - 1];
   const candle = candles[index];
-  const trueRanges = candles.slice(1).map((c, i) => Math.max(
-    c.high - c.low,
-    Math.abs(c.high - candles[i].close),
-    Math.abs(c.low - candles[i].close)
-  ));
-  const atrWindow = trueRanges.slice(-14);
-  const atr14 = atrWindow.reduce((sum, value) => sum + value, 0) / Math.max(1, atrWindow.length);
-  const proximityLimit = Math.max(atr14 * 0.35, Math.abs(candle.close) * 0.00001);
-  const distanceToEma5 = ema5[index] < candle.low ? candle.low - ema5[index]
-    : ema5[index] > candle.high ? ema5[index] - candle.high : 0;
-  const nearEma5 = distanceToEma5 <= proximityLimit;
-  const bullishZone = candle.close > ema20[index];
-  const bearishZone = candle.close < ema20[index];
   const ema5Rising = ema5[index] > ema5[index - 1];
   const ema5Falling = ema5[index] < ema5[index - 1];
-  const ema20Rising = ema20[index] > ema20[index - 1];
-  const ema20Falling = ema20[index] < ema20[index - 1];
+  const aboveEma5 = candle.close > ema5[index];
+  const belowEma5 = candle.close < ema5[index];
   const bullishMomentum = candle.close > candle.open || candle.close > previous.close;
   const bearishMomentum = candle.close < candle.open || candle.close < previous.close;
-  const bullishFlow = bullishZone && candle.close > ema5[index] && nearEma5 &&
-    ema5Rising && ema20Rising && bullishMomentum;
-  const bearishFlow = bearishZone && candle.close < ema5[index] && nearEma5 &&
-    ema5Falling && ema20Falling && bearishMomentum;
-
+  const bullishFlow = aboveEma5 && ema5Rising && bullishMomentum;
+  const bearishFlow = belowEma5 && ema5Falling && bearishMomentum;
   const metrics = {
-    ema5: ema5[index], ema20: ema20[index],
-    emaFast: ema5[index], emaSlow: ema20[index], trendEma: ema20[index],
-    atr14, distanceToEma5, proximityLimit, nearEma5,
-    ema5Rising, ema5Falling, ema20Rising, ema20Falling,
+    ema5: ema5[index], ema20: ema20[index], emaFast: ema5[index],
+    aboveEma5, belowEma5, ema5Rising, ema5Falling,
     bullishMomentum, bearishMomentum,
-    wickTouchEma5: candle.low <= ema5[index] && candle.high >= ema5[index],
+    ema20InformationalOnly: true,
     candleBody: Math.abs(candle.close - candle.open),
     candleRange: candle.high - candle.low
   };
 
   if (bullishFlow) {
     return decision("CALL", "UPTREND",
-      "EMA 5/20 Relaxed Trend Flow: ราคาอยู่เหนือ EMA 20 ใกล้ EMA 5 พร้อมเส้นเฉลี่ยลาดขึ้นและโมเมนตัมขาขึ้น",
-      ["Close > EMA 20 (โซน CALL)", "ราคาอยู่ในระยะใกล้ EMA 5 ตาม ATR (ไม่จำเป็นต้องสัมผัส)", "EMA 5 และ EMA 20 มีความชันขึ้น", "แท่งล่าสุดยืนยันแรงส่งขึ้น"],
+      "EMA5 Only Trend Flow: ราคาปิดอยู่เหนือ EMA5 พร้อม EMA5 ชี้ขึ้นและโมเมนตัมขาขึ้น",
+      ["ราคาปิดแท่ง M1 อยู่เหนือ EMA5", "EMA5 มีความชันขึ้น", "แท่งล่าสุดหรือราคาปิดเทียบแท่งก่อนยืนยันโมเมนตัมขาขึ้น", "EMA20 เป็นข้อมูลอ้างอิงเท่านั้น ไม่ใช้กรองสัญญาณ"],
       metrics, 70);
   }
   if (bearishFlow) {
     return decision("PUT", "DOWNTREND",
-      "EMA 5/20 Relaxed Trend Flow: ราคาอยู่ใต้ EMA 20 ใกล้ EMA 5 พร้อมเส้นเฉลี่ยลาดลงและโมเมนตัมขาลง",
-      ["Close < EMA 20 (โซน PUT)", "ราคาอยู่ในระยะใกล้ EMA 5 ตาม ATR (ไม่จำเป็นต้องสัมผัส)", "EMA 5 และ EMA 20 มีความชันลง", "แท่งล่าสุดยืนยันแรงกดลง"],
+      "EMA5 Only Trend Flow: ราคาปิดอยู่ใต้ EMA5 พร้อม EMA5 ชี้ลงและโมเมนตัมขาลง",
+      ["ราคาปิดแท่ง M1 อยู่ใต้ EMA5", "EMA5 มีความชันลง", "แท่งล่าสุดหรือราคาปิดเทียบแท่งก่อนยืนยันโมเมนตัมขาลง", "EMA20 เป็นข้อมูลอ้างอิงเท่านั้น ไม่ใช้กรองสัญญาณ"],
       metrics, 70);
   }
 
-  let reason = "เทรนด์ยังไม่ครบเงื่อนไข Proximity & Trend Flow";
-  if (!bullishZone && !bearishZone) reason = "ราคาอยู่ใกล้ EMA 20 — ยังไม่เลือกทิศทาง";
-  else if (!nearEma5) reason = "ราคาอยู่ห่าง EMA 5 เกินระยะ Proximity ที่กำหนดตาม ATR";
-  else if (bullishZone && (!ema5Rising || !ema20Rising || !bullishMomentum)) reason = "อยู่โซน CALL แต่ความชันหรือโมเมนตัมขาขึ้นยังไม่ยืนยัน";
-  else if (bearishZone && (!ema5Falling || !ema20Falling || !bearishMomentum)) reason = "อยู่โซน PUT แต่ความชันหรือโมเมนตัมขาลงยังไม่ยืนยัน";
+  let reason = "ราคาอยู่เหนือ/ใต้ EMA5 แต่ความชัน EMA5 หรือโมเมนตัมยังไม่ยืนยัน";
+  if (!aboveEma5 && !belowEma5) reason = "ราคาปิดอยู่ตรง EMA5 — ยังไม่เลือกทิศทาง";
+  else if (aboveEma5 && (!ema5Rising || !bullishMomentum)) reason = "อยู่เหนือ EMA5 แต่ EMA5 slope หรือโมเมนตัมขาขึ้นยังไม่ยืนยัน";
+  else if (belowEma5 && (!ema5Falling || !bearishMomentum)) reason = "อยู่ใต้ EMA5 แต่ EMA5 slope หรือโมเมนตัมขาลงยังไม่ยืนยัน";
   return {
-    signal: "STANDBY", regime: bullishZone ? "UPTREND" : bearishZone ? "DOWNTREND" : "UNCLEAR",
+    signal: "STANDBY", regime: aboveEma5 ? "UPTREND" : belowEma5 ? "DOWNTREND" : "UNCLEAR",
     confidence: 0, score: 0, reason,
     evidence: [
-      `EMA 5: ${ema5[index]}`, `EMA 20: ${ema20[index]}`,
-      `ระยะจาก EMA 5: ${distanceToEma5} (เกณฑ์ใกล้: ${proximityLimit})`,
-      `EMA5 slope: ${ema5Rising ? "UP" : ema5Falling ? "DOWN" : "FLAT"}; EMA20 slope: ${ema20Rising ? "UP" : ema20Falling ? "DOWN" : "FLAT"}`
+      `EMA 5: ${ema5[index]}`,
+      `ตำแหน่งราคา: ${aboveEma5 ? "เหนือ EMA5" : belowEma5 ? "ใต้ EMA5" : "ทับ EMA5"}`,
+      `EMA5 slope: ${ema5Rising ? "UP" : ema5Falling ? "DOWN" : "FLAT"}`,
+      "EMA20 เป็นข้อมูลอ้างอิงเท่านั้น ไม่ใช้เป็นเงื่อนไข CALL/PUT"
     ],
-    riskFlags: [], summary: reason, strategy: "EMA_5_20_RELAXED_TREND_FLOW",
+    riskFlags: [], summary: reason, strategy: "EMA5_ONLY_TREND_FLOW",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
@@ -164,7 +146,7 @@ export async function analyzeMarket(candles, options = {}) {
     evidence: Array.isArray(decisionResult.evidence) ? decisionResult.evidence : [],
     analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
     analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES },
-    signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 
