@@ -1835,3 +1835,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Existing source-quality/freshness guards, closed-candle analysis, T-10 PREPARE, T-5 finalization, per-candle deduplication, 30-second signal hold, Twelve Data pool, Telegram Mini App authentication and manual-only operation remain unchanged.
 - Added regression tests proving CALL/PUT can pass when EMA20 is on the opposite side, and that ATR proximity/touch/wick checks are not required.
 - Pending: run full CI, review PR, merge to `main-market`, verify Render deploy and live endpoints. No claim of predictive accuracy or profitability; OOS/backtest/paper-trading validation remains outstanding.
+
+
+### EMA5-only rollout verification — 2026-11-10
+- PR #64 merged to `main-market`; merge commit: `dec4dc0fcedcdb2704ee6d98093cf4bc2d36297a`.
+- GitHub Actions: Main Market Checks and Main Market Telegram Mini App Checks both passed after fixes; 83 tests passed, 0 failed.
+- Render service `ai-signal-radar-main-market` deployed merge commit `dec4dc0fcedcdb2704ee6d98093cf4bc2d36297a` to `live`; deployment ID `dep-dbpb97942hec73dakfng`.
+- Render build logs confirm 83/83 tests passed, build successful, and process started with `[EMA5 ONLY TREND FLOW ANALYZER] MAIN MARKET v2 listening on 10000`.
+- Live `/health` returned `ok:true`, version `2026-11-10-ema5-only-trend-flow-v1`, Twelve Data pool 10/10 available, and `emaTrendRole=INFORMATIONAL_ONLY`; Mini App branding also showed EMA5 ONLY TREND FLOW.
+- Live `/api/public/signal` returned `strategy=EMA5_ONLY_TREND_FLOW`, EMA5 position/slope/momentum metrics, and a fresh streaming feed. At the observation time, the candidate was awaiting the T-5 finalization window as designed.
+- A health metadata follow-up was required because two descriptive architecture fields still carried the prior EMA5/EMA20 label; update them and verify the resulting auto-deploy before closing the task.
+- No external broker orders are placed. OOS/backtest/paper-trading validation remains outstanding.
