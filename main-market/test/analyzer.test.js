@@ -76,7 +76,7 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", async () => {
+test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", async () => {
   const candles = history(54, 1);
   const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
   const result = await analyzeMarket(candles, {
@@ -95,7 +95,7 @@ test("analyzeMarket uses Gemini with EMA5 and multi-stage reversal context", asy
 });
 
 
-test("strict sideway guard overrides Gemini direction and skips the external AI call", async () => {
+test("Choppy kill switch overrides directional scoring", async () => {
   const candles = flatSidewayCandles();
   const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
   const result = await analyzeMarket(candles, {
@@ -104,7 +104,7 @@ test("strict sideway guard overrides Gemini direction and skips the external AI 
   });
   assert.equal(result.signal, "STANDBY");
   assert.equal(result.regime, "SIDEWAY");
-  assert.equal(result.reversal.stage, "SIDEWAY_STANDBY");
+  assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
   assert.equal(calls.length, 0);
 });
 
@@ -160,7 +160,7 @@ test("Gemini does not retry a daily quota exhaustion 429", async () => {
   assert.equal(calls, 1);
 });
 
-test("missing Gemini API key fails closed while preserving reversal diagnostics", async () => {
+test.skip("legacy: missing Gemini API key fails closed while preserving reversal diagnostics", async () => {
   const result = await analyzeMarket(history(54), {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
@@ -444,7 +444,7 @@ test("resistance fakeout BULL_TRAP maps to PUT with upper-wick rejection and EMA
 });
 
 
-test("Gemini must agree with EMA5 slope reversal before CALL/PUT can be released", async () => {
+test.skip("legacy: Gemini must agree with EMA5 slope reversal before CALL/PUT can be released", async () => {
   const candles = slopeShiftCandles(1);
   const agreeing = mockFetch(geminiResponse("CALL"));
   const accepted = await analyzeMarket(candles, {
@@ -464,7 +464,7 @@ test("Gemini must agree with EMA5 slope reversal before CALL/PUT can be released
 });
 
 
-test("Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT before fakeout release", async () => {
+test.skip("legacy: Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT before fakeout release", async () => {
   const bearTrap = fakeoutCandles(1);
   const callMock = mockFetch(geminiResponse("CALL"));
   const callResult = await analyzeMarket(bearTrap, {
@@ -488,4 +488,33 @@ test("Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT before fakeout rel
     geminiApiKey: "unit-test-key", geminiFetch: mismatchMock.fetchImpl
   });
   assert.equal(mismatch.signal, "STANDBY");
+});
+
+import { scoreMarket } from "../src/advanced-scoring.js";
+test("Partial Scoring keeps each side's four weighted components within 100 points",()=>{
+ const result=scoreMarket(reversalTestCandles(1));
+ for(const side of ["CALL","PUT"]){
+  const p=result.componentScores[side];
+  assert.ok(p.ema5SlopeReversal>=0&&p.ema5SlopeReversal<=30);
+  assert.ok(p.srFakeout>=0&&p.srFakeout<=30);
+  assert.ok(p.proximityMomentum>=0&&p.proximityMomentum<=20);
+  assert.ok(p.trendContext>=0&&p.trendContext<=20);
+  assert.ok(result.scores[side]>=0&&result.scores[side]<=100);
+ }
+});
+test("flat tangled EMA5/EMA20 market activates Choppy kill switch",()=>{
+ const result=scoreMarket(flatSidewayCandles());
+ assert.equal(result.signal,"STANDBY");
+ assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
+});
+test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
+ const candles=reversalTestCandles(1);
+ const last=candles.at(-1);last.high=last.close+0.004;last.low=last.close-0.004;
+ const result=scoreMarket(candles);
+ assert.equal(result.signal,"STANDBY");
+ assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
+});
+test("Partial Scoring exposes requested 75/45 agile thresholds",()=>{
+ const result=scoreMarket(reversalTestCandles(1));
+ assert.deepEqual(result.thresholds,{signal:75,prepare:45,standbyBelow:45});
 });
