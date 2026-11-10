@@ -881,10 +881,11 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      emaWickRejection: {
+      emaTrendFlow: {
         emaFast: 5, emaTrend: 20,
-        touchRule: "NOT_REQUIRED",\n        proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",\n        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
-        minWickBodyRatio: 1.0, minWickRangeRatio: 0.25,
+        touchRule: "NOT_REQUIRED",
+        proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",
+        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM"
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }
