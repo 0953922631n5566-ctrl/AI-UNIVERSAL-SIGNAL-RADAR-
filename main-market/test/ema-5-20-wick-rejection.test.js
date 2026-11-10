@@ -19,23 +19,23 @@ function trendCandles(direction) {
   });
 }
 
-test("CALL accepts bullish trend flow near EMA5 without an exact EMA5 touch or wick threshold", () => {
+test("CALL accepts bullish EMA5-only trend flow without EMA20 gating", () => {
   const result = calculatePureTechnicalSignal(trendCandles(1));
   assert.equal(result.signal, "CALL");
-  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
-  assert.equal(result.metrics.nearEma5, true);
-  assert.equal(result.metrics.wickTouchEma5, false);
+  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(result.metrics.aboveEma5, true);
+  assert.equal(result.metrics.ema5Rising, true);
 });
 
-test("PUT accepts bearish trend flow near EMA5 without an exact EMA5 touch or wick threshold", () => {
+test("PUT accepts bearish EMA5-only trend flow without EMA20 gating", () => {
   const result = calculatePureTechnicalSignal(trendCandles(-1));
   assert.equal(result.signal, "PUT");
-  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
-  assert.equal(result.metrics.nearEma5, true);
-  assert.equal(result.metrics.wickTouchEma5, false);
+  assert.equal(result.strategy, "EMA5_ONLY_TREND_FLOW");
+  assert.equal(result.metrics.aboveEma5, true);
+  assert.equal(result.metrics.ema5Rising, true);
 });
 
-test("trend flow remains STANDBY when price is too far from EMA5", () => {
+test("EMA5 position and trend flow are sufficient even when price is far from EMA5", () => {
   const candles = trendCandles(1);
   const last = candles.at(-1);
   const prior = candles.at(-2);
@@ -48,6 +48,7 @@ test("trend flow remains STANDBY when price is too far from EMA5", () => {
     live: false
   };
   const result = calculatePureTechnicalSignal(candles);
-  assert.equal(result.signal, "STANDBY");
-  assert.equal(result.metrics.nearEma5, false);
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.metrics.aboveEma5, true);
+  assert.equal(result.metrics.ema5Rising, true);
 });
