@@ -159,7 +159,8 @@ export function detectMultiStageReversal(candles) {
   const midrange = rangePosition >= 0.30 && rangePosition <= 0.70;
   const smallBody = Math.abs(last.close - last.open) <= atr * 0.30;
   const weakMomentum = Math.abs(last.close - candles[lastIndex - 3].close) <= atr * 0.35;
-  const sideways = slopeFlat && (recentRange <= atr * 4 || (midrange && smallBody && weakMomentum));
+  const sideways = (slopeFlat && recentRange <= atr * 4) ||
+    (midrange && smallBody && weakMomentum && Math.abs(slopeNow) <= atr * 0.10);
   if (sideways) {
     return {
       stage: "SIDEWAY_STANDBY", trend: "UNCLEAR", warning: null, confirmedDirection: null,
