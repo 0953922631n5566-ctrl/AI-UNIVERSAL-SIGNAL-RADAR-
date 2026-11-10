@@ -92,6 +92,8 @@ export function detectMultiStageReversal(candles) {
   const lowerWick = Math.min(last.open, last.close) - last.low;
   const bullishClose = last.close > last.open || last.close > previous.close;
   const bearishClose = last.close < last.open || last.close < previous.close;
+  const bearishBreak = priorTrend === "UPTREND" && last.close < swingLow;
+  const bullishBreak = priorTrend === "DOWNTREND" && last.close > swingHigh;
 
   // False-breakout reversal: wick must sweep a completed swing level, close back inside,
   // and EMA5 must turn in the rejection direction on this same closed M1 candle.
@@ -114,7 +116,7 @@ export function detectMultiStageReversal(candles) {
   }
 
   // EMA5 slope-shift entry preparation. Gemini must independently agree before release.
-  if (slopeShiftToPositive && last.close > ema5[lastIndex] && bullishClose) {
+  if (!bearishBreak && !bullishBreak && slopeShiftToPositive && last.close > ema5[lastIndex] && bullishClose) {
     return {
       stage: "SLOPE_REVERSAL", trend: "UPTREND", warning: "BULLISH",
       confirmedDirection: "CALL", pattern: "EMA5_SLOPE_SHIFT_UP",
@@ -123,7 +125,7 @@ export function detectMultiStageReversal(candles) {
       reason: "EMA5 Slope Reversal: EMA5 เปลี่ยนจากลง/ราบเป็นชี้ขึ้น และราคายืนยันฝั่ง CALL"
     };
   }
-  if (slopeShiftToNegative && last.close < ema5[lastIndex] && bearishClose) {
+  if (!bearishBreak && !bullishBreak && slopeShiftToNegative && last.close < ema5[lastIndex] && bearishClose) {
     return {
       stage: "SLOPE_REVERSAL", trend: "DOWNTREND", warning: "BEARISH",
       confirmedDirection: "PUT", pattern: "EMA5_SLOPE_SHIFT_DOWN",
@@ -133,8 +135,6 @@ export function detectMultiStageReversal(candles) {
     };
   }
 
-  const bearishBreak = priorTrend === "UPTREND" && last.close < swingLow;
-  const bullishBreak = priorTrend === "DOWNTREND" && last.close > swingHigh;
   if (bearishBreak || bullishBreak) {
     return {
       stage: "REVERSAL_CONFIRMED", trend,
