@@ -373,18 +373,10 @@ function flatSidewayCandles(count = 54) {
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
   let previous = 1.1;
-  return Array.from({ length: count }, (_, i) => {
-    const close = 1.1 + (i % 2 ? 0.000002 : -0.000002);
-    const open = previous;
-    const candle = {
-      epoch: start + i * 60, open,
-      high: Math.max(open, close) + 0.000012,
-      low: Math.min(open, close) - 0.000012,
-      close, live: false
-    };
-    previous = close;
-    return candle;
-  });
+  return Array.from({ length: count }, (_, i) => ({
+    epoch: start + i * 60, open: 1.1,
+    high: 1.10001, low: 1.09999, close: 1.1, live: false
+  }));
 }
 
 function slopeShiftCandles(direction = 1, count = 54) {
@@ -459,4 +451,24 @@ test("resistance fakeout BULL_TRAP maps to PUT with upper-wick rejection and EMA
   assert.equal(state.stage, "REVERSAL_CONFIRMED");
   assert.equal(state.pattern, "BULL_TRAP");
   assert.equal(state.confirmedDirection, "PUT");
+});
+
+
+test("Gemini must agree with EMA5 slope reversal before CALL/PUT can be released", async () => {
+  const candles = slopeShiftCandles(1);
+  const agreeing = mockFetch(geminiResponse("CALL"));
+  const accepted = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SLOPE-AGREE",
+    geminiApiKey: "unit-test-key", geminiFetch: agreeing.fetchImpl
+  });
+  assert.equal(accepted.reversal.stage, "SLOPE_REVERSAL");
+  assert.equal(accepted.signal, "CALL");
+
+  const disagreeing = mockFetch(geminiResponse("PUT"));
+  const rejected = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SLOPE-DISAGREE",
+    geminiApiKey: "unit-test-key", geminiFetch: disagreeing.fetchImpl
+  });
+  assert.equal(rejected.signal, "STANDBY");
+  assert.match(rejected.reason, /รอ Gemini ยืนยัน/);
 });
