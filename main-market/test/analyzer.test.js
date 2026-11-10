@@ -472,3 +472,30 @@ test("Gemini must agree with EMA5 slope reversal before CALL/PUT can be released
   assert.equal(rejected.signal, "STANDBY");
   assert.match(rejected.reason, /รอ Gemini ยืนยัน/);
 });
+
+
+test("Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT before fakeout release", async () => {
+  const bearTrap = fakeoutCandles(1);
+  const callMock = mockFetch(geminiResponse("CALL"));
+  const callResult = await analyzeMarket(bearTrap, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BEAR-TRAP-CALL",
+    geminiApiKey: "unit-test-key", geminiFetch: callMock.fetchImpl
+  });
+  assert.equal(callResult.reversal.pattern, "BEAR_TRAP");
+  assert.equal(callResult.signal, "CALL");
+
+  const putMock = mockFetch(geminiResponse("PUT"));
+  const bullTrapResult = await analyzeMarket(fakeoutCandles(-1), {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BULL-TRAP-PUT",
+    geminiApiKey: "unit-test-key", geminiFetch: putMock.fetchImpl
+  });
+  assert.equal(bullTrapResult.reversal.pattern, "BULL_TRAP");
+  assert.equal(bullTrapResult.signal, "PUT");
+
+  const mismatchMock = mockFetch(geminiResponse("PUT"));
+  const mismatch = await analyzeMarket(bearTrap, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/BEAR-TRAP-MISMATCH",
+    geminiApiKey: "unit-test-key", geminiFetch: mismatchMock.fetchImpl
+  });
+  assert.equal(mismatch.signal, "STANDBY");
+});
