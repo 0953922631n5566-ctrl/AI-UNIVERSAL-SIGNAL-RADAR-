@@ -382,23 +382,13 @@ function flatSidewayCandles(count = 54) {
 function slopeShiftCandles(direction = 1, count = 54) {
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
-  const candles = [];
-  let previous = 1.1;
-  for (let i = 0; i < count; i++) {
-    const close = 1.1 - direction * i * 0.00004;
-    const open = previous;
-    candles.push({
-      epoch: start + i * 60, open,
-      high: Math.max(open, close) + 0.000015,
-      low: Math.min(open, close) - 0.000015,
-      close, live: false
-    });
-    previous = close;
-  }
+  const candles = Array.from({ length: count }, (_, i) => ({
+    epoch: start + i * 60, open: 1.1,
+    high: 1.10003, low: 1.09997, close: 1.1, live: false
+  }));
   const last = candles.at(-1);
-  const priorClose = last.close;
-  last.open = priorClose;
-  last.close = priorClose + direction * 0.0006;
+  last.open = 1.1;
+  last.close = 1.1 + direction * 0.00001;
   last.high = Math.max(last.open, last.close) + 0.000015;
   last.low = Math.min(last.open, last.close) - 0.000015;
   return candles;
