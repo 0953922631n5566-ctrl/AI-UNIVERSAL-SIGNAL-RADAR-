@@ -1863,3 +1863,23 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No Telegram chat messages, APK, OCR, OTC, broker execution, or Render deployment changes are included. Manual trading only. No predictive accuracy or profitability is claimed; backtest/OOS/paper validation remains required.
 
 - PR #65 is open and marked ready for review: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/65. It has not been merged; no Render deployment or production change has occurred.
+
+
+## 2026-11-10 — EMA5 Slope Reversal, S/R Fakeout & Strict Sideway Standby
+
+- Extended the existing isolated feature/multi-stage-reversal-detection branch / PR #65; production main-market is unchanged.
+- EMA5 Slope Reversal:
+  - Detects a closed-candle EMA5 slope sign shift from negative/flat to positive or positive/flat to negative.
+  - Requires matching price position/candle momentum and an independent Gemini decision in the same direction before CALL/PUT can pass.
+- Support/Resistance Fakeout:
+  - BEAR_TRAP: price sweeps below the prior six-candle Swing Low, closes back above it with a lower-wick rejection, and EMA5 turns positive; candidate direction CALL.
+  - BULL_TRAP: price sweeps above the prior six-candle Swing High, closes back below it with an upper-wick rejection, and EMA5 turns negative; candidate direction PUT.
+  - Gemini must agree with the candidate direction; wick sweeps alone cannot trigger a signal.
+- Strict market-clarity guard:
+  - Flat/tight EMA5 conditions and weak mid-range conditions return SIDEWAY_STANDBY before Gemini is called.
+  - SIDEWAY/UNCLEAR and REVERSAL_WARNING states cannot emit directional signals.
+  - Gemini prompt explicitly forbids range-edge trading while the deterministic guard says SIDEWAY.
+- Mini App displays EMA5 SLOPE REVERSAL, BEAR TRAP → CALL, BULL TRAP → PUT, and SIDEWAY STANDBY states.
+- Updated package architecture metadata and /health architecture identifiers to describe Gemini-primary + EMA5 slope/fakeout + strict standby.
+- Added tests for both slope-shift directions, both fakeout directions, Gemini agreement/disagreement, and no-Gemini-call sideway blocking. Existing source freshness, 54-candle analysis window, T-10/T-5 timing, 30-second signal hold, API pool, Telegram Mini App, and manual-only constraints remain intended to be unchanged.
+- Validation status: awaiting GitHub Actions for the final feature-branch commit. PR #65 is not merged; no Render deployment or Production change has occurred. Obtain explicit workspace confirmation before accessing the Render account. Backtest/OOS/paper-trading validation remains outstanding; no profitability or accuracy claim.
