@@ -173,7 +173,7 @@ test("local EMA analyzer does not require a Gemini API key", async () => {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
