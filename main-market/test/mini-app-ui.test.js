@@ -39,7 +39,7 @@ test("Mini App identifies Partial Scoring and exposes weighted score breakdown",
   assert.match(html, /m\.scores\?\.PUT/);
   assert.match(html, /m\.components\|\|\{\}/);
   assert.match(html, /m\.killSwitch/);
-  assert.match(html, /PARTIAL SCORING 75\/45/);
+  assert.match(html, /PARTIAL SCORING 65\/45/);
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
