@@ -1934,3 +1934,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Follow-up branch `fix/main-market-recovery-health-metadata-20261110` adds explicit `/health.recovery` status and updates the service version string to `2026-11-10-api-pool-100-history-recovery-shadow-v1`.
 - This is observability-only: it does not change recovery state transitions, scoring, signals, API behavior, or any Mini App files.
 - Reports SHADOW_ONLY, M1 open-to-close grading, 65-point existing threshold, one attempt per normal LOSS, three-candle wait limit, no Martingale, no additional signals, and in-memory per-pair state reset on process restart.
+
+
+## 2026-11-10 — Loss Recovery activated (existing signal pipeline)
+
+- Branch: `feature/main-market-recovery-live-20261110`, based on current production `main-market`.
+- Promotes the Recovery state machine from SHADOW_ONLY to ACTIVE. A normal forecast LOSS arms one bounded recovery window; the next independently qualifying existing CALL/PUT signal (same 65 threshold, source-quality, kill-switch and T-5 timing guards) is tagged RECOVERY_ACTIVE and settled from the target M1 candle OPEN to CLOSE.
+- Recovery can be attempted once per normal LOSS, waits at most three M1 windows, and never re-arms after a recovery attempt (whether WIN/LOSS/FLAT/UNKNOWN). No Martingale, stake change, forced reverse, lowered threshold, broker execution, or additional signal.
+- The recovery attempt uses the same existing signal pipeline and signal delivery; no new alert channel or Mini App UI is added. Backend API and /health expose recovery mode/status only.
+- Mini App assets, UI, Telegram auth/session, transport, Start/Stop, countdown and alert behavior are unchanged.
+- Outcome is a market-price proxy using Twelve Data target-candle open/close, not proof of the user's broker fill or realized P&L. State/history remain in-memory per pair and reset on process restart.
+- Requires CI and PR review before merge/deploy.

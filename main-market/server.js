@@ -28,7 +28,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
 const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-10-api-pool-100-history-recovery-shadow-v1";
+const VERSION = "2026-11-10-api-pool-100-history-recovery-active-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -131,6 +131,12 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     forecastStats: forecastStats(feed),
+    recovery: {
+      mode: feed.pendingForecast?.mode === "RECOVERY_ACTIVE" ? "RECOVERY_ACTIVE"
+        : feed.recoveryState.status === "ARMED" ? "ARMED" : feed.recoveryState.status,
+      lastOutcome: feed.recoveryState.lastOutcome,
+      maxAttemptsPerLoss: 1, martingale: false
+    },
     preAlertSignal: feed.preAlertSignal,
     source: "Twelve Data REST + live-price Streaming"
   };
@@ -296,12 +302,12 @@ async function evaluate(feed) {
        targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
        mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN"
      };
-     if (recoveryWindow.mode === "RECOVERY_SHADOW") {
+     if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
        feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
-       console.info("[recovery] shadow_attempt", {
+       console.info("[recovery] active_attempt", {
          symbol: feed.symbol, alertId: feed.alertId, signal: result.signal,
          targetCandleEpoch, score: result.score ?? null,
-         mode: "SHADOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
+         mode: "ACTIVE_EXISTING_SIGNAL_FLOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
        });
      }
      result.reason = "ยืนยันสัญญาณ T-5 สำหรับเข้าแท่ง M1 ถัดไป";
@@ -388,16 +394,16 @@ function applyTick(feed, price, epoch) {
         feed.forecastHistory.push(record);
         feed.forecastHistory = feed.forecastHistory.slice(-100);
         feed.pendingForecast = null;
-        if (pending.mode === "RECOVERY_SHADOW") {
+        if (pending.mode === "RECOVERY_ACTIVE") {
           feed.recoveryState = settleRecoveryAttempt(feed.recoveryState, record);
-          console.info("[recovery] shadow_result", {
+          console.info("[recovery] active_result", {
             symbol: feed.symbol, alertId: pending.alertId, outcome: record.outcome,
             recoveryState: feed.recoveryState.status,
-            note: "SHADOW_ONLY_NO_MARTINGALE_NO_EXTRA_SIGNAL"
+            note: "ACTIVE_NO_MARTINGALE_NO_EXTRA_SIGNAL"
           });
         } else if (record.outcome === "LOSS") {
           feed.recoveryState = armRecoveryAfterLoss(feed.recoveryState, record);
-          console.info("[recovery] shadow_armed", {
+          console.info("[recovery] armed", {
             symbol: feed.symbol, lossAlertId: pending.alertId,
             armedUntilCandleEpoch: feed.recoveryState.expiresAtCandleEpoch,
             maxAttempts: 1
@@ -894,10 +900,11 @@ app.get("/health", (_req, res) => {
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
     },
     recovery: {
-      enabled: true, mode: "SHADOW_ONLY", status: "BACKEND_ONLY",
+      enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
       resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
       minimumSignalScore: 65, maxAttemptsPerLoss: 1, maxWaitCandles: 3,
       martingale: false, altersMiniApp: false, emitsAdditionalSignals: false,
+      usesExistingSignalPipeline: true,
       stateStorage: "IN_MEMORY_PER_PAIR_RESETS_ON_PROCESS_RESTART"
     },
     configuration: {
