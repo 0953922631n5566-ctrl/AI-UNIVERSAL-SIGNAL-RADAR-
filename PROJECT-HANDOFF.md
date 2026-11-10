@@ -1913,3 +1913,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live /api/public/signal verified EUR/USD, API ONLINE, dataMode STREAMING, tickAgeSeconds=2, requiredCandles=54, and monitoring=true. Render startup log also confirmed REST returned 100 candles.
 - First failed deploy dep-dbpgpvdg1s2s73ce7dt0 is superseded by the successful live deploy; do not treat it as the final state.
 - No Mini App frontend/UI/auth/session/connection/control/alert files changed. User-side Telegram Mini App visual/interaction retest remains pending; no claim of device verification.
+
+## 2026-11-10 — Loss Recovery shadow-mode implementation (isolated feature branch)
+
+- Branch: `feature/main-market-loss-recovery-shadow-20261110`, based on production `main-market`.
+- Backend-only: no files under `main-market/public/` changed; Mini App UI, authentication/session, WebSocket transport, Start/Stop, countdown, alerts and displayed signal flow remain untouched.
+- Forecast outcomes now use the target M1 candle OPEN against CLOSE: CALL/PUT become WIN/LOSS, equal prices become FLAT, and invalid/incomplete OHLC becomes UNKNOWN. The previous first-tick entry-price dependency was removed.
+- Added `main-market/src/recovery.js`: a normal LOSS arms a bounded shadow window; the next fresh signal that independently passes the existing score threshold 65, data-quality, kill-switch and T-5 timing gates is tagged internally as the single shadow recovery attempt. It waits at most three M1 signal windows.
+- A shadow attempt is settled once after its one-minute target candle closes. WIN/LOSS/FLAT/UNKNOWN all close the attempt; a recovery LOSS never arms another recovery. No Martingale, stake changes, forced reverse direction, lowered threshold, broker execution, or additional signal is introduced.
+- Shadow mode only classifies an already-existing qualifying signal in backend forecast history; it does not add or alter any Mini App signal. This is measurement-only and not yet an active recovery alert.
+- Recovery state and forecast history are in-memory per pair and reset on process restart; no persistence service is introduced in this phase.
+- Added unit tests for open/close outcomes, invalid data, loss arming, expiry, one-attempt enforcement and no re-arming after recovery.
+- CI/PR review required before any merge. This implementation step does not merge or deploy; production remains unchanged.
