@@ -1903,3 +1903,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No Mini App frontend/UI/auth/session/connection/control/timing/alert files changed. Scoring threshold 65/45 and signal timing remain unchanged.
 - Changelog: main-market/API-POOL-100-CANDLE-UPGRADE-2026-11-10.md. Tests updated for 100-candle retrieval, round-robin REST rotation, and quota-safe cadence.
 - Pending: PR checks, merge authorization already given by user for this task, Render deploy, /health and live feed verification, then user-side Mini App retest.
+
+## 2026-11-10 — API pool / 100-candle upgrade deployed and verified
+- PR #73 merged as commit f6e1f287bc1a8a1bf7b046cb8bb20ad1a8e0b565. Its first Render build correctly caught one stale test assertion still expecting HISTORY_CANDLES=54; production remained on the previous live deploy.
+- PR #74 updated only the analyzer test expectation to HISTORY_CANDLES=100 and MAX_CANDLES=110 while preserving MIN_CLOSED_CANDLES=54. Merged commit: 3c17ece5c92f9d0b15219c6e3aa07cfa5ad28469.
+- Successful Render deploy: dep-dbpgqpgae00c73ebp7c0, status live, service ai-signal-radar-main-market.
+- Render build-time tests: 100 tests, 96 passed, 0 failed, 4 skipped; postinstall JavaScript syntax-check chain completed and Render reported Build successful.
+- Live /health verified version 2026-11-10-api-pool-100-history-v1; Twelve Data keys configured 10/10 and available 10/10; historyCandles=100; minimumClosedCandles=54; livePriceCheckSeconds=5; restRefreshSeconds=180; estimatedRestCreditsPerDay=480; restRotation=ROUND_ROBIN.
+- Live /api/public/signal verified EUR/USD, API ONLINE, dataMode STREAMING, tickAgeSeconds=2, requiredCandles=54, and monitoring=true. Render startup log also confirmed REST returned 100 candles.
+- First failed deploy dep-dbpgpvdg1s2s73ce7dt0 is superseded by the successful live deploy; do not treat it as the final state.
+- No Mini App frontend/UI/auth/session/connection/control/alert files changed. User-side Telegram Mini App visual/interaction retest remains pending; no claim of device verification.
