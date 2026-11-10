@@ -75,7 +75,7 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("analyzeMarket uses local EMA 3/8/50 and makes no Gemini HTTP request", async () => {
+test("analyzeMarket uses local EMA 5/20 Wick Rejection and makes no Gemini HTTP request", async () => {
   const candles = history(54, 1);
   let calls = 0;
   const result = await analyzeMarket(candles, {
@@ -85,7 +85,7 @@ test("analyzeMarket uses local EMA 3/8/50 and makes no Gemini HTTP request", asy
   });
   assert.equal(calls, 0);
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
   assert.equal(result.closedCandleCount, 54);
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
@@ -173,7 +173,7 @@ test("local EMA analyzer does not require a Gemini API key", async () => {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
