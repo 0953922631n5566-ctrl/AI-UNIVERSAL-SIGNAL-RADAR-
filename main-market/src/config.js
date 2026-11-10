@@ -5,10 +5,12 @@ export const INTERVAL = "1min";
 export const CONTEXT_CANDLES = 50;
 export const ENTRY_CANDLES = 4;
 export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
-export const HISTORY_CANDLES = MIN_CLOSED_CANDLES;
-// Keep room for the in-progress live candle without evicting the 54 closed candles.
-export const MAX_CANDLES = 60;
+export const HISTORY_CANDLES = 100;
+// Keep room for the in-progress live candle without evicting 100 closed history candles.
+export const MAX_CANDLES = HISTORY_CANDLES + 10;
 export const REST_SYNC_SECONDS = 180;
+// Check the live WebSocket feed locally; this does not create a REST/API request.
+export const LIVE_PRICE_CHECK_SECONDS = 5;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
 // Keep the entry signal visible for exactly 30 seconds after the target M1 candle opens.

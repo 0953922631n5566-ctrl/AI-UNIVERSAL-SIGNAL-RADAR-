@@ -1892,3 +1892,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - PR #65 remains open, mergeable, and targets main-market. It is not merged.
 - Render workspace discovery returned one workspace, “กินนอน's workspace”; user confirmation is still required before reading or mutating Render resources. Production service remains srv-dbjls149v7es73ag0k4g on main-market.
 - No production deployment has occurred. Merge/deploy must wait until Render workspace is confirmed and the service's current configuration/deploy state is checked.
+
+
+## 2026-11-10 — API pool / 100-candle upgrade
+- Implemented on isolated branch experiment/main-market-100cand-ws5s-20261110; production branch is unchanged until PR merge.
+- Twelve Data REST requests now rotate round-robin across healthy configured API keys, with existing cooldown/failover preserved. WebSocket continues to use one active key for the one selected pair and reconnects/fails over on errors.
+- REST history outputsize increased to 100 closed M1 candles; candle buffer increased to 110 to retain a live candle. Minimum decision window remains 54 closed candles (50 context + 4 entry).
+- Local live-feed watchdog now checks every 5 seconds; it does not poll REST. REST resync remains every 180 seconds, estimated 480 one-symbol time_series credits/day.
+- Ten API keys do not imply 10x account quota; confirm actual key count and entitlements from /health and Twelve Data account usage after deploy.
+- No Mini App frontend/UI/auth/session/connection/control/timing/alert files changed. Scoring threshold 65/45 and signal timing remain unchanged.
+- Changelog: main-market/API-POOL-100-CANDLE-UPGRADE-2026-11-10.md. Tests updated for 100-candle retrieval, round-robin REST rotation, and quota-safe cadence.
+- Pending: PR checks, merge authorization already given by user for this task, Render deploy, /health and live feed verification, then user-side Mini App retest.

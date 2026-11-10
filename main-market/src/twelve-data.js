@@ -55,7 +55,7 @@ export async function fetchCandles({
   const normalized = normalizeSymbol(symbol);
   const allowed = SYMBOLS.some(item => normalizeSymbol(item) === normalized);
   if (!allowed) throw new Error(`Pair is not enabled: ${symbol}`);
-  const candidateKeys = apiKey ? [apiKey] : keyPool.getCandidates();
+  const candidateKeys = apiKey ? [apiKey] : (keyPool.getRestCandidates?.() || keyPool.getCandidates());
   if (!candidateKeys.length) {
     const error = new Error("No Twelve Data API keys are currently available");
     error.kind = "RATE_LIMIT";
@@ -101,7 +101,10 @@ export async function fetchCandles({
     }
   }
   if (!successfulKey) throw lastError || new Error("Twelve Data API pool failed");
-  if (!apiKey) keyPool.markSuccess(successfulKey);
+  if (!apiKey) {
+    if (typeof keyPool.markRestSuccess === "function") keyPool.markRestSuccess(successfulKey);
+    else keyPool.markSuccess(successfulKey);
+  }
 
   const minuteStart = Math.floor(now / 60000) * 60;
   const byEpoch = new Map();
