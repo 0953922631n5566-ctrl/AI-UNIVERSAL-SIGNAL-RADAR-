@@ -85,7 +85,7 @@ test("analyzeMarket uses local EMA 5/20 Wick Rejection and makes no Gemini HTTP 
   });
   assert.equal(calls, 0);
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
   assert.equal(result.closedCandleCount, 54);
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
@@ -173,7 +173,7 @@ test("local EMA analyzer does not require a Gemini API key", async () => {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(result.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
@@ -259,11 +259,11 @@ function smoothTrendCandles(direction, count = 54) {
   });
 }
 
-test("EMA 5/20 engine does not issue a continuation signal without an EMA5 wick rejection", () => {
+test("EMA 5/20 relaxed trend flow accepts nearby directional continuation without wick rejection", () => {
   const bullish = calculatePureTechnicalSignal(smoothTrendCandles(1));
   const bearish = calculatePureTechnicalSignal(smoothTrendCandles(-1));
-  assert.equal(bullish.signal, "STANDBY");
-  assert.equal(bearish.signal, "STANDBY");
-  assert.equal(bullish.strategy, "EMA_5_20_WICK_REJECTION");
-  assert.equal(bearish.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(bullish.signal, "CALL");
+  assert.equal(bearish.signal, "PUT");
+  assert.equal(bullish.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
+  assert.equal(bearish.strategy, "EMA_5_20_RELAXED_TREND_FLOW");
 });
