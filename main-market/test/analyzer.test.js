@@ -75,27 +75,19 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("Gemini alone returns the directional decision in schema-constrained JSON", async () => {
-  clearGeminiAnalysisCache();
-  const candles = history(54);
-  const { fetchImpl, calls } = mockFetch(geminiResponse("PUT"));
+test("analyzeMarket uses local EMA 3/8/50 and makes no Gemini HTTP request", async () => {
+  const candles = history(54, 1);
+  let calls = 0;
   const result = await analyzeMarket(candles, {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/PUT",
-    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/LOCAL",
+    geminiApiKey: "must-not-be-used",
+    geminiFetch: async () => { calls++; throw new Error("Gemini must not be called"); }
   });
-  assert.equal(result.signal, "PUT");
-  assert.equal(result.provider, "GEMINI");
-  assert.equal(result.strategy, "GEMINI_PRIMARY_ANALYZER");
-  assert.equal(result.confidence, 76);
+  assert.equal(calls, 0);
+  assert.equal(result.provider, "LOCAL_TECHNICAL");
+  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
   assert.equal(result.closedCandleCount, 54);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].init.headers["x-goog-api-key"], "unit-test-key");
-  const body = JSON.parse(calls[0].init.body);
-  assert.equal(body.generationConfig.responseMimeType, "application/json");
-  assert.equal(body.generationConfig.responseSchema.properties.signal.enum.includes("STANDBY"), true);
-  const systemPrompt = body.systemInstruction.parts[0].text;
-  assert.match(systemPrompt, /one clear primary directional signal PLUS one independent confirming signal/i);
-  assert.match(systemPrompt, /Do not require two additional clues/i);
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
 
@@ -176,14 +168,13 @@ test("Gemini does not retry a daily quota exhaustion 429", async () => {
   assert.equal(calls, 1);
 });
 
-test("missing Gemini key fails closed and never uses a local directional fallback", async () => {
-  clearGeminiAnalysisCache();
+test("local EMA analyzer does not require a Gemini API key", async () => {
   const result = await analyzeMarket(history(54), {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-KEY", geminiApiKey: ""
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
-  assert.equal(result.signal, "STANDBY");
-  assert.match(result.reason, /GEMINI_API_KEY/);
-  assert.equal(result.provider, "GEMINI");
+  assert.equal(result.provider, "LOCAL_TECHNICAL");
+  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
 test("invalid Gemini JSON or an API failure returns STANDBY instead of a heuristic vote", async () => {

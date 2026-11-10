@@ -1792,3 +1792,19 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The prompt requires the confirming clue to come from a different evidence family; multiple descriptions of the same candle move cannot be double-counted. A support/resistance touch alone is not confirmation. Example: bullish rejection/short-term momentum at a range edge as primary, plus RSI14 slope/change or distinct follow-through as confirmation.
 - Existing fail-closed source/data-quality and Streaming freshness gates, mid-range/indecisive/conflicting-evidence safeguards, Gemini model, single-shot-per-candle behavior, T-5 timing, Twelve Data, Mini App UI/auth, and quota monitor remain unchanged.
 - Updated only `main-market/src/gemini-analyzer.js` prompt and `main-market/test/analyzer.test.js` prompt regression assertions. No merge or production deploy has been performed; CI and review are pending. The lower evidence threshold may increase signal frequency but does not establish accuracy or profitability.
+
+
+## 2026-11-10 — Local EMA technical analyzer migration (PR pending)
+
+- User supplied a Python/pandas EMA 3/8/50 crossover algorithm and explicitly limited the requested change to the analysis system; all other application behavior must remain unchanged.
+- Implemented the same calculation in native JavaScript because the production service is Node.js (no pandas dependency):
+  - EMA 3 fast, EMA 8 slow, EMA 50 trend filter.
+  - CALL only when EMA 3 crosses above EMA 8 and latest closed price is above EMA 50.
+  - PUT only when EMA 3 crosses below EMA 8 and latest closed price is below EMA 50.
+  - Otherwise STANDBY.
+- Replaced analyzeMarket Gemini request with the local deterministic calculation. Existing source-quality checks, closed-candle selection, streaming/REST freshness gates, T-5 scheduling, signal release gate, deduplication, notification path, Mini App UI, authentication, Twelve Data feed and Render service configuration were intentionally not changed.
+- The Python volume column is not used by this EMA strategy; the JavaScript engine consumes the existing OHLC candles.
+- The engine requires at least 51 closed candles for EMA 50; the current 54-candle guard already exceeds this.
+- No Gemini HTTP request is made by the new analyzeMarket decision path. Legacy Gemini helper/quota modules and server health metadata have not been removed or relabeled in this isolated analysis-only change to avoid modifying unrelated server behavior; they should not be interpreted as the active signal decision engine after this change.
+- This is not evidence of predictive accuracy. EMA crossover can still produce false signals; backtest, out-of-sample and paper-trading validation remain outstanding.
+- Branch: feature/pure-technical-ema-3-8-50. Await CI and review before merge/deploy.
