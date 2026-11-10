@@ -25,9 +25,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EMA 5/20 WICK REJECTION ANALYZER";
-const ARCHITECTURE_ID = "EMA-5-20-WICK-REJECTION";
-const VERSION = "2026-11-10-ema-5-20-wick-rejection-v1";
+const SYSTEM_NAME = "EMA 5/20 RELAXED TREND FLOW ANALYZER";
+const ARCHITECTURE_ID = "EMA-5-20-RELAXED-TREND-FLOW";
+const VERSION = "2026-11-10-ema-5-20-relaxed-trend-flow-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -267,7 +267,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "EMA_WICK_REJECTION_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "EMA_TREND_FLOW_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
