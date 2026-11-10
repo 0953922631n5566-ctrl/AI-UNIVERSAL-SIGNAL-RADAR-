@@ -9,8 +9,6 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
-import { GEMINI_MODEL } from "./src/gemini-analyzer.js";
-import { getGeminiQuotaStatus } from "./src/gemini-quota-monitor.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
@@ -27,9 +25,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "GEMINI PRIMARY ANALYZER";
-const ARCHITECTURE_ID = "GEMINI-PRIMARY-ANALYZER";
-const VERSION = "2026-11-09-gemini-free-tier-window-guard-v1";
+const SYSTEM_NAME = "PURE TECHNICAL EMA 3/8/50 ANALYZER";
+const ARCHITECTURE_ID = "PURE-TECHNICAL-EMA-3-8-50";
+const VERSION = "2026-11-10-pure-technical-ema-3-8-50-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -44,8 +42,6 @@ function newFeed(symbol) {
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
-    geminiWindowCandleEpoch: null, geminiWindowAttemptedCandleEpoch: null,
-    geminiWindowResult: null, geminiWindowPromise: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [],
@@ -162,7 +158,6 @@ function snapshot() {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
-    geminiQuota: getGeminiQuotaStatus()
   };
 }
 
@@ -224,55 +219,10 @@ async function evaluate(feed) {
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
- // Gemini is invoked once at T-5 only; PREPARE (T-10..T-5) is UI-only.
- const inGeminiWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now) &&
-   Number.isFinite(tickAge) && tickAge <= 5;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- let rawResult;
- if (inGeminiWindow) {
-   if (feed.geminiWindowCandleEpoch !== sourceCandleEpoch) {
-     feed.geminiWindowCandleEpoch = sourceCandleEpoch;
-     feed.geminiWindowAttemptedCandleEpoch = null;
-     feed.geminiWindowResult = null;
-     feed.geminiWindowPromise = null;
-   }
-   if (feed.geminiWindowAttemptedCandleEpoch !== sourceCandleEpoch &&
-       !feed.geminiWindowPromise && !feed.geminiWindowResult) {
-     // Mark before awaiting so overlapping tick/timer evaluations cannot create a second request.
-     feed.geminiWindowAttemptedCandleEpoch = sourceCandleEpoch;
-     console.info("[gemini] T-5 single-shot window entered", {
-       symbol: feed.symbol, candleEpoch: sourceCandleEpoch,
-       secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
-       requestLimit: "ONE_ATTEMPT_PER_M1_CANDLE"
-     });
-     feed.geminiWindowPromise = analyzeMarket(feed.candles, {
-       now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
-     }).then(value => {
-       feed.geminiWindowResult = value;
-       return value;
-     }).catch(error => {
-       const failed = standby("Gemini วิเคราะห์ไม่สำเร็จ: " + (error?.message || String(error)), {
-         strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI", providerStatus: "ERROR"
-       });
-       feed.geminiWindowResult = failed;
-       return failed;
-     }).finally(() => { feed.geminiWindowPromise = null; });
-   }
-   if (feed.geminiWindowPromise) rawResult = await feed.geminiWindowPromise;
-   else rawResult = feed.geminiWindowResult || standby("Gemini ถูกเรียกไปแล้ว 1 ครั้งสำหรับแท่ง M1 นี้");
- } else if (feed.geminiWindowCandleEpoch === sourceCandleEpoch && feed.geminiWindowResult) {
-   rawResult = feed.geminiWindowResult;
- } else {
-   const inFinalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
-   const reason = inFinalizeWindow
-     ? "ข้าม Gemini: ต้องมี Streaming tick สดไม่เกิน 5 วินาทีในช่วง T-5"
-     : "รอเรียก Gemini เพียงครั้งเดียวที่ T-5 ก่อนปิดแท่ง M1";
-   rawResult = standby(reason, {
-     strategy: "GEMINI_PRIMARY_ANALYZER", provider: "GEMINI",
-     providerStatus: inFinalizeWindow ? "WAITING_FOR_FRESH_TICK" : "WINDOW_CLOSED"
-   });
- }
+ // Direction is calculated locally from closed M1 candles; no external AI provider is called.
+ const rawResult = await analyzeMarket(feed.candles, {
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ });
  const result = applySignalReleaseGate(rawResult);
 
 
@@ -315,7 +265,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "GEMINI_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "PURE_TECHNICAL_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -900,8 +850,19 @@ app.get("/health", (_req, res) => {
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
-    architecture: { name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE", decisionEngine: "GEMINI_PRIMARY_ANALYZER", engines: 1, decisionAuthority: "GEMINI_ONLY", safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS", historicalAnalogueWorker: "BYPASSED", signalDecisionPath: "SOURCE_GATE_TO_GEMINI_JSON_DECISION_TO_TIMING_GUARD" },
-    analyzer: { provider: "GEMINI", model: GEMINI_MODEL, configured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS), role: "SOLE_DIRECTIONAL_ANALYZER", jsonOutput: true, localDirectionalFallback: false },
+    architecture: {
+      name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
+      decisionEngine: "PURE_TECHNICAL_EMA_3_8_50", engines: 1,
+      decisionAuthority: "LOCAL_TECHNICAL_ONLY",
+      safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
+      historicalAnalogueWorker: "BYPASSED",
+      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_3_8_50_TO_TIMING_GUARD"
+    },
+    analyzer: {
+      provider: "LOCAL_TECHNICAL", model: null, configured: true,
+      role: "SOLE_DIRECTIONAL_ANALYZER", externalAiCalls: false,
+      closedCandlesOnly: true, localDirectionalFallback: false
+    },
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
@@ -917,14 +878,13 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "GEMINI_PRIMARY_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      geminiConfigured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
-      geminiApiKeyCount: [...new Set([...(process.env.GEMINI_API_KEYS || "").split(/[\n,;]+/), process.env.GEMINI_API_KEY || ""].map(v => v.trim()).filter(Boolean))].length,
-      geminiModel: GEMINI_MODEL,
-      geminiQuotaMonitor: true,
-      geminiDailyRequestBudgetConfigured: getGeminiQuotaStatus().budgetConfigured,
-      geminiIsSoleAnalyzer: true,
-      localDirectionalFallback: false
+      signalReleaseStatus: "PURE_TECHNICAL_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      pureTechnical: {
+        emaFast: 3, emaSignal: 8, emaTrend: 50,
+        atrExtensionGuard: 1.25,
+        directionalSource: "CLOSED_M1_CANDLES_ONLY",
+        externalAi: false
+      }
     }
   });
 });
