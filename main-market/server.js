@@ -267,7 +267,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "PURE_TECHNICAL_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "EMA_WICK_REJECTION_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
