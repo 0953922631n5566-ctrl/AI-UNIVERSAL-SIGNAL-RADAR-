@@ -25,9 +25,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PURE TECHNICAL EMA 3/8/50 ANALYZER";
-const ARCHITECTURE_ID = "PURE-TECHNICAL-EMA-3-8-50";
-const VERSION = "2026-11-10-pure-technical-ema-3-8-50-v1";
+const SYSTEM_NAME = "EMA 5/20 WICK REJECTION ANALYZER";
+const ARCHITECTURE_ID = "EMA-5-20-WICK-REJECTION";
+const VERSION = "2026-11-10-ema-5-20-wick-rejection-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -156,7 +156,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -267,7 +267,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "PURE_TECHNICAL_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "EMA_WICK_REJECTION_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -854,11 +854,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PURE_TECHNICAL_EMA_3_8_50", engines: 1,
+      decisionEngine: "EMA_5_20_WICK_REJECTION", engines: 1,
       decisionAuthority: "LOCAL_TECHNICAL_ONLY",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_3_8_50_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_LOCAL_EMA_5_20_WICK_REJECTION_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_TECHNICAL", model: null, configured: true,
@@ -880,10 +880,11 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PURE_TECHNICAL_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      pureTechnical: {
-        emaFast: 3, emaSignal: 8, emaTrend: 50,
-        atrExtensionGuard: 1.25,
+      signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      emaWickRejection: {
+        emaFast: 5, emaTrend: 20,
+        touchRule: "WICK_TOUCH_EMA5_AND_CLOSE_BACK_ON_TREND_SIDE",
+        minWickBodyRatio: 1.0, minWickRangeRatio: 0.25,
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }

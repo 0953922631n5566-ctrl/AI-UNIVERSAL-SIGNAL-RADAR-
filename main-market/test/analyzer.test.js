@@ -75,7 +75,7 @@ test("fresh REST fallback passes only the data guard; T-5 still has its separate
   assert.equal(result.mode, "REST_FALLBACK");
 });
 
-test("analyzeMarket uses local EMA 3/8/50 and makes no Gemini HTTP request", async () => {
+test("analyzeMarket uses local EMA 5/20 Wick Rejection and makes no Gemini HTTP request", async () => {
   const candles = history(54, 1);
   let calls = 0;
   const result = await analyzeMarket(candles, {
@@ -85,7 +85,7 @@ test("analyzeMarket uses local EMA 3/8/50 and makes no Gemini HTTP request", asy
   });
   assert.equal(calls, 0);
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
   assert.equal(result.closedCandleCount, 54);
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
@@ -173,7 +173,7 @@ test("local EMA analyzer does not require a Gemini API key", async () => {
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/NO-GEMINI-KEY", geminiApiKey: ""
   });
   assert.equal(result.provider, "LOCAL_TECHNICAL");
-  assert.equal(result.strategy, "PURE_TECHNICAL_EMA_3_8_50");
+  assert.equal(result.strategy, "EMA_5_20_WICK_REJECTION");
   assert.ok(["CALL", "PUT", "STANDBY"].includes(result.signal));
 });
 
@@ -259,24 +259,11 @@ function smoothTrendCandles(direction, count = 54) {
   });
 }
 
-test("M1 engine catches confirmed two-candle bullish continuation without waiting for a fresh EMA cross", () => {
-  const result = calculatePureTechnicalSignal(smoothTrendCandles(1));
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.entryType, "TREND_CONTINUATION");
+test("EMA 5/20 engine does not issue a continuation signal without an EMA5 wick rejection", () => {
+  const bullish = calculatePureTechnicalSignal(smoothTrendCandles(1));
+  const bearish = calculatePureTechnicalSignal(smoothTrendCandles(-1));
+  assert.equal(bullish.signal, "STANDBY");
+  assert.equal(bearish.signal, "STANDBY");
+  assert.equal(bullish.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(bearish.strategy, "EMA_5_20_WICK_REJECTION");
 });
-
-test("M1 engine catches confirmed two-candle bearish continuation without waiting for a fresh EMA cross", () => {
-  const result = calculatePureTechnicalSignal(smoothTrendCandles(-1));
-  assert.equal(result.signal, "PUT");
-  assert.equal(result.entryType, "TREND_CONTINUATION");
-});
-
-test("M1 engine remains symmetric: bullish and bearish trend continuation use mirrored rules", () => {
-  const up = calculatePureTechnicalSignal(smoothTrendCandles(1));
-  const down = calculatePureTechnicalSignal(smoothTrendCandles(-1));
-  assert.equal(up.signal, "CALL");
-  assert.equal(down.signal, "PUT");
-  assert.equal(up.regime, "UPTREND");
-  assert.equal(down.regime, "DOWNTREND");
-});
-

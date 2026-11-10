@@ -47,112 +47,88 @@ function emaSeries(values, period) {
   return output;
 }
 
-function averageTrueRange(candles, period = 14) {
-  const start = Math.max(1, candles.length - period);
-  const ranges = [];
-  for (let i = start; i < candles.length; i++) {
-    const c = candles[i], previousClose = candles[i - 1].close;
-    ranges.push(Math.max(c.high - c.low, Math.abs(c.high - previousClose),
-      Math.abs(c.low - previousClose)));
-  }
-  return ranges.length ? ranges.reduce((sum, value) => sum + value, 0) / ranges.length : 0;
-}
-
-function decision(signal, regime, reason, evidence, metrics, strategy, confidence = 70) {
+function decision(signal, regime, reason, evidence, metrics, confidence = 70) {
   return {
     signal, regime, confidence, score: confidence, reason, evidence, riskFlags: [],
-    summary: reason, strategy: "PURE_TECHNICAL_EMA_3_8_50", entryType: strategy,
+    summary: reason, strategy: "EMA_5_20_WICK_REJECTION", entryType: "EMA5_WICK_REJECTION",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
 
 /**
- * Closed-candle M1 engine:
- * - Trend continuation: EMA alignment + two completed candles in the same direction.
- * - Reversal: confirmed EMA 3/8 cross with EMA 50 price-side confirmation.
- * - ATR extension guard avoids chasing a move that is already stretched.
- * No external AI/API calls; no live/in-progress candle is used for direction.
+ * Closed-candle M1 EMA 5/20 Wick Rejection:
+ * - EMA 20 defines the directional zone (close above = CALL; below = PUT).
+ * - The completed candle must pull back through/touch EMA 5 and close back
+ *   on the trend side with a directional body and a meaningful rejection wick.
+ * - Existing source-quality and T-5 timing guards remain outside this engine.
  */
 export function calculatePureTechnicalSignal(candles) {
-  if (!Array.isArray(candles) || candles.length < 51) {
-    return { signal: "STANDBY", reason: "ต้องมีแท่งปิดอย่างน้อย 51 แท่งเพื่อคำนวณ EMA 50", evidence: [] };
+  if (!Array.isArray(candles) || candles.length < 21) {
+    return { signal: "STANDBY", reason: "ต้องมีแท่งปิดอย่างน้อย 21 แท่งเพื่อคำนวณ EMA 20", evidence: [] };
   }
   if (!candles.every(c => c && [c.open, c.high, c.low, c.close].every(Number.isFinite))) {
     return { signal: "STANDBY", reason: "ข้อมูล OHLC ไม่ถูกต้อง", evidence: [] };
   }
 
   const closes = candles.map(c => c.close);
-  const fast = emaSeries(closes, 3);
-  const slow = emaSeries(closes, 8);
-  const trend = emaSeries(closes, 50);
-  const index = closes.length - 1, previous = index - 1, prior = index - 2;
-  const current = candles[index], previousCandle = candles[previous];
-  const atr = averageTrueRange(candles, 14);
-  const isUptrend = current.close > trend[index];
-  const isDowntrend = current.close < trend[index];
-  const bullishCross = fast[previous] <= slow[previous] && fast[index] > slow[index];
-  const bearishCross = fast[previous] >= slow[previous] && fast[index] < slow[index];
-  const bullishContinuation = fast[index] > slow[index] && slow[index] > trend[index] &&
-    isUptrend && current.close > current.open && previousCandle.close > previousCandle.open &&
-    current.close > previousCandle.close;
-  const bearishContinuation = fast[index] < slow[index] && slow[index] < trend[index] &&
-    isDowntrend && current.close < current.open && previousCandle.close < previousCandle.open &&
-    current.close < previousCandle.close;
-  const extension = atr > 0 ? Math.abs(current.close - fast[index]) / atr : Infinity;
-  const notOverextended = extension <= 1.25;
-  const bodyRatio = atr > 0 ? Math.abs(current.close - current.open) / atr : 0;
-  const meaningfulBody = bodyRatio >= 0.10;
+  const ema5 = emaSeries(closes, 5);
+  const ema20 = emaSeries(closes, 20);
+  const index = closes.length - 1;
+  const candle = candles[index];
+  const body = Math.abs(candle.close - candle.open);
+  const range = candle.high - candle.low;
+  const lowerWick = Math.max(0, Math.min(candle.open, candle.close) - candle.low);
+  const upperWick = Math.max(0, candle.high - Math.max(candle.open, candle.close));
+  const safeBody = Math.max(body, range * 0.02, Number.EPSILON);
+  const lowerWickBodyRatio = lowerWick / safeBody;
+  const upperWickBodyRatio = upperWick / safeBody;
+  const lowerWickRangeRatio = range > 0 ? lowerWick / range : 0;
+  const upperWickRangeRatio = range > 0 ? upperWick / range : 0;
+  const bullishZone = candle.close > ema20[index];
+  const bearishZone = candle.close < ema20[index];
+  const touchedEma5 = candle.low <= ema5[index] && candle.high >= ema5[index];
+  const bullishRejection = bullishZone && touchedEma5 &&
+    candle.open > ema5[index] && candle.close > ema5[index] &&
+    candle.close > candle.open &&
+    lowerWickBodyRatio >= 1.0 && lowerWickRangeRatio >= 0.25;
+  const bearishRejection = bearishZone && touchedEma5 &&
+    candle.open < ema5[index] && candle.close < ema5[index] &&
+    candle.close < candle.open &&
+    upperWickBodyRatio >= 1.0 && upperWickRangeRatio >= 0.25;
+
   const metrics = {
-    emaFast: fast[index], emaSlow: slow[index], trendEma: trend[index],
-    previousEmaFast: fast[previous], previousEmaSlow: slow[previous],
-    atr14: atr, emaFastDistanceAtr: Number.isFinite(extension) ? extension : null,
-    lastBodyAtr: bodyRatio
+    ema5: ema5[index], ema20: ema20[index],
+    emaFast: ema5[index], emaSlow: ema20[index], trendEma: ema20[index],
+    wickTouchEma5: touchedEma5,
+    lowerWickBodyRatio: Number(lowerWickBodyRatio.toFixed(3)),
+    upperWickBodyRatio: Number(upperWickBodyRatio.toFixed(3)),
+    lowerWickRangeRatio: Number(lowerWickRangeRatio.toFixed(3)),
+    upperWickRangeRatio: Number(upperWickRangeRatio.toFixed(3)),
+    candleBody: body, candleRange: range
   };
 
-  // Continuation is evaluated first so a mature trend does not wait for a fresh crossover.
-  if (bullishContinuation && notOverextended && meaningfulBody) {
+  if (bullishRejection) {
     return decision("CALL", "UPTREND",
-      "Trend continuation: EMA 3 > EMA 8 > EMA 50 และแท่งปิดเขียวต่อเนื่อง 2 แท่ง โดยราคาไม่ยืดเกิน ATR",
-      ["EMA 3 > EMA 8 > EMA 50", "สองแท่งปิดล่าสุดเป็นขาขึ้น", "Close ล่าสุดสูงกว่าก่อนหน้า", "ราคาไม่ห่าง EMA 3 เกิน 1.25 ATR"],
-      metrics, "TREND_CONTINUATION", 68);
+      "EMA 5/20 Wick Rejection: ราคาอยู่เหนือ EMA 20 ย่อลงแตะ EMA 5 แล้วปิดเขียวกลับเหนือ EMA 5 พร้อมไส้ล่างปฏิเสธราคา",
+      ["Close > EMA 20 (โซน CALL)", "Low แตะ/ผ่าน EMA 5 และ Close กลับเหนือ EMA 5", "แท่งปิดเขียว", "ไส้ล่างยาวอย่างน้อย 1 เท่าของ Body และ 25% ของช่วงแท่ง"],
+      metrics, 72);
   }
-  if (bearishContinuation && notOverextended && meaningfulBody) {
+  if (bearishRejection) {
     return decision("PUT", "DOWNTREND",
-      "Trend continuation: EMA 3 < EMA 8 < EMA 50 และแท่งปิดแดงต่อเนื่อง 2 แท่ง โดยราคาไม่ยืดเกิน ATR",
-      ["EMA 3 < EMA 8 < EMA 50", "สองแท่งปิดล่าสุดเป็นขาลง", "Close ล่าสุดต่ำกว่าก่อนหน้า", "ราคาไม่ห่าง EMA 3 เกิน 1.25 ATR"],
-      metrics, "TREND_CONTINUATION", 68);
+      "EMA 5/20 Wick Rejection: ราคาอยู่ใต้ EMA 20 ดีดขึ้นแตะ EMA 5 แล้วปิดแดงกลับใต้ EMA 5 พร้อมไส้บนปฏิเสธราคา",
+      ["Close < EMA 20 (โซน PUT)", "High แตะ/ผ่าน EMA 5 และ Close กลับใต้ EMA 5", "แท่งปิดแดง", "ไส้บนยาวอย่างน้อย 1 เท่าของ Body และ 25% ของช่วงแท่ง"],
+      metrics, 72);
   }
 
-  if (bullishCross && isUptrend && current.close > current.open && notOverextended) {
-    return decision("CALL", "REVERSAL_CONFIRMED",
-      "EMA 3 ตัดขึ้นเหนือ EMA 8 พร้อมแท่งปิดเขียวและราคายืนยันเหนือ EMA 50",
-      ["EMA 3 bullish crossover", "แท่งล่าสุดปิดเขียว", "Close > EMA 50", "ราคาไม่ยืดเกิน 1.25 ATR"],
-      metrics, "REVERSAL_CONFIRMATION", 70);
-  }
-  if (bearishCross && isDowntrend && current.close < current.open && notOverextended) {
-    return decision("PUT", "REVERSAL_CONFIRMED",
-      "EMA 3 ตัดลงใต้ EMA 8 พร้อมแท่งปิดแดงและราคายืนยันใต้ EMA 50",
-      ["EMA 3 bearish crossover", "แท่งล่าสุดปิดแดง", "Close < EMA 50", "ราคาไม่ยืดเกิน 1.25 ATR"],
-      metrics, "REVERSAL_CONFIRMATION", 70);
-  }
-
-  let reason = "ยังไม่มี Trend Continuation หรือ Reversal ที่ยืนยันจากแท่งปิด";
-  if ((bullishContinuation || bearishContinuation) && !notOverextended) {
-    reason = "พบแนวโน้มต่อเนื่องแต่ราคาเคลื่อนห่าง EMA 3 เกิน 1.25 ATR — งดไล่ราคา";
-  } else if ((bullishContinuation || bearishContinuation) && !meaningfulBody) {
-    reason = "พบแนวโน้มแต่แท่งล่าสุดมีแรงส่งต่ำ — รอยืนยัน";
-  } else if (bullishCross || bearishCross) {
-    reason = "พบ EMA crossover แต่แท่งปิด/EMA 50/ระยะ ATR ยังไม่ยืนยันครบ";
-  } else if (fast[index] > slow[index] && fast[index] < trend[index]) {
-    reason = "EMA ระยะสั้นเริ่มฟื้นแต่ยังอยู่ใต้ EMA 50 — รอยืนยัน CALL";
-  } else if (fast[index] < slow[index] && fast[index] > trend[index]) {
-    reason = "EMA ระยะสั้นเริ่มอ่อนแต่ยังอยู่เหนือ EMA 50 — รอยืนยัน PUT";
-  }
+  let reason = "ยังไม่พบแท่งปิดที่แตะ EMA 5 และเกิด Wick Rejection ในโซน EMA 20";
+  if (!bullishZone && !bearishZone) reason = "ราคาอยู่ใกล้ EMA 20 — ยังไม่เลือกทิศทาง";
+  else if (bullishZone && touchedEma5) reason = "อยู่โซน CALL และแตะ EMA 5 แล้ว แต่ไส้ล่าง/แท่งปิดยังไม่ยืนยัน Rejection";
+  else if (bearishZone && touchedEma5) reason = "อยู่โซน PUT และแตะ EMA 5 แล้ว แต่ไส้บน/แท่งปิดยังไม่ยืนยัน Rejection";
   return {
-    signal: "STANDBY", regime: isUptrend ? "UPTREND" : isDowntrend ? "DOWNTREND" : "UNCLEAR",
+    signal: "STANDBY", regime: bullishZone ? "UPTREND" : bearishZone ? "DOWNTREND" : "UNCLEAR",
     confidence: 0, score: 0, reason,
-    evidence: [`EMA 3: ${fast[index]}`, `EMA 8: ${slow[index]}`, `EMA 50: ${trend[index]}`],
-    riskFlags: [], summary: reason, strategy: "PURE_TECHNICAL_EMA_3_8_50",
+    evidence: [`EMA 5: ${ema5[index]}`, `EMA 20: ${ema20[index]}`, touchedEma5 ? "แท่งล่าสุดแตะ EMA 5" : "แท่งล่าสุดยังไม่แตะ EMA 5"],
+    riskFlags: [], summary: reason, strategy: "EMA_5_20_WICK_REJECTION",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
@@ -179,7 +155,7 @@ export async function analyzeMarket(candles, options = {}) {
     evidence: Array.isArray(decisionResult.evidence) ? decisionResult.evidence : [],
     analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
     analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES },
-    signalReleaseStatus: "PURE_TECHNICAL_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 
