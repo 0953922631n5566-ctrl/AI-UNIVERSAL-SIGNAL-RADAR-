@@ -13,7 +13,7 @@ import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-r
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
-  REST_SYNC_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
+  REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
   SIGNAL_HOLD_SECONDS, resolveSymbol
 } from "./src/config.js";
 
@@ -27,7 +27,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
 const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-10-partial-scoring-65-agile-v1";
+const VERSION = "2026-11-10-api-pool-100-history-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -504,7 +504,7 @@ function startWatchdog() {
       await evaluate(feed);
     }
     publish();
-  }, 5000);
+  }, LIVE_PRICE_CHECK_SECONDS * 1000);
 }
 
 function startStream() {
@@ -875,6 +875,9 @@ app.get("/health", (_req, res) => {
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
+      livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
+      estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
+      restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
       entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
