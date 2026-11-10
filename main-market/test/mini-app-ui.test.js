@@ -34,7 +34,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
 });
 
 test("Mini App identifies Partial Scoring and exposes weighted score breakdown", () => {
-  assert.ok(html.includes("GEMINI · EMA5 SLOPE + S/R FAKEOUT + STRICT STANDBY"));
+  assert.ok(html.includes("PARTIAL SCORING 75/45 · CHOPPY/ATR KILL SWITCH"));
   assert.match(html, /SCORING BREAKDOWN/);
   assert.match(html, /m\.scores\?\.PUT/);
   assert.match(html, /m\.components\|\|\{\}/);
