@@ -15,8 +15,8 @@ function risingBase() {
 test("CALL requires EMA20 upper zone and bullish EMA5 lower-wick rejection", () => {
   const candles = risingBase();
   const prior = candles.at(-2).close;
-  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0) * (4 / 6) + close * (2 / 6);
   const close = prior + 0.00008;
+  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0) * (4 / 6) + close * (2 / 6);
   candles[candles.length - 1] = {
     ...candles.at(-1), open: prior + 0.00004, low: ema5 - 0.00001,
     high: close + 0.00002, close, live: false
