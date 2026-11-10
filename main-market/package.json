@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/gemini-analyzer.js && node --check src/gemini-quota-monitor.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,14 +17,15 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Gemini Primary Analyzer",
-    "displayName": "Gemini Primary Analyzer + System Guard",
+    "name": "Pure Technical EMA 3/8/50 Analyzer",
+    "displayName": "Pure Technical EMA 3/8/50 + System Guard",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "ONE_GEMINI_REQUEST_PER_CLOSED_M1_CANDLE",
-    "decisionAuthority": "GEMINI_ONLY",
+    "executionModel": "LOCAL_CLOSED_M1_CANDLE_ANALYSIS",
+    "decisionAuthority": "LOCAL_TECHNICAL_ONLY",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "DATA_QUALITY_AND_TIMING_GUARDS"
+    "safetyValidation": "DATA_QUALITY_AND_TIMING_GUARDS",
+    "externalAiCalls": false
   }
 }
