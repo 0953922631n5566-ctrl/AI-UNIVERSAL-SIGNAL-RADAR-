@@ -156,7 +156,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "RULE_BASED_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -880,7 +880,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PURE_TECHNICAL_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED",
       pureTechnical: {
         emaFast: 3, emaSignal: 8, emaTrend: 50,
         atrExtensionGuard: 1.25,
