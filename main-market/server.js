@@ -885,7 +885,7 @@ app.get("/health", (_req, res) => {
         emaFast: 5, emaTrend: 20,
         touchRule: "NOT_REQUIRED",
         proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",
-        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM"
+        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }
