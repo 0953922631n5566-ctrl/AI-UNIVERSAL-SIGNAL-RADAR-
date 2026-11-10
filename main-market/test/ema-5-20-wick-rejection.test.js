@@ -15,7 +15,7 @@ function risingBase() {
 test("CALL requires EMA20 upper zone and bullish EMA5 lower-wick rejection", () => {
   const candles = risingBase();
   const prior = candles.at(-2).close;
-  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0);
+  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0) * (4 / 6) + close * (2 / 6);
   const close = prior + 0.00008;
   candles[candles.length - 1] = {
     ...candles.at(-1), open: prior + 0.00004, low: ema5 - 0.00001,
@@ -30,7 +30,7 @@ test("PUT requires EMA20 lower zone and bearish EMA5 upper-wick rejection", () =
   const candles = risingBase().map(c => ({ ...c, open: 1.09 - (c.open - 1.08), close: 1.09 - (c.close - 1.08), high: 1.09 - (c.low - 1.08), low: 1.09 - (c.high - 1.08) }));
   const close = candles.at(-2).close - 0.00008;
   const open = candles.at(-2).close - 0.00004;
-  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0);
+  const ema5 = candles.slice(0, -1).reduce((v, c, i) => i === 0 ? c.close : c.close * (2 / 6) + v * (4 / 6), 0) * (4 / 6) + close * (2 / 6);
   candles[candles.length - 1] = { ...candles.at(-1), open, high: ema5 + 0.00001, low: close - 0.00002, close, live: false };
   const result = calculatePureTechnicalSignal(candles);
   assert.equal(result.signal, "PUT");
