@@ -259,24 +259,11 @@ function smoothTrendCandles(direction, count = 54) {
   });
 }
 
-test("M1 engine catches confirmed two-candle bullish continuation without waiting for a fresh EMA cross", () => {
-  const result = calculatePureTechnicalSignal(smoothTrendCandles(1));
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.entryType, "TREND_CONTINUATION");
+test("EMA 5/20 engine does not issue a continuation signal without an EMA5 wick rejection", () => {
+  const bullish = calculatePureTechnicalSignal(smoothTrendCandles(1));
+  const bearish = calculatePureTechnicalSignal(smoothTrendCandles(-1));
+  assert.equal(bullish.signal, "STANDBY");
+  assert.equal(bearish.signal, "STANDBY");
+  assert.equal(bullish.strategy, "EMA_5_20_WICK_REJECTION");
+  assert.equal(bearish.strategy, "EMA_5_20_WICK_REJECTION");
 });
-
-test("M1 engine catches confirmed two-candle bearish continuation without waiting for a fresh EMA cross", () => {
-  const result = calculatePureTechnicalSignal(smoothTrendCandles(-1));
-  assert.equal(result.signal, "PUT");
-  assert.equal(result.entryType, "TREND_CONTINUATION");
-});
-
-test("M1 engine remains symmetric: bullish and bearish trend continuation use mirrored rules", () => {
-  const up = calculatePureTechnicalSignal(smoothTrendCandles(1));
-  const down = calculatePureTechnicalSignal(smoothTrendCandles(-1));
-  assert.equal(up.signal, "CALL");
-  assert.equal(down.signal, "PUT");
-  assert.equal(up.regime, "UPTREND");
-  assert.equal(down.regime, "DOWNTREND");
-});
-
