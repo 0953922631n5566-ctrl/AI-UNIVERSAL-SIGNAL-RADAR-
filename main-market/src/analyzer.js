@@ -50,17 +50,17 @@ function emaSeries(values, period) {
 function decision(signal, regime, reason, evidence, metrics, confidence = 70) {
   return {
     signal, regime, confidence, score: confidence, reason, evidence, riskFlags: [],
-    summary: reason, strategy: "EMA_5_20_WICK_REJECTION", entryType: "EMA5_WICK_REJECTION",
+    summary: reason, strategy: "EMA_5_20_RELAXED_TREND_FLOW", entryType: "EMA5_TREND_FLOW",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
 
 /**
- * Closed-candle M1 EMA 5/20 Wick Rejection:
- * - EMA 20 defines the directional zone (close above = CALL; below = PUT).
- * - The completed candle must pull back through/touch EMA 5 and close back
- *   on the trend side with a directional body and a meaningful rejection wick.
- * - Existing source-quality and T-5 timing guards remain outside this engine.
+ * Closed-candle M1 EMA 5/20 Relaxed Proximity & Trend Flow:
+ * - EMA 20 defines the directional zone.
+ * - EMA 5 slope plus EMA 20 slope confirm trend flow.
+ * - Price need only be near EMA 5 (ATR-scaled); exact touch and wick shape are not required.
+ * - A directional close / progress versus the prior close confirms momentum.
  */
 export function calculatePureTechnicalSignal(candles) {
   if (!Array.isArray(candles) || candles.length < 21) {
@@ -74,61 +74,70 @@ export function calculatePureTechnicalSignal(candles) {
   const ema5 = emaSeries(closes, 5);
   const ema20 = emaSeries(closes, 20);
   const index = closes.length - 1;
+  const previous = candles[index - 1];
   const candle = candles[index];
-  const body = Math.abs(candle.close - candle.open);
-  const range = candle.high - candle.low;
-  const lowerWick = Math.max(0, Math.min(candle.open, candle.close) - candle.low);
-  const upperWick = Math.max(0, candle.high - Math.max(candle.open, candle.close));
-  const safeBody = Math.max(body, range * 0.02, Number.EPSILON);
-  const lowerWickBodyRatio = lowerWick / safeBody;
-  const upperWickBodyRatio = upperWick / safeBody;
-  const lowerWickRangeRatio = range > 0 ? lowerWick / range : 0;
-  const upperWickRangeRatio = range > 0 ? upperWick / range : 0;
+  const trueRanges = candles.slice(1).map((c, i) => Math.max(
+    c.high - c.low,
+    Math.abs(c.high - candles[i].close),
+    Math.abs(c.low - candles[i].close)
+  ));
+  const atrWindow = trueRanges.slice(-14);
+  const atr14 = atrWindow.reduce((sum, value) => sum + value, 0) / Math.max(1, atrWindow.length);
+  const proximityLimit = Math.max(atr14 * 0.35, Math.abs(candle.close) * 0.00001);
+  const distanceToEma5 = ema5[index] < candle.low ? candle.low - ema5[index]
+    : ema5[index] > candle.high ? ema5[index] - candle.high : 0;
+  const nearEma5 = distanceToEma5 <= proximityLimit;
   const bullishZone = candle.close > ema20[index];
   const bearishZone = candle.close < ema20[index];
-  const touchedEma5 = candle.low <= ema5[index] && candle.high >= ema5[index];
-  const bullishRejection = bullishZone && touchedEma5 &&
-    candle.open > ema5[index] && candle.close > ema5[index] &&
-    candle.close > candle.open &&
-    lowerWickBodyRatio >= 1.0 && lowerWickRangeRatio >= 0.25;
-  const bearishRejection = bearishZone && touchedEma5 &&
-    candle.open < ema5[index] && candle.close < ema5[index] &&
-    candle.close < candle.open &&
-    upperWickBodyRatio >= 1.0 && upperWickRangeRatio >= 0.25;
+  const ema5Rising = ema5[index] > ema5[index - 1];
+  const ema5Falling = ema5[index] < ema5[index - 1];
+  const ema20Rising = ema20[index] > ema20[index - 1];
+  const ema20Falling = ema20[index] < ema20[index - 1];
+  const bullishMomentum = candle.close > candle.open || candle.close > previous.close;
+  const bearishMomentum = candle.close < candle.open || candle.close < previous.close;
+  const bullishFlow = bullishZone && candle.close > ema5[index] && nearEma5 &&
+    ema5Rising && ema20Rising && bullishMomentum;
+  const bearishFlow = bearishZone && candle.close < ema5[index] && nearEma5 &&
+    ema5Falling && ema20Falling && bearishMomentum;
 
   const metrics = {
     ema5: ema5[index], ema20: ema20[index],
     emaFast: ema5[index], emaSlow: ema20[index], trendEma: ema20[index],
-    wickTouchEma5: touchedEma5,
-    lowerWickBodyRatio: Number(lowerWickBodyRatio.toFixed(3)),
-    upperWickBodyRatio: Number(upperWickBodyRatio.toFixed(3)),
-    lowerWickRangeRatio: Number(lowerWickRangeRatio.toFixed(3)),
-    upperWickRangeRatio: Number(upperWickRangeRatio.toFixed(3)),
-    candleBody: body, candleRange: range
+    atr14, distanceToEma5, proximityLimit, nearEma5,
+    ema5Rising, ema5Falling, ema20Rising, ema20Falling,
+    bullishMomentum, bearishMomentum,
+    wickTouchEma5: candle.low <= ema5[index] && candle.high >= ema5[index],
+    candleBody: Math.abs(candle.close - candle.open),
+    candleRange: candle.high - candle.low
   };
 
-  if (bullishRejection) {
+  if (bullishFlow) {
     return decision("CALL", "UPTREND",
-      "EMA 5/20 Wick Rejection: ราคาอยู่เหนือ EMA 20 ย่อลงแตะ EMA 5 แล้วปิดเขียวกลับเหนือ EMA 5 พร้อมไส้ล่างปฏิเสธราคา",
-      ["Close > EMA 20 (โซน CALL)", "Low แตะ/ผ่าน EMA 5 และ Close กลับเหนือ EMA 5", "แท่งปิดเขียว", "ไส้ล่างยาวอย่างน้อย 1 เท่าของ Body และ 25% ของช่วงแท่ง"],
-      metrics, 72);
+      "EMA 5/20 Relaxed Trend Flow: ราคาอยู่เหนือ EMA 20 ใกล้ EMA 5 พร้อมเส้นเฉลี่ยลาดขึ้นและโมเมนตัมขาขึ้น",
+      ["Close > EMA 20 (โซน CALL)", "ราคาอยู่ในระยะใกล้ EMA 5 ตาม ATR (ไม่จำเป็นต้องสัมผัส)", "EMA 5 และ EMA 20 มีความชันขึ้น", "แท่งล่าสุดยืนยันแรงส่งขึ้น"],
+      metrics, 70);
   }
-  if (bearishRejection) {
+  if (bearishFlow) {
     return decision("PUT", "DOWNTREND",
-      "EMA 5/20 Wick Rejection: ราคาอยู่ใต้ EMA 20 ดีดขึ้นแตะ EMA 5 แล้วปิดแดงกลับใต้ EMA 5 พร้อมไส้บนปฏิเสธราคา",
-      ["Close < EMA 20 (โซน PUT)", "High แตะ/ผ่าน EMA 5 และ Close กลับใต้ EMA 5", "แท่งปิดแดง", "ไส้บนยาวอย่างน้อย 1 เท่าของ Body และ 25% ของช่วงแท่ง"],
-      metrics, 72);
+      "EMA 5/20 Relaxed Trend Flow: ราคาอยู่ใต้ EMA 20 ใกล้ EMA 5 พร้อมเส้นเฉลี่ยลาดลงและโมเมนตัมขาลง",
+      ["Close < EMA 20 (โซน PUT)", "ราคาอยู่ในระยะใกล้ EMA 5 ตาม ATR (ไม่จำเป็นต้องสัมผัส)", "EMA 5 และ EMA 20 มีความชันลง", "แท่งล่าสุดยืนยันแรงกดลง"],
+      metrics, 70);
   }
 
-  let reason = "ยังไม่พบแท่งปิดที่แตะ EMA 5 และเกิด Wick Rejection ในโซน EMA 20";
+  let reason = "เทรนด์ยังไม่ครบเงื่อนไข Proximity & Trend Flow";
   if (!bullishZone && !bearishZone) reason = "ราคาอยู่ใกล้ EMA 20 — ยังไม่เลือกทิศทาง";
-  else if (bullishZone && touchedEma5) reason = "อยู่โซน CALL และแตะ EMA 5 แล้ว แต่ไส้ล่าง/แท่งปิดยังไม่ยืนยัน Rejection";
-  else if (bearishZone && touchedEma5) reason = "อยู่โซน PUT และแตะ EMA 5 แล้ว แต่ไส้บน/แท่งปิดยังไม่ยืนยัน Rejection";
+  else if (!nearEma5) reason = "ราคาอยู่ห่าง EMA 5 เกินระยะ Proximity ที่กำหนดตาม ATR";
+  else if (bullishZone && (!ema5Rising || !ema20Rising || !bullishMomentum)) reason = "อยู่โซน CALL แต่ความชันหรือโมเมนตัมขาขึ้นยังไม่ยืนยัน";
+  else if (bearishZone && (!ema5Falling || !ema20Falling || !bearishMomentum)) reason = "อยู่โซน PUT แต่ความชันหรือโมเมนตัมขาลงยังไม่ยืนยัน";
   return {
     signal: "STANDBY", regime: bullishZone ? "UPTREND" : bearishZone ? "DOWNTREND" : "UNCLEAR",
     confidence: 0, score: 0, reason,
-    evidence: [`EMA 5: ${ema5[index]}`, `EMA 20: ${ema20[index]}`, touchedEma5 ? "แท่งล่าสุดแตะ EMA 5" : "แท่งล่าสุดยังไม่แตะ EMA 5"],
-    riskFlags: [], summary: reason, strategy: "EMA_5_20_WICK_REJECTION",
+    evidence: [
+      `EMA 5: ${ema5[index]}`, `EMA 20: ${ema20[index]}`,
+      `ระยะจาก EMA 5: ${distanceToEma5} (เกณฑ์ใกล้: ${proximityLimit})`,
+      `EMA5 slope: ${ema5Rising ? "UP" : ema5Falling ? "DOWN" : "FLAT"}; EMA20 slope: ${ema20Rising ? "UP" : ema20Falling ? "DOWN" : "FLAT"}`
+    ],
+    riskFlags: [], summary: reason, strategy: "EMA_5_20_RELAXED_TREND_FLOW",
     provider: "LOCAL_TECHNICAL", metrics
   };
 }
@@ -155,7 +164,7 @@ export async function analyzeMarket(candles, options = {}) {
     evidence: Array.isArray(decisionResult.evidence) ? decisionResult.evidence : [],
     analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
     analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES },
-    signalReleaseStatus: "EMA_5_20_WICK_REJECTION_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalReleaseStatus: "EMA_5_20_RELAXED_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 
