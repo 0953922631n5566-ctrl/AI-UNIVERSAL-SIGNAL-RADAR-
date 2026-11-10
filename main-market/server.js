@@ -882,10 +882,10 @@ app.get("/health", (_req, res) => {
       signalRuntimeLock: false,
       signalReleaseStatus: "EMA5_ONLY_TREND_FLOW_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
-        emaFast: 5, emaTrend: 20,
+        emaFast: 5, emaTrend: 20, emaTrendRole: "INFORMATIONAL_ONLY",
         touchRule: "NOT_REQUIRED",
-        proximityRule: "DISTANCE_TO_EMA5_WITHIN_0_35_ATR",
-        trendFlowRule: "EMA5_AND_EMA20_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
+        proximityRule: "NOT_REQUIRED",
+        trendFlowRule: "EMA5_POSITION_AND_EMA5_SLOPE_PLUS_DIRECTIONAL_MOMENTUM",
         directionalSource: "CLOSED_M1_CANDLES_ONLY",
         externalAi: false
       }
