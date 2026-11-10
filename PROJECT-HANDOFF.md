@@ -1846,3 +1846,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` returned `strategy=EMA5_ONLY_TREND_FLOW`, EMA5 position/slope/momentum metrics, and a fresh streaming feed. At the observation time, the candidate was awaiting the T-5 finalization window as designed.
 - Follow-up commit `31ba306378674644167f399b170744922c3c09e0` corrected both health architecture fields to `EMA5_ONLY_TREND_FLOW` and `SOURCE_GATE_TO_EMA5_ONLY_TREND_FLOW_TO_TIMING_GUARD`; Render deploy `dep-dbpb9u67bikc73dcmjrg` reached `live`. Final documentation commit `427406fc250967e7d49c6cb0e22713cb04d1a17b` also reached `live` as deploy `dep-dbpb9vbnv7mc73bhr830`.
 - No external broker orders are placed. OOS/backtest/paper-trading validation remains outstanding.
+
+
+## 2026-11-10 — Multi-Stage Reversal Detection (isolated feature branch; PR validation pending)
+
+- User approved Dual-Stage Warning & Confirmation (three visible states): TREND, REVERSAL_WARNING, REVERSAL_CONFIRMED for EUR/USD M1 Main Market.
+- Feature branch: feature/multi-stage-reversal-detection, created from production main-market. No production branch or Render service was changed.
+- Important baseline reconciliation: the current production main-market after PR #64 is EMA5-only local analysis; the Gemini helper exists but was not active in the live decision route. The user explicitly requested Gemini for this feature, so this branch reactivates Gemini as the sole directional analyst, with EMA5 and reversal detection as deterministic system guards. The production branch remains untouched.
+- Added main-market/src/reversal-detection.js:
+  - TREND uses closed M1 price position and EMA5 slope.
+  - REVERSAL_WARNING is an early non-directional caution based on RSI divergence, rejection wick, or fading short-term momentum; it suppresses continuation signals and does not issue an opposite-side order signal.
+  - REVERSAL_CONFIRMED requires a closed M1 close beyond the previous six-candle micro swing high/low.
+- Updated main-market/src/analyzer.js to retain the existing source-quality/freshness gate, pass the 54 closed M1 candles and technical context to Gemini, require Gemini agreement with EMA5 during TREND, suppress directional output during REVERSAL_WARNING, and require Gemini to agree with the confirmed reversal direction during REVERSAL_CONFIRMED. EMA20 is not a directional filter.
+- Updated the Gemini prompt with EMA5 and reversal-stage semantics; updated health architecture metadata to report Gemini + multi-stage reversal; added syntax check for the new module.
+- Added unit tests for Gemini integration, early warning before EMA5 cross, confirmed swing break, insufficient history, and existing data guards. GitHub Actions results are pending; no test pass is claimed until CI completes.
+- No Telegram chat messages, APK, OCR, OTC, broker execution, or Render deployment changes are included. Manual trading only. No predictive accuracy or profitability is claimed; backtest/OOS/paper validation remains required.
