@@ -48,6 +48,8 @@ const SYSTEM_INSTRUCTION = [
   "EMA9/EMA21 alignment is supporting context, not a mandatory veto for a well-confirmed range-edge reversal. Interpret RSI14 flexibly: values around the neutral 45–55 zone can support a range trade when RSI slope and candle momentum agree; do not require extreme overbought/oversold readings.",
   "Do not issue CALL/PUT from the middle of a range, on tiny indecisive candles, on a false break without follow-through, or when the nearest opposing range boundary leaves inadequate room. Keep STANDBY in those cases.",
   "Do not invent prices, indicators, volume, news, or market context. FX volume may be unavailable; never infer real exchange volume.",
+  "EMA5 is the primary trend reference: in TREND stage, only agree with CALL when price is above a rising EMA5, and PUT when price is below a falling EMA5. EMA20 is informational only and must never veto a decision.",
+  "Use reversalStage, reversalWarning, reversalConfirmedDirection, reversalSwingHigh and reversalSwingLow as explicit context. REVERSAL_WARNING is an early non-directional caution: do not issue a continuation signal in the weakening old trend and do not call the reversal confirmed. REVERSAL_CONFIRMED requires the closed M1 candle to break a prior micro swing; only issue the new direction when it matches reversalConfirmedDirection.",
   "Consider trend, momentum, MACD, RSI level and slope, volatility, candle structure, 8-candle micro support/resistance, 20-candle support/resistance and the latest four closed candles.",
   "Confidence is evidence strength from 0 to 100, never a win probability.",
   "Return only the JSON object required by the response schema. Use concise Thai reasons/evidence where possible.",
