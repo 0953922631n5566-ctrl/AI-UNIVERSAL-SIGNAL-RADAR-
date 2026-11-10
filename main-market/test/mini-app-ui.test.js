@@ -25,15 +25,21 @@ test("Mini App shows non-directional PREPARE at T-10 and CALL/PUT at T-5 for 30 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.match(html, /EMA5 ONLY TREND FLOW/);
+  assert.match(html, /GEMINI · EMA5 MULTI-STAGE REVERSAL/);
   assert.match(html, /EMA5/);
-  assert.match(html, /EMA5 ONLY TREND FLOW/);
-  assert.doesNotMatch(html, /EMA 3\/8\/50|Gemini|GEMINI|geminiQuota/);
+  assert.match(html, /REVERSAL WARNING/);
+  assert.match(html, /REVERSAL CONFIRMED/);
+  assert.match(html, /id="reversal"/);
+  assert.match(html, /m\.reversal\?\.stage/);
+  assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
 });
 
-test("Mini App identifies EMA5 Only Trend Flow and removes obsolete analyzer branding", () => {
-  assert.match(html, /EMA5 ONLY TREND FLOW/);
-  assert.doesNotMatch(html, /GEMINI|Gemini|geminiQuota|quotaRequests|quota429/);
+test("Mini App identifies Gemini EMA5 multi-stage reversal and exposes all three stages", () => {
+  assert.match(html, /GEMINI · EMA5 MULTI-STAGE REVERSAL/);
+  assert.match(html, /TREND · แนวโน้ม EMA5 ยังทำงาน/);
+  assert.match(html, /REVERSAL WARNING · แรงเดิมเริ่มอ่อน/);
+  assert.match(html, /REVERSAL CONFIRMED · โครงสร้างราคาเปลี่ยนแล้ว/);
+  assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
