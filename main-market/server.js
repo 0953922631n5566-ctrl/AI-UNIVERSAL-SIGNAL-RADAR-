@@ -11,6 +11,7 @@ import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
+import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
@@ -44,7 +45,7 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    pendingForecast: null, forecastHistory: [],
+    pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -219,6 +220,8 @@ async function evaluate(feed) {
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+ const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
+ feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
@@ -290,8 +293,17 @@ async function evaluate(feed) {
      feed.alertId = `${targetCandleEpoch}:${result.signal}`;
      feed.pendingForecast = {
        alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
-       targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null
+       targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
+       mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN"
      };
+     if (recoveryWindow.mode === "RECOVERY_SHADOW") {
+       feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
+       console.info("[recovery] shadow_attempt", {
+         symbol: feed.symbol, alertId: feed.alertId, signal: result.signal,
+         targetCandleEpoch, score: result.score ?? null,
+         mode: "SHADOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
+       });
+     }
      result.reason = "ยืนยันสัญญาณ T-5 สำหรับเข้าแท่ง M1 ถัดไป";
    } else {
      result.signal = "STANDBY";
@@ -358,21 +370,40 @@ function applyTick(feed, price, epoch) {
     if (current) {
       current.live = false;
       const pending = feed.pendingForecast;
-      if (pending && pending.targetCandleEpoch === current.epoch &&
-          Number.isFinite(pending.entryPrice) && pending.entryPrice > 0 &&
-          Number.isFinite(current.close) && current.close > 0) {
-        const outcome = current.close === pending.entryPrice ? "FLAT"
-          : pending.signal === "CALL"
-            ? current.close > pending.entryPrice ? "WIN" : "LOSS"
-            : current.close < pending.entryPrice ? "WIN" : "LOSS";
+      if (pending && pending.targetCandleEpoch === current.epoch) {
+        const evaluated = evaluateM1Outcome(pending.signal, current);
         const record = {
-          ...pending, exitAt: Date.now(), exitPrice: current.close,
-          outcome, priceChange: current.close - pending.entryPrice
+          ...pending,
+          entryAt: current.epoch * 1000,
+          entryPrice: evaluated.entryPrice,
+          exitAt: Date.now(),
+          exitPrice: evaluated.exitPrice,
+          outcome: evaluated.outcome,
+          outcomeReason: evaluated.reason,
+          entryPriceBasis: "TWELVE_DATA_STREAM_M1_OPEN",
+          exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
+          priceChange: Number.isFinite(evaluated.entryPrice) && Number.isFinite(evaluated.exitPrice)
+            ? evaluated.exitPrice - evaluated.entryPrice : null
         };
         feed.forecastHistory.push(record);
         feed.forecastHistory = feed.forecastHistory.slice(-100);
         feed.pendingForecast = null;
-        console.info("[forecast] next-M1 result", record);
+        if (pending.mode === "RECOVERY_SHADOW") {
+          feed.recoveryState = settleRecoveryAttempt(feed.recoveryState, record);
+          console.info("[recovery] shadow_result", {
+            symbol: feed.symbol, alertId: pending.alertId, outcome: record.outcome,
+            recoveryState: feed.recoveryState.status,
+            note: "SHADOW_ONLY_NO_MARTINGALE_NO_EXTRA_SIGNAL"
+          });
+        } else if (record.outcome === "LOSS") {
+          feed.recoveryState = armRecoveryAfterLoss(feed.recoveryState, record);
+          console.info("[recovery] shadow_armed", {
+            symbol: feed.symbol, lossAlertId: pending.alertId,
+            armedUntilCandleEpoch: feed.recoveryState.expiresAtCandleEpoch,
+            maxAttempts: 1
+          });
+        }
+        console.info("[forecast] next-M1 open-to-close result", record);
       }
     }
     feed.candles.push({
@@ -390,11 +421,6 @@ function applyTick(feed, price, epoch) {
 
   feed.lastTick = price;
   feed.tickAt = Date.now();
-  if (feed.pendingForecast?.targetCandleEpoch === minute &&
-      !Number.isFinite(feed.pendingForecast.entryPrice)) {
-    feed.pendingForecast.entryAt = feed.tickAt;
-    feed.pendingForecast.entryPrice = price;
-  }
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
