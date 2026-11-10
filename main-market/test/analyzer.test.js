@@ -393,7 +393,7 @@ function slopeShiftCandles(direction = 1, count = 54) {
   const candles = [];
   let previous = 1.1;
   for (let i = 0; i < count; i++) {
-    const close = 1.1 - i * 0.00004;
+    const close = 1.1 - direction * i * 0.00004;
     const open = previous;
     candles.push({
       epoch: start + i * 60, open,
