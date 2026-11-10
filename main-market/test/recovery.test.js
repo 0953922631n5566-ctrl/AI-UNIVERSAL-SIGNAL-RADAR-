@@ -22,7 +22,7 @@ test("equal open and close is FLAT, while invalid OHLC is UNKNOWN", () => {
   assert.equal(evaluateM1Outcome("WAIT", candle(1.1, 1.1002)).outcome, "UNKNOWN");
 });
 
-test("only a normal LOSS arms one shadow recovery window", () => {
+test("only a normal LOSS arms one active recovery window", () => {
   const initial = createRecoveryState();
   const armed = armRecoveryAfterLoss(initial, { alertId: "normal-loss",
     targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "NORMAL" });
@@ -31,22 +31,22 @@ test("only a normal LOSS arms one shadow recovery window", () => {
   assert.equal(armRecoveryAfterLoss(initial, { alertId: "normal-win",
     targetCandleEpoch: 1_800_000_000, outcome: "WIN", mode: "NORMAL" }).status, "IDLE");
   assert.equal(armRecoveryAfterLoss(initial, { alertId: "recovery-loss",
-    targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "RECOVERY_SHADOW" }).status, "IDLE");
+    targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "RECOVERY_ACTIVE" }).status, "IDLE");
 });
 
 test("recovery waits for a fresh valid T-5 candidate and expires after three M1 windows", () => {
   const armed = armRecoveryAfterLoss(createRecoveryState(), { alertId: "loss",
     targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "NORMAL" });
-  assert.equal(inspectRecoveryWindow(armed, 1_800_000_060).mode, "RECOVERY_SHADOW");
-  assert.equal(inspectRecoveryWindow(armed, 1_800_000_120).mode, "RECOVERY_SHADOW");
-  assert.equal(inspectRecoveryWindow(armed, 1_800_000_180).mode, "RECOVERY_SHADOW");
+  assert.equal(inspectRecoveryWindow(armed, 1_800_000_060).mode, "RECOVERY_ACTIVE");
+  assert.equal(inspectRecoveryWindow(armed, 1_800_000_120).mode, "RECOVERY_ACTIVE");
+  assert.equal(inspectRecoveryWindow(armed, 1_800_000_180).mode, "RECOVERY_ACTIVE");
   const expired = inspectRecoveryWindow(armed, 1_800_000_240);
   assert.equal(expired.mode, "NORMAL");
   assert.equal(expired.state.status, "IDLE");
   assert.equal(expired.state.lastOutcome, "EXPIRED");
 });
 
-test("one shadow attempt is marked once and any final outcome closes recovery without rearming", () => {
+test("one active recovery attempt is marked once and any final outcome closes recovery without rearming", () => {
   const armed = armRecoveryAfterLoss(createRecoveryState(), { alertId: "loss",
     targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "NORMAL" });
   const pending = markRecoveryAttempt(armed, { alertId: "recovery-1", signalAt: 123 });
@@ -57,11 +57,11 @@ test("one shadow attempt is marked once and any final outcome closes recovery wi
     assert.equal(settled.status, "IDLE");
     assert.equal(settled.lastOutcome, outcome);
     assert.equal(armRecoveryAfterLoss(settled, { alertId: "recovery-1",
-      targetCandleEpoch: 1_800_000_060, outcome: "LOSS", mode: "RECOVERY_SHADOW" }).status, "IDLE");
+      targetCandleEpoch: 1_800_000_060, outcome: "LOSS", mode: "RECOVERY_ACTIVE" }).status, "IDLE");
   }
 });
 
-test("policy is shadow-only, one attempt, one-minute expiry, no Martingale", () => {
-  assert.deepEqual(RECOVERY_POLICY, { mode: "SHADOW_ONLY", expiryMinutes: 1,
+test("policy is active, one attempt, one-minute expiry, no Martingale", () => {
+  assert.deepEqual(RECOVERY_POLICY, { mode: "ACTIVE", expiryMinutes: 1,
     maxAttemptsPerLoss: 1, maxWaitCandles: 3, martingale: false, minimumScore: 65 });
 });
