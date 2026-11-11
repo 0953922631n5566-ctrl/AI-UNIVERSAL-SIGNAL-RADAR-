@@ -21,7 +21,7 @@
     "displayName": "Gemini Primary · Confidence 80+ · EMA5 + Candle Quality + Risk Guard",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
+    "executionModel": "GEMINI_EXTERNAL_PRIMARY_WITH_LOCAL_REJECTION_GUARD",
     "decisionAuthority": "GEMINI_PRIMARY_WITH_REJECTION_ONLY_ACCURACY_GUARD",
     "directionalVoters": 1,
     "aggregator": 0,
