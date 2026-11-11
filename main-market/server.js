@@ -105,8 +105,18 @@ function publicFeed(feed) {
     STALE: "ราคา Streaming เก่าเกินกำหนด — ปิด CALL/PUT",
     CHECKING: "กำลังตรวจสอบประวัติข้อมูลจาก Twelve Data"
   };
+  const confidence = Number.isFinite(analysis.confidence) ? analysis.confidence : null;
+  const accuracyGuard = analysis.accuracyGuard || {
+    status: analysis.provider === "GEMINI" && confidence !== null && confidence < 80
+      ? "REJECTED" : analysis.provider === "GEMINI" && ["CALL", "PUT"].includes(analysis.signal)
+        ? "PASSED" : "WAITING",
+    minimumConfidence: 80,
+    reason: analysis.provider === "GEMINI" && confidence !== null && confidence < 80
+      ? "Gemini evidence confidence below 80/100" : null
+  };
   return {
     ...analysis,
+    accuracyGuard,
     symbol: feed.symbol,
     selected: feed.symbol === selectedSymbol,
     supportStatus: status,
