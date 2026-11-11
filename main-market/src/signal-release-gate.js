@@ -9,6 +9,6 @@ export function applySignalReleaseGate(result) {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseLocked: false,
     signalValidationStatus: SIGNAL_VALIDATION_STATUS,
-    signalValidationNote: "Accuracy Lab เป็นตัววิเคราะห์สัญญาณหลักเพียงตัวเดียว · ใช้ระบบข้อมูลและจังหวะแจ้งเตือนเดิม · ยังไม่มีผลทดสอบ out-of-sample · ไม่มีการส่งคำสั่งซื้อขายอัตโนมัติ"
+    signalValidationNote: "TREND ONLY · UPTREND (HH/HL) อนุญาตเฉพาะ CALL · DOWNTREND (LH/LL) อนุญาตเฉพาะ PUT · SIDEWAY/UNCLEAR/TRANSITION/HIGH VOLATILITY งดสัญญาณ · ยังไม่มีผลทดสอบ out-of-sample · ไม่มีการส่งคำสั่งซื้อขายอัตโนมัติ"
   };
 }
