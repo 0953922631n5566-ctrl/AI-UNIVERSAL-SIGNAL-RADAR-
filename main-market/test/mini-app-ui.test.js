@@ -5,6 +5,8 @@ import { Script } from "node:vm";
 
 const html = readFileSync(new URL("../public/signal.html", import.meta.url), "utf8");
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const analyzerJs = readFileSync(new URL("../src/analyzer.js", import.meta.url), "utf8");
+const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("Mini App includes all six selectable currency pairs and ten API slots", () => {
   for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
@@ -31,6 +33,13 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /m\.confidence/);
   assert.match(html, /GEMINI ANALYSIS/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
+});
+
+test("T-10 PREPARE alert can warn on a Gemini candidate rejected by the final guard without releasing CALL/PUT", () => {
+  assert.match(analyzerJs, /candidateSignal: \["CALL", "PUT"\]\.includes\(result\.signal\) \? result\.signal : null/);
+  assert.match(serverJs, /hasWatchCandidate = \["CALL", "PUT"\]\.includes\(result\.candidateSignal \|\| result\.signal\)/);
+  assert.match(serverJs, /\(result\.signal === "CALL" \|\| result\.signal === "PUT"\)/);
+  assert.match(serverJs, /PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5/);
 });
 
 test("Mini App identifies Gemini Primary and exposes accuracy guard status", () => {
