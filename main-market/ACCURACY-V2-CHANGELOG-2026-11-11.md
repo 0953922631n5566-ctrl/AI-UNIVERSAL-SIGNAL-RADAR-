@@ -19,3 +19,5 @@ Scope: analyzer-only update on `main-market`.
 - Added regression tests for diagnostics, compressed chop, late-entry suppression and CALL/PUT symmetry.
 - Passing CI and live deployment verification are required before describing this change as production-ready.
 - This is a rule-based filter improvement, not proof of predictive accuracy or profitability. Backtest, out-of-sample and paper-trading validation remain necessary.
+
+- Test contract updated to assert the two additional guard thresholds (`minDirectionalGap=8`, `maxEntryExtensionAtr=1.65`).
