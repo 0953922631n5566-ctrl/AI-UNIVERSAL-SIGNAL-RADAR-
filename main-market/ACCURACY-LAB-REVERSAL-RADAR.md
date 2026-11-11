@@ -9,3 +9,13 @@
 - A warning is not a confirmed reversal. Confirmation requires score threshold, a confirming close, and either a structure break or a slope turn with rejection evidence.
 - This is a research hypothesis, not a validated trading edge. Unit tests alone do not authorize promotion.
 - Release gate: run full CI, replay the same historical closed M1 candles against ORIGINAL 84, compare CALL and PUT separately and signal coverage, then forward paper-test. Only then request separate production promotion approval.
+
+
+## FULL MARKET INTELLIGENCE — shadow-only extension
+
+- Added `src/accuracy-lab/market-intelligence.js` to the same Accuracy Lab branch.
+- Evaluates closed M1 candles only and requires at least 40 valid candles.
+- Diagnostics: trend regime, Sideway risk, ADX proxy, EMA5/EMA20 slope, ATR expansion/compression, candle body/wicks, swing structure, false breakouts, pullback, continuation, breakout and retest candidates.
+- The module returns a shadow setup candidate or a wait/no-trade guard. A candidate is not an instruction to trade and has not been proven profitable.
+- Integrated as `marketIntelligence` in the existing Mini App feed. It does not modify the production analyzer result, ORIGINAL 84 decision authority, alerts, T-10/T-5 timing, or broker execution.
+- Validation still required: full CI, historical replay without look-ahead, out-of-sample evaluation, and forward paper testing by CALL/PUT and regime.
