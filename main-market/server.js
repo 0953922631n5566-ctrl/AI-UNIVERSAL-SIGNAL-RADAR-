@@ -96,6 +96,10 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
+  const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
+    ? feed.lastTick : null;
+  const latestCandle = feed.candles.at(-1);
+  const restLastPrice = Number.isFinite(latestCandle?.close) ? latestCandle.close : null;
   const messages = {
     UNSUPPORTED: feed.restMessage,
     LOCKED: globalLockMessage || feed.restMessage,
@@ -107,6 +111,10 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
+    // Display a verified recent tick when available; otherwise show the latest real REST candle close.
+    // This is presentation/data availability only and does not relax streaming requirements for signals.
+    price: freshTick ?? restLastPrice,
+    lastPrice: restLastPrice,
     symbol: feed.symbol,
     selected: feed.symbol === selectedSymbol,
     supportStatus: status,
@@ -117,7 +125,7 @@ function publicFeed(feed) {
       : ["LOCKED", "STALE", "DATA_ERROR", "UNSUPPORTED"].includes(status) ? "LOCKED"
       : monitoring ? "CONNECTING" : "OFFLINE",
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
-    lastTickPrice: feed.lastTick,
+    lastTickPrice: freshTick,
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
@@ -434,8 +442,9 @@ function applyTick(feed, price, epoch) {
   void evaluate(feed).then(publish).catch(error => console.error("[radar] tick analysis failed", error.message));
 }
 
-async function syncSelected({ force = false } = {}) {
-  const feed = feeds.get(selectedSymbol);
+async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
+  const feed = feeds.get(symbol);
+  if (!feed) return;
   if (feed.restSyncPromise) return feed.restSyncPromise;
   if (!force && feed.restStatus === "READY" && feed.lastRestSyncAt &&
       Date.now() - feed.lastRestSyncAt < REST_SYNC_SECONDS * 1000) return;
@@ -444,7 +453,7 @@ async function syncSelected({ force = false } = {}) {
   feed.restSyncPromise = (async () => {
     try {
       const response = await fetchCandles({
-        keyPool: twelveDataKeyPool, symbol: selectedSymbol,
+        keyPool: twelveDataKeyPool, symbol,
         interval: INTERVAL, outputsize: HISTORY_CANDLES
       });
       const live = feed.candles.at(-1);
@@ -459,7 +468,7 @@ async function syncSelected({ force = false } = {}) {
       globalLockMessage = null;
       await evaluate(feed);
       console.info("[radar] REST ready", {
-        symbol: selectedSymbol, candles: response.candles.length,
+        symbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
       });
     } catch (error) {
@@ -476,7 +485,7 @@ async function syncSelected({ force = false } = {}) {
         feed.restStatus = "ERROR";
         lockFeed(feed, "โหลด REST ไม่สำเร็จ: " + error.message);
       }
-      console.error("[radar] REST error", selectedSymbol, error.message);
+      console.error("[radar] REST error", symbol, error.message);
     } finally {
       feed.restSyncPromise = null;
       publish();
@@ -690,7 +699,7 @@ async function start(symbolValue) {
   startWatchdog();
   startSignalTimer();
   publish();
-  await syncSelected({ force: true });
+  await syncSelected({ force: true, symbol });
   if (monitoring) startStream();
   publish();
 }
@@ -711,10 +720,10 @@ async function select(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "เปลี่ยนคู่เงินเป็น " + symbol);
   publish();
-  if (wasMonitoring) {
-    await syncSelected({ force: true });
-    if (monitoring) startStream();
-  }
+  // Always load the newly selected pair's own REST history, even if monitoring is stopped.
+  // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
+  await syncSelected({ force: true, symbol });
+  if (wasMonitoring && monitoring) startStream();
   return true;
 }
 
