@@ -10,6 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -41,6 +42,7 @@ function newFeed(symbol) {
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
+    reversalRadar: null,
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
@@ -147,6 +149,7 @@ function publicFeed(feed) {
       maxAttemptsPerLoss: 1, martingale: false
     },
     preAlertSignal: feed.preAlertSignal,
+    reversalRadar: feed.reversalRadar,
     source: "Twelve Data REST + live-price Streaming"
   };
 }
@@ -244,6 +247,8 @@ async function evaluate(feed) {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
  const result = applySignalReleaseGate(rawResult);
+ // Shadow-only diagnostic: closed M1 candles only; never mutates result or signal timing.
+ feed.reversalRadar = detectReversalRadar(feed.candles.filter(candle => candle && candle.live !== true).slice(-50));
 
 
  if (feed.activeSignal && now >= feed.activeUntil) {
