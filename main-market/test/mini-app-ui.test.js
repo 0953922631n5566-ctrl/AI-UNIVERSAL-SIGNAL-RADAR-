@@ -37,7 +37,7 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
 });
 
 test("Mini App presents Accuracy Lab diagnostics instead of the former weighted score display", () => {
-  assert.ok(html.includes("ACCURACY LAB · PRIMARY SIGNAL ENGINE"));
+  assert.ok(html.includes("ACCURACY LAB · TREND ONLY SIGNAL ENGINE"));
   assert.match(html, /ACCURACY LAB SETUP/);
   assert.match(html, /m\.entryType/);
   assert.match(html, /m\.metrics\?\.adxProxy/);
