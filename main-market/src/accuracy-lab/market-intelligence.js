@@ -72,8 +72,8 @@ function analyze(c){
  const retestUp=c.slice(-4,-1).some(v=>Math.abs(v.low-swingHigh)<atr*.18)&&last.close>swingHigh;
  const retestDown=c.slice(-4,-1).some(v=>Math.abs(v.high-swingLow)<atr*.18)&&last.close<swingLow;
  const candidates=[
-  {direction:"CALL",setup:"EARLY_SEQUENCE",evidence:earlySequenceUp?["เริ่มเรียงแท่งขาขึ้น 2–3 แท่ง","EMA5 เริ่มหันขึ้นและราคายังไม่ยืดห่าง"]:[],score:earlySequenceUp?82:0},
-  {direction:"PUT",setup:"EARLY_SEQUENCE",evidence:earlySequenceDown?["เริ่มเรียงแท่งขาลง 2–3 แท่ง","EMA5 เริ่มหันลงและราคายังไม่ยืดห่าง"]:[],score:earlySequenceDown?82:0},
+  {direction:"CALL",setup:"CONTINUATION",phase:"EARLY_SEQUENCE",evidence:earlySequenceUp?["เริ่มเรียงแท่งขาขึ้น 2–3 แท่ง","EMA5 เริ่มหันขึ้นและราคายังไม่ยืดห่าง"]:[],score:earlySequenceUp?82:0},
+  {direction:"PUT",setup:"CONTINUATION",phase:"EARLY_SEQUENCE",evidence:earlySequenceDown?["เริ่มเรียงแท่งขาลง 2–3 แท่ง","EMA5 เริ่มหันลงและราคายังไม่ยืดห่าง"]:[],score:earlySequenceDown?82:0},
   {direction:"CALL",setup:"PULLBACK",evidence:pullbackUp?["แนวโน้มขาขึ้นและราคาย่อตัวกลับเหนือ EMA5"]:[],score:pullbackUp?72:0},
   {direction:"PUT",setup:"PULLBACK",evidence:pullbackDown?["แนวโน้มขาลงและราคาดีดกลับใต้ EMA5"]:[],score:pullbackDown?72:0},
   {direction:"CALL",setup:"CONTINUATION",evidence:continuationUp?["แรงซื้อปิดเหนือ high แท่งก่อน โดยไม่ไล่ราคาที่สุดแล้ว"]:[],score:continuationUp?76:0},
@@ -97,7 +97,7 @@ function analyze(c){
   candle:{bodyRatio:round(shape.bodyRatio,2),upperWick:round(shape.upperWick,2),lowerWick:round(shape.lowerWick,2)},
   structure:{...x.structure,swingHigh,swingLow,breakoutUp,breakoutDown,retestUp,retestDown},
   trendOnly:true,allowedDirection:trendDirection,candidates,
-  setup:setup?{direction:setup.direction,type:setup.setup,score:setup.score,evidence:setup.evidence}:null,
+  setup:setup?{direction:setup.direction,type:setup.setup,timing:setup.phase||"STANDARD",score:setup.score,evidence:setup.evidence}:null,
   warnings,reason:setup?`TREND ONLY: ${regime} · ${setup.setup} ผ่านเงื่อนไข`:trendDirection&&(trendDirection==="CALL"?lateEntryUp:lateEntryDown)?`งดเข้า ${trendDirection}: ราคาเคลื่อนที่มาไกล/แท่งเรียงตัวต่อเนื่องมากเกินไป — ป้องกันการไล่ปลายรอบ`:trendDirection?`พบ ${regime} แต่ยังไม่มีจังหวะเริ่มต้นที่เหมาะสม`:`งดเทรด: ${regime} ไม่ใช่แนวโน้มขาขึ้นหรือขาลงที่ยืนยันแล้ว`
  };
 }
