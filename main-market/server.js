@@ -29,9 +29,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ACCURACY LAB FULL MARKET INTELLIGENCE";
-const ARCHITECTURE_ID = "ACCURACY-LAB-FULL-MARKET-INTELLIGENCE";
-const VERSION = "2026-11-11-accuracy-lab-primary-v1";
+const SYSTEM_NAME = "ACCURACY LAB TREND ONLY";
+const ARCHITECTURE_ID = "ACCURACY-LAB-TREND-ONLY";
+const VERSION = "2026-11-11-accuracy-lab-trend-only-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -266,7 +266,7 @@ async function evaluate(feed) {
    evidence: setup?.evidence || lab.warnings || [],
    riskFlags: lab.warnings || [],
    summary: gate.ready ? (lab.reason || "Accuracy Lab") : gate.reason,
-   strategy: "ACCURACY_LAB_FULL_MARKET_INTELLIGENCE",
+   strategy: "ACCURACY_LAB_TREND_ONLY",
    entryType: setup?.type || null,
    provider: "LOCAL_ACCURACY_LAB",
    metrics: {
@@ -285,7 +285,7 @@ async function evaluate(feed) {
    requiredCandles: MIN_CLOSED_CANDLES,
    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
    analyzedAt: new Date(now).toISOString(),
-   signalValidationNote: "Accuracy Lab เป็นตัววิเคราะห์สัญญาณหลักเพียงตัวเดียว · ระบบข้อมูลและจังหวะแจ้งเตือนเดิม · ยังไม่มีผลทดสอบ out-of-sample"
+   signalValidationNote: "Accuracy Lab TREND ONLY · CALL เฉพาะ UPTREND (HH/HL) · PUT เฉพาะ DOWNTREND (LH/LL) · Sideway/transition/high volatility งดสัญญาณ · ยังไม่มีผลทดสอบ out-of-sample"
  };
  const result = applySignalReleaseGate(rawResult);
 
@@ -1005,8 +1005,8 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ACCURACY_LAB_FULL_MARKET_INTELLIGENCE", engines: 1,
-      decisionAuthority: "ACCURACY_LAB_SETUP_SELECTION_WITH_MARKET_REGIME_GUARDS",
+      decisionEngine: "ACCURACY_LAB_TREND_ONLY", engines: 1,
+      decisionAuthority: "TREND_ONLY_HH_HL_LH_LL_EMA5_EMA20_ADX_GUARDS",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_EXISTING_SIGNAL_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ACCURACY_LAB_ONLY_TO_EXISTING_T10_T5_TIMING"
@@ -1015,9 +1015,9 @@ app.get("/health", (_req, res) => {
       provider: "LOCAL_ACCURACY_LAB", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
-      setupFamilies: ["REVERSAL", "PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
-      regimeGuards: ["SIDEWAY", "HIGH_VOLATILITY", "TRANSITION"],
-      thresholds: { minimumSetupScore: 65, minimumClosedCandles: MIN_CLOSED_CANDLES }
+      setupFamilies: ["PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
+      regimeGuards: ["SIDEWAY", "UNCLEAR", "TRANSITION", "HIGH_VOLATILITY"],
+      thresholds: { minimumSetupScore: 70, minimumClosedCandles: MIN_CLOSED_CANDLES }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1048,9 +1048,9 @@ app.get("/health", (_req, res) => {
       signalReleaseStatus: "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED",
       accuracyLab: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
-        setupFamilies: ["REVERSAL", "PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
-        regimeGuards: ["SIDEWAY", "HIGH_VOLATILITY", "TRANSITION"],
-        directionSource: "LOCAL_ACCURACY_LAB_SETUP_ONLY",
+        setupFamilies: ["PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
+        regimeGuards: ["SIDEWAY", "UNCLEAR", "TRANSITION", "HIGH_VOLATILITY"],
+        directionSource: "TREND_ONLY_UPTREND_CALL_DOWNTREND_PUT",
         outOfSampleValidated: false
       }
     }
