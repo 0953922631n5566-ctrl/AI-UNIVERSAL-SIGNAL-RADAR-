@@ -26,9 +26,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-10-api-pool-100-history-recovery-active-v1";
+const SYSTEM_NAME = "GEMINI PRIMARY + ACCURACY GUARD";
+const ARCHITECTURE_ID = "GEMINI-PRIMARY-ACCURACY-GUARD-80-EMA5-CANDLE-ROOM";
+const VERSION = "2026-11-11-gemini-primary-accuracy-guard-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -163,7 +163,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "GEMINI_PRIMARY_ACCURACY_GUARD_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -886,18 +886,20 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_65_AGILE", engines: 1,
-      decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+      decisionEngine: "GEMINI_PRIMARY", engines: 1,
+      decisionAuthority: "GEMINI_PRIMARY_WITH_DETERMINISTIC_REJECTION_ONLY_GUARDS",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_SIDEWAY_ATR_KILL_SWITCH_TO_GEMINI_PRIMARY_TO_ACCURACY_GUARD_TO_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
-      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: true,
-      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
+      provider: "GEMINI", model: process.env.GEMINI_MODEL || "gemini-3.5-flash-lite",
+      configured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
+      role: "SOLE_DIRECTIONAL_ANALYST_WITH_REJECTION_ONLY_ACCURACY_GUARD", externalAiCalls: true,
+      closedCandlesOnly: true, localDirectionalFallback: false,
+      accuracyGuard: { minimumConfidence: 80, requireEma5SlopeAlignment: true,
+        minimumCandleBodyRatio: 0.25, minimumRoomToPriorSwingAtr: 0.25,
+        rejectSideway: true, rejectAtrSpike: true, rejectGeminiRiskFlags: true }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -925,16 +927,15 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "GEMINI_PRIMARY_ACCURACY_GUARD_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
         proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
-        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
-        externalAi: false,
-        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
+        trendFlowRule: "GEMINI_EVIDENCE_WITH_EMA5_BODY_AND_PRIOR_SWING_ROOM_GUARDS",
+        directionalSource: "GEMINI_PRIMARY_ON_CLOSED_M1_CANDLES_ONLY",
+        externalAi: true,
+        minimumGeminiConfidence: 80, minimumCandleBodyRatio: 0.25,
         slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
         supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
         sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",

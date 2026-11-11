@@ -53,7 +53,7 @@ test("M1 scoring window remains 50 context plus 4 entry candles with 100-candle 
 
 test("technical indicator snapshot contains finite M1 EMA, RSI, MACD and ATR values", () => {
   const values = buildTechnicalIndicators(history(80));
-  for (const key of ["ema9", "ema21", "ema50", "emaSpreadPercent", "rsi14", "rsi14Previous", "rsi14Change", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20", "microSupport8", "microResistance8", "microRange8"]) {
+  for (const key of ["ema5", "ema5Previous", "ema5Slope", "ema9", "ema21", "ema50", "emaSpreadPercent", "rsi14", "rsi14Previous", "rsi14Change", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20", "microSupport8", "microResistance8", "microRange8"]) {
     assert.ok(Number.isFinite(values[key]), key + " should be finite");
   }
 });
@@ -549,4 +549,19 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
   assert.equal(result.signal, "CALL");
   assert.equal(result.thresholds.signal, 65);
   assert.equal(result.riskFlags.length, 0);
+});
+
+
+test("Gemini confidence below the accuracy threshold is rejected instead of released", async () => {
+  const candles = history(54, 1);
+  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
+  const result = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/ACCURACY-LOW-CONFIDENCE",
+    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(result.provider, "GEMINI");
+  assert.equal(result.signal, "STANDBY");
+  assert.ok(result.riskFlags.includes("GEMINI_CONFIDENCE_BELOW_THRESHOLD"));
+  assert.equal(result.accuracyGuard.status, "REJECTED");
 });

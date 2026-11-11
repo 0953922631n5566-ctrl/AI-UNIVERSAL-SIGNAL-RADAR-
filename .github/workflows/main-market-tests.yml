@@ -1,0 +1,31 @@
+name: Main Market Node Tests
+
+on:
+  pull_request:
+    paths:
+      - 'main-market/**'
+      - '.github/workflows/main-market-tests.yml'
+  push:
+    branches:
+      - main-market
+    paths:
+      - 'main-market/**'
+      - '.github/workflows/main-market-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies and run postinstall checks
+        working-directory: main-market
+        run: npm install
+      - name: Run Main Market tests
+        working-directory: main-market
+        run: npm test

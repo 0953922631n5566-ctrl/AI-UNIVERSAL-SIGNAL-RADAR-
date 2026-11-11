@@ -95,6 +95,7 @@ export function buildTechnicalIndicators(candles) {
   const recent = candles.slice(-4);
   const supportWindow = candles.slice(-20);
   const microWindow = candles.slice(-8);
+  const ema5 = ema(closes, 5), ema5Previous = ema(closes.slice(0, -1), 5);
   const ema12 = ema(closes, 12), ema26 = ema(closes, 26);
   const ema9 = ema(closes, 9), ema21 = ema(closes, 21);
   const currentRsi = rsi(closes, 14);
@@ -110,6 +111,7 @@ export function buildTechnicalIndicators(candles) {
   const atr14 = ranges.length >= 14 ? ranges.slice(-14).reduce((a, b) => a + b, 0) / 14 : null;
   const range = last.high - last.low;
   return {
+    ema5, ema5Previous, ema5Slope: ema5 !== null && ema5Previous !== null ? ema5 - ema5Previous : null,
     ema9, ema21, ema50: ema(closes, 50),
     emaSpreadPercent: ema9 !== null && ema21 !== null && last.close > 0 ? (ema9 - ema21) / last.close * 100 : null,
     rsi14: currentRsi, rsi14Previous: previousRsi,
