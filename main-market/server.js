@@ -9,8 +9,9 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
+import { sourceGate } from "./src/analyzer.js";
 import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
+import { analyzeMarketIntelligence } from "./src/accuracy-lab/market-intelligence.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -28,8 +29,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
+const SYSTEM_NAME = "ACCURACY LAB FULL MARKET INTELLIGENCE";
+const ARCHITECTURE_ID = "ACCURACY-LAB-FULL-MARKET-INTELLIGENCE";
 const VERSION = "2026-11-11-streaming-reconnect-v1";
 const app = express();
 const server = http.createServer(app);
@@ -42,7 +43,7 @@ function newFeed(symbol) {
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
-    reversalRadar: null,
+    reversalRadar: null, marketIntelligence: null,
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
@@ -150,6 +151,7 @@ function publicFeed(feed) {
     },
     preAlertSignal: feed.preAlertSignal,
     reversalRadar: feed.reversalRadar,
+    marketIntelligence: feed.marketIntelligence,
     source: "Twelve Data REST + live-price Streaming"
   };
 }
@@ -175,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -242,13 +244,50 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ // ORIGINAL 84 is intentionally not called. Accuracy Lab is the only directional analyst.
+ // Keep the existing source-quality gate, Twelve Data feed, and signal timing unchanged.
+ const gate = sourceGate(feed.candles, {
+   now, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
+ const closedCandles = gate.closed.slice(-MIN_CLOSED_CANDLES);
+ feed.reversalRadar = detectReversalRadar(closedCandles);
+ feed.marketIntelligence = analyzeMarketIntelligence(closedCandles);
+ const lab = feed.marketIntelligence;
+ const setup = gate.ready ? lab.setup : null;
+ const direction = setup?.direction === "CALL" || setup?.direction === "PUT"
+   ? setup.direction : "STANDBY";
+ const rawResult = {
+   signal: direction,
+   regime: lab.regime || "UNCLEAR",
+   confidence: setup?.score || 0,
+   score: setup?.score || 0,
+   reason: gate.ready ? (lab.reason || "Accuracy Lab: รอเงื่อนไขที่ผ่านเกณฑ์")
+     : (gate.reason || "ข้อมูลตลาดยังไม่พร้อม"),
+   evidence: setup?.evidence || lab.warnings || [],
+   riskFlags: lab.warnings || [],
+   summary: gate.ready ? (lab.reason || "Accuracy Lab") : gate.reason,
+   strategy: "ACCURACY_LAB_FULL_MARKET_INTELLIGENCE",
+   entryType: setup?.type || null,
+   provider: "LOCAL_ACCURACY_LAB",
+   metrics: {
+     sidewayScore: lab.sidewayScore ?? null,
+     adxProxy: lab.adxProxy ?? null,
+     ema5Slope: lab.ema5Slope ?? null,
+     ema20Slope: lab.ema20Slope ?? null,
+     volatilityRatio: lab.volatilityRatio ?? null,
+     structure: lab.structure || null
+   },
+   lastCandleEpoch: gate.lastCandleEpoch,
+   dataMode: gate.mode,
+   ageSeconds: gate.ageSeconds,
+   livePriceReady: gate.ready,
+   closedCandleCount: gate.closed.length,
+   requiredCandles: MIN_CLOSED_CANDLES,
+   analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+   analyzedAt: new Date(now).toISOString(),
+   signalValidationNote: "Accuracy Lab เป็นตัววิเคราะห์สัญญาณหลักเพียงตัวเดียว · ระบบข้อมูลและจังหวะแจ้งเตือนเดิม · ยังไม่มีผลทดสอบ out-of-sample"
+ };
  const result = applySignalReleaseGate(rawResult);
- // Shadow-only diagnostic: closed M1 candles only; never mutates result or signal timing.
- feed.reversalRadar = detectReversalRadar(feed.candles.filter(candle => candle && candle.live !== true).slice(-50));
 
 
  if (feed.activeSignal && now >= feed.activeUntil) {
