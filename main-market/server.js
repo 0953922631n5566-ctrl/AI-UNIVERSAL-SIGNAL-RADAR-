@@ -7,6 +7,7 @@ import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
+import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
@@ -28,14 +29,14 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
 const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-10-api-pool-100-history-recovery-active-v1";
+const VERSION = "2026-11-11-streaming-reconnect-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -529,23 +530,56 @@ function startWatchdog() {
   watchdogTimer = setInterval(async () => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
-    if (feed.tickAt && Date.now() - feed.tickAt > MAX_STREAM_AGE_SECONDS * 1000) {
-      feed.activeSignal = null;
-      feed.activeUntil = 0;
-      feed.analysis = standby("ราคา Streaming ไม่อัปเดตเกิน 25 วินาที");
-      if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "TIMEOUT";
-      await evaluate(feed);
-    } else if (!feed.tickAt && feed.streamStatus === "SUBSCRIBING" &&
-        Date.now() - feed.subscribeAt > 25000) {
-      feed.streamStatus = "TIMEOUT";
-      feed.streamMessage = "ยังไม่ได้รับราคา Streaming ภายใน 25 วินาที";
-      await evaluate(feed);
-    } else if (["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus)) {
-      // REST fallback has no tick events; keep the 40-second signal hold and expiry accurate.
+    const retryReason = getStreamRetryReason({
+      monitoring, selectedSymbol, feedSymbol: feed?.symbol,
+      tickAt: feed?.tickAt, streamStatus: feed?.streamStatus,
+      subscribeAt: feed?.subscribeAt, now: Date.now(),
+      maxStreamAgeMs: MAX_STREAM_AGE_SECONDS * 1000,
+      firstTickTimeoutMs: 25_000
+    });
+    if (retryReason) {
+      retrySelectedStream(feed, retryReason);
+    } else if (feed && ["UNSUPPORTED", "ERROR", "TIMEOUT"].includes(feed.streamStatus)) {
       await evaluate(feed);
     }
     publish();
   }, LIVE_PRICE_CHECK_SECONDS * 1000);
+}
+
+function retrySelectedStream(feed, reason) {
+  if (!monitoring || !feed || selectedSymbol !== feed.symbol) return;
+  const socket = upstream;
+  upstream = null;
+  clearInterval(heartbeatTimer); heartbeatTimer = null;
+  if (feed.streamApiKey) {
+    twelveDataKeyPool.markFailure(feed.streamApiKey, {
+      kind: "TRANSIENT", message: "Streaming feed stalled: " + reason
+    });
+    feed.streamApiKey = null;
+  }
+  if (socket && socket.readyState < WebSocket.CLOSING) {
+    try { socket.close(); } catch {}
+  }
+  feed.tickAt = 0;
+  feed.lastTick = null;
+  feed.activeSignal = null;
+  feed.activeUntil = 0;
+  feed.streamStatus = "TIMEOUT";
+  feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
+    ? "สมัคร Streaming แล้วแต่ยังไม่ได้รับ Tick แรก · กำลังสลับ API Key และเชื่อมต่อใหม่"
+    : "ราคา Streaming ค้างเกินกำหนด · กำลังสลับ API Key และเชื่อมต่อใหม่";
+  console.warn("[radar] Streaming stalled; rotating API key and reconnecting", {
+    symbol: feed.symbol, reason
+  });
+  void evaluate(feed).then(publish).catch(error => console.error("[radar] reconnect analysis failed", error.message));
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (monitoring && selectedSymbol === feed.symbol) {
+      feed.streamStatus = "WAITING";
+      startStream();
+    }
+  }, 1000);
 }
 
 function startStream() {
@@ -562,6 +596,7 @@ function startStream() {
   const feed = feeds.get(symbol);
   feed.streamStatus = "SUBSCRIBING";
   feed.subscribeAt = Date.now();
+  feed.streamApiKey = apiKey;
   feed.streamMessage = "กำลังสมัครรับราคา Streaming";
   let socket;
   try {
@@ -578,6 +613,7 @@ function startStream() {
 
   socket.on("open", () => {
     if (upstream !== socket) return;
+    console.info("[radar] Streaming socket opened; subscription sent", { symbol });
     socket.send(JSON.stringify({ action: "subscribe", params: { symbols: symbol } }));
     heartbeatTimer = setInterval(() => {
       if (socket.readyState === WebSocket.OPEN) {
@@ -596,7 +632,9 @@ function startStream() {
       const price = Number(message.price);
       const timestamp = Number(message.timestamp);
       if (finite(price) && price > 0 && finite(timestamp) && timestamp > 0) {
+        const firstTick = !feed.tickAt;
         twelveDataKeyPool.markSuccess(apiKey);
+        if (firstTick) console.info("[radar] First live Streaming tick received", { symbol, price, timestamp });
         applyTick(feed, price, timestamp);
       }
       return;
@@ -622,12 +660,26 @@ function startStream() {
         retryTimer = setTimeout(startStream, 1000);
         void evaluate(feed).then(publish).catch(error => console.error("[radar] key-rotation analysis failed", error.message));
       } else if (failedSymbol || status === "error" || status === "failed") {
-        feed.streamStatus = "UNSUPPORTED";
+        feed.streamStatus = "ERROR";
         feed.streamMessage = text || "Twelve Data ปฏิเสธการสมัคร Streaming";
+        twelveDataKeyPool.markFailure(apiKey, { kind: "TRANSIENT", message: text || "Streaming subscription rejected" });
+        feed.streamApiKey = null;
+        if (upstream === socket) upstream = null;
+        clearInterval(heartbeatTimer); heartbeatTimer = null;
+        try { socket.close(); } catch {}
+        console.warn("[radar] Streaming subscription rejected; trying next API key", {
+          symbol, status, message: text, failedCount: failed.length
+        });
         void evaluate(feed).then(publish).catch(error => console.error("[radar] subscription analysis failed", error.message));
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (monitoring && selectedSymbol === symbol) startStream();
+        }, 1000);
       } else if (status === "success" || succeeded.length) {
         feed.streamStatus = "SUBSCRIBED";
         feed.streamMessage = "สมัครรับ Streaming แล้ว — รอ tick แรก";
+        console.info("[radar] Streaming subscription accepted; waiting for first tick", { symbol });
       }
       publish();
       return;
@@ -647,7 +699,18 @@ function startStream() {
       } else {
         feed.streamStatus = "ERROR";
         feed.streamMessage = text;
+        twelveDataKeyPool.markFailure(apiKey, { kind: "TRANSIENT", message: text });
+        feed.streamApiKey = null;
+        if (upstream === socket) upstream = null;
+        clearInterval(heartbeatTimer); heartbeatTimer = null;
+        try { socket.close(); } catch {}
+        console.warn("[radar] Streaming provider error; retrying with next API key", { symbol, message: text });
         void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          if (monitoring && selectedSymbol === symbol) startStream();
+        }, 1000);
       }
     }
   });
@@ -691,6 +754,7 @@ async function start(symbolValue) {
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
   feed.lastTick = null;
+  feed.streamApiKey = null;
   feed.streamStatus = "WAITING";
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
@@ -715,6 +779,7 @@ async function select(symbolValue) {
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
   feed.lastTick = null;
+  feed.streamApiKey = null;
   feed.streamStatus = "WAITING";
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
@@ -734,6 +799,7 @@ function stop(clearSignal = true) {
   const feed = feeds.get(selectedSymbol);
   feed.tickAt = 0;
   feed.lastTick = null;
+  feed.streamApiKey = null;
   feed.dataLocked = false;
   if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "WAITING";
   if (clearSignal) resetSignal(feed, "หยุดสแกนแล้ว");
