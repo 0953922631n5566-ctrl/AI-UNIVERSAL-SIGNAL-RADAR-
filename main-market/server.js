@@ -258,8 +258,11 @@ async function evaluate(feed) {
  const activeForCurrentOrNext = Boolean(feed.activeSignal && now < feed.activeUntil &&
    (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
+ // T-10 is a non-directional watch alert: preserve Gemini's candidate even when
+ // Accuracy Guard rejects the final CALL/PUT. T-5 still uses result.signal only.
+ const hasWatchCandidate = ["CALL", "PUT"].includes(result.candidateSignal || result.signal);
  feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   ["PREPARE","CALL","PUT"].includes(result.signal) && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+   hasWatchCandidate && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
