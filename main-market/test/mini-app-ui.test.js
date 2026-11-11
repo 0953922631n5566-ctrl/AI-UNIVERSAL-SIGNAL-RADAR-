@@ -26,7 +26,10 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("ACCURACY LAB FULL MARKET INTELLIGENCE"));
+  assert.ok(html.includes("ACCURACY LAB TREND ONLY"));
+  assert.ok(html.includes("HH/HL = CALL"));
+  assert.ok(html.includes("LH/LL = PUT"));
+  assert.ok(html.includes("NO TRADE"));
   assert.match(html, /m\.score/);
   assert.match(html, /m\.metrics\?\.sidewayScore/);
   assert.match(html, /id="reversal"/);
