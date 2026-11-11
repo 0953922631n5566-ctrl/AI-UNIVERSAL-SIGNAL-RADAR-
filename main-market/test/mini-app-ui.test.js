@@ -5,6 +5,7 @@ import { Script } from "node:vm";
 
 const html = readFileSync(new URL("../public/signal.html", import.meta.url), "utf8");
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("Mini App includes all six selectable currency pairs and ten API slots", () => {
   for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
@@ -14,7 +15,7 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seconds into the next candle", () => {
+test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-second hold", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -25,22 +26,32 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("PARTIAL SCORING 65/45 · CHOPPY/ATR KILL SWITCH"));
-  assert.match(html, /EMA5/);
+  assert.ok(html.includes("ACCURACY LAB · FULL MARKET INTELLIGENCE"));
+  assert.match(html, /m\.score/);
+  assert.match(html, /m\.metrics\?\.sidewayScore/);
   assert.match(html, /id="reversal"/);
-  assert.match(html, /m\.scores\?\.CALL/);
-  assert.match(html, /SCORING BREAKDOWN/);
-  assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
+  assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|m\.scores\?\.CALL|geminiQuota/);
 });
 
-test("Mini App identifies Partial Scoring and exposes weighted score breakdown", () => {
-  assert.ok(html.includes("PARTIAL SCORING 65/45 · CHOPPY/ATR KILL SWITCH"));
-  assert.match(html, /SCORING BREAKDOWN/);
-  assert.match(html, /m\.scores\?\.PUT/);
-  assert.match(html, /m\.components\|\|\{\}/);
-  assert.match(html, /m\.killSwitch/);
-  assert.match(html, /PARTIAL SCORING 65\/45/);
-  assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
+test("Mini App presents Accuracy Lab diagnostics instead of the former weighted score display", () => {
+  assert.ok(html.includes("ACCURACY LAB · PRIMARY SIGNAL ENGINE"));
+  assert.match(html, /ACCURACY LAB SETUP/);
+  assert.match(html, /m\.entryType/);
+  assert.match(html, /m\.metrics\?\.adxProxy/);
+  assert.match(html, /m\.marketIntelligence/);
+  assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|SCORING BREAKDOWN/);
+});
+
+test("server uses Accuracy Lab as the only directional analyzer and retains source/timing guards", () => {
+  assert.match(serverJs, /import \{ sourceGate \} from "\.\/src\/analyzer\.js"/);
+  assert.match(serverJs, /import \{ analyzeMarketIntelligence \} from "\.\/src\/accuracy-lab\/market-intelligence\.js"/);
+  assert.match(serverJs, /const setup = gate\.ready \? lab\.setup : null/);
+  assert.match(serverJs, /const direction = setup\?\.direction/);
+  assert.match(serverJs, /isPrepareAlertWindow/);
+  assert.match(serverJs, /isSignalFinalizeWindow/);
+  assert.match(serverJs, /signalHoldExpiresAt/);
+  assert.doesNotMatch(serverJs, /import \{ analyzeMarket \}/);
+  assert.doesNotMatch(serverJs, /await analyzeMarket\(/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
