@@ -98,8 +98,8 @@ function publicFeed(feed) {
   const analysis = feed.analysis || standby("รอข้อมูล");
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
-  const latestCandle = feed.candles.at(-1);
-  const restLastPrice = Number.isFinite(latestCandle?.close) ? latestCandle.close : null;
+  const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
+  const restLastPrice = Number.isFinite(latestClosedCandle?.close) ? latestClosedCandle.close : null;
   const messages = {
     UNSUPPORTED: feed.restMessage,
     LOCKED: globalLockMessage || feed.restMessage,
