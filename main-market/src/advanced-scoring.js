@@ -154,7 +154,7 @@ export function scoreMarket(candles){
     strategy:"PARTIAL_SCORING_65_AGILE_ACCURACY_V3",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       "CALL "+scores.CALL+"/100 · PUT "+scores.PUT+"/100",
-      "EMA5 Slope "+chosen.components.ema5SlopeReversal+"/30 · S/R Fakeout "+chosen.components.srFakeout+"/30",
+      "EMA5 Slope "+chosen.components.ema5SlopeReversal+"/20 · S/R Fakeout "+chosen.components.srFakeout+"/15",
       "Proximity & Momentum "+chosen.components.proximityMomentum+"/20 · Trend Context "+chosen.components.trendContext+"/20 · Trend Continuation "+chosen.components.trendContinuation+"/25",
       "Continuation: "+(chosen.continuation.pullbackResume?"PULLBACK_RESUME":chosen.continuation.aligned?"TREND_ALIGNED":"NOT_CONFIRMED")+" · Exhaustion: "+(chosen.continuation.exhaustion?"YES":"NO"),
       "Entry close-position "+round1(chosen.quality.closeLocation*100)+"% · body "+round1(chosen.quality.bodyRatio*100)+"% · extension "+round1(chosen.quality.extension)+" ATR",
