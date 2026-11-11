@@ -198,8 +198,8 @@ function applyAccuracyGuard(result, candles, indicators, preflight) {
   const priorResistance = priorWindow.length ? Math.max(...priorWindow.map(c => c.high)) : NaN;
   const priorSupport = priorWindow.length ? Math.min(...priorWindow.map(c => c.low)) : NaN;
   const room = result.signal === "CALL"
-    ? priorResistance - last.close
-    : last.close - priorSupport;
+    ? (last.close >= priorResistance ? atr * 0.25 : priorResistance - last.close)
+    : (last.close <= priorSupport ? atr * 0.25 : last.close - priorSupport);
   if (!Number.isFinite(room) || room < atr * 0.25) {
     return rejected(result, "Accuracy Guard: ระยะถึงแนวต้าน/แนวรับฝั่งตรงข้ามแคบเกินไป",
       "INSUFFICIENT_ROOM_TO_OPPOSING_LEVEL", { ...indicators, roomToOpposingLevel: room });
