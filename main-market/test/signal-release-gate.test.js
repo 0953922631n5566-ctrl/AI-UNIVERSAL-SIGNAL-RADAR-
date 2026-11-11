@@ -15,7 +15,9 @@ test("Accuracy Lab CALL and PUT decisions are preserved with an explicit validat
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
-    assert.match(result.signalValidationNote, /Accuracy Lab/);
+    assert.match(result.signalValidationNote, /TREND ONLY/);
+    assert.match(result.signalValidationNote, /HH\/HL/);
+    assert.match(result.signalValidationNote, /LH\/LL/);
     assert.match(result.signalValidationNote, /out-of-sample/);
     assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
