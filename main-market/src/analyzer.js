@@ -131,7 +131,11 @@ const MIN_GEMINI_CONFIDENCE = 80;
 function rejected(result, reason, flag, metrics) {
   const riskFlags = [...new Set([...(result.riskFlags || []), flag])];
   return {
-    ...result, signal: "STANDBY", status: "STANDBY", prepareSignal: null,
+    ...result,
+    // Keep Gemini's original candidate only for the non-directional T-10 watch alert.
+    // The released signal remains STANDBY unless every Accuracy Guard check passes.
+    candidateSignal: ["CALL", "PUT"].includes(result.signal) ? result.signal : null,
+    signal: "STANDBY", status: "STANDBY", prepareSignal: null,
     reason, summary: reason, riskFlags, metrics,
     accuracyGuard: { status: "REJECTED", minimumConfidence: MIN_GEMINI_CONFIDENCE, reason: flag },
     signalValidationStatus: "GEMINI_PRIMARY_ACCURACY_GUARD_NOT_OOS_VALIDATED"
