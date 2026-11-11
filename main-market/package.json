@@ -17,26 +17,22 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Main Market Advanced Partial Scoring Engine",
-    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
+    "name": "Gemini Primary Accuracy Guard",
+    "displayName": "Gemini Primary · Confidence 80+ · EMA5 + Candle Quality + Risk Guard",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+    "decisionAuthority": "GEMINI_PRIMARY_WITH_REJECTION_ONLY_ACCURACY_GUARD",
     "directionalVoters": 1,
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
-    "externalAiCalls": false,
-    "scoreWeights": {
-      "ema5SlopeReversal": 30,
-      "srFakeout": 30,
-      "proximityMomentum": 20,
-      "trendContext": 20
-    },
-    "thresholds": {
-      "callPut": 65,
-      "prepare": 45,
-      "standbyBelow": 45
+    "externalAiCalls": true,
+    "accuracyGuard": {
+      "minimumGeminiConfidence": 80,
+      "requireEma5PriceAndSlopeAlignment": true,
+      "minimumCandleBodyRatio": 0.25,
+      "minimumRoomToPriorSwingAtr": 0.25,
+      "rejectGeminiRiskFlags": true
     },
     "candles": {
       "context": 50,
