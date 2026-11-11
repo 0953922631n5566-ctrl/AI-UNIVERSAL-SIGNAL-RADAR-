@@ -516,7 +516,7 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
 });
 test("Partial Scoring exposes requested 65/45 agile thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45});
+ assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45,minDirectionalGap:8,maxEntryExtensionAtr:1.65});
 });
 
 function moderateFakeoutCandles(count = 54) {
