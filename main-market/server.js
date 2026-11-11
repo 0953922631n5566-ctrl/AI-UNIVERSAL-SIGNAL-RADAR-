@@ -1017,7 +1017,7 @@ app.get("/health", (_req, res) => {
       closedCandlesOnly: true, localDirectionalFallback: false,
       setupFamilies: ["PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
       regimeGuards: ["SIDEWAY", "UNCLEAR", "TRANSITION", "HIGH_VOLATILITY"],
-      thresholds: { minimumSetupScore: 65, minimumClosedCandles: MIN_CLOSED_CANDLES }
+      thresholds: { minimumSetupScore: 70, minimumClosedCandles: MIN_CLOSED_CANDLES }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
