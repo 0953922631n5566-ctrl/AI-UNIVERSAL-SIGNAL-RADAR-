@@ -83,11 +83,9 @@ function evaluateDirection(candles, trend, direction, ema5, volatility) {
   const components = {
     exhaustion: Math.round(20 * (0.55 * bodyFade + 0.45 * momentumFade) * 10) / 10,
     rejection: Math.round(25 * Math.max(rejection, fakeout ? 1 : 0) * 10) / 10,
-    ema5Turn: Math.round(25 * (slopeTurn ? 0.65 : 0) + 25 * (priceReclaimedEma ? 0.35 : 0) * 10) / 10,
+    ema5Turn: Math.round(25 * ((slopeTurn ? 0.65 : 0) + (priceReclaimedEma ? 0.35 : 0)) * 10) / 10,
     structureBreak: Math.round(30 * (structureBreak ? 1 : 0) * 10) / 10
   };
-  // Correct the EMA component to a 25-point scale after component construction.
-  components.ema5Turn = Math.round(25 * ((slopeTurn ? 0.65 : 0) + (priceReclaimedEma ? 0.35 : 0)) * 10) / 10;
   const score = Math.round(Object.values(components).reduce((sum, value) => sum + value, 0) * 10) / 10;
   const confirmed = score >= 65 && closeConfirms && (structureBreak || (slopeTurn && (fakeout || rejection >= 0.65)));
   const warning = score >= 35;
