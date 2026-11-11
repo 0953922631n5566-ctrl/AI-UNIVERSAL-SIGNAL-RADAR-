@@ -31,7 +31,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "ACCURACY LAB FULL MARKET INTELLIGENCE";
 const ARCHITECTURE_ID = "ACCURACY-LAB-FULL-MARKET-INTELLIGENCE";
-const VERSION = "2026-11-11-streaming-reconnect-v1";
+const VERSION = "2026-11-11-accuracy-lab-primary-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1005,18 +1005,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_65_AGILE", engines: 1,
-      decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
-      safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
+      decisionEngine: "ACCURACY_LAB_FULL_MARKET_INTELLIGENCE", engines: 1,
+      decisionAuthority: "ACCURACY_LAB_SETUP_SELECTION_WITH_MARKET_REGIME_GUARDS",
+      safetyLayer: "SYSTEM_DATA_QUALITY_AND_EXISTING_SIGNAL_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ACCURACY_LAB_ONLY_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
-      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: true,
-      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
+      provider: "LOCAL_ACCURACY_LAB", model: null, configured: true,
+      role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      closedCandlesOnly: true, localDirectionalFallback: false,
+      setupFamilies: ["REVERSAL", "PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
+      regimeGuards: ["SIDEWAY", "HIGH_VOLATILITY", "TRANSITION"],
+      thresholds: { minimumSetupScore: 65, minimumClosedCandles: MIN_CLOSED_CANDLES }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1044,20 +1045,13 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      emaTrendFlow: {
-        emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
-        touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
-        proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
-        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
-        externalAi: false,
-        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
-        slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
-        supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
-        sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
-        volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
+      signalReleaseStatus: "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      accuracyLab: {
+        contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
+        setupFamilies: ["REVERSAL", "PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
+        regimeGuards: ["SIDEWAY", "HIGH_VOLATILITY", "TRANSITION"],
+        directionSource: "LOCAL_ACCURACY_LAB_SETUP_ONLY",
+        outOfSampleValidated: false
       }
     }
   });
