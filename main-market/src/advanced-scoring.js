@@ -44,12 +44,45 @@ function entryQuality(candles,direction,ema5,atr){
   if(extension>0.85)penalty+=Math.min(14,(extension-0.85)*18);
   return {closeLocation,bodyRatio,bodyAligned,extension,penalty:Math.min(24,round1(penalty))};
 }
+function continuationAnalysis(candles,direction,ema5,ema20,atr){
+  const i=candles.length-1,c=candles[i],p=candles[i-1],p2=candles[i-2];
+  const sign=direction==="CALL"?1:-1,bullish=sign===1;
+  const fastSlope=atr>0?sign*(ema5[i]-ema5[i-2])/atr:0;
+  const slowSlope=atr>0?sign*(ema20[i]-ema20[Math.max(0,i-3)])/atr:0;
+  const progress=atr>0?sign*(c.close-candles[Math.max(0,i-4)].close)/atr:0;
+  const aligned=(bullish?c.close>ema5[i]:c.close<ema5[i])&&fastSlope>0;
+  const slopeScore=clamp((fastSlope+0.015)/0.10);
+  const slowScore=clamp((slowSlope+0.01)/0.08);
+  const progressScore=clamp((progress+0.02)/0.55);
+  const priorPullback=bullish
+    ? (p.close<p.open || p.low<=ema5[i-1]+atr*0.35)
+    : (p.close>p.open || p.high>=ema5[i-1]-atr*0.35);
+  const resumed=bullish
+    ? c.close>c.open&&c.close>p.close
+    : c.close<p.open&&c.close<p.close;
+  const closeRange=Math.max(c.high-c.low,1e-10);
+  const closeLocation=bullish?(c.close-c.low)/closeRange:(c.high-c.close)/closeRange;
+  const pullbackResume=priorPullback&&resumed&&closeLocation>=0.55;
+  const score=25*(0.30*slopeScore+0.20*slowScore+0.25*progressScore+0.25*(pullbackResume?1:aligned?0.65:0.2));
+  const latestSlope=atr>0?sign*(ema5[i]-ema5[i-1])/atr:0;
+  const previousSlope=atr>0?sign*(ema5[i-1]-ema5[i-2])/atr:0;
+  const decelerating=previousSlope>0.025&&latestSlope<previousSlope*0.45;
+  const extension=atr>0?Math.abs(c.close-ema5[i])/atr:Infinity;
+  const last3=candles.slice(-3);
+  const impulse=atr>0?Math.abs(last3.at(-1).close-last3[0].open)/atr:0;
+  const body=Math.abs(c.close-c.open),priorBody=Math.abs(p.close-p.open);
+  const exhaustion=(extension>1.25&&(decelerating||closeLocation<0.62))
+    ||(impulse>1.35&&priorBody>0&&body<priorBody*0.55&&closeLocation<0.65);
+  return {score:round1(score),pullbackResume,aligned,fastSlope:round1(fastSlope),
+    slowSlope:round1(slowSlope),progress:round1(progress),decelerating,extension:round1(extension),
+    exhaustion,closeLocation};
+}
 function componentScore(candles,direction,ema5,ema20,atr){
   const n=candles.length,i=n-1,c=candles[i],p=candles[i-1],sign=direction==="CALL"?1:-1,bullish=sign===1;
   const slopeNow=ema5[i]-ema5[i-1],slopePrev=ema5[i-1]-ema5[i-2];
   const slopeNorm=atr>0?sign*slopeNow/atr:0,prevNorm=atr>0?sign*slopePrev/atr:0;
   const shift=clamp((slopeNorm+0.025)/0.10),reversal=clamp((slopeNorm-prevNorm+0.02)/0.10);
-  const slopeScore=30*(0.55*shift+0.45*reversal);
+  const slopeScore=20*(0.55*shift+0.45*reversal);
   const prior=candles.slice(-8,-2),level=bullish?Math.min(...prior.map(x=>x.low)):Math.max(...prior.map(x=>x.high));
   const swept=bullish?Math.min(c.low,p.low):Math.max(c.high,p.high);
   const wick=bullish?Math.min(c.open,c.close)-c.low:c.high-Math.max(c.open,c.close);
@@ -59,7 +92,7 @@ function componentScore(candles,direction,ema5,ema20,atr){
   const wickStrength=clamp((wickRatio-0.12)/0.48);
   const reclaimStrength=reclaim?1:clamp(1-Math.abs(c.close-level)/Math.max(atr*0.25,1e-10));
   const fakeoutConfirmed=sweepDistance>0&&reclaim&&wickRatio>=0.35;
-  const fakeoutScore=30*(fakeoutConfirmed?1:0.45*sweepStrength+0.35*wickStrength+0.20*reclaimStrength);
+  const fakeoutScore=15*(fakeoutConfirmed?1:0.45*sweepStrength+0.35*wickStrength+0.20*reclaimStrength);
   const distance=atr>0?Math.abs(c.close-ema5[i])/atr:Infinity,near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
     :clamp((c.open-c.close+Math.max(0,p.close-c.close)*0.5)/Math.max(atr*0.35,1e-10));
@@ -68,11 +101,13 @@ function componentScore(candles,direction,ema5,ema20,atr){
   const structureMove=bullish?c.close-candles[Math.max(0,i-5)].close:candles[Math.max(0,i-5)].close-c.close;
   const structure=clamp(structureMove/Math.max(atr*0.9,1e-10)),emaSupport=bullish?aboveEma5:belowEma5;
   const trendScore=20*(0.55*structure+0.45*(emaSupport?1:0.25));
+  const continuation=continuationAnalysis(candles,direction,ema5,ema20,atr);
   const components={ema5SlopeReversal:round1(slopeScore),srFakeout:round1(fakeoutScore),
-    proximityMomentum:round1(proximityScore),trendContext:round1(trendScore)};
+    proximityMomentum:round1(proximityScore),trendContext:round1(trendScore),
+    trendContinuation:continuation.score};
   const quality=entryQuality(candles,direction,ema5[i],atr);
   const rawScore=Object.values(components).reduce((a,b)=>a+b,0);
-  return {score:Math.max(0,round1(rawScore-quality.penalty)),rawScore:round1(rawScore),components,quality,
+  return {score:Math.max(0,round1(rawScore-quality.penalty)),rawScore:round1(rawScore),components,quality,continuation,
     details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20}};
 }
 export function scoreMarket(candles){
@@ -99,13 +134,15 @@ export function scoreMarket(candles){
   if(direction&&chosen.quality.extension>1.65)riskFlags.push("OVEREXTENDED_ENTRY");
   if(direction&&gap<8)riskFlags.push("LOW_DIRECTIONAL_SEPARATION");
   if(direction&&chosen.quality.closeLocation<0.55)riskFlags.push("WEAK_ENTRY_CANDLE");
+  if(direction&&chosen.continuation.exhaustion)riskFlags.push("TREND_EXHAUSTION_GUARD");
   let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&direction&&chosen.quality.extension<=1.65&&gap>=8){
+  if(!choppy&&!atrSpike&&direction&&chosen.quality.extension<=1.65&&gap>=8&&!chosen.continuation.exhaustion){
     if(top>=65){signal=direction;status="SIGNAL";}else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const reason=choppy?"KILL SWITCH: ตลาดมีประสิทธิภาพทิศทางต่ำ/EMA พันกัน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
     :direction&&chosen.quality.extension>1.65?"ENTRY GUARD: ราคาไกล EMA5 เกิน 1.65 ATR — งดไล่ราคา"
+    :direction&&chosen.continuation.exhaustion?"EXHAUSTION GUARD: แรงส่งเริ่มหมด/ราคาไกลจุดเข้า — STANDBY"
     :direction&&gap<8?"ENTRY GUARD: คะแนน CALL/PUT ใกล้กันเกินไป — ทิศทางไม่ชัด"
     :signal==="CALL"||signal==="PUT"?"Partial Score "+top+"/100 · "+signal+" ผ่านเกณฑ์ 65 หลังหักคุณภาพแท่งเข้า"
     :signal==="PREPARE"?"PREPARE · "+direction+" "+top+"/100 · รอประเมินซ้ำที่ T-5"
@@ -114,17 +151,20 @@ export function scoreMarket(candles){
     components:chosen.components,componentScores:{CALL:call.components,PUT:put.components},entryQuality:qualities,
     directionalGap:gap,reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_65_AGILE_ACCURACY_V2",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_65_AGILE_ACCURACY_V3",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       "CALL "+scores.CALL+"/100 · PUT "+scores.PUT+"/100",
-      "EMA5 Slope "+chosen.components.ema5SlopeReversal+"/30 · S/R Fakeout "+chosen.components.srFakeout+"/30",
-      "Proximity & Momentum "+chosen.components.proximityMomentum+"/20 · Trend Context "+chosen.components.trendContext+"/20",
+      "EMA5 Slope "+chosen.components.ema5SlopeReversal+"/20 · S/R Fakeout "+chosen.components.srFakeout+"/15",
+      "Proximity & Momentum "+chosen.components.proximityMomentum+"/20 · Trend Context "+chosen.components.trendContext+"/20 · Trend Continuation "+chosen.components.trendContinuation+"/25",
+      "Continuation: "+(chosen.continuation.pullbackResume?"PULLBACK_RESUME":chosen.continuation.aligned?"TREND_ALIGNED":"NOT_CONFIRMED")+" · Exhaustion: "+(chosen.continuation.exhaustion?"YES":"NO"),
       "Entry close-position "+round1(chosen.quality.closeLocation*100)+"% · body "+round1(chosen.quality.bodyRatio*100)+"% · extension "+round1(chosen.quality.extension)+" ATR",
       "Regime: ER10 "+round1(er10*100)+"% · ADX14 "+round1(adx)+" · EMA5/EMA20 "+(tangled?"พันกัน":"แยกตัว")+" · ATR "+(atrSpike?"ผิดปกติ":"ปกติ")
     ],
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,priorAtr14:priorAtr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,efficiencyRatio10:er10,adx14:adx,recentRange10,
-      entryExtensionAtr:chosen.quality.extension,entryCloseLocation:chosen.quality.closeLocation,entryBodyRatio:chosen.quality.bodyRatio},
+      entryExtensionAtr:chosen.quality.extension,entryCloseLocation:chosen.quality.closeLocation,entryBodyRatio:chosen.quality.bodyRatio,
+      trendContinuation:chosen.continuation.score,pullbackResume:chosen.continuation.pullbackResume,
+      trendDecelerating:chosen.continuation.decelerating,trendExhaustion:chosen.continuation.exhaustion},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45,minDirectionalGap:8,maxEntryExtensionAtr:1.65}
   };

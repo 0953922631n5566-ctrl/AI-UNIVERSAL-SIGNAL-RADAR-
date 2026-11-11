@@ -30,7 +30,7 @@ test("Accuracy V2 reports independent regime and entry-quality diagnostics", () 
   assert.ok(result.entryQuality.CALL && result.entryQuality.PUT);
   assert.equal(result.thresholds.signal, 65);
   assert.equal(result.thresholds.prepare, 45);
-  assert.equal(result.strategy, "PARTIAL_SCORING_65_AGILE_ACCURACY_V2");
+  assert.equal(result.strategy, "PARTIAL_SCORING_65_AGILE_ACCURACY_V3");
 });
 
 test("Accuracy V2 blocks compressed alternating M1 noise as SIDEWAY", () => {
