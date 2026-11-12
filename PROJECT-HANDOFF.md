@@ -2118,3 +2118,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Twelve Data API pool reports 10 configured / 10 available. Render startup logs recorded REST history ready (100 candles), Streaming subscription accepted, and first live EUR/USD tick at 1.10859.
 - T-5 still requires a fresh Streaming tick (max 5 seconds) before finalizing a signal. No simulated price source or broker execution is used.
 - `signalReleaseValidated=false`; no forward/out-of-sample win-rate claim is made. Mini App should be retested on the user's Telegram device; the server and page endpoint are live.
+
+
+## 2026-11-12 — Adaptive EMA 32 EUR/USD production integration
+
+- User assigned completion of Main Market for Telegram Mini App use, EUR/USD only.
+- Production target: branch main-market; Render service ai-signal-radar-main-market; M1 Non-OTC; only EUR/USD in server config and Mini App selector.
+- Production directional analyzer: Adaptive EMA Pool 32, periods 2–33, selects the highest-scoring candidate. CALL/PUT threshold 68/100; SIDEWAY and HIGH_VOLATILITY are blocked to STANDBY.
+- Adaptive warm-up requires 100 closed M1 candles. The 54-candle context/entry diagnostic window remains separate. Source freshness and T-5 Streaming freshness checks remain active.
+- Preserve Twelve Data REST + Streaming, API key pool, data lock, T-10 PREPARE, T-5 CALL/PUT confirmation, 30-second signal hold, Telegram Mini App only, no chat messages, no broker execution.
+- Signal validation remains false: no out-of-sample or paper-trading evidence is claimed. Adaptive EMA is a deterministic heuristic, not a proven predictive model.
+- Work branch: feature/adaptive-ema32-eurusd-production-20261112. Do not merge PR #101 (separate shadow experiment) as a shortcut.
+- Deployment, /health, Mini App browser/device, and live EUR/USD Streaming verification remain pending until CI passes and Render deploy completes.

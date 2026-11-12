@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
+import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES, ADAPTIVE_EMA_WARMUP_CANDLES, SYMBOLS } from "../src/config.js";
+import { analyzeAdaptiveEmaPool } from "../src/adaptive-ema-pool.js";
 import { analyzeMarket, sourceGate, calculatePureTechnicalSignal } from "../src/analyzer.js";
 import { detectMultiStageReversal } from "../src/reversal-detection.js";
 import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, GEMINI_MODEL } from "../src/gemini-analyzer.js";
@@ -49,6 +50,8 @@ test("M1 scoring window remains 50 context plus 4 entry candles with 100-candle 
   assert.equal(MIN_CLOSED_CANDLES, 54);
   assert.equal(HISTORY_CANDLES, 100);
   assert.equal(MAX_CANDLES, 110);
+  assert.equal(ADAPTIVE_EMA_WARMUP_CANDLES, 100);
+  assert.deepEqual(SYMBOLS, ["EUR/USD"]);
 });
 
 test("technical indicator snapshot contains finite M1 EMA, RSI, MACD and ATR values", () => {
@@ -95,7 +98,7 @@ test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal 
 });
 
 
-test("Choppy kill switch overrides directional scoring", async () => {
+test("Adaptive EMA pool blocks flat market and does not force a direction", async () => {
   const candles = flatSidewayCandles();
   const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
   const result = await analyzeMarket(candles, {
@@ -103,8 +106,7 @@ test("Choppy kill switch overrides directional scoring", async () => {
     geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
   assert.equal(result.signal, "STANDBY");
-  assert.equal(result.regime, "SIDEWAY");
-  assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
+  assert.ok(result.riskFlags.includes("ADAPTIVE_EMA_GUARD_BLOCKED"));
   assert.equal(calls.length, 0);
 });
 
@@ -369,7 +371,7 @@ test("multi-stage detector returns unclear for insufficient history", () => {
 });
 
 
-function flatSidewayCandles(count = 54) {
+function flatSidewayCandles(count = 100) {
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
   const start = minuteStart - count * 60;
   let previous = 1.1;
@@ -550,3 +552,8 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
   assert.equal(result.thresholds.signal, 65);
   assert.equal(result.riskFlags.length, 0);
 });
+
+
+test("Adaptive EMA 32 warms up on 100 closed candles and blocks 99",()=>{const candles=history(120),short=analyzeAdaptiveEmaPool(candles.slice(-99)),ready=analyzeAdaptiveEmaPool(candles.slice(-100));assert.equal(short.ready,false);assert.equal(short.signal,"STANDBY");assert.equal(ready.ready,true);assert.equal(ready.candidateCount,32);assert.equal(ready.mode,"PRODUCTION");});
+test("Adaptive EMA 32 can identify aligned CALL and PUT trends",()=>{assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(1,120)).signal,"CALL");assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(-1,120)).signal,"PUT");});
+test("production analyzer uses Adaptive EMA Pool 32 after source checks",async()=>{const result=await analyzeMarket(history(120),{now:Date.now(),tickAgeSeconds:0});assert.equal(result.strategy,"ADAPTIVE_EMA_POOL_32");assert.equal(result.provider,"LOCAL_ADAPTIVE_EMA_POOL");assert.equal(result.requiredCandles,100);assert.equal(result.candidateCount,32);assert.equal(result.signalReleaseValidated,false);});

@@ -1,10 +1,11 @@
-export const SYMBOLS = Object.freeze(["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]);
+export const SYMBOLS = Object.freeze(["EUR/USD"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
 // Analysis window: 50 closed M1 context candles + 4 latest closed entry candles.
 export const CONTEXT_CANDLES = 50;
 export const ENTRY_CANDLES = 4;
 export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
+export const ADAPTIVE_EMA_WARMUP_CANDLES = 100;
 export const HISTORY_CANDLES = 100;
 // Keep room for the in-progress live candle without evicting 100 closed history candles.
 export const MAX_CANDLES = HISTORY_CANDLES + 10;
