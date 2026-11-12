@@ -146,7 +146,7 @@ export async function analyzeMarket(candles, options = {}) {
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
     signalValidationStatus:"PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"ORIGINAL 84 Partial Scoring 60/40 + 3-Level Choppy/ATR Safety Guards · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
+    signalValidationNote:"ORIGINAL 84 Partial Scoring 60/40 + KAMA/DMI/ADX + RSI/Bollinger confirmation + 3-Level Choppy/ATR Guards · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
     signalReleaseStatus:"ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
