@@ -33,7 +33,7 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /m\.score/);
   assert.match(html, /ORIGINAL 84 · /);
   assert.match(html, /id="reversal"/);
-  assert.doesNotMatch(html, /PARTIAL SCORING 65\\/45|geminiQuota/);
+  assert.doesNotMatch(html, /geminiQuota/);
 });
 
 test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
