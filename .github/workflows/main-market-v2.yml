@@ -40,6 +40,7 @@ jobs:
           node --check server.js
           node --check src/config.js
           node --check src/analyzer.js
+          node --check src/m5-live-m1-entry.js
           node --check src/recovery.js
           node --check src/twelve-data.js
           node --check src/client-auth.js
