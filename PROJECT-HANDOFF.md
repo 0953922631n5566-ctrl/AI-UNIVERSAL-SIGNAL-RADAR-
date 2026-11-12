@@ -2107,3 +2107,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Kept Twelve Data REST/Streaming, API pool, selected-pair support, server-side guards, T-10/T-5 timing, 30-second signal hold, Mini App sessions, and manual-only execution boundary from the saved baseline.
 - M5 and later analyzer modules remain in the repository as inactive archived/experimental code; they are not imported by the production server.
 - This restore remains rule-based and not out-of-sample validated. CI and Render health/live-price verification are required before calling the restore live.
+
+
+### ORIGINAL 84 restore — final production verification (2026-11-12)
+
+- PR #105 merged; production merge commit: `50fb8a8a40cca0a3bc7ea821b7f7aaf08dbfee5f`.
+- GitHub Actions: 145 tests, 141 passed, 0 failed, 4 skipped; both PR workflow checks succeeded.
+- Render service `ai-signal-radar-main-market`: deploy `dep-dbqt0k5bedkc73c3tei0` reached `live`.
+- Live `/health` confirms `PARTIAL SCORING 65 AGILE ANALYZER`, LOCAL_PARTIAL_SCORING, weights 30/30/20/20, thresholds 65/45, 54 closed M1 candles, context 50 + entry 4, external AI disabled, streaming required, and REST fallback enabled for analysis context only.
+- Twelve Data API pool reports 10 configured / 10 available. Render startup logs recorded REST history ready (100 candles), Streaming subscription accepted, and first live EUR/USD tick at 1.10859.
+- T-5 still requires a fresh Streaming tick (max 5 seconds) before finalizing a signal. No simulated price source or broker execution is used.
+- `signalReleaseValidated=false`; no forward/out-of-sample win-rate claim is made. Mini App should be retested on the user's Telegram device; the server and page endpoint are live.
