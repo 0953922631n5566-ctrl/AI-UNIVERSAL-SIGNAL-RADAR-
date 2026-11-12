@@ -24,5 +24,9 @@
 - Manual decision support only; no broker execution.
 
 ## Validation
-- Awaiting CI and production deployment/health verification.
+- GitHub Actions passed: 145 tests, 141 passed, 0 failed, 4 skipped.
+- Render deploy `dep-dbqt0k5bedkc73c3tei0` reached LIVE on merge commit `50fb8a8a40cca0a3bc7ea821b7f7aaf08dbfee5f`.
+- `/health` confirms ORIGINAL 84 LOCAL_PARTIAL_SCORING, 65/45 thresholds, 54 closed M1 candles (50+4), external AI disabled, and streaming required.
+- Twelve Data pool: 10/10 available; Render logs confirm first live EUR/USD Streaming tick at 1.10859.
+- Telegram Mini App endpoint is live; user-device retest remains pending.
 - No verified win-rate or out-of-sample accuracy claim.
