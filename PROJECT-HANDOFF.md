@@ -1961,3 +1961,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Telegram Mini App URL: `https://ai-signal-radar-main-market.onrender.com/signal`. HTTP route is reachable. Browser/device interaction inside Telegram was not independently tested in this session. Current session mode remains open guest access (`telegramMiniAppAuthConfigured:false`, `miniAppOpenAccess:true`).
 - Predictive performance remains unvalidated out-of-sample; 62/42 is a threshold adjustment, not a demonstrated accuracy or profitability improvement. Manual trading only; no broker execution.
 
+
+
+## 2026-11-12 — Three-level Choppy and ATR safety guards deployed
+
+- User approved adding three guard levels for the existing Choppy Guard and ATR Safety Guard only; all other Main Market systems and Mini App behavior were explicitly kept unchanged.
+- PR #93 merged to `main-market`; production commit: `8e10970dd0226fc955e5e89ccd4eabbd8622f425`.
+- Render service `ai-signal-radar-main-market` deploy `dep-dbqk41oae00c738fvtsg` reached `live`.
+- NORMAL: no additional guard restriction. WATCH: adds risk flags/evidence and a warning reason but does not suppress PREPARE/CALL/PUT. DANGER: blocks directional output.
+- Choppy classification combines EMA5/EMA20 tangling, flat slopes, candle-direction alternation and directional efficiency. Severe Choppy requires strong corroborating evidence; a mild flat/tangled state is WATCH.
+- ATR WATCH begins at current range >=1.8x ATR or recent ATR >=1.6x baseline. DANGER preserves the original severe limits: current range >2.8x ATR or recent ATR >2.4x baseline.
+- ORIGINAL 84 score weights, CALL/PUT 60, PREPARE 40, 54 closed-candle analysis window, Twelve Data pool, Mini App UI/auth/session, T-10/T-5 timing, dedupe, alerts and 30-second hold remain unchanged.
+- CI passed both Main Market and Telegram Mini App workflows: 117 passed, 0 failed, 4 skipped; 50+4 wiring and syntax checks passed.
+- Live verification after deploy: `/health` returned `ok:true`, `/signal` returned HTTP 200, and `/api/public/signal` exposed live guard evidence (at the check time Choppy NORMAL, ATR NORMAL, Overall NORMAL). WATCH/DANGER were verified with deterministic CI tests, not by waiting for a live market event.
+- No out-of-sample accuracy/profitability claim. Manual trading only; no broker execution.
