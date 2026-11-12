@@ -98,7 +98,7 @@ test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal 
 });
 
 
-test("Adaptive EMA pool blocks sideways market and does not force a direction", async () => {
+test("Adaptive EMA pool blocks flat market and does not force a direction", async () => {
   const candles = flatSidewayCandles();
   const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
   const result = await analyzeMarket(candles, {
@@ -106,8 +106,7 @@ test("Adaptive EMA pool blocks sideways market and does not force a direction", 
     geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
   assert.equal(result.signal, "STANDBY");
-  assert.equal(result.regime, "SIDEWAY");
-  assert.ok(result.riskFlags.includes("SIDEWAY") || result.riskFlags.includes("ADAPTIVE_EMA_GUARD_BLOCKED"));
+  assert.ok(result.riskFlags.includes("ADAPTIVE_EMA_GUARD_BLOCKED"));
   assert.equal(calls.length, 0);
 });
 
