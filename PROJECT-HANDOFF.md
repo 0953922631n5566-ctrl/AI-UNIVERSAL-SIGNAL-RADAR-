@@ -2013,3 +2013,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Follow-up branch `fix/main-market-rsi-bollinger-health-metadata-20261112` updates `/health` architecture/version/provider metadata and the public signal validation note to describe the already deployed KAMA + DMI/ADX + RSI + Bollinger analyzer.
 - This is metadata/observability only: no scoring, thresholds, indicator calculations, Mini App UI/auth/session, data feed, timing, guards, or signal behavior changes.
 - PR #96 merged as `aa64eb4a8ba5d95faca8974d6b636e1ee7c478ca`; Render deploy `dep-dbql1kd9el5s73f1jbtg` reached `live`; `/health` verified the new version and all five indicator families. Both CI workflows passed.
+
+
+## 2026-11-12 — BOS/CHOCH and Candle Confirmation shadow diagnostics
+
+- User explicitly selected the currently deployed Main Market analyzer on `main-market` (PR #94 KAMA/DMI/ADX, PR #95 RSI/Bollinger, PR #96 health metadata) and authorized adding BOS/CHOCH plus candle confirmation only to this system.
+- Implementation branch: `feature/main-market-bos-choch-candle-shadow-20261112`, based directly on `main-market`.
+- Added `main-market/src/bos-choch-candle.js`:
+  - BOS/CHOCH uses confirmed 2-left/2-right swing pivots; the latest two unconfirmed candles are never used as pivots to reduce repaint/look-ahead.
+  - Reports swing bias, latest break event, swing high/low and direction conflicts.
+  - Candle confirmation reports body/range, upper/lower wick ratios, close location, bullish/bearish impulse and rejection patterns.
+- Integrated as SHADOW_ONLY diagnostics into the existing ORIGINAL 84 output. Explicit baseline signal/scores are returned for comparison. These diagnostics DO NOT change component scores, score weights, CALL/PUT 60, PREPARE 40, Choppy/ATR guards, timing, or signal delivery.
+- Added deterministic tests for confirmed swing break, bullish/bearish impulse candles, invalid input and unchanged ORIGINAL 84 baseline.
+- Updated package metadata/postinstall syntax check and analyzer validation note. No Mini App UI, Telegram auth/session, Twelve Data, API pool, polling, timing, notification, signal hold, broker execution, server control flow, or other project/branch files were changed.
+- Pending: CI on the feature branch, PR review, and shadow-data comparison against live M1 outcomes. Do not merge/deploy until CI and scope review pass; no accuracy improvement is claimed.
