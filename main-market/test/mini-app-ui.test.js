@@ -73,7 +73,8 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
   assert.match(html, /T-10 PREPARE alert/);
 });
 
-\ntest("Mini App top-right status shows pulsing API LIVE only when online and red disconnected otherwise", () => {
+
+test("Mini App top-right status shows pulsing API LIVE only when online and red disconnected otherwise", () => {
   assert.match(html, /id="api" class="pill off"[^>]*>API DISCONNECTED/);
   assert.match(html, /\.pill\.live\{[^}]*animation:apiPulse/);
   assert.match(html, /apiConnected\?"live":"off"/);
