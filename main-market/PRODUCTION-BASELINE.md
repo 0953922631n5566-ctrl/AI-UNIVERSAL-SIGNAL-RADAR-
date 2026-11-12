@@ -73,24 +73,3 @@ Rollback target for this baseline is the commit to which the production release 
 ## 8. Verification caveat
 
 The baseline values above reflect the current implementation. They are not evidence that the strategy has achieved the highest possible accuracy. Validate with out-of-sample backtests and forward testing before making performance claims.
-
-
----
-
-## 9. Superseding production architecture — 2026-11-12
-
-The 2026-11-10 M1-only scoring baseline above is retained as historical change-control context. It is superseded for the active production decision path by the merged M5/M1 architecture:
-
-- Active analyzer: M5 LIVE DIRECTION + M1 PRECISION ENTRY.
-- Data source: Twelve Data M1 REST candles for historical context plus the current M1 candle updated by Twelve Data live Streaming ticks.
-- Signal decisions require a fresh Streaming tick; stale or REST-only data cannot produce CALL/PUT.
-- Context requirement: at least 30 closed M1 candles plus the current live M1 candle.
-- M5 direction: aggregate the five-minute block while it is forming; require directional displacement and confirmation against prior completed M5 candles.
-- M1 entry: EMA5 pullback, live breakout beyond the previous closed M1 high/low, and extension no greater than 1.4 ATR.
-- Signal cap: one finalized signal per M5 block.
-- Existing Mini App session/authentication, pair selector, API pool, T-10 non-directional PREPARE, T-5 CALL/PUT, and 30-second signal hold remain.
-- REST fallback is disabled for signal decisions. REST is used only for historical closed-candle context.
-- No synthetic prices, CSV replay, external AI decision calls, or broker execution in the production path.
-- Release validation remains false pending out-of-sample and longer forward testing. This is manual decision support, not a guarantee of winning trades.
-- Rollback: revert the active server import to the retained src/analyzer.js and restore the previous release metadata; keep the current feature commit available for comparison.
-
