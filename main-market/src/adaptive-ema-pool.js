@@ -1,6 +1,6 @@
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
-const PERIODS = Object.freeze(Array.from({ length: 100 }, (_, index) => index + 2));
-const MIN_WARMUP_CANDLES = 303; // 3x the longest EMA period (101).
+const PERIODS = Object.freeze(Array.from({ length: 32 }, (_, index) => index + 2));
+const MIN_WARMUP_CANDLES = 100; // 3x the longest EMA period (33), rounded up.
 
 function validCandles(candles) {
   return Array.isArray(candles) && candles.length >= MIN_WARMUP_CANDLES && candles.every(c =>
@@ -101,7 +101,7 @@ function evaluateCandidate(candles, period, atr, regime) {
 
 /**
  * Shadow-only adaptive EMA candidate pool.
- * Evaluates 100 distinct EMA horizons (2..101) against closed M1 candles,
+ * Evaluates 32 well-warmed EMA horizons (2..101) against closed M1 candles,
  * then selects the best fit for the current candle regime. It never changes
  * the production direction or releases an order signal.
  */
