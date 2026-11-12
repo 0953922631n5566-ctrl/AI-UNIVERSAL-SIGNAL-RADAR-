@@ -176,7 +176,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -988,19 +988,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ORIGINAL_84_PARTIAL_SCORING_60_40", engines: 1,
-      decisionAuthority: "ORIGINAL_84_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION",
-      safetyLayer: "SYSTEM_DATA_QUALITY_KAMA_DMI_ADX_RSI_BOLLINGER_CHOPPY_ATR_AND_TIMING_GUARDS",
+      decisionEngine: "M1_PRECISION_ENTRY_25_25_20_15_15", engines: 1,
+      decisionAuthority: "M1_PRECISION_ENTRY_WITH_LEVEL1_FALSE_SIGNAL_FILTER",
+      safetyLayer: "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ORIGINAL_84_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_M1_PRECISION_ENTRY_TO_LEVEL1_FILTER_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER", model: null, configured: true,
+      provider: "LOCAL_M1_PRECISION_ENTRY_25_25_20_15_15", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
-      components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+      components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
       indicators: { kama: "10/2/30", dmi: "Wilder 14", adx: "Wilder 14 strength-only", rsi: "Wilder 14 momentum", bollingerBands: "SMA 20 / 2 standard deviations" },
-      thresholds: { callPut: 60, prepare: 40, minimumClosedCandles: MIN_CLOSED_CANDLES },
+      thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12, minimumClosedCandles: MIN_CLOSED_CANDLES },
       killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
     },
     recovery: {
@@ -1029,7 +1029,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
       original84: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
         components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
