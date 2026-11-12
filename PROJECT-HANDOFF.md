@@ -2065,3 +2065,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Tucked diagnostics into a hidden DOM region to preserve existing script bindings without taking screen space. Kept Session error card hidden until an actual auth/session failure. Kept pair selector, sound enablement, T-10/T-5 notifications, vibration, visual flash and 30-second hold logic unchanged.
 - Added UI regression test for viewport lock, compact-height behavior, lamp size, sound control and API-key strip.
 - This is a layout change only; no signal scoring, thresholds, market data, polling, auth routes or execution behavior changed. Device-specific fit still requires opening the Telegram Mini App in the user's actual floating-window size.
+
+
+## 2026-11-12 — Mini App sound alert repair
+
+- User reported no audible warning at T-10 and no audible CALL/PUT entry alert in Telegram Mini App.
+- Root cause in `main-market/public/signal.html`: `enableSound()` attempted to write to a missing `#soundStatus` element. That null-element exception was caught as an audio-enable failure, leaving `soundEnabled=false`; therefore subsequent T-10/T-5 calls to `playSequence()` were silent.
+- Fixed audio unlock feedback to update the existing sound button only, resume Web Audio from the user's tap, and mark the button as enabled. Removed all references to the nonexistent soundStatus node.
+- T-10 PREPARE now plays one single 587 Hz beep once per target candle. T-5 CALL/PUT uses a distinct eight-tone rapid sequence (ascending/bright for CALL, descending for PUT). Existing vibration, haptic feedback, visual flash, signal deduplication, and 30-second hold remain unchanged.
+- Updated Mini App UI tests to assert the single-beep T-10, distinct rapid T-5 sequence, successful audio-enable state, and absence of the broken soundStatus reference.
+- Commits: `96cc349699dff7cf0ad278c090f3fc7aa3068517` (Mini App audio fix), `5263d99945901148446dda5c26f87d7cef5c0fc6` (tests).
+- Pending: CI and Render auto-deploy/live verification; user should tap the sound button once after reopening the Mini App because browsers require a user gesture to unlock audio.
