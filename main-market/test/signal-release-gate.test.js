@@ -4,7 +4,7 @@ import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED, SIGNAL_VALIDATION_STA
 
 test("Accuracy Lab validation status is informational, not a runtime lock", () => {
   assert.equal(SIGNAL_RELEASE_VALIDATED, false);
-  assert.equal(SIGNAL_VALIDATION_STATUS, "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED");
+  assert.equal(SIGNAL_VALIDATION_STATUS, "ORIGINAL_84_TUNED_62_42_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
 test("Accuracy Lab CALL and PUT decisions are preserved with an explicit validation note", () => {
@@ -15,7 +15,7 @@ test("Accuracy Lab CALL and PUT decisions are preserved with an explicit validat
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
-    assert.match(result.signalValidationNote, /TREND ONLY/);
+    assert.match(result.signalValidationNote, /ORIGINAL 84/);
     assert.match(result.signalValidationNote, /HH\/HL/);
     assert.match(result.signalValidationNote, /LH\/LL/);
     assert.match(result.signalValidationNote, /out-of-sample/);
