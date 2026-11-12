@@ -1945,3 +1945,19 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App assets, UI, Telegram auth/session, transport, Start/Stop, countdown and alert behavior are unchanged.
 - Outcome is a market-price proxy using Twelve Data target-candle open/close, not proof of the user's broker fill or realized P&L. State/history remain in-memory per pair and reset on process restart.
 - Requires CI and PR review before merge/deploy.
+
+## 2026-11-12 — ORIGINAL 84 tuned analyzer restored to Main Market
+
+- User explicitly requested replacing the TREND ONLY / Early Trend Entry directional analyzer in the latest Main Market test with the complete ORIGINAL 84 analyzer, then lowering thresholds slightly for earlier detection.
+- Protected baseline remains unchanged at commit `18853e9f529254e9be5f7d4d8328543a7833e99d`; pre-84 source commit `cea3bbc035969443483dba40a62cd8366e4604d0`. Backup branches `accuracy-lab/original-84-baseline-20261111` and `accuracy-lab/reversal-radar-original-84-20261111` remain separate.
+- PR #91 merged into `main-market`: `3f3865dce3e9954a7e08a4d6e8ed35cdde109c16`.
+- Active directional authority is now `analyzeMarket()` / `scoreMarket()` from ORIGINAL 84. The TREND ONLY `market-intelligence.js` module and its tests were removed.
+- ORIGINAL 84 score weights preserved: EMA5 slope/reversal 30, S/R fakeout 30, proximity/momentum 20, trend context 20.
+- Tuned thresholds: CALL/PUT 62 (previously 65); PREPARE 42 (previously 45). Choppy-market and abnormal ATR kill switches remain enabled. Analysis window remains 54 closed M1 candles (50 context + 4 entry).
+- Mini App layout and existing polling, Twelve Data REST/Streaming, 10-key pool, T-10 PREPARE, T-5 CALL/PUT, fresh-tick guard, per-candle dedupe, sound/vibration and 30-second hold were preserved. Only analyzer labels/diagnostic values were updated.
+- CI: Main Market and Telegram Mini App workflows passed; 114 tests passed, 0 failed, 4 skipped; syntax and 50+4 wiring checks passed.
+- Render service `ai-signal-radar-main-market`, branch `main-market`, deploy `dep-dbqiterrjlhs73fumrd0` reached `live` on commit `3f3865dce3e9954a7e08a4d6e8ed35cdde109c16`.
+- Live verification: `/health` returned `ok:true`, ORIGINAL 84 62/42 metadata, 54-candle requirement and Twelve Data pool 10/10 available. Runtime logs confirmed service startup, REST history 100 candles, Streaming subscription accepted and first live tick received. `/api/public/signal` returned a valid M1 analysis record.
+- Telegram Mini App URL: `https://ai-signal-radar-main-market.onrender.com/signal`. HTTP route is reachable. Browser/device interaction inside Telegram was not independently tested in this session. Current session mode remains open guest access (`telegramMiniAppAuthConfigured:false`, `miniAppOpenAccess:true`).
+- Predictive performance remains unvalidated out-of-sample; 62/42 is a threshold adjustment, not a demonstrated accuracy or profitability improvement. Manual trading only; no broker execution.
+
