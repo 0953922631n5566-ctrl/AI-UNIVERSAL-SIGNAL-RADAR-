@@ -1991,3 +1991,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Render service `ai-signal-radar-main-market`, deploy `dep-dbqkhk0ae00c738gggk0`, commit `b76c376667fb2a447901a90f440708eab7611fd7`, reached `live`.
 - Live verification: `/health` returned `ok:true`; `/api/public/signal` showed EUR/USD M1 with KAMA, +DI, -DI and ADX metrics; `/signal` returned the Mini App page. At the sampled snapshot KAMA was falling, -DI exceeded +DI, ADX was 32.4, and CALL/PUT scores were 46.2/42.3, both below the active 60 signal threshold; after the existing 30-second hold expired the output was STANDBY. This is a runtime wiring check, not a performance or accuracy validation.
 - Out-of-sample accuracy remains unvalidated; manual trading only, no broker execution. Telegram device-side interaction was not independently tested.
+
+
+## 2026-11-12 — RSI + Bollinger Bands confirmation added for testing
+
+- User approved adding both RSI and Bollinger Bands to the current Main Market analyzer alongside ORIGINAL 84 and the already deployed KAMA + DMI/ADX confirmation.
+- Isolated implementation branch: `feature/main-market-rsi-bollinger-20261112`; production `main-market` remains unchanged pending CI and merge.
+- RSI(14) uses Wilder smoothing for momentum/weakening context. Bollinger Bands use SMA(20), 2 standard deviations; %B measures price location and bandwidth squeeze is context only, never an independent direction trigger.
+- RSI and Bollinger evidence are blended into the existing Proximity/Momentum 20-point component (40% proximity, 30% candle momentum, 15% RSI, 15% Bollinger location). Existing four component weights remain 30/30/20/20; CALL/PUT 60, PREPARE 40, 54 closed M1 candles and existing Choppy/ATR guards remain unchanged.
+- KAMA + DMI/ADX remains blended into the existing Trend Context component. No independent signal authority or guard bypass is added.
+- No Mini App UI/auth/session, Twelve Data, polling, timing, notifications, signal hold, or broker execution files are changed.
+- Added deterministic tests for indicator values, directional confirmation, fail-closed invalid input, and integration with unchanged thresholds/component count.
+- Pending: CI, PR review/merge, Render auto-deploy, `/health`, `/api/public/signal`, and `/signal` verification. Accuracy and profitability remain unvalidated; user-side Telegram device testing remains pending.
