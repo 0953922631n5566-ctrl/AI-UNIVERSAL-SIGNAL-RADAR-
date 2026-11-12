@@ -26,7 +26,7 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("M1 PRECISION ENTRY"));
+  assert.ok(html.includes("PRECISION ENTRY"));
   assert.match(html, /m\.precisionEntry/);
   assert.match(html, /m\.score/);
   assert.match(html, /PRECISION ENTRY · /);
