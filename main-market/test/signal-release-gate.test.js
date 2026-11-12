@@ -15,7 +15,7 @@ test("M5 M1 live CALL and PUT decisions are preserved with an explicit validatio
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
-    assert.match(result.signalValidationNote, /M1 Precision Entry 25\/25\/20\/15\/15/);
+    assert.match(result.signalValidationNote, /M5 LIVE/);
     assert.match(result.signalValidationNote, /CALL\/PUT ≥80/);
     assert.match(result.signalValidationNote, /Twelve Data Streaming/);
     assert.match(result.signalValidationNote, /M1 live confirmation/);
