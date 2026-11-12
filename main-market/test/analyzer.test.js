@@ -46,10 +46,10 @@ function mockFetch(value = geminiResponse()) {
   return { fetchImpl, calls };
 }
 
-test("M1 scoring window remains 50 context plus 4 entry candles with 320-candle adaptive EMA history", () => {
+test("M1 scoring window remains 50 context plus 4 entry candles with 100-candle history", () => {
   assert.equal(MIN_CLOSED_CANDLES, 54);
-  assert.equal(HISTORY_CANDLES, 320);
-  assert.equal(MAX_CANDLES, 330);
+  assert.equal(HISTORY_CANDLES, 100);
+  assert.equal(MAX_CANDLES, 110);
 });
 
 test("technical indicator snapshot contains finite M1 EMA, RSI, MACD and ATR values", () => {
