@@ -27,9 +27,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-11-streaming-reconnect-v1";
+const SYSTEM_NAME = "ADAPTIVE EMA POOL 32 · EUR/USD";
+const ARCHITECTURE_ID = "ADAPTIVE-EMA-32-PERIODS-2-33-EURUSD";
+const VERSION = "2026-11-12-adaptive-ema32-eurusd-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -128,9 +128,9 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
     candleCount: feed.candles.length,
-    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
-    requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, HISTORY_CANDLES),
+    requiredCandles: HISTORY_CANDLES, warmupCandles: HISTORY_CANDLES,
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES, warmup: HISTORY_CANDLES },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -172,7 +172,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -961,18 +961,18 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_65_AGILE", engines: 1,
-      decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+      decisionEngine: "ADAPTIVE_EMA_POOL_32", engines: 32,
+      decisionAuthority: "LOCAL_ADAPTIVE_EMA_POOL_PERIODS_2_TO_33_SCORE_68_WITH_SIDEWAY_AND_HIGH_VOLATILITY_GUARDS",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_100_CLOSED_M1_TO_ADAPTIVE_EMA_POOL_32_TO_SCORE_68_TO_T10_T5_TIMING_GUARD"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
-      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: true,
-      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
+      provider: "LOCAL_ADAPTIVE_EMA_POOL", model: null, configured: true,
+      role: "SOLE_ADAPTIVE_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      closedCandlesOnly: true, localDirectionalFallback: false,
+      candidateCount: 32, emaPeriods: { first: 2, last: 33 },
+      thresholds: { callPut: 68, prepare: null, standbyBelow: 68 }, warmupCandles: HISTORY_CANDLES
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -988,8 +988,8 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: MIN_CLOSED_CANDLES,
-      historyCandles: HISTORY_CANDLES,
+      minimumClosedCandles: HISTORY_CANDLES,
+      historyCandles: HISTORY_CANDLES, adaptiveEmaWarmupCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
@@ -1000,21 +1000,8 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      emaTrendFlow: {
-        emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
-        touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
-        proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
-        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
-        externalAi: false,
-        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
-        slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
-        supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
-        sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
-        volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
-      }
+      signalReleaseStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      adaptiveEmaPool: { candidateCount: 32, periods: { first: 2, last: 33 }, warmupCandles: HISTORY_CANDLES, scoreThreshold: 68, directionalSource: "LOCAL_ADAPTIVE_EMA_POOL_ON_CLOSED_M1_CANDLES_ONLY", sidewayPolicy: "STANDBY", highVolatilityPolicy: "STANDBY" }
     }
   });
 });
@@ -1088,7 +1075,7 @@ wss.on("connection", socket => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] EUR/USD M1 MAIN MARKET listening on ${PORT}`);
   console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
     androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
@@ -1097,7 +1084,7 @@ server.listen(PORT, () => {
     miniAppOpenAccess: true,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
-    minimumClosedCandles: MIN_CLOSED_CANDLES,
+    minimumClosedCandles: HISTORY_CANDLES,
     historyCandles: HISTORY_CANDLES,
     restRefreshSeconds: REST_SYNC_SECONDS
   });
