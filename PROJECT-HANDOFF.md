@@ -2055,3 +2055,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated the release-gate, Mini App, and Precision Entry tests for the new strategy. Final Render build/test run for commit `49a4dfb46806ce57ca4b5dd4bb60e4adea98e01a`: 138 passed, 0 failed, 4 skipped; build successful.
 - Live public API sample verified `precisionEntry.version=M1_PRECISION_ENTRY_V1`, weights 25/25/20/15/15, CALL 63.1 / PUT 59.0, gap 4.1, stage `NO_ENTRY`; correct output is STANDBY because neither score nor gap meets entry criteria. API pool at sample time: 10/10 available, key 1 ACTIVE and keys 2–10 READY.
 - The Mini App remains manual-only and preserves T-10/T-5, sounds, vibration and 30-second hold. No broker execution. Out-of-sample predictive accuracy remains unvalidated.
+
+
+## 2026-11-12 — Ultra-compact Telegram Mini App floating-window layout
+
+- User requested a much tighter screen with a large, high-contrast signal lamp and no vertical scrolling, including Telegram floating/small-window sizing.
+- Redesigned only `main-market/public/signal.html` presentation: viewport-locked `100dvh` grid, `overflow:hidden`, compact header/API badge, one-row pair + sound controls, dominant central signal lamp, countdowns, three compact market metrics, one-line reason, and a single-row 10-key API pool.
+- Signal lamp is larger (responsive 100–158px normally, compact-height override for short windows), with strong green CALL, red PUT, amber PREPARE and neutral STANDBY contrast. API LIVE remains pulsing green and disconnected remains red.
+- Tucked diagnostics into a hidden DOM region to preserve existing script bindings without taking screen space. Kept Session error card hidden until an actual auth/session failure. Kept pair selector, sound enablement, T-10/T-5 notifications, vibration, visual flash and 30-second hold logic unchanged.
+- Added UI regression test for viewport lock, compact-height behavior, lamp size, sound control and API-key strip.
+- This is a layout change only; no signal scoring, thresholds, market data, polling, auth routes or execution behavior changed. Device-specific fit still requires opening the Telegram Mini App in the user's actual floating-window size.
