@@ -2129,4 +2129,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Preserve Twelve Data REST + Streaming, API key pool, data lock, T-10 PREPARE, T-5 CALL/PUT confirmation, 30-second signal hold, Telegram Mini App only, no chat messages, no broker execution.
 - Signal validation remains false: no out-of-sample or paper-trading evidence is claimed. Adaptive EMA is a deterministic heuristic, not a proven predictive model.
 - Work branch: feature/adaptive-ema32-eurusd-production-20261112. Do not merge PR #101 (separate shadow experiment) as a shortcut.
-- Deployment, /health, Mini App browser/device, and live EUR/USD Streaming verification remain pending until CI passes and Render deploy completes.
+- CI passed after the EUR/USD-only test updates: Main Market Checks run #776 and Main Market Telegram Mini App Checks run #444 (both successful).
+- PR #106 merged into main-market as commit ed8bad8f00c3984872267aef0e061a73e5a76758.
+- Render deployment dep-dbqu2e68bjmc73900200 completed with status live; build succeeded and the process logged "ADAPTIVE EMA POOL 32 · EUR/USD" listening on port 10000.
+- Render startup logs confirmed 10 Twelve Data keys configured, REST history loaded with 100 EUR/USD candles, Streaming subscription accepted, and first live EUR/USD tick received.
+- Live timing logs confirmed T-10 PREPARE and T-5 finalization. A T-5 CALL was eligible with a 0.844-second Streaming tick age and the 30-second hold expiry was set for 15:56:30Z. This verifies pipeline behavior at that moment, not predictive accuracy or a win.
+- /health and /signal routes are configured and the Mini App source/tests pass. Direct HTTP fetch from the assistant environment was blocked by DNS/network access, so the HTTP body and real Android/Telegram device rendering have not been independently checked. User should open https://ai-signal-radar-main-market.onrender.com/signal to complete the device-side check.
+- signalReleaseValidated remains false; no out-of-sample validation or win-rate claim is made.
