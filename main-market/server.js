@@ -1044,7 +1044,6 @@ app.get("/health", (_req, res) => {
       }
     }
   });
-});
 app.post("/api/auth", rateLimitAuth, (req, res) => {
   if (!CLIENT_TOKEN) {
     console.error("[auth] blocked: ANDROID_CLIENT_TOKEN is not configured");
