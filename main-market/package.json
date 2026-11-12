@@ -30,7 +30,7 @@
     "shadowDiagnosticsAffectSignals": true,
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "DATA_QUALITY_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION_CHOPPY_ATR_AND_TIMING_GUARDS",
+    "safetyValidation": "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
     "externalAiCalls": false,
     "scoreWeights": {"marketStructure":25,"priceAction":25,"momentum":20,"trendAlignment":15,"volatilityDataQuality":15},
     "thresholds": {"callPut":80,"prepare":60,"minDirectionGap":12},
