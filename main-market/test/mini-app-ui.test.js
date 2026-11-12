@@ -41,7 +41,7 @@ test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
   assert.match(html, /m\.precisionEntry/);
   assert.match(html, /pe\.scores/);
   assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
-  assert.match(html, /marketStructure: 25|marketStructure:25/);
+  assert.match(html, /STRUCT .*\/25 · PRICE .*\/25 · MOM .*\/20 · TREND .*\/15 · SAFETY .*\/15/);
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
 
