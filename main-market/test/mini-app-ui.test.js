@@ -27,31 +27,33 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
   assert.ok(html.includes("PRECISION ENTRY"));
-  assert.match(html, /m\.precisionEntry/);
-  assert.match(html, /m\.score/);
-  assert.match(html, /PRECISION ENTRY · /);
+  assert.match(html, /m\.metrics/);
+  assert.match(html, /m\.m5Bias/);
+  assert.match(html, /M5 LIVE /);
   assert.match(html, /id="reversal"/);
   assert.doesNotMatch(html, /geminiQuota/);
 });
 
-test("Mini App retains Precision Entry score diagnostics without occupying the compact signal screen", () => {
+test("Mini App retains M5 LIVE and M1 pullback diagnostics without occupying the compact signal screen", () => {
   assert.ok(html.includes("TELEGRAM MINI APP · MAIN MARKET · NON-OTC · M1"));
   assert.match(html, /class="diagnostics" aria-hidden="true"/);
-  assert.match(html, /m\.precisionEntry/);
-  assert.match(html, /pe\.scores/);
-  assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
+  assert.match(html, /mm\.m1Ema5/);
+  assert.match(html, /mm\.m1Ema5/);
+  assert.match(html, /PULLBACK /);
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
 
-test("server uses M1 Precision Entry as the only directional analyzer and retains source/timing guards", () => {
-  assert.match(serverJs, /import \{ analyzeMarket \} from "\.\/src\/analyzer\.js"/);
+test("server uses the live M5 M1 analyzer as the only directional analyzer and retains timing guards", () => {
+  assert.match(serverJs, /import \{ analyzeM5LiveM1Entry \} from "\.\/src\/m5-live-m1-entry\.js"/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
-  assert.match(serverJs, /await analyzeMarket\(feed\.candles/);
+  assert.match(serverJs, /analyzeM5LiveM1Entry\(feed\.candles/);
   assert.match(serverJs, /const direction = rawResult\.direction/);
+  assert.match(serverJs, /lastM5SignalBlock/);
+  assert.match(serverJs, /restFallbackEnabled: false/);
   assert.match(serverJs, /isPrepareAlertWindow/);
   assert.match(serverJs, /isSignalFinalizeWindow/);
   assert.match(serverJs, /signalHoldExpiresAt/);
-  assert.match(serverJs, /M1 Precision Entry is the sole directional analyzer/);
+  assert.match(serverJs, /M5 LIVE \+ M1 PRECISION ENTRY is the sole directional analyzer/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
 });
 

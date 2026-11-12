@@ -9,7 +9,7 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
+import { analyzeM5LiveM1Entry } from "./src/m5-live-m1-entry.js";
 import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
@@ -28,9 +28,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "M1 PRECISION ENTRY · 25/25/20/15/15";
-const ARCHITECTURE_ID = "M1-PRECISION-ENTRY-25-25-20-15-15";
-const VERSION = "2026-11-12-m1-precision-entry-mobile-v1";
+const SYSTEM_NAME = "M5 LIVE DIRECTION + M1 PRECISION ENTRY";
+const ARCHITECTURE_ID = "M5-LIVE-M1-PRECISION-ENTRY";
+const VERSION = "2026-11-12-m5-live-m1-entry-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -49,7 +49,8 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
+    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
+    lastM5SignalBlock: null
   };
 }
 
@@ -130,9 +131,9 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
     candleCount: feed.candles.length,
-    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
-    requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, 30),
+    requiredCandles: 30,
+    analysisWindow: { contextCandles: 30, entryCandles: 1, total: 31, higherTimeframe: "M5_LIVE" },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -176,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -241,11 +242,9 @@ async function evaluate(feed) {
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
  feed.recoveryState = recoveryWindow.state;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // M1 Precision Entry is the sole directional analyzer. Source quality and live timing remain separate guards.
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ // M5 LIVE + M1 PRECISION ENTRY is the sole directional analyzer. Current price must be fresh Twelve Data Streaming.
+ const rawResult = analyzeM5LiveM1Entry(feed.candles, {
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, lastM5SignalBlock: feed.lastM5SignalBlock
  });
  const closedCandles = feed.candles
    .filter(candle => candle && candle.live !== true)
@@ -258,7 +257,7 @@ async function evaluate(feed) {
    allowedDirection: direction,
    sidewayScore: null,
    setup: direction && rawResult.signal !== "STANDBY" ? {
-     direction, type: "M1_PRECISION_ENTRY",
+     direction, type: "M5_LIVE_M1_PULLBACK_CONFIRMATION",
      score: rawResult.score || 0, evidence: rawResult.evidence || []
    } : null,
    stage: rawResult.signal === "PREPARE" ? "PREPARE"
@@ -268,7 +267,7 @@ async function evaluate(feed) {
    components: rawResult.componentScores || null,
    ema5Slope: rawResult.metrics?.ema5Slope ?? null,
    ema20Slope: rawResult.metrics?.ema20Slope ?? null,
-   structure: null
+   structure: null, metrics: rawResult.metrics || null, m5Bias: rawResult.m5Bias || "WAIT"
  };
  const result = applySignalReleaseGate(rawResult);
 
@@ -285,7 +284,7 @@ async function evaluate(feed) {
    (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
  feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   ["PREPARE","CALL","PUT"].includes(result.signal) && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+   isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -300,7 +299,7 @@ async function evaluate(feed) {
  }
  const finalizeWindow = sourceCandleEpoch !== null &&
    isSignalFinalizeWindow(sourceCandleEpoch, now);
- const finalizeEligible = finalizeWindow &&
+ const finalizeEligible = finalizeWindow && rawResult.m5BlockEpoch !== feed.lastM5SignalBlock &&
    (result.signal === "CALL" || result.signal === "PUT") &&
    canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
      lastDispatchedCandle: feed.lastDispatchedCandle });
@@ -312,7 +311,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "ORIGINAL_84_RETURNED_STANDBY"
+        : result.signal === "STANDBY" ? "M5_M1_LIVE_ENTRY_NOT_CONFIRMED"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -328,6 +327,7 @@ async function evaluate(feed) {
    });
    if (canFinalize) {
      feed.activeSignal = result.signal;
+     feed.lastM5SignalBlock = result.m5BlockEpoch;
      feed.signalCandle = targetCandleEpoch;
      feed.signalSourceCandle = sourceCandleEpoch;
      feed.signalTriggeredAt = now;
@@ -992,20 +992,20 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "M1_PRECISION_ENTRY_25_25_20_15_15", engines: 1,
-      decisionAuthority: "M1_PRECISION_ENTRY_WITH_LEVEL1_FALSE_SIGNAL_FILTER",
-      safetyLayer: "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
+      decisionEngine: "M5_LIVE_DIRECTION_M1_PRECISION_ENTRY", engines: 1,
+      decisionAuthority: "M5_LIVE_BIAS_PLUS_M1_PULLBACK_AND_BREAKOUT_CONFIRMATION",
+      safetyLayer: "FRESH_TWELVE_DATA_STREAM_REQUIRED_M5_M1_CONFIRMATION_AND_EXISTING_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_M1_PRECISION_ENTRY_TO_LEVEL1_FILTER_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "TWELVE_DATA_STREAM_TO_LIVE_M5_AGGREGATION_TO_M1_PULLBACK_CONFIRMATION_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_M1_PRECISION_ENTRY_25_25_20_15_15", model: null, configured: true,
+      provider: "TWELVE_DATA_LIVE_STREAM", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: false,
-      components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
-      indicators: { kama: "10/2/30", dmi: "Wilder 14", adx: "Wilder 14 strength-only", rsi: "Wilder 14 momentum", bollingerBands: "SMA 20 / 2 standard deviations" },
-      thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12, minimumClosedCandles: MIN_CLOSED_CANDLES },
-      killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
+      closedCandlesOnly: false, localDirectionalFallback: false,
+      liveStreamingRequired: true, m5Aggregation: "LIVE_5X_M1_CANDLES",
+      m1Entry: "EMA5_PULLBACK_PLUS_PREVIOUS_CANDLE_BREAKOUT",
+      maximumStreamAgeSeconds: MAX_STREAM_AGE_SECONDS,
+      outOfSampleValidated: false
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1021,24 +1021,26 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: MIN_CLOSED_CANDLES,
+      minimumClosedCandles: 30,
       historyCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
-      contextCandles: 50,
-      entryCandles: 4,
+      contextCandles: 30,
+      entryCandles: 1,
+      higherTimeframe: "M5_LIVE_FORMING",
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
-      restFallbackEnabled: true,
+      restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      precisionEntry: {
-        contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
-        components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
-        thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12 },
-        level1FalseSignalFilter: true, choppyAtrSafetyGuards: true, outOfSampleValidated: false
+      signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      m5M1Entry: {
+        m5Direction: "FORMING_M5_FROM_TWELVE_DATA_M1_STREAM",
+        m1Confirmation: "EMA5_PULLBACK_AND_PREVIOUS_CANDLE_BREAKOUT",
+        oneSignalPerM5Block: true,
+        freshStreamingRequired: true,
+        outOfSampleValidated: false
       }
     }
   });
