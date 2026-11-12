@@ -176,7 +176,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_62_42_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -988,19 +988,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ACCURACY_LAB_TREND_ONLY", engines: 1,
-      decisionAuthority: "TREND_ONLY_HH_HL_LH_LL_EMA5_EMA20_ADX_GUARDS",
+      decisionEngine: "ORIGINAL_84_PARTIAL_SCORING_62_42", engines: 1,
+      decisionAuthority: "ORIGINAL_84_PARTIAL_SCORING_62_42",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_EXISTING_SIGNAL_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ACCURACY_LAB_ONLY_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ORIGINAL_84_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_ACCURACY_LAB", model: null, configured: true,
+      provider: "LOCAL_PARTIAL_SCORING_ORIGINAL_84", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
-      setupFamilies: ["PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
-      regimeGuards: ["SIDEWAY", "UNCLEAR", "TRANSITION", "HIGH_VOLATILITY"],
-      thresholds: { minimumSetupScore: 70, minimumClosedCandles: MIN_CLOSED_CANDLES }
+      components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+      thresholds: { callPut: 62, prepare: 42, minimumClosedCandles: MIN_CLOSED_CANDLES },
+      killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1028,12 +1028,12 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "ACCURACY_LAB_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      accuracyLab: {
+      signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_62_42_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      original84: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
-        setupFamilies: ["PULLBACK", "CONTINUATION", "BREAKOUT_RETEST"],
-        regimeGuards: ["SIDEWAY", "UNCLEAR", "TRANSITION", "HIGH_VOLATILITY"],
-        directionSource: "TREND_ONLY_UPTREND_CALL_DOWNTREND_PUT",
+        components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+        thresholds: { callPut: 62, prepare: 42 },
+        killSwitches: ["CHOPPY_MARKET", "ABNORMAL_ATR_SPIKE"],
         outOfSampleValidated: false
       }
     }
