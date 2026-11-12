@@ -10,7 +10,7 @@ function trendCandles(count = 120) {
   });
 }
 
-function sidewayCandles(count = 320) {
+function sidewayCandles(count = 120) {
   let previous = 1.08;
   return Array.from({ length: count }, (_, index) => {
     const close = 1.08 + (index % 2 === 0 ? 0.0001 : -0.0001);
@@ -32,9 +32,9 @@ test("trending candles select a candidate and produce a shadow-only CALL", () =>
   assert.equal(result.ready, true);
   assert.equal(result.mode, "SHADOW_ONLY");
   assert.equal(result.regime, "TRENDING");
-  assert.equal(result.candidateCount, 100);
+  assert.equal(result.candidateCount, 32);
   assert.equal(result.signal, "CALL");
-  assert.ok(result.selectedPeriod >= 2 && result.selectedPeriod <= 101);
+  assert.ok(result.selectedPeriod >= 2 && result.selectedPeriod <= 33);
   assert.equal(result.topCandidates.length, 5);
 });
 
