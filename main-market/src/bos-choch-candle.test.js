@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateStructureCandleContext } from "./bos-choch-candle.js";
+import { calculateStructureCandleContext, calculateStructureCandleAdjustment } from "./bos-choch-candle.js";
 import { scoreMarket } from "./advanced-scoring.js";
 
 function candlesFromCloses(closes) {
@@ -10,7 +10,30 @@ function candlesFromCloses(closes) {
   });
 }
 
-test("BOS/CHOCH shadow context detects a close above a confirmed swing high", () => {
+test("BOS/CHOCH structure events actively adjust CALL and PUT scores", () => {
+  const base = { ready: true, bias: "BULLISH", event: "BOS_UP", candlePattern: "NEUTRAL" };
+  const call = calculateStructureCandleAdjustment(base, "CALL");
+  const put = calculateStructureCandleAdjustment(base, "PUT");
+  assert.equal(call.eventPoints, 5);
+  assert.equal(call.biasPoints, 2);
+  assert.equal(call.total, 7);
+  assert.equal(put.total, -7);
+  const choch = calculateStructureCandleAdjustment({ ...base, event: "CHOCH_UP" }, "CALL");
+  assert.equal(choch.eventPoints, 7);
+});
+
+test("rejection and body/wick impulse confirmations actively adjust directional scores", () => {
+  const bullishRejection = calculateStructureCandleAdjustment(
+    { ready: true, bias: "MIXED", event: "NONE", candlePattern: "BULLISH_REJECTION" }, "CALL");
+  assert.equal(bullishRejection.rejectionPoints, 6);
+  assert.equal(bullishRejection.total, 6);
+  const bearishImpulse = calculateStructureCandleAdjustment(
+    { ready: true, bias: "MIXED", event: "NONE", candlePattern: "BEARISH_IMPULSE" }, "PUT");
+  assert.equal(bearishImpulse.bodyWickPoints, 4);
+  assert.equal(bearishImpulse.total, 4);
+});
+
+test("confirmed swing break is classified without look-ahead", () => {
   const candles = Array.from({ length: 22 }, (_, i) => ({
     open: 1.1000, close: 1.1001, high: 1.1005, low: 1.0995, epoch: i * 60
   }));
@@ -26,36 +49,40 @@ test("BOS/CHOCH shadow context detects a close above a confirmed swing high", ()
   const result = calculateStructureCandleContext(candles);
   assert.equal(result.ready, true);
   assert.equal(result.event, "BOS_UP");
-  assert.equal(result.putStructureConflict, true);
-  assert.equal(result.mode, "SHADOW_ONLY");
+  assert.equal(result.mode, "ACTIVE_SCORING");
 });
 
-test("candle confirmation identifies strong bullish and bearish impulse candles", () => {
+test("candle shape classifies bullish rejection and bearish impulse", () => {
   const bullish = candlesFromCloses(Array.from({ length: 18 }, (_, i) => 1.1 + i * 0.00001));
-  bullish[bullish.length - 1] = { open: 1.1000, close: 1.1010, high: 1.10105, low: 1.09995 };
+  bullish[bullish.length - 1] = { open: 1.1000, close: 1.1004, high: 1.10045, low: 1.0994 };
   const bullishResult = calculateStructureCandleContext(bullish);
-  assert.equal(bullishResult.candlePattern, "BULLISH_IMPULSE");
-  assert.equal(bullishResult.putCandleConflict, true);
+  assert.equal(bullishResult.candlePattern, "BULLISH_REJECTION");
 
   const bearish = candlesFromCloses(Array.from({ length: 18 }, (_, i) => 1.1 - i * 0.00001));
   bearish[bearish.length - 1] = { open: 1.1010, close: 1.1000, high: 1.10105, low: 1.09995 };
   const bearishResult = calculateStructureCandleContext(bearish);
   assert.equal(bearishResult.candlePattern, "BEARISH_IMPULSE");
-  assert.equal(bearishResult.callCandleConflict, true);
 });
 
-test("invalid or insufficient candle input fails closed", () => {
-  assert.equal(calculateStructureCandleContext([]).ready, false);
-  assert.equal(calculateStructureCandleContext([{ open: 1, close: 1 }]).ready, false);
+test("invalid input fails closed and applies no score adjustment", () => {
+  const result = calculateStructureCandleContext([]);
+  assert.equal(result.ready, false);
+  assert.equal(calculateStructureCandleAdjustment(result, "CALL").total, 0);
 });
 
-test("ORIGINAL 84 scores and signal remain unchanged by shadow diagnostics", () => {
+test("ORIGINAL 84 base score and thresholds remain separately auditable", () => {
   const closes = Array.from({ length: 60 }, (_, i) => 1.08 + i * 0.00010 + Math.sin(i / 2.7) * 0.00016);
   const result = scoreMarket(candlesFromCloses(closes));
-  assert.equal(result.structureCandle.mode, "SHADOW_ONLY");
   assert.equal(result.thresholds.signal, 60);
   assert.equal(result.thresholds.prepare, 40);
   assert.equal(Object.keys(result.componentScores.CALL).length, 4);
-  assert.equal(result.signal, result.shadowBaselineSignal);
-  assert.deepEqual(result.scores, result.shadowBaselineScores);
+  assert.deepEqual(result.baselineScores, {
+    CALL: result.componentScores.CALL.ema5SlopeReversal + result.componentScores.CALL.srFakeout + result.componentScores.CALL.proximityMomentum + result.componentScores.CALL.trendContext,
+    PUT: result.componentScores.PUT.ema5SlopeReversal + result.componentScores.PUT.srFakeout + result.componentScores.PUT.proximityMomentum + result.componentScores.PUT.trendContext
+  });
+  assert.equal(result.structureCandle.mode, "ACTIVE_SCORING");
+  assert.deepEqual(result.scores, {
+    CALL: Math.max(0, Math.min(100, result.baselineScores.CALL + result.structureCandleAdjustments.CALL.total)),
+    PUT: Math.max(0, Math.min(100, result.baselineScores.PUT + result.structureCandleAdjustments.PUT.total))
+  });
 });
