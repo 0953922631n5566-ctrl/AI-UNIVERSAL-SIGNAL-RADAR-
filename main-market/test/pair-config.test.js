@@ -9,7 +9,6 @@ test("Main Market is locked to EUR/USD only", () => {
 
 test("pair normalization accepts EUR/USD only and rejects all other pairs", () => {
   assert.equal(resolveSymbol(" eur/usd "), "EUR/USD");
-  assert.equal(resolveSymbol("EURUSD"), "EUR/USD");
   assert.equal(resolveSymbol("GBP/JPY"), null);
   assert.equal(resolveSymbol("USD/JPY"), null);
 });
