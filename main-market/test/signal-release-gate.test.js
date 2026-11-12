@@ -7,9 +7,9 @@ test("out-of-sample validation status is informational, not a runtime lock", () 
   assert.equal(SIGNAL_VALIDATION_STATUS, "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
-test("Partial Scoring CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
+test("Adaptive EMA CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({ signal, reason: "candidate from Partial Scoring analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
+    const result = applySignalReleaseGate({ signal, reason: "candidate from Adaptive EMA analyzer", evidence: ["100 closed M1 candles"], alertId: "candidate-id" });
     assert.equal(result.signal, signal);
     assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
