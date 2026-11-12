@@ -141,7 +141,7 @@ export async function analyzeMarket(candles, options = {}) {
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
   const scored=scoreMarket(closedCandles);
-  const adaptiveEmaShadow = analyzeAdaptiveEmaPool(closedCandles);
+  const adaptiveEmaShadow = analyzeAdaptiveEmaPool(gate.closed);
   return {
     ...scored, ...base,
     adaptiveEmaShadow,
