@@ -267,7 +267,7 @@ async function evaluate(feed) {
    components: rawResult.componentScores || null,
    ema5Slope: rawResult.metrics?.ema5Slope ?? null,
    ema20Slope: rawResult.metrics?.ema20Slope ?? null,
-   structure: null
+   structure: null, metrics: rawResult.metrics || null, m5Bias: rawResult.m5Bias || "WAIT"
  };
  const result = applySignalReleaseGate(rawResult);
 
