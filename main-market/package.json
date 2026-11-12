@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/adaptive-ema-pool.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,35 +17,26 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Main Market Advanced Partial Scoring Engine",
-    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
+    "name": "Adaptive EMA Pool 32 · EUR/USD",
+    "displayName": "Adaptive EMA 32 · EMA 2–33 · M1 · 100 candle warm-up",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+    "executionModel": "LOCAL_ADAPTIVE_EMA_POOL_32",
+    "decisionAuthority": "ADAPTIVE_EMA_POOL_32_WITH_SIDEWAY_AND_HIGH_VOLATILITY_GUARDS",
     "directionalVoters": 1,
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
-    "scoreWeights": {
-      "ema5SlopeReversal": 30,
-      "srFakeout": 30,
-      "proximityMomentum": 20,
-      "trendContext": 20
-    },
-    "thresholds": {
-      "callPut": 65,
-      "prepare": 45,
-      "standbyBelow": 45
-    },
+    "adaptiveEmaPool": { "candidateCount": 32, "firstPeriod": 2, "lastPeriod": 33, "warmupCandles": 100, "signalThreshold": 68 },
     "candles": {
       "context": 50,
       "entry": 4,
-      "totalClosed": 54
+      "totalClosed": 54,
+      "warmup": 100
     },
     "killSwitches": [
-      "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
-      "ABNORMAL_ATR_SPIKE"
+      "SIDEWAY_MARKET",
+      "HIGH_VOLATILITY"
     ]
   }
 }
