@@ -16,9 +16,10 @@ test("ORIGINAL 84 CALL and PUT decisions are preserved with an explicit validati
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /ORIGINAL 84/);
-    assert.match(result.signalValidationNote, /HH\/HL/);
-    assert.match(result.signalValidationNote, /LH\/LL/);
-    assert.match(result.signalValidationNote, /62\\/42/);\n    assert.match(result.signalValidationNote, /out-of-sample/);
+    assert.match(result.signalValidationNote, /EMA5 slope\/reversal/);
+    assert.match(result.signalValidationNote, /S\/R fakeout/);
+    assert.match(result.signalValidationNote, /62\/42/);
+    assert.match(result.signalValidationNote, /out-of-sample/);
     assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
 });
