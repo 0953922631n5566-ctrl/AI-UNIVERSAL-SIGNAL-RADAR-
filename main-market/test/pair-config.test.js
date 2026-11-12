@@ -15,10 +15,10 @@ test("pair selection normalizes case and slash formatting but rejects unknown pa
   assert.equal(resolveSymbol("USD/JPY"), null);
 });
 
-test("100 candles are retained while the scoring window and API cadence remain bounded", () => {
-  assert.equal(HISTORY_CANDLES, 100);
+test("320 candles are retained for adaptive EMA warmup while the scoring window and API cadence remain bounded", () => {
+  assert.equal(HISTORY_CANDLES, 320);
   assert.equal(MIN_CLOSED_CANDLES, 54);
-  assert.equal(MAX_CANDLES, 110);
+  assert.equal(MAX_CANDLES, 330);
   assert.equal(LIVE_PRICE_CHECK_SECONDS, 5);
   assert.equal(REST_SYNC_SECONDS, 180);
 });
