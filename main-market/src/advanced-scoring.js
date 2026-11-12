@@ -1,4 +1,5 @@
 import { calculateKamaDmiAdx, directionalConfirmation } from "./kama-dmi-adx.js";
+import { calculateRsiBollinger, priceActionConfirmation } from "./rsi-bollinger.js";
 
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
@@ -18,7 +19,7 @@ function atrAt(candles,end,period=14){
   const trs=part.slice(1).map((c,i)=>Math.max(c.high-c.low,Math.abs(c.high-part[i].close),Math.abs(c.low-part[i].close)));
   return mean(trs);
 }
-function componentScore(candles, direction, ema5, ema20, atr, indicators) {
+function componentScore(candles, direction, ema5, ema20, atr, indicators, priceIndicators) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1], p2=candles[i-2];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
   const slopeNow=ema5[i]-ema5[i-1], slopePrev=ema5[i-1]-ema5[i-2];
@@ -44,7 +45,8 @@ function componentScore(candles, direction, ema5, ema20, atr, indicators) {
   const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
     :clamp((c.open-c.close+Math.max(0,p.close-c.close)*0.5)/Math.max(atr*0.35,1e-10));
-  const proximityScore=20*(0.55*near+0.45*momentum);
+  const priceConfirmation=priceActionConfirmation(priceIndicators,direction);
+  const proximityScore=20*(0.40*near+0.30*momentum+0.15*priceConfirmation.rsi+0.15*priceConfirmation.bollinger);
   const aboveEma5=c.close>ema5[i], belowEma5=c.close<ema5[i];
   const structureMove=bullish?c.close-candles[Math.max(0,i-5)].close:candles[Math.max(0,i-5)].close-c.close;
   const structure=clamp(structureMove/Math.max(atr*0.9,1e-10));
@@ -59,7 +61,8 @@ function componentScore(candles, direction, ema5, ema20, atr, indicators) {
   };
   return {score:Math.round(Object.values(components).reduce((a,b)=>a+b,0)*10)/10,components,
     details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20,
-      kama:indicators.kama,plusDI:indicators.plusDI,minusDI:indicators.minusDI,adx:indicators.adx,confirmation}};
+      kama:indicators.kama,plusDI:indicators.plusDI,minusDI:indicators.minusDI,adx:indicators.adx,confirmation,
+      rsi:priceIndicators.rsi,bbPercentB:priceIndicators.percentB,priceConfirmation}};
 }
 export function scoreMarket(candles) {
   if(!Array.isArray(candles)||candles.length<30||!candles.every(c=>c&&[c.open,c.high,c.low,c.close].every(Number.isFinite)))
@@ -94,8 +97,9 @@ export function scoreMarket(candles) {
   const blocked=guardLevel==="DANGER";
 
   const indicators=calculateKamaDmiAdx(candles);
-  const call=componentScore(candles,"CALL",e5,e20,atr,indicators);
-  const put=componentScore(candles,"PUT",e5,e20,atr,indicators);
+  const priceIndicators=calculateRsiBollinger(candles);
+  const call=componentScore(candles,"CALL",e5,e20,atr,indicators,priceIndicators);
+  const put=componentScore(candles,"PUT",e5,e20,atr,indicators,priceIndicators);
   const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
@@ -119,12 +123,13 @@ export function scoreMarket(candles) {
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppyLevel==="DANGER"?"SIDEWAY":atrLevel==="DANGER"?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"ORIGINAL_84_KAMA_DMI_ADX_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX",riskFlags,
+    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
       `KAMA ${indicators.ready?(indicators.kamaRising?"UP":indicators.kamaFalling?"DOWN":"FLAT"):"N/A"} · +DI ${indicators.plusDI?.toFixed(1)??"N/A"} / -DI ${indicators.minusDI?.toFixed(1)??"N/A"} · ADX ${indicators.adx?.toFixed(1)??"N/A"}`,
+      `RSI ${priceIndicators.rsi?.toFixed(1)??"N/A"} · BB %B ${priceIndicators.percentB?.toFixed(2)??"N/A"} · BB ${priceIndicators.squeeze?"SQUEEZE":"NORMAL"}`,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrDanger?"อันตราย":atrWatch?"เฝ้าระวัง":"ปกติ"}`,
       `Choppy ${choppyLevel} (${choppyScore}/100) · ATR Guard ${atrLevel} · Overall ${guardLevel}`
     ],
@@ -134,7 +139,13 @@ export function scoreMarket(candles) {
       kama:indicators.kama,kamaRising:indicators.kamaRising,kamaFalling:indicators.kamaFalling,
       plusDI:indicators.plusDI,minusDI:indicators.minusDI,adx:indicators.adx,adxStrength:indicators.adxStrength,
       callKamaAligned:indicators.callKamaAligned,putKamaAligned:indicators.putKamaAligned,
-      callDmiAligned:indicators.callDmiAligned,putDmiAligned:indicators.putDmiAligned},
+      callDmiAligned:indicators.callDmiAligned,putDmiAligned:indicators.putDmiAligned,
+      rsi:priceIndicators.rsi,rsiPrevious:priceIndicators.previousRsi,rsiRising:priceIndicators.rsiRising,
+      bbMiddle:priceIndicators.middle,bbUpper:priceIndicators.upper,bbLower:priceIndicators.lower,
+      bbPercentB:priceIndicators.percentB,bbBandwidth:priceIndicators.bandwidth,
+      bbBandwidthRatio:priceIndicators.bandwidthRatio,bbSqueeze:priceIndicators.squeeze,
+      callRsiAligned:priceIndicators.callRsiAligned,putRsiAligned:priceIndicators.putRsiAligned,
+      callBollingerAligned:priceIndicators.callBollingerAligned,putBollingerAligned:priceIndicators.putBollingerAligned},
     riskGuard:{
       level:guardLevel,blocked,
       choppy:{level:choppyLevel,score:choppyScore,alternationRatio,efficiencyRatio,emaTangled:tangled,slopesFlat:flat},
