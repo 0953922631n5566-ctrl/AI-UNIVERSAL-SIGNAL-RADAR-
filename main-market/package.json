@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js && node --check src/false-signal-filter.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js && node --check src/false-signal-filter.js && node --check src/precision-entry.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,32 +17,23 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "ORIGINAL 84 with KAMA + DMI/ADX + RSI + Bollinger + BOS/CHOCH/Candle shadow diagnostics",
-    "displayName": "ORIGINAL 84 · Partial Scoring 60/40 · KAMA + DMI/ADX + RSI + Bollinger · BOS/CHOCH/Candle Shadow",
+    "name": "M1 Precision Entry 25/25/20/15/15 with Level 1 and safety guards",
+    "displayName": "M1 PRECISION ENTRY · 80/60 · Margin 12 · Level 1 Filter",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "ORIGINAL_84_PARTIAL_SCORING_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION_AND_CHOPPY_ATR_GUARDS",
+    "decisionAuthority": "M1_PRECISION_ENTRY_25_25_20_15_15_WITH_LEVEL1_FALSE_SIGNAL_AND_CHOPPY_ATR_GUARDS",
     "shadowDiagnostics": [
       "BOS_CHOCH_CONFIRMED_SWINGS",
       "CANDLE_BODY_WICK_CONFIRMATION"
     ],
-    "shadowDiagnosticsAffectSignals": false,
+    "shadowDiagnosticsAffectSignals": true,
     "directionalVoters": 1,
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION_CHOPPY_ATR_AND_TIMING_GUARDS",
     "externalAiCalls": false,
-    "scoreWeights": {
-      "ema5SlopeReversal": 30,
-      "srFakeout": 30,
-      "proximityMomentum": 20,
-      "trendContext": 20
-    },
-    "thresholds": {
-      "callPut": 60,
-      "prepare": 40,
-      "standbyBelow": 40
-    },
+    "scoreWeights": {"marketStructure":25,"priceAction":25,"momentum":20,"trendAlignment":15,"volatilityDataQuality":15},
+    "thresholds": {"callPut":80,"prepare":60,"minDirectionGap":12},
     "candles": {
       "context": 50,
       "entry": 4,
