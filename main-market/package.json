@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js && node --check src/false-signal-filter.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -23,7 +23,10 @@
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
     "decisionAuthority": "ORIGINAL_84_PARTIAL_SCORING_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION_AND_CHOPPY_ATR_GUARDS",
-    "shadowDiagnostics": ["BOS_CHOCH_CONFIRMED_SWINGS", "CANDLE_BODY_WICK_CONFIRMATION"],
+    "shadowDiagnostics": [
+      "BOS_CHOCH_CONFIRMED_SWINGS",
+      "CANDLE_BODY_WICK_CONFIRMATION"
+    ],
     "shadowDiagnosticsAffectSignals": false,
     "directionalVoters": 1,
     "aggregator": 0,
