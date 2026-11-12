@@ -17,41 +17,33 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "M1 Precision Entry 25/25/20/15/15 with Level 1 and safety guards",
-    "displayName": "M1 PRECISION ENTRY · 80/60 · Margin 12 · Level 1 Filter",
+    "name": "M5 Live Direction + M1 Precision Entry",
+    "displayName": "M5 LIVE BIAS · M1 PULLBACK + CONFIRMATION",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "M1_PRECISION_ENTRY_25_25_20_15_15_WITH_LEVEL1_FALSE_SIGNAL_AND_CHOPPY_ATR_GUARDS",
+    "executionModel": "LIVE_TWELVE_DATA_STREAMING_ONLY",
+    "decisionAuthority": "M5_FORMING_DIRECTION_PLUS_M1_PULLBACK_BREAKOUT_CONFIRMATION",
     "shadowDiagnostics": [
       "BOS_CHOCH_CONFIRMED_SWINGS",
       "CANDLE_BODY_WICK_CONFIRMATION"
     ],
-    "shadowDiagnosticsAffectSignals": true,
+    "shadowDiagnosticsAffectSignals": false,
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
+    "safetyValidation": "FRESH_TWELVE_DATA_STREAM_M5_M1_ENTRY_AND_T10_T5_TIMING_GUARDS",
     "externalAiCalls": false,
-    "scoreWeights": {
-      "marketStructure": 25,
-      "priceAction": 25,
-      "momentum": 20,
-      "trendAlignment": 15,
-      "volatilityDataQuality": 15
-    },
-    "thresholds": {
-      "callPut": 80,
-      "prepare": 60,
-      "minDirectionGap": 12
-    },
     "candles": {
-      "context": 50,
-      "entry": 4,
-      "totalClosed": 54
+      "context": 30,
+      "entry": 1,
+      "total": 31,
+      "higherTimeframe": "M5_LIVE_FORMING"
     },
     "killSwitches": [
-      "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
-      "ABNORMAL_ATR_SPIKE"
+      "NO_FRESH_STREAMING_TICK",
+      "M5_DIRECTION_UNCLEAR",
+      "M1_PULLBACK_OR_CONFIRMATION_MISSING",
+      "ONE_SIGNAL_PER_M5_BLOCK",
+      "M1_ENTRY_OVEREXTENDED"
     ]
   }
 }
