@@ -988,8 +988,8 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ORIGINAL_84_PARTIAL_SCORING_62_42", engines: 1,
-      decisionAuthority: "ORIGINAL_84_PARTIAL_SCORING_62_42",
+      decisionEngine: "ORIGINAL_84_PARTIAL_SCORING_60_40", engines: 1,
+      decisionAuthority: "ORIGINAL_84_PARTIAL_SCORING_60_40",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_EXISTING_SIGNAL_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ORIGINAL_84_TO_EXISTING_T10_T5_TIMING"
@@ -999,7 +999,7 @@ app.get("/health", (_req, res) => {
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
       components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      thresholds: { callPut: 62, prepare: 42, minimumClosedCandles: MIN_CLOSED_CANDLES },
+      thresholds: { callPut: 60, prepare: 40, minimumClosedCandles: MIN_CLOSED_CANDLES },
       killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
     },
     recovery: {
@@ -1032,7 +1032,7 @@ app.get("/health", (_req, res) => {
       original84: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
         components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 62, prepare: 42 },
+        thresholds: { callPut: 60, prepare: 40 },
         killSwitches: ["CHOPPY_MARKET", "ABNORMAL_ATR_SPIKE"],
         outOfSampleValidated: false
       }
