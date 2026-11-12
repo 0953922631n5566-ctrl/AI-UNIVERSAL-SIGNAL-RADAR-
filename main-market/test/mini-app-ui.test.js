@@ -37,12 +37,12 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
 });
 
 test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
-  assert.ok(html.includes("ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE"));
-  assert.match(html, /ORIGINAL 84 · /);
-  assert.match(html, /v\?\.scores/);
-  assert.match(html, /v\?\.components/);
-  assert.match(html, /m\.marketIntelligence/);
-  assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|SCORING BREAKDOWN/);
+  assert.ok(html.includes("M1 PRECISION ENTRY · MAIN MARKET · NON-OTC"));
+  assert.match(html, /m\.precisionEntry/);
+  assert.match(html, /pe\.scores/);
+  assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
+  assert.match(html, /STRUCT .*\/25 · PRICE .*\/25 · MOM .*\/20 · TREND .*\/15 · SAFETY .*\/15/);
+  assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
 
 test("server uses ORIGINAL 84 as the only directional analyzer and retains source/timing guards", () => {
