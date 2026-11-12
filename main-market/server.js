@@ -9,7 +9,7 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
+import { analyzeM5LiveM1Entry } from "./src/m5-live-m1-entry.js";
 import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
@@ -28,9 +28,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "M1 PRECISION ENTRY · 25/25/20/15/15";
-const ARCHITECTURE_ID = "M1-PRECISION-ENTRY-25-25-20-15-15";
-const VERSION = "2026-11-12-m1-precision-entry-mobile-v1";
+const SYSTEM_NAME = "M5 LIVE DIRECTION + M1 PRECISION ENTRY";
+const ARCHITECTURE_ID = "M5-LIVE-M1-PRECISION-ENTRY";
+const VERSION = "2026-11-12-m5-live-m1-entry-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -49,7 +49,8 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
+    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
+    lastM5SignalBlock: null
   };
 }
 
@@ -130,9 +131,9 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
     candleCount: feed.candles.length,
-    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
-    requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, 30),
+    requiredCandles: 30,
+    analysisWindow: { contextCandles: 30, entryCandles: 1, total: 31, higherTimeframe: "M5_LIVE" },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -241,11 +242,9 @@ async function evaluate(feed) {
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
  feed.recoveryState = recoveryWindow.state;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // M1 Precision Entry is the sole directional analyzer. Source quality and live timing remain separate guards.
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ // M5 LIVE + M1 PRECISION ENTRY is the sole directional analyzer. Current price must be fresh Twelve Data Streaming.
+ const rawResult = analyzeM5LiveM1Entry(feed.candles, {
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, lastM5SignalBlock: feed.lastM5SignalBlock
  });
  const closedCandles = feed.candles
    .filter(candle => candle && candle.live !== true)
@@ -258,7 +257,7 @@ async function evaluate(feed) {
    allowedDirection: direction,
    sidewayScore: null,
    setup: direction && rawResult.signal !== "STANDBY" ? {
-     direction, type: "M1_PRECISION_ENTRY",
+     direction, type: "M5_LIVE_M1_PULLBACK_CONFIRMATION",
      score: rawResult.score || 0, evidence: rawResult.evidence || []
    } : null,
    stage: rawResult.signal === "PREPARE" ? "PREPARE"
@@ -300,7 +299,7 @@ async function evaluate(feed) {
  }
  const finalizeWindow = sourceCandleEpoch !== null &&
    isSignalFinalizeWindow(sourceCandleEpoch, now);
- const finalizeEligible = finalizeWindow &&
+ const finalizeEligible = finalizeWindow && rawResult.m5BlockEpoch !== feed.lastM5SignalBlock &&
    (result.signal === "CALL" || result.signal === "PUT") &&
    canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
      lastDispatchedCandle: feed.lastDispatchedCandle });
@@ -312,7 +311,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "ORIGINAL_84_RETURNED_STANDBY"
+        : result.signal === "STANDBY" ? "M5_M1_LIVE_ENTRY_NOT_CONFIRMED"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -328,6 +327,7 @@ async function evaluate(feed) {
    });
    if (canFinalize) {
      feed.activeSignal = result.signal;
+     feed.lastM5SignalBlock = result.m5BlockEpoch;
      feed.signalCandle = targetCandleEpoch;
      feed.signalSourceCandle = sourceCandleEpoch;
      feed.signalTriggeredAt = now;
