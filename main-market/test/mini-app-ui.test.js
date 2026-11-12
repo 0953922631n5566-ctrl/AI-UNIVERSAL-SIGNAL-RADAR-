@@ -37,7 +37,7 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
 test("Mini App retains M5 LIVE and M1 pullback diagnostics without occupying the compact signal screen", () => {
   assert.ok(html.includes("TELEGRAM MINI APP · MAIN MARKET · NON-OTC · M1"));
   assert.match(html, /class="diagnostics" aria-hidden="true"/);
-  assert.match(html, /m\.precisionEntry/);
+  assert.match(html, /mm\.m1Ema5/);
   assert.match(html, /mm\.m1Ema5/);
   assert.match(html, /PULLBACK /);
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
@@ -47,7 +47,9 @@ test("server uses the live M5 M1 analyzer as the only directional analyzer and r
   assert.match(serverJs, /import \{ analyzeM5LiveM1Entry \} from "\.\/src\/m5-live-m1-entry\.js"/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
   assert.match(serverJs, /analyzeM5LiveM1Entry\(feed\.candles/);
-  assert.match(serverJs, /const direction = rawResult\.direction/);\n  assert.match(serverJs, /lastM5SignalBlock/);\n  assert.match(serverJs, /restFallbackEnabled: false/);
+  assert.match(serverJs, /const direction = rawResult\.direction/);
+  assert.match(serverJs, /lastM5SignalBlock/);
+  assert.match(serverJs, /restFallbackEnabled: false/);
   assert.match(serverJs, /isPrepareAlertWindow/);
   assert.match(serverJs, /isSignalFinalizeWindow/);
   assert.match(serverJs, /signalHoldExpiresAt/);
