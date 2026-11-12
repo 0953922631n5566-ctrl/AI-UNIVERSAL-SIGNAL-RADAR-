@@ -9,9 +9,8 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { sourceGate } from "./src/analyzer.js";
+import { analyzeMarket } from "./src/analyzer.js";
 import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
-import { analyzeMarketIntelligence } from "./src/accuracy-lab/market-intelligence.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -29,9 +28,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ACCURACY LAB TREND ONLY";
-const ARCHITECTURE_ID = "ACCURACY-LAB-TREND-ONLY";
-const VERSION = "2026-11-11-accuracy-lab-trend-only-v1";
+const SYSTEM_NAME = "ORIGINAL 84 · PARTIAL SCORING 62/42";
+const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-62-42";
+const VERSION = "2026-11-12-original-84-tuned-62-42-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -244,48 +243,32 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // ORIGINAL 84 is intentionally not called. Accuracy Lab is the only directional analyst.
- // Keep the existing source-quality gate, Twelve Data feed, and signal timing unchanged.
- const gate = sourceGate(feed.candles, {
-   now, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+ // ORIGINAL 84 is the sole directional analyzer. Source quality and live timing remain separate guards.
+ const rawResult = await analyzeMarket(feed.candles, {
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
- const closedCandles = gate.closed.slice(-MIN_CLOSED_CANDLES);
+ const closedCandles = feed.candles
+   .filter(candle => candle && candle.live !== true)
+   .slice(-MIN_CLOSED_CANDLES);
  feed.reversalRadar = detectReversalRadar(closedCandles);
- feed.marketIntelligence = analyzeMarketIntelligence(closedCandles);
- const lab = feed.marketIntelligence;
- const setup = gate.ready ? lab.setup : null;
- const direction = setup?.direction === "CALL" || setup?.direction === "PUT"
-   ? setup.direction : "STANDBY";
- const rawResult = {
-   signal: direction,
-   regime: lab.regime || "UNCLEAR",
-   confidence: setup?.score || 0,
-   score: setup?.score || 0,
-   reason: gate.ready ? (lab.reason || "Accuracy Lab: รอเงื่อนไขที่ผ่านเกณฑ์")
-     : (gate.reason || "ข้อมูลตลาดยังไม่พร้อม"),
-   evidence: setup?.evidence || lab.warnings || [],
-   riskFlags: lab.warnings || [],
-   summary: gate.ready ? (lab.reason || "Accuracy Lab") : gate.reason,
-   strategy: "ACCURACY_LAB_TREND_ONLY",
-   entryType: setup?.type || null,
-   provider: "LOCAL_ACCURACY_LAB",
-   metrics: {
-     sidewayScore: lab.sidewayScore ?? null,
-     adxProxy: lab.adxProxy ?? null,
-     ema5Slope: lab.ema5Slope ?? null,
-     ema20Slope: lab.ema20Slope ?? null,
-     volatilityRatio: lab.volatilityRatio ?? null,
-     structure: lab.structure || null
-   },
-   lastCandleEpoch: gate.lastCandleEpoch,
-   dataMode: gate.mode,
-   ageSeconds: gate.ageSeconds,
-   livePriceReady: gate.ready,
-   closedCandleCount: gate.closed.length,
-   requiredCandles: MIN_CLOSED_CANDLES,
-   analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
-   analyzedAt: new Date(now).toISOString(),
-   signalValidationNote: "Accuracy Lab TREND ONLY · CALL เฉพาะ UPTREND (HH/HL) · PUT เฉพาะ DOWNTREND (LH/LL) · Sideway/transition/high volatility งดสัญญาณ · ยังไม่มีผลทดสอบ out-of-sample"
+ const direction = rawResult.direction || null;
+ // Compatibility-only presentation adapter for the existing Mini App diagnostics; it never votes on signals.
+ feed.marketIntelligence = {
+   regime: rawResult.regime || "UNCLEAR",
+   allowedDirection: direction,
+   sidewayScore: null,
+   setup: direction && rawResult.signal !== "STANDBY" ? {
+     direction, type: "ORIGINAL_84_PARTIAL_SCORING",
+     score: rawResult.score || 0, evidence: rawResult.evidence || []
+   } : null,
+   stage: rawResult.signal === "PREPARE" ? "PREPARE"
+     : ["CALL","PUT"].includes(rawResult.signal) ? "SIGNAL_CONFIRMED" : "STANDBY",
+   warnings: rawResult.riskFlags || [],
+   scores: rawResult.scores || null,
+   components: rawResult.componentScores || null,
+   ema5Slope: rawResult.metrics?.ema5Slope ?? null,
+   ema20Slope: rawResult.metrics?.ema20Slope ?? null,
+   structure: null
  };
  const result = applySignalReleaseGate(rawResult);
 
@@ -329,7 +312,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "EMA_TREND_FLOW_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "ORIGINAL_84_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
