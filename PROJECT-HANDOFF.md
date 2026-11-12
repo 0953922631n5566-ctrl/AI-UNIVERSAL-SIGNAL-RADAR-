@@ -1975,3 +1975,19 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - CI passed both Main Market and Telegram Mini App workflows: 117 passed, 0 failed, 4 skipped; 50+4 wiring and syntax checks passed.
 - Live verification after deploy: `/health` returned `ok:true`, `/signal` returned HTTP 200, and `/api/public/signal` exposed live guard evidence (at the check time Choppy NORMAL, ATR NORMAL, Overall NORMAL). WATCH/DANGER were verified with deterministic CI tests, not by waiting for a live market event.
 - No out-of-sample accuracy/profitability claim. Manual trading only; no broker execution.
+
+
+## 2026-11-12 — KAMA + DMI/ADX confirmation integrated and deployed
+
+- User requested adding KAMA and DMI/ADX to the latest active Main Market analyzer, not replacing the existing engine or changing another experiment.
+- PR #94 merged to `main-market`: `b76c376667fb2a447901a90f440708eab7611fd7`.
+- Added `main-market/src/kama-dmi-adx.js`:
+  - KAMA(10), fast 2 / slow 30, for adaptive trend direction.
+  - Wilder DMI/ADX(14): +DI/-DI determine directional pressure; ADX only scales trend-strength confirmation and never chooses CALL/PUT.
+  - KAMA alignment and DMI confirmation are blended into the existing Trend Context 20-point component. No new independent signal authority, no forced direction, and no bypass of existing guards.
+- ORIGINAL 84 component weights remain 30/30/20/20; active code thresholds remain CALL/PUT 60 and PREPARE 40; 50 context + 4 entry = 54 closed M1 candles.
+- Existing Choppy/ATR NORMAL/WATCH/DANGER guards, Twelve Data pool, signal timing/hold, Mini App UI/auth/session, notifications and manual-only execution remain unchanged.
+- Added unit tests for indicator calculation, ADX strength weighting and invalid/insufficient input. GitHub Actions passed both Main Market Checks and Telegram Mini App Checks.
+- Render service `ai-signal-radar-main-market`, deploy `dep-dbqkhk0ae00c738gggk0`, commit `b76c376667fb2a447901a90f440708eab7611fd7`, reached `live`.
+- Live verification: `/health` returned `ok:true`; `/api/public/signal` showed EUR/USD M1 with KAMA, +DI, -DI and ADX metrics; `/signal` returned the Mini App page. At the sampled snapshot KAMA was falling, -DI exceeded +DI, ADX was 32.4, and CALL/PUT scores were 46.2/42.3, both below the active 60 signal threshold; after the existing 30-second hold expired the output was STANDBY. This is a runtime wiring check, not a performance or accuracy validation.
+- Out-of-sample accuracy remains unvalidated; manual trading only, no broker execution. Telegram device-side interaction was not independently tested.
