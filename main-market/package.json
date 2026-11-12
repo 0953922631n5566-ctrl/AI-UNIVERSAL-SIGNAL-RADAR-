@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js && node --check src/false-signal-filter.js && node --check src/precision-entry.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/rsi-bollinger.js && node --check src/bos-choch-candle.js && node --check src/false-signal-filter.js && node --check src/precision-entry.js && node --check src/m5-live-m1-entry.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -32,8 +32,18 @@
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
     "externalAiCalls": false,
-    "scoreWeights": {"marketStructure":25,"priceAction":25,"momentum":20,"trendAlignment":15,"volatilityDataQuality":15},
-    "thresholds": {"callPut":80,"prepare":60,"minDirectionGap":12},
+    "scoreWeights": {
+      "marketStructure": 25,
+      "priceAction": 25,
+      "momentum": 20,
+      "trendAlignment": 15,
+      "volatilityDataQuality": 15
+    },
+    "thresholds": {
+      "callPut": 80,
+      "prepare": 60,
+      "minDirectionGap": 12
+    },
     "candles": {
       "context": 50,
       "entry": 4,
