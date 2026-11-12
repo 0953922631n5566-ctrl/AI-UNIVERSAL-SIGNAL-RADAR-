@@ -11,7 +11,7 @@ test("Mini App includes all six selectable currency pairs and ten API slots", ()
   for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
     assert.match(html, new RegExp(symbol.replace("/", "\\/")));
   }
-  assert.match(html, /TWELVE DATA API KEYS · 01–10/);
+  assert.match(html, /TWELVE DATA · API POOL/);
   assert.match(html, /apiKeys/);
 });
 
@@ -27,20 +27,21 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
   assert.ok(html.includes("M1 PRECISION ENTRY"));
-  assert.ok(html.includes("25/25/20/15/15"));
-  assert.ok(html.includes("LEVEL 1 FALSE-SIGNAL FILTER"));
+  assert.match(html, /m\.precisionEntry/);
+  assert.match(html, /LEVEL 1 FALSE-SIGNAL FILTER/);
   assert.match(html, /m\.score/);
   assert.match(html, /PRECISION ENTRY · /);
   assert.match(html, /id="reversal"/);
   assert.doesNotMatch(html, /geminiQuota/);
 });
 
-test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
-  assert.ok(html.includes("M1 PRECISION ENTRY · MAIN MARKET · NON-OTC"));
+test("Mini App retains Precision Entry score diagnostics without occupying the compact signal screen", () => {
+  assert.ok(html.includes("TELEGRAM MINI APP · MAIN MARKET · NON-OTC · M1"));
+  assert.match(html, /class="diagnostics" aria-hidden="true"/);
   assert.match(html, /m\.precisionEntry/);
   assert.match(html, /pe\.scores/);
   assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
-  assert.match(html, /STRUCT .*\/25 · PRICE .*\/25 · MOM .*\/20 · TREND .*\/15 · SAFETY .*\/15/);
+  assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
 
