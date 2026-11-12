@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#07110d">
-  <title>SIGNAL RADAR PRO · M1 PRECISION ENTRY</title>
-  <link rel="stylesheet" href="/styles.css?v=20261112-precision-mobile-api-pool">
+  <title>SIGNAL RADAR PRO · EMA 5/20 RELAXED TREND FLOW</title>
+  <link rel="stylesheet" href="/styles.css?v=20261109-no-standby-display">
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>M1 PRECISION ENTRY <i>·</i> MAIN MARKET</small></div></div>
+      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>PURE TECHNICAL · EMA 5/20 <i>·</i> NON-OTC</small></div></div>
       <div id="connection" class="status offline"><span></span> OFFLINE</div>
     </header>
 
@@ -33,10 +33,8 @@
     <section id="feed" class="feed">
       <div class="feed-title"><span id="feedDot"></span><b id="feedTitle">กำลังตรวจสอบการเชื่อมต่อ</b></div>
       <p id="apiMessage" role="status" aria-live="polite">รอการเชื่อมต่ออุปกรณ์</p>
-      <div class="feed-meta"><span id="restStatus">REST · —</span><span id="streamStatus">STREAM · —</span><span id="candleCount">CANDLES · 0/200</span><span id="apiPoolStatus">API POOL · —</span></div>
+      <div class="feed-meta"><span id="restStatus">REST · —</span><span id="streamStatus">STREAM · —</span><span id="candleCount">CANDLES · 0/200</span><span id="apiPoolStatus">API KEYS · —</span></div>
     </section>
-
-    <section class="api-pool-card" aria-label="Twelve Data API key status"><div class="api-pool-heading"><b>TWELVE DATA API POOL</b><span id="apiPoolSummary">—</span></div><div id="apiKeyGrid" class="api-key-grid"><span class="api-key-empty">รอสถานะคีย์ API</span></div><div class="api-legend"><span><i class="active"></i> ACTIVE</span><span><i class="ready"></i> READY</span><span><i class="cooldown"></i> COOLDOWN / ERROR</span></div></section>
 
     <section class="signal-card">
       <div class="section-head"><span>MARKET SIGNAL</span><span id="signalTime">—</span></div>
@@ -46,17 +44,6 @@
       </div>
       <div class="regime"><span>MARKET REGIME</span><b id="regimeValue">ยังไม่ทราบ</b></div>
       <div class="reason"><b>✦ เหตุผลและหลักฐาน</b><p id="reasonText">กดเริ่มสแกนเพื่อโหลดข้อมูลจาก Twelve Data</p><ul id="evidenceList"></ul><small id="validationNote">EMA 5/20 Relaxed Trend Flow · ยังไม่มีผลประเมิน out-of-sample · Manual only</small></div>
-    </section>
-
-    <section class="signal-card">
-      <div class="section-head"><span>PRECISION ENTRY · SCORE BREAKDOWN</span><span>ไม่เปลี่ยนสัญญาณหลัก</span></div>
-      <div class="regime"><span>ผลคะแนนสูตร M1 Precision Entry</span><b id="reversalStage">รอข้อมูล M1 ปิดแล้ว</b></div>
-      <div class="metrics">
-        <div class="metric"><span>ทิศทางทดลอง</span><b id="reversalDirection">—</b></div>
-        <div class="metric"><span>คะแนนกลับตัว</span><b id="reversalScore">—</b></div>
-        <div class="metric"><span>แนวโน้มก่อนหน้า</span><b id="reversalTrend">—</b></div>
-      </div>
-      <div class="reason"><p id="reversalReason">ระบบทดลองจะแสดงผลจากแท่ง M1 ที่ปิดแล้ว โดยไม่ส่งคำสั่งหรือแจ้งเตือนแทนระบบหลัก</p></div>
     </section>
 
     <section class="metrics">
@@ -89,6 +76,6 @@
     <p id="testStatus" class="test-status">แตะปุ่มทดสอบเพื่อตรวจอุปกรณ์</p>
     <footer><b>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</b><span id="updatedAt">ยังไม่มีข้อมูล</span></footer>
   </main>
-  <script src="/app.js?v=20261112-precision-mobile-api-pool"></script>
+  <script src="/app.js?v=20261109-no-standby-display"></script>
 </body>
 </html>
