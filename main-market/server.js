@@ -938,6 +938,7 @@ app.get("/api/public/signal", (_req, res) => {
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
       engineSummary: state.engineSummary || null,
+      adaptiveEmaShadow: state.adaptiveEmaShadow || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
       signalValidationNote: state.signalValidationNote,
