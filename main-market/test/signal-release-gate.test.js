@@ -16,7 +16,7 @@ test("Adaptive EMA CALL and PUT decisions are preserved with an explicit manual-
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /out-of-sample/);
-    assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
+    assert.deepEqual(result.evidence, ["100 closed M1 candles"]);
   }
 });
 
