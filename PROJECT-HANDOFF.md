@@ -2027,3 +2027,19 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added deterministic tests for confirmed swing break, bullish/bearish impulse candles, invalid input and unchanged ORIGINAL 84 baseline.
 - Updated package metadata/postinstall syntax check and analyzer validation note. No Mini App UI, Telegram auth/session, Twelve Data, API pool, polling, timing, notification, signal hold, broker execution, server control flow, or other project/branch files were changed.
 - Pending: CI on the feature branch, PR review, and shadow-data comparison against live M1 outcomes. Do not merge/deploy until CI and scope review pass; no accuracy improvement is claimed.
+
+
+## 2026-11-12 — M1 Precision Entry and Telegram Mini App mobile/API dashboard
+
+- User authorized applying the proposed M1 Precision Entry formula to the active Main Market analyzer and compacting the actual Telegram Mini App screen while preserving sound and alert behavior.
+- PR #102 merged as `768be261f842a724ce7156a13158322f6c35c986`; PR #103 merged as `5f3bf9759b5bec091507d7b749ba80297d8400b6`.
+- Added `main-market/src/precision-entry.js` and integrated it after the existing scoreMarket feature extraction and before the Level 1 false-signal filter.
+- Active scoring weights: Market Structure 25, Price Action 25, Momentum 20, Trend Alignment 15, Volatility/Data Quality 15. CALL/PUT requires score >=80 and a direction gap >=12. PREPARE starts at 60 with gap >=8; WATCH applies below 70 and WAIT_CONFIRMATION applies at 70–79. DANGER guard or missing/invalid analysis context fails closed to STANDBY.
+- Existing Level 1 false-signal filter remains after Precision Entry; Choppy/ATR guards, 50+4 closed-candle context, selected-pair-only M1 analysis, Twelve Data feed, T-10/T-5 timing, 30-second signal hold, sound/vibration and manual-only execution remain in place.
+- Twelve Data pool public status now exposes a non-secret `failureKind` per key. Actual Telegram Mini App page is `main-market/public/signal.html`; it now uses a compact mobile layout, removes redundant reversal/lab panels, shows Precision Entry's five component scores, and displays each of the 10 API keys. ACTIVE is pulsing green, READY is steady green, and COOLDOWN/error is red; key values/secrets are never exposed.
+- Existing Mini App sound enablement, T-10 PREPARE alert, T-5 CALL/PUT alert, vibration, visual alert flash, and 30-second hold code were preserved without changing their implementation.
+- PR #102 CI: Main Market and Mini App workflows passed; 141 tests, 137 passed, 0 failed, 4 skipped. PR #103 initially exposed two stale UI assertions for the retired ORIGINAL 84 panel; tests were updated to assert Precision Entry diagnostics. Final PR #103 CI: both workflows passed, including Mini App wiring and JavaScript syntax checks.
+- Render service `ai-signal-radar-main-market`, branch `main-market`, deploy `dep-dbqqk8d9el5s73f8ipm0`, commit `5f3bf9759b5bec091507d7b749ba80297d8400b6`, reached `live`.
+- Live `/health` verified version `2026-11-12-m1-precision-entry-mobile-v1`, Precision Entry weights and thresholds, Level 1 filter enabled, Choppy/ATR guards enabled, 54 closed candles, and Twelve Data pool 10 configured / 10 available (key 1 ACTIVE; keys 2–10 READY at the sampled time).
+- Live `/signal` route returned HTTP content with the actual Telegram Mini App page. A real Telegram Android device-side visual/interaction test remains pending; do not claim device fit or actual phone alert playback independently verified.
+- Predictive accuracy and profitability remain unvalidated out-of-sample. The 80/60/gap-12 thresholds are conservative heuristic gates, not a proven high win rate. Manual trading only; no broker order execution.
