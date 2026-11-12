@@ -2,7 +2,7 @@ import {
   MIN_CLOSED_CANDLES, CONTEXT_CANDLES, ENTRY_CANDLES,
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
-import { scoreMarket } from "./advanced-scoring.js";
+import { analyzeAdaptiveEmaPool } from "./adaptive-ema-pool.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -138,16 +138,47 @@ export async function analyzeMarket(candles, options = {}) {
     return { signal:"STANDBY", reason:gate.reason, regime:"UNCLEAR", score:0, confidence:0,
       strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
   }
-  const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
-  const scored=scoreMarket(closedCandles);
+  const adaptive = analyzeAdaptiveEmaPool(gate.closed);
+  const signal = adaptive.signal === "CALL" || adaptive.signal === "PUT" ? adaptive.signal : "STANDBY";
+  const direction = signal === "STANDBY" ? null : signal;
+  const reason = adaptive.reason || "Adaptive EMA ยังไม่พบเงื่อนไขที่ผ่านเกณฑ์";
+  const evidence = [
+    `Adaptive EMA ที่เลือก: ${adaptive.selectedPeriod ?? "—"}`,
+    `คะแนน: ${adaptive.score ?? 0}/100`,
+    `สภาวะตลาด: ${adaptive.regime ?? "UNCLEAR"}`,
+    `ตรวจสอบ EMA ทั้งหมด: ${adaptive.candidateCount ?? 0} ช่วง`,
+    ...(Array.isArray(adaptive.topCandidates) ? adaptive.topCandidates.slice(0, 3).map(item =>
+      `EMA ${item.period}: ${item.direction ?? "NEUTRAL"} · ${item.score}/100`) : [])
+  ];
   return {
-    ...scored, ...base,
-    prepareSignal:scored.prepareSignal||null,
+    signal, direction,
+    regime: adaptive.regime === "TRENDING"
+      ? (direction === "PUT" ? "DOWNTREND" : direction === "CALL" ? "UPTREND" : "TRENDING")
+      : adaptive.regime,
+    confidence: adaptive.score ?? 0,
+    score: adaptive.score ?? 0,
+    reason, summary: reason, evidence,
+    riskFlags: adaptive.riskFlags || [],
+    strategy: "ADAPTIVE_EMA_POOL_32_DYNAMIC_HANDOFF",
+    entryType: "ADAPTIVE_EMA_DYNAMIC_HANDOFF",
+    provider: "LOCAL_ADAPTIVE_EMA",
+    metrics: {
+      selectedEmaPeriod: adaptive.selectedPeriod,
+      selectedEma: adaptive.selectedEma,
+      efficiencyRatio: adaptive.efficiencyRatio,
+      alternationRatio: adaptive.alternationRatio,
+      currentRangeAtrRatio: adaptive.currentRangeAtrRatio,
+      candidateCount: adaptive.candidateCount,
+      warmupCandles: adaptive.warmupCandles
+    },
+    adaptiveEma: adaptive,
+    ...base,
+    prepareSignal: null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
-    signalValidationStatus:"PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"ORIGINAL 84 Partial Scoring 60/40 + KAMA/DMI/ADX + RSI/Bollinger + BOS/CHOCH/Candle active score modifiers + 3-Level Choppy/ATR Guards · ยังไม่มีผลประเมิน out-of-sample · ใช้ทดสอบแบบ paper/manual เท่านั้น",
-    signalReleaseStatus:"ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalValidationStatus:"ADAPTIVE_EMA_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote:"Adaptive EMA Pool 32 horizons · dynamic candidate selection · data quality and T-10/T-5 timing guards remain active · ยังไม่มีผลทดสอบ out-of-sample · ใช้ทดสอบแบบ paper/manual เท่านั้น",
+    signalReleaseStatus:"ADAPTIVE_EMA_POOL_32_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };
