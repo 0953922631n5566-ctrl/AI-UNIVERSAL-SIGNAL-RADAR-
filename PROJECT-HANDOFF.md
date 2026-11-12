@@ -2045,3 +2045,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Predictive accuracy and profitability remain unvalidated out-of-sample. The 80/60/gap-12 thresholds are conservative heuristic gates, not a proven high win rate. Manual trading only; no broker order execution.
 
 - Post-merge static label cleanup replaced the last ORIGINAL 84 labels in `signal.html`; its first Render build correctly failed because test 83 still asserted those retired labels. Updated `mini-app-ui.test.js` to assert the new Precision Entry labels and score field. The successful PR #103 CI remains valid for the PR contents; the follow-up main-branch build must pass before treating this last cosmetic label commit as deployed.
+
+
+### Precision Entry API/evidence consistency follow-up (2026-11-12)
+
+- Extended `/api/public/signal` to expose the non-secret `precisionEntry`, per-side `scores`, `components`, and `falseSignalFilter` objects so the public diagnostic payload matches the Mini App's actual decision engine.
+- Updated the signal-release gate status/note from ORIGINAL 84 to M1 Precision Entry; updated health/snapshot metadata and package safety metadata accordingly.
+- Replaced legacy ORIGINAL 84 evidence strings with live Precision Entry evidence: CALL/PUT scores, Market Structure, Price Action, Momentum, Trend/Safety, direction gap and guard status. This prevents conflicting legacy 60/40 evidence from appearing beside the new 80/gap-12 formula.
+- Updated the release-gate, Mini App, and Precision Entry tests for the new strategy. Final Render build/test run for commit `49a4dfb46806ce57ca4b5dd4bb60e4adea98e01a`: 138 passed, 0 failed, 4 skipped; build successful.
+- Live public API sample verified `precisionEntry.version=M1_PRECISION_ENTRY_V1`, weights 25/25/20/15/15, CALL 63.1 / PUT 59.0, gap 4.1, stage `NO_ENTRY`; correct output is STANDBY because neither score nor gap meets entry criteria. API pool at sample time: 10/10 available, key 1 ACTIVE and keys 2–10 READY.
+- The Mini App remains manual-only and preserves T-10/T-5, sounds, vibration and 30-second hold. No broker execution. Out-of-sample predictive accuracy remains unvalidated.
