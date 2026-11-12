@@ -137,6 +137,8 @@ export function scoreMarket(candles) {
       `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
       `KAMA ${indicators.ready?(indicators.kamaRising?"UP":indicators.kamaFalling?"DOWN":"FLAT"):"N/A"} · +DI ${indicators.plusDI?.toFixed(1)??"N/A"} / -DI ${indicators.minusDI?.toFixed(1)??"N/A"} · ADX ${indicators.adx?.toFixed(1)??"N/A"}`,
       `RSI ${priceIndicators.rsi?.toFixed(1)??"N/A"} · BB %B ${priceIndicators.percentB?.toFixed(2)??"N/A"} · BB ${priceIndicators.squeeze?"SQUEEZE":"NORMAL"}`,
+      `BOS/CHOCH SHADOW ${structureCandle.event} · Structure ${structureCandle.bias} · Candle ${structureCandle.candlePattern}`,
+      `Shadow conflicts · CALL structure/candle ${structureCandle.callStructureConflict? "YES":"NO"}/${structureCandle.callCandleConflict?"YES":"NO"} · PUT ${structureCandle.putStructureConflict?"YES":"NO"}/${structureCandle.putCandleConflict?"YES":"NO"}`,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrDanger?"อันตราย":atrWatch?"เฝ้าระวัง":"ปกติ"}`,
       `Choppy ${choppyLevel} (${choppyScore}/100) · ATR Guard ${atrLevel} · Overall ${guardLevel}`
     ],
