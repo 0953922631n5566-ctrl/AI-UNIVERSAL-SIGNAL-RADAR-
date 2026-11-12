@@ -39,13 +39,13 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
 test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
   assert.ok(html.includes("ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE"));
   assert.match(html, /ORIGINAL 84 · /);
-  assert.match(html, /m\.scores\?\.CALL/);
-  assert.match(html, /m\.components/);
+  assert.match(html, /v\?\.scores/);
+  assert.match(html, /v\?\.components/);
   assert.match(html, /m\.marketIntelligence/);
   assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|SCORING BREAKDOWN/);
 });
 
-test("server uses Accuracy Lab as the only directional analyzer and retains source/timing guards", () => {
+test("server uses ORIGINAL 84 as the only directional analyzer and retains source/timing guards", () => {
   assert.match(serverJs, /import \{ analyzeMarket \} from "\.\/src\/analyzer\.js"/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
   assert.match(serverJs, /await analyzeMarket\(feed\.candles/);
