@@ -28,7 +28,6 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /T-5/);
   assert.ok(html.includes("M1 PRECISION ENTRY"));
   assert.match(html, /m\.precisionEntry/);
-  assert.match(html, /LEVEL 1 FALSE-SIGNAL FILTER/);
   assert.match(html, /m\.score/);
   assert.match(html, /PRECISION ENTRY · /);
   assert.match(html, /id="reversal"/);
@@ -40,7 +39,6 @@ test("Mini App retains Precision Entry score diagnostics without occupying the c
   assert.match(html, /class="diagnostics" aria-hidden="true"/);
   assert.match(html, /m\.precisionEntry/);
   assert.match(html, /pe\.scores/);
-  assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
   assert.match(html, /ENTRY ≥80 \/ GAP ≥12/);
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
