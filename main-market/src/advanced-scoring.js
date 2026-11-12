@@ -68,41 +68,69 @@ export function scoreMarket(candles) {
   const tangled=Math.abs(e5[i]-e20[i])<=Math.max(atr*0.12,1e-10);
   const flat=Math.abs(slope5)<=Math.max(atr*0.025,1e-10)&&Math.abs(slope20)<=Math.max(atr*0.025,1e-10);
   const choppy=tangled&&flat;
+  const recentDirections=candles.slice(-13).map(c=>Math.sign(c.close-c.open)).filter(v=>v!==0);
+  const directionChanges=recentDirections.slice(1).reduce((n,v,i)=>n+(v!==recentDirections[i]?1:0),0);
+  const alternationRatio=recentDirections.length>1?directionChanges/(recentDirections.length-1):0;
+  const recentCloses=candles.slice(-15).map(c=>c.close);
+  const pathLength=recentCloses.slice(1).reduce((sum,v,i)=>sum+Math.abs(v-recentCloses[i]),0);
+  const efficiencyRatio=pathLength>0?Math.abs(recentCloses.at(-1)-recentCloses[0])/pathLength:0;
+  const choppyScore=(tangled?25:0)+(flat?25:0)+(alternationRatio>=0.60?25:0)+(efficiencyRatio<=0.20?25:0);
+  const choppyDanger=choppyScore>=75&&tangled&&flat&&alternationRatio>=0.70&&efficiencyRatio<=0.18;
+  const choppyLevel=choppyDanger?"DANGER":choppyScore>=50?"WATCH":"NORMAL";
+
   const currentRange=candles[i].high-candles[i].low;
-  const atrSpike=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
+  const currentRangeRatio=atr>0?currentRange/atr:0;
+  const recentAtrRatio=baselineAtr>0?recentAtr/baselineAtr:0;
+  // WATCH begins before the original hard limits; DANGER retains the original kill-switch limits.
+  const atrDanger=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
+  const atrWatch=!atrDanger&&((atr>0&&currentRangeRatio>=1.8)||(baselineAtr>0&&recentAtrRatio>=1.6));
+  const atrLevel=atrDanger?"DANGER":atrWatch?"WATCH":"NORMAL";
+  const guardLevel=choppyLevel==="DANGER"||atrLevel==="DANGER"?"DANGER"
+    :choppyLevel==="WATCH"||atrLevel==="WATCH"?"WATCH":"NORMAL";
+  const blocked=guardLevel==="DANGER";
+
   const call=componentScore(candles,"CALL",e5,e20,atr);
   const put=componentScore(candles,"PUT",e5,e20,atr);
   const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
-  const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
   const riskFlags=[];
-  if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
-  if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
+  if(choppyLevel==="DANGER")riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
+  else if(choppyLevel==="WATCH")riskFlags.push("CHOPPY_MARKET_WATCH");
+  if(atrLevel==="DANGER")riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
+  else if(atrLevel==="WATCH")riskFlags.push("HIGH_ATR_WATCH");
   let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&direction){
+  if(!blocked&&direction){
     if(top>=SIGNAL_THRESHOLD){signal=direction;status="SIGNAL";}
     else if(top>=PREPARE_THRESHOLD){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
-  const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
-    :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${SIGNAL_THRESHOLD}`
-    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์ PREPARE ${PREPARE_THRESHOLD} · รอประเมินซ้ำที่ T-5`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${PREPARE_THRESHOLD} หรือทิศทางยังไม่ชัด`;
+  const watchNote=guardLevel==="WATCH"?" · เฝ้าระวังความเสี่ยง Choppy/ATR (ยังไม่บล็อกสัญญาณ)":"";
+  const reason=blocked&&choppyLevel==="DANGER"?"DANGER GUARD: ตลาดแกว่งสลับทิศรุนแรง — ระงับสัญญาณ"
+    :blocked&&atrLevel==="DANGER"?"DANGER GUARD: ความผันผวน ATR รุนแรงผิดปกติ — ระงับสัญญาณ"
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${SIGNAL_THRESHOLD}${watchNote}`
+    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์ PREPARE ${PREPARE_THRESHOLD} · รอประเมินซ้ำที่ T-5${watchNote}`
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${PREPARE_THRESHOLD} หรือทิศทางยังไม่ชัด${watchNote}`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
-    regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
+    regime:choppyLevel==="DANGER"?"SIDEWAY":atrLevel==="DANGER"?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
     strategy:"ORIGINAL_84_PARTIAL_SCORING_60_40",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
-      `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
+      `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrDanger?"อันตราย":atrWatch?"เฝ้าระวัง":"ปกติ"}`,
+      `Choppy ${choppyLevel} (${choppyScore}/100) · ATR Guard ${atrLevel} · Overall ${guardLevel}`
     ],
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
-      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5},
-    prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
+      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
+      choppyScore,alternationRatio,efficiencyRatio,currentRangeRatio,recentAtrRatio},
+    riskGuard:{
+      level:guardLevel,blocked,
+      choppy:{level:choppyLevel,score:choppyScore,alternationRatio,efficiencyRatio,emaTangled:tangled,slopesFlat:flat},
+      atr:{level:atrLevel,currentRangeRatio,recentAtrRatio},
+    },
+    prepareSignal:signal==="PREPARE"?direction:null,killSwitch:blocked,
     thresholds:{signal:SIGNAL_THRESHOLD,prepare:PREPARE_THRESHOLD,standbyBelow:PREPARE_THRESHOLD}
   };
 }
