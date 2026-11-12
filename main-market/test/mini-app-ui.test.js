@@ -69,6 +69,10 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
   assert.ok(dashboardJs.includes('key+":5"'));
   assert.doesNotMatch(dashboardJs, /remaining <= 3/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
+  assert.match(html, /playSequence\(\[587\],0\.22,0\.08\)/, "T-10 warning is one single beep");
+  assert.match(html, /playSequence\(isCall\?\[660,784,880,1047,1175,1047,1319,1175\]/, "CALL/PUT alert uses a rapid multi-tone sequence");
+  assert.match(html, /button\.setAttribute\("aria-pressed","true"\)/);
+  assert.doesNotMatch(html, /soundStatus/);
   assert.match(html, /T-10 PREPARE alert/);
 });
 
