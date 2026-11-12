@@ -2003,3 +2003,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No Mini App UI/auth/session, Twelve Data, polling, timing, notifications, signal hold, or broker execution files are changed.
 - Added deterministic tests for indicator values, directional confirmation, fail-closed invalid input, and integration with unchanged thresholds/component count.
 - Pending: CI, PR review/merge, Render auto-deploy, `/health`, `/api/public/signal`, and `/signal` verification. Accuracy and profitability remain unvalidated; user-side Telegram device testing remains pending.
+
+
+## 2026-11-12 — RSI/Bollinger health metadata alignment
+
+- Follow-up branch `fix/main-market-rsi-bollinger-health-metadata-20261112` updates `/health` architecture/version/provider metadata and the public signal validation note to describe the already deployed KAMA + DMI/ADX + RSI + Bollinger analyzer.
+- This is metadata/observability only: no scoring, thresholds, indicator calculations, Mini App UI/auth/session, data feed, timing, guards, or signal behavior changes.
+- Pending CI, merge, Render auto-deploy, and post-deploy `/health` verification.

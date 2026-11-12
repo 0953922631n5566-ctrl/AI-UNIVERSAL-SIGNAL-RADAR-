@@ -29,8 +29,8 @@ const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "ORIGINAL 84 · PARTIAL SCORING 60/40";
-const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-60-40";
-const VERSION = "2026-11-12-original-84-tuned-60-40-v1";
+const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-60-40-KAMA-DMI-ADX-RSI-BOLLINGER";
+const VERSION = "2026-11-12-original-84-kama-dmi-adx-rsi-bollinger-v2";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -989,16 +989,17 @@ app.get("/health", (_req, res) => {
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
       decisionEngine: "ORIGINAL_84_PARTIAL_SCORING_60_40", engines: 1,
-      decisionAuthority: "ORIGINAL_84_PARTIAL_SCORING_60_40",
-      safetyLayer: "SYSTEM_DATA_QUALITY_AND_EXISTING_SIGNAL_TIMING_GUARDS",
+      decisionAuthority: "ORIGINAL_84_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION",
+      safetyLayer: "SYSTEM_DATA_QUALITY_KAMA_DMI_ADX_RSI_BOLLINGER_CHOPPY_ATR_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ORIGINAL_84_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_ORIGINAL_84_WITH_KAMA_DMI_ADX_RSI_BOLLINGER_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING_ORIGINAL_84", model: null, configured: true,
+      provider: "LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
       components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+      indicators: { kama: "10/2/30", dmi: "Wilder 14", adx: "Wilder 14 strength-only", rsi: "Wilder 14 momentum", bollingerBands: "SMA 20 / 2 standard deviations" },
       thresholds: { callPut: 60, prepare: 40, minimumClosedCandles: MIN_CLOSED_CANDLES },
       killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
     },
