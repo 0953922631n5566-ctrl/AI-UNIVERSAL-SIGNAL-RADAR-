@@ -243,7 +243,7 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // ORIGINAL 84 is the sole directional analyzer. Source quality and live timing remain separate guards.
+ // M1 Precision Entry is the sole directional analyzer. Source quality and live timing remain separate guards.
  const rawResult = await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
@@ -258,7 +258,7 @@ async function evaluate(feed) {
    allowedDirection: direction,
    sidewayScore: null,
    setup: direction && rawResult.signal !== "STANDBY" ? {
-     direction, type: "ORIGINAL_84_PARTIAL_SCORING",
+     direction, type: "M1_PRECISION_ENTRY",
      score: rawResult.score || 0, evidence: rawResult.evidence || []
    } : null,
    stage: rawResult.signal === "PREPARE" ? "PREPARE"
@@ -940,6 +940,10 @@ app.get("/api/public/signal", (_req, res) => {
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
+      precisionEntry: state.precisionEntry || null,
+      scores: state.scores || null,
+      components: state.componentScores || null,
+      falseSignalFilter: state.falseSignalFilter || null,
       signalValidationNote: state.signalValidationNote,
       lastPrice: state.lastPrice,
       lastTickPrice: state.lastTickPrice,
