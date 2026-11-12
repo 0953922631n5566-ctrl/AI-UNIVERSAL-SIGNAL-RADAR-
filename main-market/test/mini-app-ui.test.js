@@ -85,7 +85,7 @@ test("Mini App top-right status shows pulsing API LIVE only when online and red 
 
 
 test("Mini App fits compact floating windows without vertical scrolling and emphasizes a large signal lamp", () => {
-  assert.match(html, /height:100dvh/);
+  assert.match(html, /height:100%;max-height:100%/);
   assert.match(html, /overflow:hidden/);
   assert.match(html, /grid-template-rows:auto auto minmax\(145px,1fr\)/);
   assert.match(html, /\.lamp\{width:clamp\(100px,30vw,158px\);height:clamp\(100px,30vw,158px\)/);
