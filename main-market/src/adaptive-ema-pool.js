@@ -101,7 +101,7 @@ function evaluateCandidate(candles, period, atr, regime) {
 
 /**
  * Active adaptive EMA candidate pool.
- * Evaluates 32 well-warmed EMA horizons (2..101) against closed M1 candles,
+ * Evaluates 32 well-warmed EMA horizons (2..33) against closed M1 candles,
  * then selects the best fit for the current candle regime. The selected candidate
  * is the sole directional analyzer; source and timing guards remain external.
  */
@@ -110,7 +110,7 @@ export function analyzeAdaptiveEmaPool(candles) {
     return {
       ready: false, mode: "ADAPTIVE_EMA_ACTIVE", signal: "STANDBY", direction: null,
       selectedPeriod: null, selectedEma: null, score: 0, regime: "INSUFFICIENT_DATA",
-      candidateCount: PERIODS.length, reason: `ต้องมีแท่ง M1 ปิดอย่างน้อย ${MIN_WARMUP_CANDLES} แท่ง เพื่อ warm up EMA 101 อย่างเหมาะสม`,
+      candidateCount: PERIODS.length, reason: `ต้องมีแท่ง M1 ปิดอย่างน้อย ${MIN_WARMUP_CANDLES} แท่ง เพื่อ warm up EMA 33 อย่างเหมาะสม`,
       riskFlags: ["INSUFFICIENT_OR_INVALID_CANDLES"], topCandidates: []
     };
   }
