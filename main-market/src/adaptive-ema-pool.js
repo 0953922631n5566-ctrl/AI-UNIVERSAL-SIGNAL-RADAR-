@@ -1,8 +1,9 @@
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 const PERIODS = Object.freeze(Array.from({ length: 100 }, (_, index) => index + 2));
+const MIN_WARMUP_CANDLES = 303; // 3x the longest EMA period (101).
 
 function validCandles(candles) {
-  return Array.isArray(candles) && candles.length >= 30 && candles.every(c =>
+  return Array.isArray(candles) && candles.length >= MIN_WARMUP_CANDLES && candles.every(c =>
     c && [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
     c.low > 0 && c.close > 0 &&
     c.high >= Math.max(c.open, c.close) &&
@@ -109,7 +110,7 @@ export function analyzeAdaptiveEmaPool(candles) {
     return {
       ready: false, mode: "SHADOW_ONLY", signal: "STANDBY", direction: null,
       selectedPeriod: null, selectedEma: null, score: 0, regime: "INSUFFICIENT_DATA",
-      candidateCount: PERIODS.length, reason: "ต้องมีแท่ง M1 ปิดที่ถูกต้องอย่างน้อย 30 แท่ง",
+      candidateCount: PERIODS.length, reason: `ต้องมีแท่ง M1 ปิดอย่างน้อย ${MIN_WARMUP_CANDLES} แท่ง เพื่อ warm up EMA 101 อย่างเหมาะสม`,
       riskFlags: ["INSUFFICIENT_OR_INVALID_CANDLES"], topCandidates: []
     };
   }
@@ -147,6 +148,7 @@ export function analyzeAdaptiveEmaPool(candles) {
     alternationRatio: Number(context.alternation.toFixed(3)),
     currentRangeAtrRatio: Number(context.rangeRatio.toFixed(3)),
     candidateCount: PERIODS.length,
+    warmupCandles: MIN_WARMUP_CANDLES,
     reason,
     riskFlags: releaseAllowed ? [] : [context.regime, "SHADOW_NOT_RELEASED"],
     topCandidates: candidates.slice(0, 5).map(({ period, direction, score }) => ({ period, direction, score }))
