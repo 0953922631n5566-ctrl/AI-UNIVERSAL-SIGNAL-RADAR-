@@ -6,7 +6,7 @@ export const CONTEXT_CANDLES = 50;
 export const ENTRY_CANDLES = 4;
 export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
 export const HISTORY_CANDLES = 100;
-// Keep room for the in-progress live candle without evicting 100 closed history candles.
+// Keep room for the in-progress live candle without evicting the 100-candle analysis history.
 export const MAX_CANDLES = HISTORY_CANDLES + 10;
 export const REST_SYNC_SECONDS = 180;
 // Check the live WebSocket feed locally; this does not create a REST/API request.

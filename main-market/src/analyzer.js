@@ -3,6 +3,7 @@ import {
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
 import { scoreMarket } from "./advanced-scoring.js";
+import { analyzeAdaptiveEmaPool } from "./adaptive-ema-pool.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -140,8 +141,10 @@ export async function analyzeMarket(candles, options = {}) {
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
   const scored=scoreMarket(closedCandles);
+  const adaptiveEmaShadow = analyzeAdaptiveEmaPool(gate.closed);
   return {
     ...scored, ...base,
+    adaptiveEmaShadow,
     prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
