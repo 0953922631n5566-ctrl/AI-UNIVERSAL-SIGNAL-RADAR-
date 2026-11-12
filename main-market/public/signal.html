@@ -16,7 +16,7 @@
 <section id="access" class="card"><div class="eyebrow">MINI APP SESSION</div><p id="accessText" class="reason">กำลังยืนยันบัญชี Telegram…</p></section>
 <section class="card"><div class="eyebrow">MARKET SIGNAL · MANUAL ONLY</div><div id="panel" class="signal standby"><div class="lamp"></div><div class="words"><span id="hint" class="hint">กำลังตรวจสอบข้อมูลตลาดจริง</span><strong id="signal" class="value">STANDBY</strong><span id="action" class="action">ยังไม่เข้าออเดอร์</span></div></div><div class="timer" style="margin-top:14px"><span>แท่ง M1 เหลือเวลา <b id="candle">—</b></span><span>สัญญาณคงเหลือ <b id="expiry">—</b></span></div></section>
 <section class="grid"><div class="metric"><span>PRICE</span><b id="price">—</b></div><div class="metric"><span>MARKET REGIME</span><b id="regime">—</b></div><div class="metric"><span>CLOSED CANDLES</span><b id="candles">—</b></div><div class="metric"><span>DATA AGE</span><b id="age">—</b></div></section>
-<section class="card"><div class="eyebrow">REASON & EVIDENCE</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">ORIGINAL 84 SCORE DETAILS · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">ORIGINAL 84 · PARTIAL SCORING 60/40 · EMA5 SLOPE/REVERSAL · S/R FAKEOUT · MOMENTUM · TREND CONTEXT · ยังไม่มีผลทดสอบ out-of-sample</div></section>
+<section class="card"><div class="eyebrow">REASON & EVIDENCE</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">PRECISION ENTRY SCORES · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">M1 PRECISION ENTRY · 25/25/20/15/15 · LEVEL 1 FALSE-SIGNAL FILTER · ยังไม่มีผลทดสอบ out-of-sample</div></section>
 
 
 
@@ -24,7 +24,7 @@
 
 <section class="card"><div class="eyebrow">TWELVE DATA API KEYS · 01–10</div><div id="apiSummary" class="api-summary">กำลังอ่านสถานะ API Key…</div><div id="apiKeys" class="api-grid"></div><div class="note">เขียวกระพริบ = ACTIVE · เขียวคงที่ = READY · แดง = QUOTA / COOLDOWN / ERROR · ไม่แสดง API Key จริง</div></section>
 <div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
-<footer class="footer">ORIGINAL 84 PARTIAL SCORING · TELEGRAM MINI APP ONLY · NO CHAT MESSAGES · NO BROKER ORDER EXECUTION · <span id="updated">—</span></footer>
+<footer class="footer">M1 PRECISION ENTRY · TELEGRAM MINI APP ONLY · NO CHAT MESSAGES · NO BROKER ORDER EXECUTION · <span id="updated">—</span></footer>
 </main><script>
 const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKey="",lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 const tg=window.Telegram?.WebApp||null;
