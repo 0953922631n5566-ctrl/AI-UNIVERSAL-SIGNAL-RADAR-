@@ -27,9 +27,11 @@ jobs:
           grep -Fq '/api/telegram/session' server.js
           grep -Fq '/api/telegram/signal' server.js
           grep -Fq 'telegram-web-app.js' public/signal.html
-          grep -Fq 'export const CONTEXT_CANDLES = 50;' src/config.js
-          grep -Fq 'export const ENTRY_CANDLES = 4;' src/config.js
-          grep -Fq 'export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;' src/config.js
+          grep -Fq 'import { analyzeM5LiveM1Entry } from "./src/m5-live-m1-entry.js";' server.js
+          grep -Fq 'M5_LIVE_FORMING' server.js
+          grep -Fq 'restFallbackEnabled: false' server.js
+          grep -Fq 'lastM5SignalBlock' server.js
+          grep -Fq 'TWELVE_DATA_LIVE_STREAM' src/m5-live-m1-entry.js
           grep -Fq 'export const HISTORY_CANDLES = 100;' src/config.js
           grep -Fq 'historicalAnalogueWorker: "BYPASSED"' server.js
           ! grep -Fq 'sendSignalPush' server.js
