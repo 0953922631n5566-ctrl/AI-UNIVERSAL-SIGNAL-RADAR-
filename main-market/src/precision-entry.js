@@ -4,7 +4,7 @@ const SIGNAL_THRESHOLD=80, PREPARE_THRESHOLD=60, MIN_DIRECTION_GAP=12;
 function sideScore(candles,base,direction){
  const m=base.metrics||{},s=base.structureCandle||{},c=candles.at(-1),call=direction==="CALL",sign=call?1:-1;
  const biasMatch=s.bias===(call?"BULLISH":"BEARISH"),eventMatch=call?["BOS_UP","CHOCH_UP"].includes(s.event):["BOS_DOWN","CHOCH_DOWN"].includes(s.event),eventOppose=call?["BOS_DOWN","CHOCH_DOWN"].includes(s.event):["BOS_UP","CHOCH_UP"].includes(s.event);
- const structureScore=25*(biasMatch?.60:s.bias==="UNCONFIRMED"?.32:s.bias==="MIXED"?.40:.08)+(eventMatch?10:eventOppose?0:0);
+ const structureScore=25*(biasMatch ? 0.60 : s.bias==="UNCONFIRMED" ? 0.32 : s.bias==="MIXED" ? 0.40 : 0.08)+(eventMatch?10:eventOppose?0:0);
  const range=Math.max(c.high-c.low,1e-12),bodyRatio=Math.abs(c.close-c.open)/range,closeLocation=clamp((c.close-c.low)/range),directional=call?c.close>c.open:c.close<c.open,loc=call?closeLocation:1-closeLocation,wick=call?(Math.min(c.open,c.close)-c.low)/range:(c.high-Math.max(c.open,c.close))/range;
  const priceScore=25*(.40*(directional?1:.25)+.35*loc+.25*clamp(wick/.45));
  const slope=Number.isFinite(m.ema5Slope)?sign*m.ema5Slope:0,slopeScore=clamp(slope/Math.max(Number(m.atr14)||0,1e-10)*18),rsi=Number.isFinite(m.rsi)?m.rsi:50;
