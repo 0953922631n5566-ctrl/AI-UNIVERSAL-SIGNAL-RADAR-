@@ -1,7 +1,7 @@
 // This flag describes validation maturity only; it is NOT a runtime signal lock.
-// M5 LIVE + M1 entry is the sole directional decision-maker; existing guards validate live source and timing.
+// Local EMA5 Only Trend Flow is the sole directional decision-maker; system guards validate source and timing.
 export const SIGNAL_RELEASE_VALIDATED = false;
-export const SIGNAL_VALIDATION_STATUS = "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED";
+export const SIGNAL_VALIDATION_STATUS = "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED";
 
 export function applySignalReleaseGate(result) {
   return {
@@ -9,6 +9,6 @@ export function applySignalReleaseGate(result) {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseLocked: false,
     signalValidationStatus: SIGNAL_VALIDATION_STATUS,
-    signalValidationNote: "M5 LIVE forming direction + M1 Pullback/Breakout confirmation · ต้องมี Twelve Data Streaming สด · ยังไม่มีผลทดสอบ out-of-sample · ไม่มีการส่งคำสั่งซื้อขายอัตโนมัติ"
+    signalValidationNote: "Partial Scoring 65/45 เป็นเครื่องยนต์วิเคราะห์หลัก · Kill Switch สำหรับ Choppy/ATR Spike · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
   };
 }

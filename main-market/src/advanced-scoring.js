@@ -1,11 +1,5 @@
-import { calculateKamaDmiAdx, directionalConfirmation } from "./kama-dmi-adx.js";
-import { calculateRsiBollinger, priceActionConfirmation } from "./rsi-bollinger.js";
-import { calculateStructureCandleContext, calculateStructureCandleAdjustment } from "./bos-choch-candle.js";
-
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
-const SIGNAL_THRESHOLD = 60;
-const PREPARE_THRESHOLD = 40;
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -20,7 +14,7 @@ function atrAt(candles,end,period=14){
   const trs=part.slice(1).map((c,i)=>Math.max(c.high-c.low,Math.abs(c.high-part[i].close),Math.abs(c.low-part[i].close)));
   return mean(trs);
 }
-function componentScore(candles, direction, ema5, ema20, atr, indicators, priceIndicators) {
+function componentScore(candles, direction, ema5, ema20, atr) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1], p2=candles[i-2];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
   const slopeNow=ema5[i]-ema5[i-1], slopePrev=ema5[i-1]-ema5[i-2];
@@ -46,14 +40,12 @@ function componentScore(candles, direction, ema5, ema20, atr, indicators, priceI
   const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
     :clamp((c.open-c.close+Math.max(0,p.close-c.close)*0.5)/Math.max(atr*0.35,1e-10));
-  const priceConfirmation=priceActionConfirmation(priceIndicators,direction);
-  const proximityScore=20*(0.40*near+0.30*momentum+0.15*priceConfirmation.rsi+0.15*priceConfirmation.bollinger);
+  const proximityScore=20*(0.55*near+0.45*momentum);
   const aboveEma5=c.close>ema5[i], belowEma5=c.close<ema5[i];
   const structureMove=bullish?c.close-candles[Math.max(0,i-5)].close:candles[Math.max(0,i-5)].close-c.close;
   const structure=clamp(structureMove/Math.max(atr*0.9,1e-10));
   const emaSupport=bullish?aboveEma5:belowEma5;
-  const confirmation=directionalConfirmation(indicators,direction);
-  const trendScore=20*(0.35*structure+0.20*(emaSupport?1:0.25)+0.25*confirmation.kama+0.20*confirmation.dmi);
+  const trendScore=20*(0.55*structure+0.45*(emaSupport?1:0.25));
   const components={
     ema5SlopeReversal:Math.round(slopeScore*10)/10,
     srFakeout:Math.round(fakeoutScore*10)/10,
@@ -61,9 +53,7 @@ function componentScore(candles, direction, ema5, ema20, atr, indicators, priceI
     trendContext:Math.round(trendScore*10)/10
   };
   return {score:Math.round(Object.values(components).reduce((a,b)=>a+b,0)*10)/10,components,
-    details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20,
-      kama:indicators.kama,plusDI:indicators.plusDI,minusDI:indicators.minusDI,adx:indicators.adx,confirmation,
-      rsi:priceIndicators.rsi,bbPercentB:priceIndicators.percentB,priceConfirmation}};
+    details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20}};
 }
 export function scoreMarket(candles) {
   if(!Array.isArray(candles)||candles.length<30||!candles.every(c=>c&&[c.open,c.high,c.low,c.close].every(Number.isFinite)))
@@ -76,102 +66,41 @@ export function scoreMarket(candles) {
   const tangled=Math.abs(e5[i]-e20[i])<=Math.max(atr*0.12,1e-10);
   const flat=Math.abs(slope5)<=Math.max(atr*0.025,1e-10)&&Math.abs(slope20)<=Math.max(atr*0.025,1e-10);
   const choppy=tangled&&flat;
-  const recentDirections=candles.slice(-13).map(c=>Math.sign(c.close-c.open)).filter(v=>v!==0);
-  const directionChanges=recentDirections.slice(1).reduce((n,v,i)=>n+(v!==recentDirections[i]?1:0),0);
-  const alternationRatio=recentDirections.length>1?directionChanges/(recentDirections.length-1):0;
-  const recentCloses=candles.slice(-15).map(c=>c.close);
-  const pathLength=recentCloses.slice(1).reduce((sum,v,i)=>sum+Math.abs(v-recentCloses[i]),0);
-  const efficiencyRatio=pathLength>0?Math.abs(recentCloses.at(-1)-recentCloses[0])/pathLength:0;
-  const choppyScore=(tangled?25:0)+(flat?25:0)+(alternationRatio>=0.60?25:0)+(efficiencyRatio<=0.20?25:0);
-  const choppyDanger=choppyScore>=75&&tangled&&flat&&alternationRatio>=0.70&&efficiencyRatio<=0.18;
-  const choppyLevel=choppyDanger?"DANGER":choppyScore>=50?"WATCH":"NORMAL";
-
   const currentRange=candles[i].high-candles[i].low;
-  const currentRangeRatio=atr>0?currentRange/atr:0;
-  const recentAtrRatio=baselineAtr>0?recentAtr/baselineAtr:0;
-  // WATCH begins before the original hard limits; DANGER retains the original kill-switch limits.
-  const atrDanger=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
-  const atrWatch=!atrDanger&&((atr>0&&currentRangeRatio>=1.8)||(baselineAtr>0&&recentAtrRatio>=1.6));
-  const atrLevel=atrDanger?"DANGER":atrWatch?"WATCH":"NORMAL";
-  const guardLevel=choppyLevel==="DANGER"||atrLevel==="DANGER"?"DANGER"
-    :choppyLevel==="WATCH"||atrLevel==="WATCH"?"WATCH":"NORMAL";
-  const blocked=guardLevel==="DANGER";
-
-  const indicators=calculateKamaDmiAdx(candles);
-  const priceIndicators=calculateRsiBollinger(candles);
-  const structureCandle=calculateStructureCandleContext(candles);
-  const call=componentScore(candles,"CALL",e5,e20,atr,indicators,priceIndicators);
-  const put=componentScore(candles,"PUT",e5,e20,atr,indicators,priceIndicators);
-  const baseScores={CALL:call.score,PUT:put.score};
-  const callAdjustment=calculateStructureCandleAdjustment(structureCandle,"CALL");
-  const putAdjustment=calculateStructureCandleAdjustment(structureCandle,"PUT");
-  const structureCandleAdjustments={CALL:callAdjustment,PUT:putAdjustment};
-  const scores={CALL:clamp(baseScores.CALL+callAdjustment.total,0,100),PUT:clamp(baseScores.PUT+putAdjustment.total,0,100)};
+  const atrSpike=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
+  const call=componentScore(candles,"CALL",e5,e20,atr);
+  const put=componentScore(candles,"PUT",e5,e20,atr);
+  const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
+  const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
   const riskFlags=[];
-  if(choppyLevel==="DANGER")riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
-  else if(choppyLevel==="WATCH")riskFlags.push("CHOPPY_MARKET_WATCH");
-  if(atrLevel==="DANGER")riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
-  else if(atrLevel==="WATCH")riskFlags.push("HIGH_ATR_WATCH");
+  if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
+  if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   let signal="STANDBY",status="STANDBY";
-  if(!blocked&&direction){
-    if(top>=SIGNAL_THRESHOLD){signal=direction;status="SIGNAL";}
-    else if(top>=PREPARE_THRESHOLD){signal="PREPARE";status="PREPARE";}
+  if(!choppy&&!atrSpike&&direction){
+    if(top>=65){signal=direction;status="SIGNAL";}
+    else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
-  const baselineDirection=baseScores.CALL>baseScores.PUT?"CALL":baseScores.PUT>baseScores.CALL?"PUT":null;
-  const baselineTop=baselineDirection?baseScores[baselineDirection]:Math.max(...Object.values(baseScores));
-  const baselineSignal=blocked||!baselineDirection?"STANDBY":baselineTop>=SIGNAL_THRESHOLD?baselineDirection:baselineTop>=PREPARE_THRESHOLD?"PREPARE":"STANDBY";
-  const watchNote=guardLevel==="WATCH"?" · เฝ้าระวังความเสี่ยง Choppy/ATR (ยังไม่บล็อกสัญญาณ)":"";
-  const reason=blocked&&choppyLevel==="DANGER"?"DANGER GUARD: ตลาดแกว่งสลับทิศรุนแรง — ระงับสัญญาณ"
-    :blocked&&atrLevel==="DANGER"?"DANGER GUARD: ความผันผวน ATR รุนแรงผิดปกติ — ระงับสัญญาณ"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${SIGNAL_THRESHOLD}${watchNote}`
-    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์ PREPARE ${PREPARE_THRESHOLD} · รอประเมินซ้ำที่ T-5${watchNote}`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${PREPARE_THRESHOLD} หรือทิศทางยังไม่ชัด${watchNote}`;
+  const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
+    :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
+    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
-    regime:choppyLevel==="DANGER"?"SIDEWAY":atrLevel==="DANGER"?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_ACTIVE_SCORING",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_ACTIVE",riskFlags,
-    baselineSignal,baselineScores:baseScores,
-    structureCandle,structureCandleAdjustments,
+    regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
+    strategy:"PARTIAL_SCORING_65_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
-      `KAMA ${indicators.ready?(indicators.kamaRising?"UP":indicators.kamaFalling?"DOWN":"FLAT"):"N/A"} · +DI ${indicators.plusDI?.toFixed(1)??"N/A"} / -DI ${indicators.minusDI?.toFixed(1)??"N/A"} · ADX ${indicators.adx?.toFixed(1)??"N/A"}`,
-      `RSI ${priceIndicators.rsi?.toFixed(1)??"N/A"} · BB %B ${priceIndicators.percentB?.toFixed(2)??"N/A"} · BB ${priceIndicators.squeeze?"SQUEEZE":"NORMAL"}`,
-      `BOS/CHOCH ACTIVE ${structureCandle.event} · Structure ${structureCandle.bias} · Candle ${structureCandle.candlePattern}`,
-      `Active adjustments · CALL ${callAdjustment.total>=0?"+":""}${callAdjustment.total} (structure ${callAdjustment.eventPoints>=0?"+":""}${callAdjustment.eventPoints}, bias ${callAdjustment.biasPoints>=0?"+":""}${callAdjustment.biasPoints}, rejection ${callAdjustment.rejectionPoints>=0?"+":""}${callAdjustment.rejectionPoints}, body/wick ${callAdjustment.bodyWickPoints>=0?"+":""}${callAdjustment.bodyWickPoints}) · PUT ${putAdjustment.total>=0?"+":""}${putAdjustment.total}`,
-      `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrDanger?"อันตราย":atrWatch?"เฝ้าระวัง":"ปกติ"}`,
-      `Choppy ${choppyLevel} (${choppyScore}/100) · ATR Guard ${atrLevel} · Overall ${guardLevel}`
+      `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
-      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
-      choppyScore,alternationRatio,efficiencyRatio,currentRangeRatio,recentAtrRatio,
-      kama:indicators.kama,kamaRising:indicators.kamaRising,kamaFalling:indicators.kamaFalling,
-      plusDI:indicators.plusDI,minusDI:indicators.minusDI,adx:indicators.adx,adxStrength:indicators.adxStrength,
-      callKamaAligned:indicators.callKamaAligned,putKamaAligned:indicators.putKamaAligned,
-      callDmiAligned:indicators.callDmiAligned,putDmiAligned:indicators.putDmiAligned,
-      rsi:priceIndicators.rsi,rsiPrevious:priceIndicators.previousRsi,rsiRising:priceIndicators.rsiRising,
-      bbMiddle:priceIndicators.middle,bbUpper:priceIndicators.upper,bbLower:priceIndicators.lower,
-      bbPercentB:priceIndicators.percentB,bbBandwidth:priceIndicators.bandwidth,
-      marketStructureBias:structureCandle.bias,marketStructureEvent:structureCandle.event,
-      structureSwingHigh:structureCandle.swingHigh,structureSwingLow:structureCandle.swingLow,
-      candlePattern:structureCandle.candlePattern,candleBodyRatio:structureCandle.bodyRatio,
-      candleUpperWickRatio:structureCandle.upperWickRatio,candleLowerWickRatio:structureCandle.lowerWickRatio,
-      callStructureConflict:structureCandle.callStructureConflict,putStructureConflict:structureCandle.putStructureConflict,
-      callCandleConflict:structureCandle.callCandleConflict,putCandleConflict:structureCandle.putCandleConflict,
-      structureCandleAdjustments,
-      bbBandwidthRatio:priceIndicators.bandwidthRatio,bbSqueeze:priceIndicators.squeeze,
-      callRsiAligned:priceIndicators.callRsiAligned,putRsiAligned:priceIndicators.putRsiAligned,
-      callBollingerAligned:priceIndicators.callBollingerAligned,putBollingerAligned:priceIndicators.putBollingerAligned},
-    riskGuard:{
-      level:guardLevel,blocked,
-      choppy:{level:choppyLevel,score:choppyScore,alternationRatio,efficiencyRatio,emaTangled:tangled,slopesFlat:flat},
-      atr:{level:atrLevel,currentRangeRatio,recentAtrRatio},
-    },
-    prepareSignal:signal==="PREPARE"?direction:null,killSwitch:blocked,
-    thresholds:{signal:SIGNAL_THRESHOLD,prepare:PREPARE_THRESHOLD,standbyBelow:PREPARE_THRESHOLD}
+      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5},
+    prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
+    thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
 }

@@ -2094,3 +2094,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No simulated-price runtime, CSV replay, broker execution, or external AI decision call is part of this production path.
 - Added unit tests for M5 aggregation, fresh/stale Streaming guard, live M1 requirement, CALL/PUT setup conditions, and one-signal-per-M5-block behavior.
 - Validation is still pending CI and live forward verification. signalReleaseValidated remains false; no accuracy or win-rate guarantee is claimed.
+
+
+## 2026-11-12 — Restore ORIGINAL 84 analyzer baseline
+
+- User explicitly confirmed restoring the saved original analyzer referred to as “ตัว 84”.
+- Exact protected baseline: commit `18853e9f529254e9be5f7d4d8328543a7833e99d`; protected reference branch: `accuracy-lab/original-84-baseline-20261111` (the branch adds shadow-only files; the production restore target is the exact baseline commit).
+- Restore branch: `rollback/original-84-production-20261112`.
+- Active decision path restored to `analyzeMarket` / `scoreMarket` from ORIGINAL 84: 50 context + 4 entry closed M1 candles; weights EMA5 Slope/Reversal 30, S/R Fakeout 30, Proximity/Momentum 20, Trend Context 20; CALL/PUT threshold 65, PREPARE 45; original Choppy and abnormal ATR kill switches.
+- Removed M5 LIVE + M1 Precision Entry from the active server decision path. Gemini, M5/M1 precision filters, and later indicator add-ons are not active in this restore.
+- Restored the original Mini App frontend files, release gate, package architecture metadata, CI workflow, analyzer tests, and production baseline document from the exact saved baseline.
+- Kept Twelve Data REST/Streaming, API pool, selected-pair support, server-side guards, T-10/T-5 timing, 30-second signal hold, Mini App sessions, and manual-only execution boundary from the saved baseline.
+- M5 and later analyzer modules remain in the repository as inactive archived/experimental code; they are not imported by the production server.
+- This restore remains rule-based and not out-of-sample validated. CI and Render health/live-price verification are required before calling the restore live.

@@ -70,17 +70,13 @@ test("invalid input fails closed and applies no score adjustment", () => {
   assert.equal(calculateStructureCandleAdjustment(result, "CALL").total, 0);
 });
 
-test("ORIGINAL 84 base score and thresholds remain separately auditable", () => {
+test("ORIGINAL 84 remains the active base scorer; BOS/CHOCH module stays inactive", () => {
   const closes = Array.from({ length: 60 }, (_, i) => 1.08 + i * 0.00010 + Math.sin(i / 2.7) * 0.00016);
   const result = scoreMarket(candlesFromCloses(closes));
-  assert.equal(result.thresholds.signal, 60);
-  assert.equal(result.thresholds.prepare, 40);
+  assert.equal(result.thresholds.signal, 65);
+  assert.equal(result.thresholds.prepare, 45);
   assert.equal(Object.keys(result.componentScores.CALL).length, 4);
-  assert.ok(Number.isFinite(result.baselineScores.CALL));
-  assert.ok(Number.isFinite(result.baselineScores.PUT));
-  assert.equal(result.structureCandle.mode, "ACTIVE_SCORING");
-  assert.deepEqual(result.scores, {
-    CALL: Math.max(0, Math.min(100, result.baselineScores.CALL + result.structureCandleAdjustments.CALL.total)),
-    PUT: Math.max(0, Math.min(100, result.baselineScores.PUT + result.structureCandleAdjustments.PUT.total))
-  });
+  assert.equal(result.strategy, "PARTIAL_SCORING_65_AGILE");
+  assert.equal("structureCandle" in result, false);
+  assert.equal("structureCandleAdjustments" in result, false);
 });

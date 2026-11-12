@@ -3,8 +3,6 @@ import {
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
 import { scoreMarket } from "./advanced-scoring.js";
-import { applyLevel1FalseSignalFilter } from "./false-signal-filter.js";
-import { applyPrecisionEntryFormula } from "./precision-entry.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -141,16 +139,15 @@ export async function analyzeMarket(candles, options = {}) {
       strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
-  const precision=applyPrecisionEntryFormula(closedCandles, scoreMarket(closedCandles));
-  const scored=applyLevel1FalseSignalFilter(closedCandles, precision);
+  const scored=scoreMarket(closedCandles);
   return {
     ...scored, ...base,
     prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
-    signalValidationStatus:"M1_PRECISION_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"M1 Precision Entry 25/25/20/15/15 + Level 1 False-Signal Filter + Choppy/ATR Safety Guards · ยังไม่มีผลประเมิน out-of-sample · ใช้ทดสอบแบบ paper/manual เท่านั้น",
-    signalReleaseStatus:"M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalValidationStatus:"PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote:"Partial Scoring 65/45 + Choppy/ATR Kill Switch · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
+    signalReleaseStatus:"PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };

@@ -35,14 +35,14 @@ test("invalid or insufficient input fails closed", () => {
   assert.equal(calculateRsiBollinger([{ close: 1 }]).ready, false);
 });
 
-test("ORIGINAL 84 keeps fixed component weights and exposes RSI/BB evidence", () => {
+test("ORIGINAL 84 keeps fixed component weights; RSI/BB remains standalone diagnostics", () => {
   const closes = Array.from({ length: 60 }, (_, i) => 1.08 + i * 0.00010 + Math.sin(i / 2.7) * 0.00016);
   const result = scoreMarket(candlesFromCloses(closes));
   assert.ok(Number.isFinite(result.scores.CALL));
   assert.ok(Number.isFinite(result.scores.PUT));
-  assert.equal(result.thresholds.signal, 60);
-  assert.equal(result.thresholds.prepare, 40);
-  assert.ok(Object.hasOwn(result.metrics, "rsi"));
-  assert.ok(Object.hasOwn(result.metrics, "bbPercentB"));
+  assert.equal(result.thresholds.signal, 65);
+  assert.equal(result.thresholds.prepare, 45);
+  assert.equal("rsi" in result.metrics, false);
+  assert.equal("bbPercentB" in result.metrics, false);
   assert.equal(Object.keys(result.componentScores.CALL).length, 4);
 });

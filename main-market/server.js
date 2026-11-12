@@ -9,8 +9,7 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeM5LiveM1Entry } from "./src/m5-live-m1-entry.js";
-import { detectReversalRadar } from "./src/accuracy-lab/reversal-radar.js";
+import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -28,9 +27,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "M5 LIVE DIRECTION + M1 PRECISION ENTRY";
-const ARCHITECTURE_ID = "M5-LIVE-M1-PRECISION-ENTRY";
-const VERSION = "2026-11-12-m5-live-m1-entry-v1";
+const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
+const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
+const VERSION = "2026-11-11-streaming-reconnect-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -42,15 +41,13 @@ function newFeed(symbol) {
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
-    reversalRadar: null, marketIntelligence: null,
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
-    lastM5SignalBlock: null
+    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
 
@@ -131,9 +128,9 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
     candleCount: feed.candles.length,
-    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, 30),
-    requiredCandles: 30,
-    analysisWindow: { contextCandles: 30, entryCandles: 1, total: 31, higherTimeframe: "M5_LIVE" },
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
+    requiredCandles: MIN_CLOSED_CANDLES,
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -150,8 +147,6 @@ function publicFeed(feed) {
       maxAttemptsPerLoss: 1, martingale: false
     },
     preAlertSignal: feed.preAlertSignal,
-    reversalRadar: feed.reversalRadar,
-    marketIntelligence: feed.marketIntelligence,
     source: "Twelve Data REST + live-price Streaming"
   };
 }
@@ -177,7 +172,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -242,33 +237,12 @@ async function evaluate(feed) {
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
  feed.recoveryState = recoveryWindow.state;
- // M5 LIVE + M1 PRECISION ENTRY is the sole directional analyzer. Current price must be fresh Twelve Data Streaming.
- const rawResult = analyzeM5LiveM1Entry(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, lastM5SignalBlock: feed.lastM5SignalBlock
+ const restFallback = feed.restStatus === "READY" &&
+   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
+ // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
+ const rawResult = await analyzeMarket(feed.candles, {
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
- const closedCandles = feed.candles
-   .filter(candle => candle && candle.live !== true)
-   .slice(-MIN_CLOSED_CANDLES);
- feed.reversalRadar = detectReversalRadar(closedCandles);
- const direction = rawResult.direction || null;
- // Compatibility-only presentation adapter for the existing Mini App diagnostics; it never votes on signals.
- feed.marketIntelligence = {
-   regime: rawResult.regime || "UNCLEAR",
-   allowedDirection: direction,
-   sidewayScore: null,
-   setup: direction && rawResult.signal !== "STANDBY" ? {
-     direction, type: "M5_LIVE_M1_PULLBACK_CONFIRMATION",
-     score: rawResult.score || 0, evidence: rawResult.evidence || []
-   } : null,
-   stage: rawResult.signal === "PREPARE" ? "PREPARE"
-     : ["CALL","PUT"].includes(rawResult.signal) ? "SIGNAL_CONFIRMED" : "STANDBY",
-   warnings: rawResult.riskFlags || [],
-   scores: rawResult.scores || null,
-   components: rawResult.componentScores || null,
-   ema5Slope: rawResult.metrics?.ema5Slope ?? null,
-   ema20Slope: rawResult.metrics?.ema20Slope ?? null,
-   structure: null, metrics: rawResult.metrics || null, m5Bias: rawResult.m5Bias || "WAIT"
- };
  const result = applySignalReleaseGate(rawResult);
 
 
@@ -284,7 +258,7 @@ async function evaluate(feed) {
    (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
  feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+   ["PREPARE","CALL","PUT"].includes(result.signal) && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -299,7 +273,7 @@ async function evaluate(feed) {
  }
  const finalizeWindow = sourceCandleEpoch !== null &&
    isSignalFinalizeWindow(sourceCandleEpoch, now);
- const finalizeEligible = finalizeWindow && rawResult.m5BlockEpoch !== feed.lastM5SignalBlock &&
+ const finalizeEligible = finalizeWindow &&
    (result.signal === "CALL" || result.signal === "PUT") &&
    canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
      lastDispatchedCandle: feed.lastDispatchedCandle });
@@ -311,7 +285,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-        : result.signal === "STANDBY" ? "M5_M1_LIVE_ENTRY_NOT_CONFIRMED"
+       : result.signal === "STANDBY" ? "EMA_TREND_FLOW_RETURNED_STANDBY"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -327,7 +301,6 @@ async function evaluate(feed) {
    });
    if (canFinalize) {
      feed.activeSignal = result.signal;
-     feed.lastM5SignalBlock = result.m5BlockEpoch;
      feed.signalCandle = targetCandleEpoch;
      feed.signalSourceCandle = sourceCandleEpoch;
      feed.signalTriggeredAt = now;
@@ -940,10 +913,6 @@ app.get("/api/public/signal", (_req, res) => {
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
-      precisionEntry: state.precisionEntry || null,
-      scores: state.scores || null,
-      components: state.componentScores || null,
-      falseSignalFilter: state.falseSignalFilter || null,
       signalValidationNote: state.signalValidationNote,
       lastPrice: state.lastPrice,
       lastTickPrice: state.lastTickPrice,
@@ -992,20 +961,18 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "M5_LIVE_DIRECTION_M1_PRECISION_ENTRY", engines: 1,
-      decisionAuthority: "M5_LIVE_BIAS_PLUS_M1_PULLBACK_AND_BREAKOUT_CONFIRMATION",
-      safetyLayer: "FRESH_TWELVE_DATA_STREAM_REQUIRED_M5_M1_CONFIRMATION_AND_EXISTING_TIMING_GUARDS",
+      decisionEngine: "PARTIAL_SCORING_65_AGILE", engines: 1,
+      decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+      safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "TWELVE_DATA_STREAM_TO_LIVE_M5_AGGREGATION_TO_M1_PULLBACK_CONFIRMATION_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
     },
     analyzer: {
-      provider: "TWELVE_DATA_LIVE_STREAM", model: null, configured: true,
-      role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: false, localDirectionalFallback: false,
-      liveStreamingRequired: true, m5Aggregation: "LIVE_5X_M1_CANDLES",
-      m1Entry: "EMA5_PULLBACK_PLUS_PREVIOUS_CANDLE_BREAKOUT",
-      maximumStreamAgeSeconds: MAX_STREAM_AGE_SECONDS,
-      outOfSampleValidated: false
+      provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
+      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      closedCandlesOnly: true, localDirectionalFallback: true,
+      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+      thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1021,26 +988,32 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: 30,
+      minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
-      contextCandles: 30,
-      entryCandles: 1,
-      higherTimeframe: "M5_LIVE_FORMING",
+      contextCandles: 50,
+      entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
-      restFallbackEnabled: false,
+      restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      m5M1Entry: {
-        m5Direction: "FORMING_M5_FROM_TWELVE_DATA_M1_STREAM",
-        m1Confirmation: "EMA5_PULLBACK_AND_PREVIOUS_CANDLE_BREAKOUT",
-        oneSignalPerM5Block: true,
-        freshStreamingRequired: true,
-        outOfSampleValidated: false
+      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      emaTrendFlow: {
+        emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
+        touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
+        proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
+        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
+        directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
+        externalAi: false,
+        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
+        slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
+        supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
+        sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
+        volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
       }
     }
   });
