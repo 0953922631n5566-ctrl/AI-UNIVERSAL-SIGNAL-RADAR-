@@ -17,12 +17,12 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Main Market Advanced Partial Scoring Engine",
-    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
+    "name": "ORIGINAL 84 Tuned Partial Scoring",
+    "displayName": "ORIGINAL 84 · Partial Scoring 62/42 · EMA5 Slope/Reversal + S/R Fakeout + Proximity/Momentum + Trend Context",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+    "decisionAuthority": "ORIGINAL_84_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
     "directionalVoters": 1,
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
@@ -34,9 +34,9 @@
       "trendContext": 20
     },
     "thresholds": {
-      "callPut": 65,
-      "prepare": 45,
-      "standbyBelow": 45
+      "callPut": 62,
+      "prepare": 42,
+      "standbyBelow": 42
     },
     "candles": {
       "context": 50,
