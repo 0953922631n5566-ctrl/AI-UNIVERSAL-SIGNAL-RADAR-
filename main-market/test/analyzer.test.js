@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.js";
 import { analyzeMarket, sourceGate, calculatePureTechnicalSignal } from "../src/analyzer.js";
-import { scoreMarket } from "../src/advanced-scoring.js";
 import { detectMultiStageReversal } from "../src/reversal-detection.js";
 import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, GEMINI_MODEL } from "../src/gemini-analyzer.js";
 
@@ -96,48 +95,17 @@ test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal 
 });
 
 
-test("Choppy guard classifies mild flat/tangled conditions as WATCH without activating the kill switch", () => {
-  const result=scoreMarket(flatSidewayCandles());
-  assert.equal(result.riskGuard.choppy.level,"WATCH");
-  assert.equal(result.riskGuard.level,"WATCH");
-  assert.equal(result.killSwitch,false);
-  assert.ok(result.riskFlags.includes("CHOPPY_MARKET_WATCH"));
-  assert.ok(!result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
-});
-
-test("Choppy guard escalates only strongly alternating, directionless conditions to DANGER", () => {
-  const count=54, minuteStart=Math.floor(Date.now()/60000)*60, start=minuteStart-count*60;
-  let previous=1.1;
-  const candles=Array.from({length:count},(_,i)=>{
-    const open=previous;
-    const close=1.1+(i%2===0?0.000001:-0.000001);
-    previous=close;
-    return {epoch:start+i*60,open,close,high:Math.max(open,close)+0.0001,low:Math.min(open,close)-0.0001,live:false};
+test("Choppy kill switch overrides directional scoring", async () => {
+  const candles = flatSidewayCandles();
+  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
+  const result = await analyzeMarket(candles, {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SIDEWAY-BLOCK",
+    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
   });
-  const result=scoreMarket(candles);
-  assert.equal(result.riskGuard.choppy.level,"DANGER");
-  assert.equal(result.killSwitch,true);
+  assert.equal(result.signal, "STANDBY");
+  assert.equal(result.regime, "SIDEWAY");
   assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
-});
-
-test("ATR guard uses WATCH below the original danger threshold and does not block", () => {
-  const candles=flatSidewayCandles();
-  candles.at(-1).high=1.10002;
-  candles.at(-1).low=1.09998;
-  const result=scoreMarket(candles);
-  assert.equal(result.riskGuard.atr.level,"WATCH");
-  assert.equal(result.killSwitch,false);
-  assert.ok(result.riskFlags.includes("HIGH_ATR_WATCH"));
-});
-
-test("ATR guard blocks only when the latest range exceeds the original severe-spike threshold", () => {
-  const candles=flatSidewayCandles();
-  candles.at(-1).high=1.10004;
-  candles.at(-1).low=1.09996;
-  const result=scoreMarket(candles);
-  assert.equal(result.riskGuard.atr.level,"DANGER");
-  assert.equal(result.killSwitch,true);
-  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
+  assert.equal(calls.length, 0);
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
@@ -522,7 +490,7 @@ test.skip("legacy: Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT befor
   assert.equal(mismatch.signal, "STANDBY");
 });
 
-
+import { scoreMarket } from "../src/advanced-scoring.js";
 test("Partial Scoring keeps each side's four weighted components within 100 points",()=>{
  const result=scoreMarket(reversalTestCandles(1));
  for(const side of ["CALL","PUT"]){
@@ -534,11 +502,10 @@ test("Partial Scoring keeps each side's four weighted components within 100 poin
   assert.ok(result.scores[side]>=0&&result.scores[side]<=100);
  }
 });
-test("flat tangled EMA5/EMA20 market is WATCH unless strong alternation confirms severe Choppy",()=>{
+test("flat tangled EMA5/EMA20 market activates Choppy kill switch",()=>{
  const result=scoreMarket(flatSidewayCandles());
- assert.equal(result.riskGuard.choppy.level,"WATCH");
- assert.equal(result.killSwitch,false);
- assert.ok(result.riskFlags.includes("CHOPPY_MARKET_WATCH"));
+ assert.equal(result.signal,"STANDBY");
+ assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
 });
 test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  const candles=reversalTestCandles(1);
@@ -547,9 +514,9 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  assert.equal(result.signal,"STANDBY");
  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
-test("ORIGINAL 84 analyzer exposes modestly relaxed 60/40 thresholds",()=>{
+test("Partial Scoring exposes requested 65/45 agile thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:60,prepare:40,standbyBelow:40});
+ assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45});
 });
 
 function moderateFakeoutCandles(count = 54) {
@@ -580,6 +547,6 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
   const result = scoreMarket(moderateFakeoutCandles());
   assert.ok(result.scores.CALL >= 65 && result.scores.CALL < 75, JSON.stringify(result.scores));
   assert.equal(result.signal, "CALL");
-  assert.equal(result.thresholds.signal, 60);
+  assert.equal(result.thresholds.signal, 65);
   assert.equal(result.riskFlags.length, 0);
 });
