@@ -44,7 +44,7 @@ test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
   assert.doesNotMatch(html, /REVERSAL RADAR|ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE/);
 });
 
-test("server uses ORIGINAL 84 as the only directional analyzer and retains source/timing guards", () => {
+test("server uses M1 Precision Entry as the only directional analyzer and retains source/timing guards", () => {
   assert.match(serverJs, /import \{ analyzeMarket \} from "\.\/src\/analyzer\.js"/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
   assert.match(serverJs, /await analyzeMarket\(feed\.candles/);
@@ -52,7 +52,7 @@ test("server uses ORIGINAL 84 as the only directional analyzer and retains sourc
   assert.match(serverJs, /isPrepareAlertWindow/);
   assert.match(serverJs, /isSignalFinalizeWindow/);
   assert.match(serverJs, /signalHoldExpiresAt/);
-  assert.match(serverJs, /ORIGINAL 84 is the sole directional analyzer/);
+  assert.match(serverJs, /M1 Precision Entry is the sole directional analyzer/);
   assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
 });
 
