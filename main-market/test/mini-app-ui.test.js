@@ -26,35 +26,35 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
-  assert.ok(html.includes("ACCURACY LAB TREND ONLY"));
-  assert.ok(html.includes("HH/HL = CALL"));
-  assert.ok(html.includes("LH/LL = PUT"));
-  assert.ok(html.includes("NO TRADE"));
+  assert.ok(html.includes("ORIGINAL 84"));
+  assert.ok(html.includes("EMA5 SLOPE/REVERSAL"));
+  assert.ok(html.includes("S/R FAKEOUT"));
+  assert.ok(html.includes("PARTIAL SCORING 62/42"));
   assert.match(html, /m\.score/);
-  assert.match(html, /m\.metrics\?\.sidewayScore/);
+  assert.match(html, /ORIGINAL 84 · /);
   assert.match(html, /id="reversal"/);
-  assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|m\.scores\?\.CALL|geminiQuota/);
+  assert.doesNotMatch(html, /geminiQuota/);
 });
 
-test("Mini App presents Accuracy Lab diagnostics instead of the former weighted score display", () => {
-  assert.ok(html.includes("ACCURACY LAB · TREND ONLY SIGNAL ENGINE"));
-  assert.match(html, /ACCURACY LAB SETUP/);
-  assert.match(html, /m\.entryType/);
-  assert.match(html, /m\.metrics\?\.adxProxy/);
+test("Mini App presents ORIGINAL 84 weighted scoring diagnostics", () => {
+  assert.ok(html.includes("ORIGINAL 84 · PARTIAL SCORING SIGNAL ENGINE"));
+  assert.match(html, /ORIGINAL 84 · /);
+  assert.match(html, /v\?\.scores/);
+  assert.match(html, /v\?\.components/);
   assert.match(html, /m\.marketIntelligence/);
   assert.doesNotMatch(html, /PARTIAL SCORING 65\/45|SCORING BREAKDOWN/);
 });
 
-test("server uses Accuracy Lab as the only directional analyzer and retains source/timing guards", () => {
-  assert.match(serverJs, /import \{ sourceGate \} from "\.\/src\/analyzer\.js"/);
-  assert.match(serverJs, /import \{ analyzeMarketIntelligence \} from "\.\/src\/accuracy-lab\/market-intelligence\.js"/);
-  assert.match(serverJs, /const setup = gate\.ready \? lab\.setup : null/);
-  assert.match(serverJs, /const direction = setup\?\.direction/);
+test("server uses ORIGINAL 84 as the only directional analyzer and retains source/timing guards", () => {
+  assert.match(serverJs, /import \{ analyzeMarket \} from "\.\/src\/analyzer\.js"/);
+  assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
+  assert.match(serverJs, /await analyzeMarket\(feed\.candles/);
+  assert.match(serverJs, /const direction = rawResult\.direction/);
   assert.match(serverJs, /isPrepareAlertWindow/);
   assert.match(serverJs, /isSignalFinalizeWindow/);
   assert.match(serverJs, /signalHoldExpiresAt/);
-  assert.doesNotMatch(serverJs, /import \{ analyzeMarket \}/);
-  assert.doesNotMatch(serverJs, /await analyzeMarket\(/);
+  assert.match(serverJs, /ORIGINAL 84 is the sole directional analyzer/);
+  assert.doesNotMatch(serverJs, /analyzeMarketIntelligence/);
 });
 
 test("Mini App inline JavaScript parses successfully", () => {
