@@ -82,3 +82,15 @@ test("Mini App top-right status shows pulsing API LIVE only when online and red 
   assert.match(html, /api==="ONLINE"&&\(!Number\.isFinite\(tickAge\)\|\|tickAge<=15\)/);
   assert.doesNotMatch(html, /STREAM LIVE|SESSION READY|CONNECTING/);
 });
+
+
+test("Mini App fits compact floating windows without vertical scrolling and emphasizes a large signal lamp", () => {
+  assert.match(html, /height:100dvh/);
+  assert.match(html, /overflow:hidden/);
+  assert.match(html, /grid-template-rows:auto auto minmax\(145px,1fr\)/);
+  assert.match(html, /\.lamp\{width:clamp\(100px,30vw,158px\);height:clamp\(100px,30vw,158px\)/);
+  assert.match(html, /@media\(max-height:590px\)/);
+  assert.match(html, /id="signal" class="value"/);
+  assert.match(html, /id="apiKeys" class="api-grid"/);
+  assert.match(html, /id="soundEnable"/);
+});
