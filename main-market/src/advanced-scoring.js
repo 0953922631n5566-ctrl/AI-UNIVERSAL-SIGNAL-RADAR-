@@ -1,6 +1,6 @@
 import { calculateKamaDmiAdx, directionalConfirmation } from "./kama-dmi-adx.js";
 import { calculateRsiBollinger, priceActionConfirmation } from "./rsi-bollinger.js";
-import { calculateStructureCandleContext } from "./bos-choch-candle.js";
+import { calculateStructureCandleContext, calculateStructureCandleAdjustment } from "./bos-choch-candle.js";
 
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
@@ -102,7 +102,11 @@ export function scoreMarket(candles) {
   const structureCandle=calculateStructureCandleContext(candles);
   const call=componentScore(candles,"CALL",e5,e20,atr,indicators,priceIndicators);
   const put=componentScore(candles,"PUT",e5,e20,atr,indicators,priceIndicators);
-  const scores={CALL:call.score,PUT:put.score};
+  const baseScores={CALL:call.score,PUT:put.score};
+  const callAdjustment=calculateStructureCandleAdjustment(structureCandle,"CALL");
+  const putAdjustment=calculateStructureCandleAdjustment(structureCandle,"PUT");
+  const structureCandleAdjustments={CALL:callAdjustment,PUT:putAdjustment};
+  const scores={CALL:clamp(baseScores.CALL+callAdjustment.total,0,100),PUT:clamp(baseScores.PUT+putAdjustment.total,0,100)};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
   const riskFlags=[];
@@ -116,9 +120,9 @@ export function scoreMarket(candles) {
     else if(top>=PREPARE_THRESHOLD){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
-  // Keep the original signal and scores as an explicit baseline while new diagnostics run in shadow mode.
-  const shadowBaselineSignal=signal;
-  const shadowBaselineScores={...scores};
+  const baselineDirection=baseScores.CALL>baseScores.PUT?"CALL":baseScores.PUT>baseScores.CALL?"PUT":null;
+  const baselineTop=baselineDirection?baseScores[baselineDirection]:Math.max(...Object.values(baseScores));
+  const baselineSignal=blocked||!baselineDirection?"STANDBY":baselineTop>=SIGNAL_THRESHOLD?baselineDirection:baselineTop>=PREPARE_THRESHOLD?"PREPARE":"STANDBY";
   const watchNote=guardLevel==="WATCH"?" · เฝ้าระวังความเสี่ยง Choppy/ATR (ยังไม่บล็อกสัญญาณ)":"";
   const reason=blocked&&choppyLevel==="DANGER"?"DANGER GUARD: ตลาดแกว่งสลับทิศรุนแรง — ระงับสัญญาณ"
     :blocked&&atrLevel==="DANGER"?"DANGER GUARD: ความผันผวน ATR รุนแรงผิดปกติ — ระงับสัญญาณ"
@@ -128,17 +132,17 @@ export function scoreMarket(candles) {
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppyLevel==="DANGER"?"SIDEWAY":atrLevel==="DANGER"?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_SHADOW",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_SHADOW",riskFlags,
-    shadowBaselineSignal,shadowBaselineScores,
-    structureCandle,
+    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_ACTIVE_SCORING",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_ACTIVE",riskFlags,
+    baselineSignal,baselineScores:baseScores,
+    structureCandle,structureCandleAdjustments,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
       `KAMA ${indicators.ready?(indicators.kamaRising?"UP":indicators.kamaFalling?"DOWN":"FLAT"):"N/A"} · +DI ${indicators.plusDI?.toFixed(1)??"N/A"} / -DI ${indicators.minusDI?.toFixed(1)??"N/A"} · ADX ${indicators.adx?.toFixed(1)??"N/A"}`,
       `RSI ${priceIndicators.rsi?.toFixed(1)??"N/A"} · BB %B ${priceIndicators.percentB?.toFixed(2)??"N/A"} · BB ${priceIndicators.squeeze?"SQUEEZE":"NORMAL"}`,
-      `BOS/CHOCH SHADOW ${structureCandle.event} · Structure ${structureCandle.bias} · Candle ${structureCandle.candlePattern}`,
-      `Shadow conflicts · CALL structure/candle ${structureCandle.callStructureConflict? "YES":"NO"}/${structureCandle.callCandleConflict?"YES":"NO"} · PUT ${structureCandle.putStructureConflict?"YES":"NO"}/${structureCandle.putCandleConflict?"YES":"NO"}`,
+      `BOS/CHOCH ACTIVE ${structureCandle.event} · Structure ${structureCandle.bias} · Candle ${structureCandle.candlePattern}`,
+      `Active adjustments · CALL ${callAdjustment.total>=0?"+":""}${callAdjustment.total} (structure ${callAdjustment.eventPoints>=0?"+":""}${callAdjustment.eventPoints}, bias ${callAdjustment.biasPoints>=0?"+":""}${callAdjustment.biasPoints}, rejection ${callAdjustment.rejectionPoints>=0?"+":""}${callAdjustment.rejectionPoints}, body/wick ${callAdjustment.bodyWickPoints>=0?"+":""}${callAdjustment.bodyWickPoints}) · PUT ${putAdjustment.total>=0?"+":""}${putAdjustment.total}`,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrDanger?"อันตราย":atrWatch?"เฝ้าระวัง":"ปกติ"}`,
       `Choppy ${choppyLevel} (${choppyScore}/100) · ATR Guard ${atrLevel} · Overall ${guardLevel}`
     ],
@@ -158,6 +162,7 @@ export function scoreMarket(candles) {
       candleUpperWickRatio:structureCandle.upperWickRatio,candleLowerWickRatio:structureCandle.lowerWickRatio,
       callStructureConflict:structureCandle.callStructureConflict,putStructureConflict:structureCandle.putStructureConflict,
       callCandleConflict:structureCandle.callCandleConflict,putCandleConflict:structureCandle.putCandleConflict,
+      structureCandleAdjustments,
       bbBandwidthRatio:priceIndicators.bandwidthRatio,bbSqueeze:priceIndicators.squeeze,
       callRsiAligned:priceIndicators.callRsiAligned,putRsiAligned:priceIndicators.putRsiAligned,
       callBollingerAligned:priceIndicators.callBollingerAligned,putBollingerAligned:priceIndicators.putBollingerAligned},
