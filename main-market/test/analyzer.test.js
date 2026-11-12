@@ -522,7 +522,7 @@ test.skip("legacy: Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT befor
   assert.equal(mismatch.signal, "STANDBY");
 });
 
-import { scoreMarket } from "../src/advanced-scoring.js";
+
 test("Partial Scoring keeps each side's four weighted components within 100 points",()=>{
  const result=scoreMarket(reversalTestCandles(1));
  for(const side of ["CALL","PUT"]){
@@ -534,10 +534,11 @@ test("Partial Scoring keeps each side's four weighted components within 100 poin
   assert.ok(result.scores[side]>=0&&result.scores[side]<=100);
  }
 });
-test("flat tangled EMA5/EMA20 market activates Choppy kill switch",()=>{
+test("flat tangled EMA5/EMA20 market is WATCH unless strong alternation confirms severe Choppy",()=>{
  const result=scoreMarket(flatSidewayCandles());
- assert.equal(result.signal,"STANDBY");
- assert.ok(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"));
+ assert.equal(result.riskGuard.choppy.level,"WATCH");
+ assert.equal(result.killSwitch,false);
+ assert.ok(result.riskFlags.includes("CHOPPY_MARKET_WATCH"));
 });
 test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  const candles=reversalTestCandles(1);
