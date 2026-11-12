@@ -28,9 +28,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ORIGINAL 84 · PARTIAL SCORING 60/40";
-const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-60-40-KAMA-DMI-ADX-RSI-BOLLINGER";
-const VERSION = "2026-11-12-original-84-kama-dmi-adx-rsi-bollinger-v2";
+const SYSTEM_NAME = "M1 PRECISION ENTRY · 25/25/20/15/15";
+const ARCHITECTURE_ID = "M1-PRECISION-ENTRY-25-25-20-15-15";
+const VERSION = "2026-11-12-m1-precision-entry-mobile-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1030,12 +1030,11 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      original84: {
+      precisionEntry: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
-        components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 60, prepare: 40 },
-        killSwitches: ["CHOPPY_MARKET", "ABNORMAL_ATR_SPIKE"],
-        outOfSampleValidated: false
+        components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
+        thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12 },
+        level1FalseSignalFilter: true, choppyAtrSafetyGuards: true, outOfSampleValidated: false
       }
     }
   });
