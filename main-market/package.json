@@ -18,7 +18,7 @@
   },
   "radarArchitecture": {
     "name": "ORIGINAL 84 with KAMA + DMI/ADX confirmation",
-    "displayName": "ORIGINAL 84 · Partial Scoring 62/42 · KAMA + DMI/ADX Confirmation",
+    "displayName": "ORIGINAL 84 · Partial Scoring 60/40 · KAMA + DMI/ADX Confirmation",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
@@ -34,9 +34,9 @@
       "trendContext": 20
     },
     "thresholds": {
-      "callPut": 62,
-      "prepare": 42,
-      "standbyBelow": 42
+      "callPut": 60,
+      "prepare": 40,
+      "standbyBelow": 40
     },
     "candles": {
       "context": 50,
