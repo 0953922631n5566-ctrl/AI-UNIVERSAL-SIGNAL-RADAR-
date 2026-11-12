@@ -165,14 +165,15 @@ async function pollMarket() {
     }
 
     const closed = state.currentCandle;
-    settleTarget(closed);
     const quality = candleQuality(closed, now);
     if (quality) {
+      settleTarget(closed);
       if (now < startedAt + DURATION_MS) {
         createCandidates(closed, state.currentMetrics || {}, state.currentLiveSignal || "STANDBY",
           minute, price);
       }
     } else {
+      state.pending = state.pending.filter(item => item.targetMinute !== closed.minute);
       state.skippedCandles.push({
         minute: closed.minute, samples: closed.samples,
         reason: "INCOMPLETE_OR_STALE_2_SECOND_PRICE_SAMPLING"
