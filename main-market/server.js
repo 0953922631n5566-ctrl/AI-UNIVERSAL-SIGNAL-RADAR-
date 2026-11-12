@@ -177,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -992,20 +992,20 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "M1_PRECISION_ENTRY_25_25_20_15_15", engines: 1,
-      decisionAuthority: "M1_PRECISION_ENTRY_WITH_LEVEL1_FALSE_SIGNAL_FILTER",
-      safetyLayer: "DATA_QUALITY_LEVEL1_FALSE_SIGNAL_CHOPPY_ATR_AND_TIMING_GUARDS",
+      decisionEngine: "M5_LIVE_DIRECTION_M1_PRECISION_ENTRY", engines: 1,
+      decisionAuthority: "M5_LIVE_BIAS_PLUS_M1_PULLBACK_AND_BREAKOUT_CONFIRMATION",
+      safetyLayer: "FRESH_TWELVE_DATA_STREAM_REQUIRED_M5_M1_CONFIRMATION_AND_EXISTING_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_QUALITY_GATE_TO_M1_PRECISION_ENTRY_TO_LEVEL1_FILTER_TO_EXISTING_T10_T5_TIMING"
+      signalDecisionPath: "TWELVE_DATA_STREAM_TO_LIVE_M5_AGGREGATION_TO_M1_PULLBACK_CONFIRMATION_TO_EXISTING_T10_T5_TIMING"
     },
     analyzer: {
-      provider: "LOCAL_M1_PRECISION_ENTRY_25_25_20_15_15", model: null, configured: true,
+      provider: "TWELVE_DATA_LIVE_STREAM", model: null, configured: true,
       role: "SOLE_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: false,
-      components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
-      indicators: { kama: "10/2/30", dmi: "Wilder 14", adx: "Wilder 14 strength-only", rsi: "Wilder 14 momentum", bollingerBands: "SMA 20 / 2 standard deviations" },
-      thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12, minimumClosedCandles: MIN_CLOSED_CANDLES },
-      killSwitches: ["EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT", "ABNORMAL_ATR_SPIKE"]
+      closedCandlesOnly: false, localDirectionalFallback: false,
+      liveStreamingRequired: true, m5Aggregation: "LIVE_5X_M1_CANDLES",
+      m1Entry: "EMA5_PULLBACK_PLUS_PREVIOUS_CANDLE_BREAKOUT",
+      maximumStreamAgeSeconds: MAX_STREAM_AGE_SECONDS,
+      outOfSampleValidated: false
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1021,24 +1021,26 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: MIN_CLOSED_CANDLES,
+      minimumClosedCandles: 30,
       historyCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
-      contextCandles: 50,
-      entryCandles: 4,
+      contextCandles: 30,
+      entryCandles: 1,
+      higherTimeframe: "M5_LIVE_FORMING",
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
-      restFallbackEnabled: true,
+      restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "M1_PRECISION_ENTRY_80_60_MARGIN_12_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      precisionEntry: {
-        contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
-        components: { marketStructure: 25, priceAction: 25, momentum: 20, trendAlignment: 15, volatilityDataQuality: 15 },
-        thresholds: { callPut: 80, prepare: 60, minDirectionGap: 12 },
-        level1FalseSignalFilter: true, choppyAtrSafetyGuards: true, outOfSampleValidated: false
+      signalReleaseStatus: "M5_M1_LIVE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      m5M1Entry: {
+        m5Direction: "FORMING_M5_FROM_TWELVE_DATA_M1_STREAM",
+        m1Confirmation: "EMA5_PULLBACK_AND_PREVIOUS_CANDLE_BREAKOUT",
+        oneSignalPerM5Block: true,
+        freshStreamingRequired: true,
+        outOfSampleValidated: false
       }
     }
   });
