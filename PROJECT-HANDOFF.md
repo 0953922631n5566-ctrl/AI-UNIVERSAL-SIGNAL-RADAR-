@@ -2076,3 +2076,21 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated Mini App UI tests to assert the single-beep T-10, distinct rapid T-5 sequence, successful audio-enable state, and absence of the broken soundStatus reference.
 - Commits: `96cc349699dff7cf0ad278c090f3fc7aa3068517` (Mini App audio fix), `5263d99945901148446dda5c26f87d7cef5c0fc6` (tests).
 - Pending: CI and Render auto-deploy/live verification; user should tap the sound button once after reopening the Mini App because browsers require a user gesture to unlock audio.
+
+
+---
+
+## 2026-11-12 — M5 LIVE DIRECTION + M1 PRECISION ENTRY integration (PR #104)
+
+- User explicitly authorized replacing the active Main Market analyzer and connecting it to the existing Telegram Mini App using live prices only.
+- Work is isolated on feature/m5-live-m1-production; PR #104 targets main-market.
+- New production analyzer: main-market/src/m5-live-m1-entry.js.
+- It aggregates the current forming M5 block from M1 candles and uses the current M1 candle updated by Twelve Data Streaming ticks. Historical closed M1 candles are supplied by the existing Twelve Data REST history.
+- Signal decisions require a fresh Streaming tick (maximum 25 seconds for analysis; existing T-5 finalization still requires maximum 5 seconds), at least 30 closed M1 candles, a clear M5 bias, M1 EMA5 pullback, breakout confirmation beyond the previous closed M1 high/low, and extension no greater than 1.4 ATR.
+- One signal is permitted per M5 block. If M5 bias is unclear, M1 confirmation is missing, price is stale, or data is invalid, the analyzer returns STANDBY.
+- Existing Telegram Mini App session/authentication, six-pair selector, Twelve Data API pool, T-10/T-5 release timing, 30-second hold, audio and vibration are preserved.
+- Health metadata is updated to identify TWELVE_DATA_LIVE_STREAM, M5_LIVE_FORMING, and restFallbackEnabled: false.
+- The old M1 analyzer source remains available for rollback but is no longer imported in the active server decision path on the feature branch.
+- No simulated-price runtime, CSV replay, broker execution, or external AI decision call is part of this production path.
+- Added unit tests for M5 aggregation, fresh/stale Streaming guard, live M1 requirement, CALL/PUT setup conditions, and one-signal-per-M5-block behavior.
+- Validation is still pending CI and live forward verification. signalReleaseValidated remains false; no accuracy or win-rate guarantee is claimed.
