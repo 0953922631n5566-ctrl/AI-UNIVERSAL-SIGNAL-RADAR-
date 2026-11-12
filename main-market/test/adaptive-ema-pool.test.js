@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeAdaptiveEmaPool, ADAPTIVE_EMA_PERIODS } from "../src/adaptive-ema-pool.js";
 
-function trendCandles(count = 60) {
+function trendCandles(count = 320) {
   return Array.from({ length: count }, (_, index) => {
     const open = 1.08 + index * 0.0002;
     const close = open + 0.0002;
@@ -10,7 +10,7 @@ function trendCandles(count = 60) {
   });
 }
 
-function sidewayCandles(count = 60) {
+function sidewayCandles(count = 320) {
   let previous = 1.08;
   return Array.from({ length: count }, (_, index) => {
     const close = 1.08 + (index % 2 === 0 ? 0.0001 : -0.0001);
