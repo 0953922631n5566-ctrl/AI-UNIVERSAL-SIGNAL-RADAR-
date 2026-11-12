@@ -32,6 +32,7 @@ export class TwelveDataKeyPool {
     this.restIndex = 0;
     this.cooldowns = new Map();
     this.failures = new Map();
+    this.failureKinds = new Map();
     this.lastError = null;
   }
 
@@ -66,6 +67,7 @@ export class TwelveDataKeyPool {
     if (!key) return;
     this.cooldowns.delete(key);
     this.failures.delete(key);
+    this.failureKinds.delete(key);
     const index = this.keys.indexOf(key);
     if (index >= 0) this.restIndex = (index + 1) % this.keys.length;
     this.lastError = null;
@@ -86,6 +88,7 @@ export class TwelveDataKeyPool {
     const cooldown = COOLDOWNS[kind] || COOLDOWNS.TRANSIENT;
     this.cooldowns.set(key, Date.now() + cooldown);
     this.failures.set(key, (this.failures.get(key) || 0) + 1);
+    this.failureKinds.set(key, kind);
     const index = this.keys.indexOf(key);
     if (index >= 0 && this.keys.length) {
       this.activeIndex = (index + 1) % this.keys.length;
@@ -116,7 +119,7 @@ export class TwelveDataKeyPool {
       keyStates: this.keys.map((credential, index) => {
         const until = this.cooldowns.get(credential) || 0;
         const available = until <= now;
-        return { number: index + 1, status: !available ? "COOLDOWN" : credential === activeKey ? "ACTIVE" : "READY", available, cooldownRemainingMs: Math.max(0, until - now), failures: this.failures.get(credential) || 0 };
+        return { number: index + 1, status: !available ? "COOLDOWN" : credential === activeKey ? "ACTIVE" : "READY", available, cooldownRemainingMs: Math.max(0, until - now), failures: this.failures.get(credential) || 0, failureKind: this.failureKinds.get(credential) || null };
       }),
       rotation: this.keys.length > 1 ? "FAILOVER_POOL" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
       restRotation: this.keys.length > 1 ? "ROUND_ROBIN" : this.keys.length === 1 ? "SINGLE_KEY" : "UNCONFIGURED",
