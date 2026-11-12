@@ -15,10 +15,10 @@ test("M1 Precision Entry CALL and PUT decisions are preserved with an explicit v
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
-    assert.match(result.signalValidationNote, /ORIGINAL 84/);
-    assert.match(result.signalValidationNote, /EMA5 slope\/reversal/);
-    assert.match(result.signalValidationNote, /S\/R fakeout/);
-    assert.match(result.signalValidationNote, /60\/40/);
+    assert.match(result.signalValidationNote, /M1 Precision Entry 25\/25\/20\/15\/15/);
+    assert.match(result.signalValidationNote, /CALL\/PUT ≥80/);
+    assert.match(result.signalValidationNote, /ส่วนต่าง ≥12/);
+    assert.match(result.signalValidationNote, /Level 1 False-Signal Filter/);
     assert.match(result.signalValidationNote, /out-of-sample/);
     assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
