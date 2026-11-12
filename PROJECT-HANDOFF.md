@@ -2002,11 +2002,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - KAMA + DMI/ADX remains blended into the existing Trend Context component. No independent signal authority or guard bypass is added.
 - No Mini App UI/auth/session, Twelve Data, polling, timing, notifications, signal hold, or broker execution files are changed.
 - Added deterministic tests for indicator values, directional confirmation, fail-closed invalid input, and integration with unchanged thresholds/component count.
-- Pending: CI, PR review/merge, Render auto-deploy, `/health`, `/api/public/signal`, and `/signal` verification. Accuracy and profitability remain unvalidated; user-side Telegram device testing remains pending.
+- PR #95 merged as `00d9a00be88d12d7bc92dac0c194b6c7ea524bc2`; Render deploy `dep-dbql09t9el5s73f1i2e0` reached `live`. Both Main Market and Telegram Mini App CI workflows passed. Live `/api/public/signal` exposed RSI, Bollinger %B/bandwidth/squeeze, KAMA, +DI, -DI and ADX metrics; the active strategy label is `ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION`.
+- Metadata follow-up PR #96 merged as `aa64eb4a8ba5d95faca8974d6b636e1ee7c478ca`; Render deploy `dep-dbql1kd9el5s73f1jbtg` reached `live`. `/health` now identifies KAMA/DMI/ADX, RSI(14), and Bollinger Bands(20,2); `/signal` returns the Mini App page.
+- Sample live EUR/USD M1 snapshot: RSI 60.5 and rising, Bollinger %B 0.82 with no squeeze, KAMA rising, +DI 23.6 > -DI 13.5, ADX 20.4; CALL score 64.3 and PUT 18.2. The output was still STANDBY because the existing T-10/T-5 signal timing gate had not released a directional signal at the snapshot. This verifies runtime wiring only, not predictive accuracy.
+- No out-of-sample accuracy/profitability claim. Manual trading only; no broker execution. User-side Telegram device testing remains pending.
 
 
 ## 2026-11-12 — RSI/Bollinger health metadata alignment
 
 - Follow-up branch `fix/main-market-rsi-bollinger-health-metadata-20261112` updates `/health` architecture/version/provider metadata and the public signal validation note to describe the already deployed KAMA + DMI/ADX + RSI + Bollinger analyzer.
 - This is metadata/observability only: no scoring, thresholds, indicator calculations, Mini App UI/auth/session, data feed, timing, guards, or signal behavior changes.
-- Pending CI, merge, Render auto-deploy, and post-deploy `/health` verification.
+- PR #96 merged as `aa64eb4a8ba5d95faca8974d6b636e1ee7c478ca`; Render deploy `dep-dbql1kd9el5s73f1jbtg` reached `live`; `/health` verified the new version and all five indicator families. Both CI workflows passed.
