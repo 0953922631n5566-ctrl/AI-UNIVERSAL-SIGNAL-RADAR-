@@ -28,9 +28,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ORIGINAL 84 · PARTIAL SCORING 62/42";
-const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-62-42";
-const VERSION = "2026-11-12-original-84-tuned-62-42-v1";
+const SYSTEM_NAME = "ORIGINAL 84 · PARTIAL SCORING 60/40";
+const ARCHITECTURE_ID = "ORIGINAL-84-PARTIAL-SCORING-60-40";
+const VERSION = "2026-11-12-original-84-tuned-60-40-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -176,7 +176,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_62_42_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -1028,7 +1028,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_62_42_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "ORIGINAL_84_PARTIAL_SCORING_60_40_MANUAL_ONLY_NOT_OOS_VALIDATED",
       original84: {
         contextCandles: 50, entryCandles: 4, minimumClosedCandles: MIN_CLOSED_CANDLES,
         components: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
