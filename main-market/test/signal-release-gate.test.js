@@ -18,7 +18,7 @@ test("M5 M1 live CALL and PUT decisions are preserved with an explicit validatio
     assert.match(result.signalValidationNote, /M5 LIVE/);
     assert.match(result.signalValidationNote, /M1 Pullback\/Breakout confirmation/);
     assert.match(result.signalValidationNote, /Twelve Data Streaming/);
-    assert.match(result.signalValidationNote, /M1 live confirmation/);
+    assert.match(result.signalValidationNote, /ไม่มีการส่งคำสั่งซื้อขายอัตโนมัติ/);
     assert.match(result.signalValidationNote, /out-of-sample/);
     assert.deepEqual(result.evidence, ["30 closed M1 candles"]);
   }
