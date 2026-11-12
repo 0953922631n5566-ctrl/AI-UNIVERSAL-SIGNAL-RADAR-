@@ -514,9 +514,9 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  assert.equal(result.signal,"STANDBY");
  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
-test("ORIGINAL 84 tuned analyzer exposes modestly lowered 62/42 thresholds",()=>{
+test("ORIGINAL 84 analyzer exposes modestly relaxed 60/40 thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:62,prepare:42,standbyBelow:42});
+ assert.deepEqual(result.thresholds,{signal:60,prepare:40,standbyBelow:40});
 });
 
 function moderateFakeoutCandles(count = 54) {
@@ -547,6 +547,6 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
   const result = scoreMarket(moderateFakeoutCandles());
   assert.ok(result.scores.CALL >= 65 && result.scores.CALL < 75, JSON.stringify(result.scores));
   assert.equal(result.signal, "CALL");
-  assert.equal(result.thresholds.signal, 62);
+  assert.equal(result.thresholds.signal, 60);
   assert.equal(result.riskFlags.length, 0);
 });

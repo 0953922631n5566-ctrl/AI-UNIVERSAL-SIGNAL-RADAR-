@@ -29,7 +29,7 @@ test("Mini App preserves PREPARE T-10, CALL/PUT T-5, sound, vibration, and 30-se
   assert.ok(html.includes("ORIGINAL 84"));
   assert.ok(html.includes("EMA5 SLOPE/REVERSAL"));
   assert.ok(html.includes("S/R FAKEOUT"));
-  assert.ok(html.includes("PARTIAL SCORING 62/42"));
+  assert.ok(html.includes("PARTIAL SCORING 60/40"));
   assert.match(html, /m\.score/);
   assert.match(html, /ORIGINAL 84 · /);
   assert.match(html, /id="reversal"/);

@@ -1,7 +1,7 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
-const SIGNAL_THRESHOLD = 62;
-const PREPARE_THRESHOLD = 42;
+const SIGNAL_THRESHOLD = 60;
+const PREPARE_THRESHOLD = 40;
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -89,11 +89,11 @@ export function scoreMarket(candles) {
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${SIGNAL_THRESHOLD}`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์ PREPARE ${PREPARE_THRESHOLD} · รอประเมินซ้ำที่ T-5`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${PREPARE_THRESHOLD} หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"ORIGINAL_84_PARTIAL_SCORING_62_42",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"ORIGINAL_84_PARTIAL_SCORING_60_40",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
