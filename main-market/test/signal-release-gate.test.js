@@ -9,18 +9,18 @@ test("M5 M1 live validation status is informational, not a runtime lock", () => 
 
 test("M5 M1 live CALL and PUT decisions are preserved with an explicit validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({ signal, reason: "candidate from M5 M1 live analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
+    const result = applySignalReleaseGate({ signal, reason: "candidate from M5 M1 live analyzer", evidence: ["30 closed M1 candles"], alertId: "candidate-id" });
     assert.equal(result.signal, signal);
     assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /M5 LIVE/);
-    assert.match(result.signalValidationNote, /CALL\/PUT ≥80/);
+    assert.match(result.signalValidationNote, /M1 Pullback\/Breakout confirmation/);
     assert.match(result.signalValidationNote, /Twelve Data Streaming/);
     assert.match(result.signalValidationNote, /M1 live confirmation/);
     assert.match(result.signalValidationNote, /out-of-sample/);
-    assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
+    assert.deepEqual(result.evidence, ["30 closed M1 candles"]);
   }
 });
 
