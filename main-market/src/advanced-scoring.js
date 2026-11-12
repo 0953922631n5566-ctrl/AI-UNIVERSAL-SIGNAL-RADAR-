@@ -1,5 +1,6 @@
 import { calculateKamaDmiAdx, directionalConfirmation } from "./kama-dmi-adx.js";
 import { calculateRsiBollinger, priceActionConfirmation } from "./rsi-bollinger.js";
+import { calculateStructureCandleContext } from "./bos-choch-candle.js";
 
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
@@ -98,6 +99,7 @@ export function scoreMarket(candles) {
 
   const indicators=calculateKamaDmiAdx(candles);
   const priceIndicators=calculateRsiBollinger(candles);
+  const structureCandle=calculateStructureCandleContext(candles);
   const call=componentScore(candles,"CALL",e5,e20,atr,indicators,priceIndicators);
   const put=componentScore(candles,"PUT",e5,e20,atr,indicators,priceIndicators);
   const scores={CALL:call.score,PUT:put.score};
@@ -114,6 +116,9 @@ export function scoreMarket(candles) {
     else if(top>=PREPARE_THRESHOLD){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
+  // Keep the original signal and scores as an explicit baseline while new diagnostics run in shadow mode.
+  const shadowBaselineSignal=signal;
+  const shadowBaselineScores={...scores};
   const watchNote=guardLevel==="WATCH"?" · เฝ้าระวังความเสี่ยง Choppy/ATR (ยังไม่บล็อกสัญญาณ)":"";
   const reason=blocked&&choppyLevel==="DANGER"?"DANGER GUARD: ตลาดแกว่งสลับทิศรุนแรง — ระงับสัญญาณ"
     :blocked&&atrLevel==="DANGER"?"DANGER GUARD: ความผันผวน ATR รุนแรงผิดปกติ — ระงับสัญญาณ"
@@ -123,7 +128,9 @@ export function scoreMarket(candles) {
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppyLevel==="DANGER"?"SIDEWAY":atrLevel==="DANGER"?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER",riskFlags,
+    strategy:"ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_SHADOW",provider:"LOCAL_PARTIAL_SCORING_ORIGINAL_84_KAMA_DMI_ADX_RSI_BOLLINGER_BOS_CHOCH_CANDLE_SHADOW",riskFlags,
+    shadowBaselineSignal,shadowBaselineScores,
+    structureCandle,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
@@ -143,6 +150,12 @@ export function scoreMarket(candles) {
       rsi:priceIndicators.rsi,rsiPrevious:priceIndicators.previousRsi,rsiRising:priceIndicators.rsiRising,
       bbMiddle:priceIndicators.middle,bbUpper:priceIndicators.upper,bbLower:priceIndicators.lower,
       bbPercentB:priceIndicators.percentB,bbBandwidth:priceIndicators.bandwidth,
+      marketStructureBias:structureCandle.bias,marketStructureEvent:structureCandle.event,
+      structureSwingHigh:structureCandle.swingHigh,structureSwingLow:structureCandle.swingLow,
+      candlePattern:structureCandle.candlePattern,candleBodyRatio:structureCandle.bodyRatio,
+      candleUpperWickRatio:structureCandle.upperWickRatio,candleLowerWickRatio:structureCandle.lowerWickRatio,
+      callStructureConflict:structureCandle.callStructureConflict,putStructureConflict:structureCandle.putStructureConflict,
+      callCandleConflict:structureCandle.callCandleConflict,putCandleConflict:structureCandle.putCandleConflict,
       bbBandwidthRatio:priceIndicators.bandwidthRatio,bbSqueeze:priceIndicators.squeeze,
       callRsiAligned:priceIndicators.callRsiAligned,putRsiAligned:priceIndicators.putRsiAligned,
       callBollingerAligned:priceIndicators.callBollingerAligned,putBollingerAligned:priceIndicators.putBollingerAligned},
