@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeAdaptiveEmaPool, ADAPTIVE_EMA_PERIODS } from "../src/adaptive-ema-pool.js";
 
-function trendCandles(count = 320) {
+function trendCandles(count = 120) {
   return Array.from({ length: count }, (_, index) => {
     const open = 1.08 + index * 0.0002;
     const close = open + 0.0002;
@@ -21,10 +21,10 @@ function sidewayCandles(count = 320) {
   });
 }
 
-test("adaptive EMA pool evaluates 100 distinct candidate horizons", () => {
-  assert.equal(ADAPTIVE_EMA_PERIODS.length, 100);
+test("adaptive EMA pool evaluates 32 distinct candidate horizons", () => {
+  assert.equal(ADAPTIVE_EMA_PERIODS.length, 32);
   assert.equal(ADAPTIVE_EMA_PERIODS[0], 2);
-  assert.equal(ADAPTIVE_EMA_PERIODS.at(-1), 101);
+  assert.equal(ADAPTIVE_EMA_PERIODS.at(-1), 33);
 });
 
 test("trending candles select a candidate and produce a shadow-only CALL", () => {
