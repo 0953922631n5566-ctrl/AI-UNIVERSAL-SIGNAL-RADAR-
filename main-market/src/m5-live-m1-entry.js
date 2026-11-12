@@ -181,7 +181,7 @@ export function analyzeM5LiveM1Entry(candles, options = {}) {
   }
 
   return {
-    signal: bias, direction: bias, status: "SIGNAL", score: 85, confidence: 85,
+    signal: bias, direction: bias, status: "SIGNAL", score: null, confidence: null,
     regime: bias === "CALL" ? "UPTREND" : "DOWNTREND",
     reason: `M5 LIVE ${bias} + M1 Pullback + Breakout confirmation ผ่าน`,
     summary: `M5 LIVE ${bias} + M1 Pullback + Breakout confirmation ผ่าน`,
