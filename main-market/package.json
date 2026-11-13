@@ -17,15 +17,15 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Instant Momentum & Breakout · EUR/USD M1",
-    "displayName": "Instant Momentum · M1 open 0–5s · 50 closed-candle context",
+    "name": "AGGRESSIVE MOMENTUM BREAKOUT · EUR/USD M1",
+    "displayName": "Aggressive live M1 · 50 context + 4 entry candles",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_LIVE_TICK_MOMENTUM_BREAKOUT",
-    "decisionAuthority": "INSTANT_MOMENTUM_OR_FOUR_CANDLE_BREAKOUT",
+    "decisionAuthority": "AGGRESSIVE_MOMENTUM_BREAKOUT_AND_CONTINUATION",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "FRESH_STREAMING_TICK_5S_AND_CANDLE_LOCK",
+    "safetyValidation": "FRESH_STREAMING_TICK_5S_AND_DISTINCT_EVENT_COOLDOWN",
     "externalAiCalls": false,
     "candles": {
       "context": 50,
@@ -35,14 +35,14 @@
     },
     "triggerWindowSeconds": {
       "start": 0,
-      "end": 5
+      "end": 60
     },
     "signalHoldSeconds": 30,
     "killSwitches": [
       "STALE_STREAM",
       "INVALID_OHLC",
       "CONFLICTING_DIRECTION",
-      "OUTSIDE_OPENING_WINDOW"
+      "OUTSIDE_CURRENT_M1_CANDLE"
     ]
   }
 }

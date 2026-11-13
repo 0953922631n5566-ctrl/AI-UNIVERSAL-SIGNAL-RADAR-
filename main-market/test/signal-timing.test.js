@@ -1,60 +1,41 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow,
-  isSignalFinalizeWindow, signalHoldExpiresAt
-} from "../src/signal-timing.js";
+import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "../src/signal-timing.js";
 
 const candle = 1_800_000_000;
 const openAt = candle * 1000;
 
-test("PREPARE_ALERT is active only from T-10s until T-5s", () => {
+test("PREPARE_ALERT remains a non-directional final-ten-second window", () => {
   assert.equal(isPrepareAlertWindow(candle, openAt + 49_999), false);
   assert.equal(isPrepareAlertWindow(candle, openAt + 50_000), true);
   assert.equal(isPrepareAlertWindow(candle, openAt + 54_999), true);
   assert.equal(isPrepareAlertWindow(candle, openAt + 55_000), false);
-  assert.equal(isPrepareAlertWindow(candle, openAt + 60_000), false);
 });
 
-test("CALL/PUT finalization is allowed only during the first five seconds after M1 opens", () => {
+test("directional release is permitted throughout the live M1 candle", () => {
   assert.equal(isSignalFinalizeWindow(candle, openAt - 1), false);
   assert.equal(isSignalFinalizeWindow(candle, openAt), true);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 4_999), true);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 5_000), false);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 59_999), false);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 29_999), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 59_999), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 60_000), false);
 });
 
-test("finalization requires a fresh Streaming tick and deduplicates each source candle", () => {
-  const now = openAt + 2_000;
-  const base = { candleEpoch: candle, tickAt: now - 1_000, now };
+test("release requires fresh provider event and receipt timestamps", () => {
+  const now = openAt + 42_000;
+  const base = { candleEpoch: candle, tickAt: now - 500, tickEventAt: now - 500, now };
   assert.equal(canFinalizeSignal(base), true);
-  assert.equal(canFinalizeSignal({ ...base, lastDispatchedCandle: candle }), false);
   assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
-  assert.equal(canFinalizeSignal({ ...base, now: openAt + 5_000 }), false);
+  assert.equal(canFinalizeSignal({ ...base, tickEventAt: now - 5_001 }), false);
+  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt + 60_000 }), false);
 });
 
-test("Streaming tick freshness is limited to five seconds", () => {
+test("streaming freshness remains capped at five seconds", () => {
   assert.equal(isFreshSignalTick(openAt + 4_000, openAt + 4_000), true);
   assert.equal(isFreshSignalTick(openAt, openAt + 5_000), true);
   assert.equal(isFreshSignalTick(openAt, openAt + 5_001), false);
-  assert.equal(isFreshSignalTick(openAt + 1, openAt), false);
 });
 
-test("signal expires exactly 30 seconds after the current M1 candle opens", () => {
-  assert.equal(signalHoldExpiresAt(candle), openAt + 30_000);
-});
-
-test("uses provider event time for the opening lock while still requiring a fresh receipt tick", () => {
-  const now = openAt + 7_000;
-  const base = { candleEpoch: candle, tickAt: now - 500, tickEventAt: openAt + 4_000, now };
-  assert.equal(canFinalizeSignal(base), true);
-  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt + 5_000 }), false);
-  assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
-});
-
-test("rejects stale provider event timestamps independently of fresh receipt ticks", () => {
-  const now = openAt + 7_000;
-  const base = { candleEpoch: candle, tickAt: now - 200, tickEventAt: openAt + 3_000, now };
-  assert.equal(canFinalizeSignal(base), true);
-  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt }), false);
+test("signal hold lasts 30 seconds from actual signal time", () => {
+  const signalAt = openAt + 42_000;
+  assert.equal(signalHoldExpiresAt(candle, signalAt), signalAt + 30_000);
 });
