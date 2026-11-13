@@ -965,7 +965,7 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_60_45_CANDLE_CONFIRMATION_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_61_45_CANDLE_CONFIRMATION_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
