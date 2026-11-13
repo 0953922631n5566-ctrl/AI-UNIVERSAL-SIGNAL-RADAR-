@@ -104,7 +104,7 @@ function componentScore(candles, direction, ema5, ema20, atr) {
   const fakeoutConfirmed=sweepDistance>0&&reclaim&&wickRatio>=0.35;
   const fakeoutScore=30*(fakeoutConfirmed?1:0.45*sweepStrength+0.35*wickStrength+0.20*reclaimStrength);
   const distance=atr>0?Math.abs(c.close-ema5[i])/atr:Infinity;
-  const near=clamp(1-distance/0.60);
+  const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
     :clamp((c.open-c.close+Math.max(0,p.close-c.close)*0.5)/Math.max(atr*0.35,1e-10));
   const proximityScore=20*(0.55*near+0.45*momentum);
