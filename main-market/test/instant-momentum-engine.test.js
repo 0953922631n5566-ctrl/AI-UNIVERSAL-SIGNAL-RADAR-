@@ -80,3 +80,13 @@ test("rejects a provider tick whose event timestamp is outside the opening windo
   });
   assert.equal(result.signal, "STANDBY");
 });
+
+test("rejects an old provider event timestamp even when the server just received it", () => {
+  const rows = candles();
+  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
+  const result = analyzeInstantMomentum({
+    candles: rows, now: now + 38_000, tickEventAt: now, tickAgeSeconds: 0.2
+  });
+  assert.equal(result.signal, "STANDBY");
+  assert.match(result.reason, /Timestamp/);
+});

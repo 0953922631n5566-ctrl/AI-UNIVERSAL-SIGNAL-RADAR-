@@ -11,7 +11,7 @@ import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
+import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, isFreshEventTimestamp, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -248,13 +248,16 @@ async function evaluate(feed) {
    ? feed.lastTickEventAt : null;
  const elapsedSinceOpenMs = sourceCandleEpoch === null
    ? null : (tickEventAt ?? now) - sourceCandleEpoch * 1000;
+ const eventTimestampFresh = tickEventAt !== null && isFreshEventTimestamp(tickEventAt, now);
  if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 5000 ||
-     tickAge === null || tickAge > 5) {
+     !eventTimestampFresh || tickAge === null || tickAge > 5) {
    // Keep a previously released signal visible for its 30-second hold, but never re-run analysis late.
    if (!(feed.activeSignal && now < feed.activeUntil)) {
-     feed.analysis = standby(tickAge === null || tickAge > 5
-       ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
-       : elapsedSinceOpenMs === null
+     feed.analysis = standby(!eventTimestampFresh
+       ? "Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที"
+       : tickAge === null || tickAge > 5
+         ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
+         : elapsedSinceOpenMs === null
          ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
          : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
      feed.analysis.signalTimingWindowSeconds = [0, 5];
@@ -299,8 +302,10 @@ async function evaluate(feed) {
    console.info("[timing] M1 OPEN 0-5s decision window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
      candidateSignal: result.signal, eligible: finalizeEligible,
-     tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
+     tickAgeSeconds: tickAge, eventAgeSeconds: tickEventAt === null ? null : (now - tickEventAt) / 1000,
+     requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
+       : !eventTimestampFresh ? "PROVIDER_EVENT_TIMESTAMP_STALE"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
        : result.signal === "STANDBY" ? "NO_OPENING_MOMENTUM_OR_BREAKOUT"
        : "CANDLE_ALREADY_FINALIZED"
@@ -533,7 +538,9 @@ function startSignalTimer() {
     const eventAt = feed.lastTickEventAt || 0;
     const elapsedMs = eventAt - current.epoch * 1000;
     const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
-    if (elapsedMs < 0 || elapsedMs >= 5000 || tickAgeMs > 5000) return;
+    const eventAgeMs = now - eventAt;
+    if (elapsedMs < 0 || elapsedMs >= 5000 || tickAgeMs > 5000 ||
+        eventAgeMs < 0 || eventAgeMs > 5000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);
@@ -1026,7 +1033,7 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      instantMomentum: { contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, openingWindowMs: 5000, maxTickAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
+      instantMomentum: { contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, openingWindowMs: 5000, maxTickAgeMs: 5000, maxEventAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
     }
   });
 });

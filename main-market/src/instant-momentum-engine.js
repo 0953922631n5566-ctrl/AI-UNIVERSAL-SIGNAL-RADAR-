@@ -43,6 +43,10 @@ export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSecon
   }
 
   const eventAt = Number.isFinite(tickEventAt) ? tickEventAt : now;
+  const eventAgeMs = now - eventAt;
+  if (!Number.isFinite(eventAgeMs) || eventAgeMs < 0 || eventAgeMs > OPENING_WINDOW_MS) {
+    return standby("Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที");
+  }
   const elapsedMs = eventAt - live.epoch * 1000;
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= OPENING_WINDOW_MS) {
     return standby("พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
