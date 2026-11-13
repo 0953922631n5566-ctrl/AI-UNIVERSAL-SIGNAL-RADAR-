@@ -2186,3 +2186,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Forecast tracking records the Streaming entry price and compares it with that M1 candle's close. Recovery remains limited to one attempt per loss; no martingale or broker execution.
 - Telegram Mini App HTML/UI, routes, public API response structure, Twelve Data integration/key pool, auth/session handling, and EUR/USD-only scope remain unchanged.
 - Pending automated CI, review, Render deployment, live health/API verification, and Telegram device test. This aggressive heuristic is not a proven predictive edge; paper/manual forward testing is required.
+
+
+## 2026-11-13 — Aggressive live-M1 production deployment and Mini App alignment
+
+- PR #111 merged as `7b98ce581a61321074b6ab0e63dfa3588e35dc9e`; Render deploy `dep-dbr7orqvcj2c73ejvfi0` reached `live`.
+- Production service `ai-signal-radar-main-market` is on `main-market`, Singapore region, auto-deploy on commit.
+- `/health` confirms AGGRESSIVE MOMENTUM, EUR/USD M1, 50 context + 4 entry candles, 60-second live-candle window, HIGH risk, 5-second event/receipt freshness, 8-second repeat cooldown, and 30-second signal hold.
+- Twelve Data pool reports 10/10 configured and available. Streaming socket connected and accepted subscription; first live tick received.
+- `/api/public/signal` is responding with live M1 fields and observed a PUT state during the 30-second hold. A separate snapshot briefly returned STANDBY due to a stale provider event timestamp, demonstrating the freshness guard.
+- Browser-rendered HTML was initially still labeled Adaptive EMA 32 and contained obsolete "next candle" wording. A follow-up UI-only patch updates the labels and signal descriptions to match the live-M1 aggressive engine while preserving layout, routes, controls, and API contract.
+- Signal validation remains `false` / not out-of-sample validated. HIGH RISK manual/paper testing only; no broker execution.
