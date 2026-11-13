@@ -239,7 +239,7 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
+ // Instant Momentum & Breakout is the sole directional analyst; the timing gate enforces the opening window.
  const rawResult = await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
@@ -265,9 +265,9 @@ async function evaluate(feed) {
  if (feed.preAlertStatus === "PREPARE_ALERT" &&
      feed.lastPrepareLoggedCandle !== sourceCandleEpoch) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] T-10 PREPARE window entered", {
+   console.info("[timing] PREPARE helper window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
+     secondsSinceOpen: (now - sourceCandleEpoch * 1000) / 1000,
      directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
    });
  }
@@ -285,7 +285,7 @@ async function evaluate(feed) {
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
      reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
        : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "EMA_TREND_FLOW_RETURNED_STANDBY"
+       : result.signal === "STANDBY" ? "NO_OPENING_MOMENTUM_OR_BREAKOUT"
        : "CANDLE_ALREADY_FINALIZED"
    });
  }
@@ -335,7 +335,7 @@ async function evaluate(feed) {
  } else {
    result.signal = "STANDBY";
    if (sourceCandleEpoch !== null && now < sourceCandleEpoch * 1000 + 50_000) {
-     result.reason = "รอช่วงเปิดแท่ง M1 ใหม่ 0–5 วินาที";
+     result.reason = "ยังไม่พบ Momentum หรือ Breakout ที่ชัดเจนใน 5 วินาทีแรก";
    } else if (sourceCandleEpoch !== null && now >= sourceCandleEpoch * 1000 + 60_000) {
      result.reason = "รอแท่ง M1 ใหม่และข้อมูล Streaming";
    }
@@ -522,7 +522,7 @@ function startSignalTimer() {
     } catch (error) {
       console.error("[radar] timed analysis failed", error.message);
     } finally { evaluationBusy = false; }
-  }, 250);
+  }, 100);
 }
 
 function startWatchdog() {
