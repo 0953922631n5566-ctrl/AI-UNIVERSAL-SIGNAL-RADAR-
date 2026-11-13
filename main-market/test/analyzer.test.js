@@ -98,16 +98,13 @@ test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal 
 });
 
 
-test("Adaptive EMA pool blocks flat market and does not force a direction", async () => {
-  const candles = flatSidewayCandles();
-  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
-  const result = await analyzeMarket(candles, {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SIDEWAY-BLOCK",
-    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
+test("production analyzer does not emit a direction from closed-only history", async () => {
+  const result = await analyzeMarket(flatSidewayCandles(), {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/CLOSED-ONLY"
   });
   assert.equal(result.signal, "STANDBY");
-  assert.ok(result.riskFlags.includes("ADAPTIVE_EMA_GUARD_BLOCKED"));
-  assert.equal(calls.length, 0);
+  assert.equal(result.strategy, "INSTANT_MOMENTUM_BREAKOUT");
+  assert.equal(result.provider, "LOCAL_LIVE_TICK_ENGINE");
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
