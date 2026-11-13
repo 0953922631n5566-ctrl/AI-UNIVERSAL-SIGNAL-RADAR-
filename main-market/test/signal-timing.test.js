@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "../src/signal-timing.js";
+import { canFinalizeSignal, isFreshEventTimestamp, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "../src/signal-timing.js";
 
 const candle = 1_800_000_000;
 const openAt = candle * 1000;
@@ -25,7 +25,9 @@ test("release requires fresh provider event and receipt timestamps", () => {
   const base = { candleEpoch: candle, tickAt: now - 500, tickEventAt: now - 500, now };
   assert.equal(canFinalizeSignal(base), true);
   assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
-  assert.equal(canFinalizeSignal({ ...base, tickEventAt: now - 5_001 }), false);
+  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt + 1_000 }), true);
+  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt - 1 }), false);
+  assert.equal(isFreshEventTimestamp(openAt + 1_000, now), true);
   assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt + 60_000 }), false);
 });
 

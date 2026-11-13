@@ -64,10 +64,17 @@ test("closed candles alone never create a directional signal", () => {
   assert.equal(result.signal, "STANDBY");
 });
 
-test("rejects an old provider event timestamp even when receipt is fresh", () => {
+test("accepts a provider event timestamp from earlier in the same M1 candle when receipt is fresh", () => {
   const rows = candles();
   rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 38_000, tickEventAt: now + 30_000, tickAgeSeconds: 0.2 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 58_000, tickEventAt: now + 2_000, tickAgeSeconds: 0.2 });
+  assert.equal(result.signal, "CALL");
+});
+
+test("rejects a provider event timestamp from the previous M1 candle", () => {
+  const rows = candles();
+  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 8_000, tickEventAt: now - 1_000, tickAgeSeconds: 0.2 });
   assert.equal(result.signal, "STANDBY");
-  assert.match(result.reason, /Timestamp/);
+  assert.match(result.reason, /แท่ง M1/);
 });

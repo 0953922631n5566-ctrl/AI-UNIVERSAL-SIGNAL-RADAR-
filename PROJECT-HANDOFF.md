@@ -2197,3 +2197,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - `/api/public/signal` is responding with live M1 fields and observed a PUT state during the 30-second hold. A separate snapshot briefly returned STANDBY due to a stale provider event timestamp, demonstrating the freshness guard.
 - Browser-rendered HTML was initially still labeled Adaptive EMA 32 and contained obsolete "next candle" wording. A follow-up UI-only patch updates the labels and signal descriptions to match the live-M1 aggressive engine while preserving layout, routes, controls, and API contract.
 - Signal validation remains `false` / not out-of-sample validated. HIGH RISK manual/paper testing only; no broker execution.
+
+
+## 2026-11-13 — Twelve Data event timestamp freshness correction
+
+- Production issue: Twelve Data's price-event timestamp can be earlier within the same M1 minute while the server has received the quote very recently. A strict 5-second provider-event-age check incorrectly forced STANDBY for a current-minute quote.
+- Updated policy: server receipt age remains capped at 5 seconds; provider event timestamp may be up to 60 seconds old only when it is still inside the current live M1 candle. Previous-minute timestamps, future timestamps, stale receipt ticks, and timestamps outside the current candle remain blocked.
+- Engine, signal timing gate, 100ms re-evaluation timer, health metadata, and tests are aligned to the same policy.
+- Corrected the Mini App's static validation note so no Adaptive EMA / 100-candle diagnostics remain visible.
+- This change does not use REST as a signal fallback and does not loosen server-receipt freshness. HIGH RISK and manual/paper-only validation remain in effect.
