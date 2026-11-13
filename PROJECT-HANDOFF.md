@@ -1957,3 +1957,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Source-quality gate, 50+4 closed-candle window, 100-candle history, Twelve Data, streaming freshness, T-10 PREPARE, T-5 finalization, 30-second hold, signal dedupe, Telegram Mini App UI/auth/session, notification sound/vibration and manual-only broker behavior are preserved. No files under `main-market/public/` were changed.
 - Updated health/architecture metadata and analyzer validation note to describe the added evidence. Added deterministic tests for BOS, CHOCH, candle confirmation, exhaustion, invalid data and unchanged component budgets/thresholds.
 - Pending: CI and PR review; only after both Main Market and Telegram Mini App checks pass should this merge and trigger Render deploy. Then verify `/health`, `/api/public/signal`, `/signal`, fresh streaming feed and unchanged T-10/T-5/30s behavior. Predictive accuracy and profitability remain unvalidated; user-side Telegram device testing is still required.
+
+
+### Deployment verification — 2026-11-13
+- PR #118 merged as `a333a1dd4a33e70ddb5e2418c17927d0fc57363e` after both GitHub Actions workflows passed: Main Market Checks and Main Market Telegram Mini App Checks (including 50+4 wiring and syntax checks).
+- Render deploy `dep-dbrffrnf3r2c73c00dn0` reached `live`; build succeeded and startup logs show the service listening on port 10000.
+- Live `/health` reports `PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION`, priceActionEvidence for BOS/CHOCH, candle body/wicks/close-location, and momentum exhaustion; thresholds remain 65/45 and component weights remain 30/30/20/20.
+- Live `/api/public/signal` exposes the new priceAction evidence and metrics. Observed sample: CALL 58.9, PUT 16, Market Structure NONE/prior DOWN, candle body ratio 0.93, exhaustion LOW/0.54 ATR; remained STANDBY pending the existing T-10/T-5 timing gate. This is a runtime integration check, not an accuracy claim.
+- Twelve Data pool reported 10/10 available. Logs confirm WebSocket subscription accepted and first live EUR/USD tick received; subsequent API sample showed `dataMode=STREAMING`, `tickAgeSeconds=3`, `supportStatus=SUPPORTED`.
+- Render logs show the existing T-10 PREPARE and T-5 finalize windows still execute. No `main-market/public/` files changed; `/signal` route returned the existing Mini App page.
+- User can now open the Telegram Mini App for paper testing. Audio permission and visual behavior on the user's device have not been directly verified. Signal release remains manual-only and not OOS-validated.
