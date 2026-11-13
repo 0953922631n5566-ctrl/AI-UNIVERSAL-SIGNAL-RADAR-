@@ -8,7 +8,7 @@ import {
 function candles(colors) {
   return colors.map((color, i) => {
     const open = 1 + i;
-    const close = color === "GREEN" ? open + 0.6 : color === "RED" ? open - 0.6 : open + 0.01;
+    const close = color === "GREEN" ? open + 0.6 : color === "RED" ? open - 0.6 : open + 0.001;
     return {
       open, close,
       high: Math.max(open, close) + 0.05,
@@ -54,4 +54,11 @@ test("Candle confirmation does not change PREPARE or STANDBY decisions", () => {
   const standby = { signal: "STANDBY", direction: null, score: 20 };
   assert.equal(applyCandleConfirmation(prepare, candles(["RED", "RED", "RED"])).signal, "PREPARE");
   assert.equal(applyCandleConfirmation(standby, candles(["RED", "RED", "RED"])).signal, "STANDBY");
+});
+
+test("Very small bodies are classified as Doji and do not confirm direction alone", () => {
+  const result = analyzeCandleColorMomentum(candles(["DOJI", "DOJI", "DOJI"]), "CALL");
+  assert.deepEqual(result.colors, ["DOJI", "DOJI", "DOJI"]);
+  assert.equal(result.dojiCount, 3);
+  assert.equal(result.confirmed, false);
 });
