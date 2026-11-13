@@ -2150,3 +2150,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated health and package architecture metadata to identify the new engine. Existing Mini App source, API routes/payload structure, Twelve Data integration, key pool, and order-execution boundary are unchanged.
 - Status at handoff update: code committed to the feature branch, but automated CI, runtime integration, Render deployment, live /health, Telegram Mini App, and device-side verification are still pending. Do not merge or deploy until CI passes and the signal-to-current-candle semantics are reviewed.
 - Predictive accuracy and profitability are not established; this is a heuristic early-entry engine for controlled paper/manual forward testing only.
+
+
+### 2026-11-13 implementation refinement and CI follow-up
+
+- Preserved the established 50-context + 4-entry closed-candle contract: the new engine requires 54 closed M1 candles (50 context + 4 recent entry candles) before evaluating the current live candle's opening move. The prior four closed entry candles define the breakout range.
+- The current live candle is evaluated only while elapsed time is 0–4.999 seconds and the latest Streaming tick is no older than 5 seconds. Tick-triggered calls outside that interval now return before invoking the analyzer; an already-released signal remains visible only until its 30-second expiry.
+- The 30-second hold and forecast settlement now refer to the current M1 candle, not the following candle. REST history remains context only and cannot release a directional signal.
+- GitHub Actions caught outdated tests that still expected T-5 finalization, REST-only fallback, and the old adaptive-engine validation label. Those expectations were updated. A later CI run caught one stale requiredCandles=50 assertion after restoring the 50+4 contract; that assertion and health metadata were corrected.
+- CI for the latest branch head is still pending. No production merge or Render deployment has occurred.
