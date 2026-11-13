@@ -103,7 +103,7 @@ test("production analyzer does not emit a direction from closed-only history", a
     now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/CLOSED-ONLY"
   });
   assert.equal(result.signal, "STANDBY");
-  assert.equal(result.strategy, "INSTANT_MOMENTUM_BREAKOUT");
+  assert.equal(result.strategy, "AGGRESSIVE_MOMENTUM_BREAKOUT");
   assert.equal(result.provider, "LOCAL_LIVE_TICK_ENGINE");
 });
 
@@ -553,4 +553,4 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
 
 test("Adaptive EMA 32 warms up on 100 closed candles and blocks 99",()=>{const candles=history(120),short=analyzeAdaptiveEmaPool(candles.slice(-99)),ready=analyzeAdaptiveEmaPool(candles.slice(-100));assert.equal(short.ready,false);assert.equal(short.signal,"STANDBY");assert.equal(ready.ready,true);assert.equal(ready.candidateCount,32);assert.equal(ready.mode,"PRODUCTION");});
 test("Adaptive EMA 32 can identify aligned CALL and PUT trends",()=>{assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(1,120)).signal,"CALL");assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(-1,120)).signal,"PUT");});
-test("production analyzer requires a live opening M1 candle and does not analyze closed candles late",async()=>{const result=await analyzeMarket(history(120),{now:Date.now(),tickAgeSeconds:0});assert.equal(result.signal,"STANDBY");assert.equal(result.strategy,"INSTANT_MOMENTUM_BREAKOUT");assert.equal(result.provider,"LOCAL_LIVE_TICK_ENGINE");assert.equal(result.requiredCandles,54);assert.equal(result.signalReleaseValidated,false);});
+test("production analyzer requires a live opening M1 candle and does not analyze closed candles late",async()=>{const result=await analyzeMarket(history(120),{now:Date.now(),tickAgeSeconds:0});assert.equal(result.signal,"STANDBY");assert.equal(result.strategy,"AGGRESSIVE_MOMENTUM_BREAKOUT");assert.equal(result.provider,"LOCAL_LIVE_TICK_ENGINE");assert.equal(result.requiredCandles,54);assert.equal(result.signalReleaseValidated,false);});

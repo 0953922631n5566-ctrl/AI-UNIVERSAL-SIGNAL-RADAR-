@@ -905,6 +905,8 @@ app.get("/api/public/signal", (_req, res) => {
     market: {
       symbol: state.symbol, signal: state.signal, regime: state.regime,
       reason: state.reason, evidence: state.evidence, metrics: state.metrics,
+       setupType: state.setupType || null, riskLevel: state.riskLevel || null,
+       entryType: state.entryType || null, riskFlags: state.riskFlags || [],
       score: state.score, strategy: state.strategy, indicators: state.indicators,
       higherTimeframe: state.higherTimeframe || null,
       price: state.lastTickPrice, analyzedAt: state.analyzedAt,
@@ -915,6 +917,8 @@ app.get("/api/public/signal", (_req, res) => {
       analysisWindow: state.analysisWindow,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],
+       setupType: state.setupType || null, riskLevel: state.riskLevel || null,
+       entryType: state.entryType || null, riskFlags: state.riskFlags || [],
       engineResults: state.engineResults || null,
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
