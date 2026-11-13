@@ -2136,3 +2136,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live timing logs confirmed T-10 PREPARE and T-5 finalization. A T-5 CALL was eligible with a 0.844-second Streaming tick age and the 30-second hold expiry was set for 15:56:30Z. This verifies pipeline behavior at that moment, not predictive accuracy or a win.
 - /health and /signal routes are configured and the Mini App source/tests pass. Direct HTTP fetch from the assistant environment was blocked by DNS/network access, so the HTTP body and real Android/Telegram device rendering have not been independently checked. User should open https://ai-signal-radar-main-market.onrender.com/signal to complete the device-side check.
 - signalReleaseValidated remains false; no out-of-sample validation or win-rate claim is made.
+
+
+## 2026-11-13 — Instant Momentum & Breakout / opening-candle timing (in progress)
+
+- User explicitly authorized changing only the Main Market Analyzer and Signal Timing Gate while preserving the Telegram Mini App, Twelve Data REST/Streaming and API pool, auth/session, and manual-only broker boundary.
+- Work branch: `feature/instant-momentum-candle-lock-20261113`, based on `main-market`. Production branch and Render service are not modified by this work-in-progress branch.
+- Added `main-market/src/instant-momentum-engine.js`: uses 50 fully closed M1 candles as context and the current live candle's first 0–5 seconds for a local Streaming-tick momentum impulse or breakout beyond the prior four closed candles. No score accumulation or forced direction; weak/conflicting/missing/stale data returns STANDBY.
+- Updated `main-market/src/analyzer.js` to use the new engine as the production decision authority on the feature branch.
+- Updated `main-market/src/signal-timing.js` and `main-market/server.js`: the signal gate now opens only from candle open through 4.999 seconds, requires a Streaming tick no older than 5 seconds, deduplicates one signal per candle, and holds the signal until 30 seconds after the current candle opens.
+- The forecast entry basis is the current M1 candle open. The server signal timer evaluates only during the first five seconds; it no longer performs late-candle analysis.
+- Added focused tests for bullish/bearish opening momentum, four-candle breakout, stale tick rejection, closed-only rejection, 0–5s timing, dedupe, and 30-second expiry. Updated the previous production analyzer expectation.
+- Updated health and package architecture metadata to identify the new engine. Existing Mini App source, API routes/payload structure, Twelve Data integration, key pool, and order-execution boundary are unchanged.
+- Status at handoff update: code committed to the feature branch, but automated CI, runtime integration, Render deployment, live /health, Telegram Mini App, and device-side verification are still pending. Do not merge or deploy until CI passes and the signal-to-current-candle semantics are reviewed.
+- Predictive accuracy and profitability are not established; this is a heuristic early-entry engine for controlled paper/manual forward testing only.
