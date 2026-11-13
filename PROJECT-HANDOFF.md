@@ -1945,3 +1945,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App assets, UI, Telegram auth/session, transport, Start/Stop, countdown and alert behavior are unchanged.
 - Outcome is a market-price proxy using Twelve Data target-candle open/close, not proof of the user's broker fill or realized P&L. State/history remain in-memory per pair and reset on process restart.
 - Requires CI and PR review before merge/deploy.
+
+
+## 2026-11-13 — Main Market price-action analyzer enhancement (isolated feature branch)
+
+- User approved adding three supporting evidence families to the current Main Market analyzer: Market Structure BOS/CHOCH, Candle Confirmation (body/wicks/close location), and Momentum Exhaustion. No single family may independently force CALL or PUT.
+- Branch: `feature/main-market-structure-candle-exhaustion-20261113`, based on the currently deployed `main-market` branch commit tree.
+- Added `main-market/src/price-action-confirmation.js`, using only the supplied closed M1 OHLC candles. BOS/CHOCH compares the latest close with the preceding six-candle swing and labels the break relative to the prior short-term trend. Candle confirmation scores directional body, close location and rejection wicks. Momentum exhaustion scores EMA5-to-ATR extension, body contraction, same-direction run length and opposing wick.
+- Blended the evidence inside existing score components only: Trend Context 20 now blends its existing trend evidence with BOS/CHOCH; Proximity/Momentum 20 blends the existing proximity/momentum evidence with candle confirmation and exhaustion-aware freshness. Original component budgets remain 30/30/20/20, total 100; CALL/PUT 65 and PREPARE 45 unchanged. Existing S/R fakeout and EMA5 slope components remain.
+- No independent signal output, no new direction override, and no single indicator hard-block. Existing Choppy/ATR kill switches remain the only scoring kill switches.
+- Source-quality gate, 50+4 closed-candle window, 100-candle history, Twelve Data, streaming freshness, T-10 PREPARE, T-5 finalization, 30-second hold, signal dedupe, Telegram Mini App UI/auth/session, notification sound/vibration and manual-only broker behavior are preserved. No files under `main-market/public/` were changed.
+- Updated health/architecture metadata and analyzer validation note to describe the added evidence. Added deterministic tests for BOS, CHOCH, candle confirmation, exhaustion, invalid data and unchanged component budgets/thresholds.
+- Pending: CI and PR review; only after both Main Market and Telegram Mini App checks pass should this merge and trigger Render deploy. Then verify `/health`, `/api/public/signal`, `/signal`, fresh streaming feed and unchanged T-10/T-5/30s behavior. Predictive accuracy and profitability remain unvalidated; user-side Telegram device testing is still required.
