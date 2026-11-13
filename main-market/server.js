@@ -130,7 +130,7 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, HISTORY_CANDLES),
     requiredCandles: HISTORY_CANDLES, warmupCandles: HISTORY_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES, warmup: HISTORY_CANDLES },
+    analysisWindow: { contextCandles: 50, entryCandles: 1, total: MIN_CLOSED_CANDLES, warmup: HISTORY_CANDLES },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -969,10 +969,10 @@ app.get("/health", (_req, res) => {
     },
     analyzer: {
       provider: "LOCAL_LIVE_TICK_ENGINE", model: null, configured: true,
-      role: "SOLE_ADAPTIVE_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: false,
-      candidateCount: 32, emaPeriods: { first: 2, last: 33 },
-      thresholds: { callPut: 68, prepare: null, standbyBelow: 68 }, warmupCandles: HISTORY_CANDLES
+      role: "SOLE_INSTANT_MOMENTUM_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      closedCandlesOnly: false, localDirectionalFallback: false,
+      contextCandles: 50, liveCandleOpeningWindowMs: 5000,
+      trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", thresholds: { tickAgeMaxMs: 5000 }, warmupCandles: 50
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -988,8 +988,8 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: HISTORY_CANDLES,
-      historyCandles: HISTORY_CANDLES, adaptiveEmaWarmupCandles: HISTORY_CANDLES,
+      minimumClosedCandles: 50,
+      historyCandles: HISTORY_CANDLES, adaptiveEmaWarmupCandles: 50,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
@@ -997,7 +997,7 @@ app.get("/health", (_req, res) => {
       entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
-      restFallbackEnabled: true,
+      restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
