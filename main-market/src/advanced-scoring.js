@@ -49,7 +49,7 @@ export function analyzeCandleColorMomentum(candles, direction) {
   const lastAligned = last.color === alignedColor ||
     (last.color === "DOJI" && last.closeLocation >= 0.58);
   const confirmed = alignedCount >= 2 && lastAligned &&
-    bodyMomentum >= 0.12 && last.closeLocation >= 0.55;
+    bodyMomentum >= 0.04 && last.closeLocation >= 0.55;
   return {
     ready: true, direction, colors: analyzed.map(c => c.color),
     alignedCount, opposingCount, dojiCount,
