@@ -140,7 +140,7 @@ export async function analyzeMarket(candles, options = {}) {
     ...result,
     symbol: options.symbol || "EUR/USD",
     dataMode: Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds <= 5 ? "STREAMING" : "UNAVAILABLE",
-    livePriceReady: result.signal === "CALL" || result.signal === "PUT",
+    livePriceReady: live?.live === true && Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= 5,
     closedCandleCount: Math.min(closed.length, 50),
     requiredCandles: 50,
     warmupCandles: 50,
