@@ -1,5 +1,5 @@
 // This flag describes validation maturity only; it is NOT a runtime signal lock.
-// Local EMA5 Only Trend Flow is the sole directional decision-maker; system guards validate source and timing.
+// Local Partial Scoring is the directional decision-maker; system guards validate source, T-5 provisional entry data and timing.
 export const SIGNAL_RELEASE_VALIDATED = false;
 export const SIGNAL_VALIDATION_STATUS = "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED";
 
