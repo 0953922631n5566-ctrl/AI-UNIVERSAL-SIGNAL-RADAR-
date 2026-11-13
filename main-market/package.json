@@ -18,11 +18,11 @@
   },
   "radarArchitecture": {
     "name": "Main Market Advanced Partial Scoring Engine",
-    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
+    "displayName": "Partial Scoring 65/45 · EMA5/SR + BOS/CHOCH + Candle Confirmation + Momentum Exhaustion",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
+    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE_AND_EXISTING_KILL_SWITCHES",
     "directionalVoters": 1,
     "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
