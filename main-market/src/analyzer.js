@@ -3,6 +3,7 @@ import {
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
 import { analyzeAdaptiveEmaPool } from "./adaptive-ema-pool.js";
+import { analyzeInstantMomentum } from "./instant-momentum-engine.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
