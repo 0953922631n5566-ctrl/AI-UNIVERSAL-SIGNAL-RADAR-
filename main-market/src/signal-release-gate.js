@@ -9,6 +9,6 @@ export function applySignalReleaseGate(result) {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseLocked: false,
     signalValidationStatus: SIGNAL_VALIDATION_STATUS,
-    signalValidationNote: "Partial Scoring 65/45 เป็นเครื่องยนต์วิเคราะห์หลัก · Kill Switch สำหรับ Choppy/ATR Spike · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
+    signalValidationNote: "Partial Scoring 70/45 เป็นเครื่องยนต์วิเคราะห์หลัก · Kill Switch สำหรับ Choppy/ATR Spike · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"
   };
 }
