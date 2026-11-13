@@ -1,6 +1,7 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
+import { assessBullishReversalRisk } from "./early-bullish-reversal-shadow.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -124,6 +125,7 @@ export function scoreMarket(candles) {
   const currentRange=candles[i].high-candles[i].low;
   const atrSpike=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
   const priceAction=analyzePriceAction(candles,{ema5:e5[i],atr});
+  const bullishReversalShadow=assessBullishReversalRisk(candles);
   if(!priceAction.ready) return {signal:"STANDBY",score:0,reason:"ข้อมูล Price Action ไม่เพียงพอ",riskFlags:["PRICE_ACTION_NOT_READY"],scores:{CALL:0,PUT:0}};
   const call=componentScore(candles,"CALL",e5,e20,atr,priceAction);
   const put=componentScore(candles,"PUT",e5,e20,atr,priceAction);
@@ -164,6 +166,7 @@ export function scoreMarket(candles) {
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
     priceAction, entryTiming,
+    shadowEntryGuard: bullishReversalShadow,
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
       marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
