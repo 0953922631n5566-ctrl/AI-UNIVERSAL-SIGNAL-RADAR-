@@ -172,7 +172,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -258,7 +258,7 @@ async function evaluate(feed) {
    (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
  feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   ["PREPARE","CALL","PUT"].includes(result.signal) && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+   isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -323,7 +323,7 @@ async function evaluate(feed) {
    } else {
      result.signal = "STANDBY";
      result.reason = tickAge === null || tickAge > 5
-       ? "ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในช่วง T-5"
+       ? "ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีหลังเปิดแท่ง"
        : "ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
    }
  } else if (feed.activeSignal && now < feed.activeUntil) {
@@ -331,11 +331,11 @@ async function evaluate(feed) {
    result.reason = "รอแท่ง M1 เป้าหมาย";
  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
    result.signal = "STANDBY";
-   result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5";
+   result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อนแท่งใหม่";
  } else {
    result.signal = "STANDBY";
    if (sourceCandleEpoch !== null && now < sourceCandleEpoch * 1000 + 50_000) {
-     result.reason = "รอช่วง PREPARE T-10 และยืนยัน CALL/PUT ที่ T-5";
+     result.reason = "รอช่วงเปิดแท่ง M1 ใหม่ 0–5 วินาที";
    } else if (sourceCandleEpoch !== null && now >= sourceCandleEpoch * 1000 + 60_000) {
      result.reason = "รอแท่ง M1 ใหม่และข้อมูล Streaming";
    }
@@ -961,14 +961,14 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ADAPTIVE_EMA_POOL_32", engines: 32,
-      decisionAuthority: "LOCAL_ADAPTIVE_EMA_POOL_PERIODS_2_TO_33_SCORE_68_WITH_SIDEWAY_AND_HIGH_VOLATILITY_GUARDS",
+      decisionEngine: "INSTANT_MOMENTUM_BREAKOUT", engines: 1,
+      decisionAuthority: "LOCAL_LIVE_MOMENTUM_OR_FOUR_CLOSED_CANDLE_BREAKOUT",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_100_CLOSED_M1_TO_ADAPTIVE_EMA_POOL_32_TO_SCORE_68_TO_T10_T5_TIMING_GUARD"
+      signalDecisionPath: "50_CLOSED_M1_CONTEXT_TO_LIVE_M1_OPEN_0_5S_MOMENTUM_BREAKOUT_TO_30S_HOLD"
     },
     analyzer: {
-      provider: "LOCAL_ADAPTIVE_EMA_POOL", model: null, configured: true,
+      provider: "LOCAL_LIVE_TICK_ENGINE", model: null, configured: true,
       role: "SOLE_ADAPTIVE_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: false,
       candidateCount: 32, emaPeriods: { first: 2, last: 33 },
@@ -976,7 +976,7 @@ app.get("/health", (_req, res) => {
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
-      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
+      resultBasis: "CURRENT_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
       minimumSignalScore: 65, maxAttemptsPerLoss: 1, maxWaitCandles: 3,
       martingale: false, altersMiniApp: false, emitsAdditionalSignals: false,
       usesExistingSignalPipeline: true,
