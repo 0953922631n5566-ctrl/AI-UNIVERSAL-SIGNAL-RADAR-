@@ -7,7 +7,7 @@ const epoch = Math.floor(now / 60_000) * 60;
 function candles() {
   const rows = [];
   let close = 1.1;
-  for (let i = 50; i > 0; i--) {
+  for (let i = 54; i > 0; i--) {
     const open = close;
     close += (i % 2 ? 1 : -1) * 0.00001;
     rows.push({ epoch: epoch - i * 60, open, high: Math.max(open, close) + 0.00008,
