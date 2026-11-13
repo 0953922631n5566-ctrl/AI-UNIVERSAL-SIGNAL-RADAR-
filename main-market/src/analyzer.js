@@ -141,14 +141,14 @@ export async function analyzeMarket(candles, options = {}) {
     symbol: options.symbol || "EUR/USD",
     dataMode: Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds <= 5 ? "STREAMING" : "UNAVAILABLE",
     livePriceReady: live?.live === true && Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= 5,
-    closedCandleCount: Math.min(closed.length, 50),
-    requiredCandles: 50,
-    warmupCandles: 50,
+    closedCandleCount: Math.min(closed.length, 54),
+    requiredCandles: 54,
+    warmupCandles: 54,
     lastCandleEpoch: lastClosed?.epoch ?? null,
-    analysisWindow: { contextCandles: 50, entryCandles: 1, total: 51, warmup: 50 },
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: 54, warmup: 54 },
     signalReleaseValidated: false,
     signalValidationStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote: "M1 เปิดแท่ง 0–5 วินาที · ใช้ 50 แท่งปิดเป็นบริบทและ Streaming tick สด · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
+    signalValidationNote: "M1 เปิดแท่ง 0–5 วินาที · ใช้ 50 แท่งบริบท + 4 แท่งล่าสุดเป็น entry contextและ Streaming tick สด · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
     signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
