@@ -16,21 +16,21 @@ test("PREPARE_ALERT is active only from T-10s until T-5s", () => {
   assert.equal(isPrepareAlertWindow(candle, openAt + 60_000), false);
 });
 
-test("CALL/PUT finalization is allowed only during the final five seconds", () => {
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 54_999), false);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 55_000), true);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 59_999), true);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 60_000), false);
-  assert.equal(isSignalFinalizeWindow(candle, openAt + 54_000), false);
+test("CALL/PUT finalization is allowed only during the first five seconds after M1 opens", () => {
+  assert.equal(isSignalFinalizeWindow(candle, openAt - 1), false);
+  assert.equal(isSignalFinalizeWindow(candle, openAt), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 4_999), true);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 5_000), false);
+  assert.equal(isSignalFinalizeWindow(candle, openAt + 59_999), false);
 });
 
 test("finalization requires a fresh Streaming tick and deduplicates each source candle", () => {
-  const now = openAt + 55_000;
+  const now = openAt + 2_000;
   const base = { candleEpoch: candle, tickAt: now - 1_000, now };
   assert.equal(canFinalizeSignal(base), true);
   assert.equal(canFinalizeSignal({ ...base, lastDispatchedCandle: candle }), false);
   assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
-  assert.equal(canFinalizeSignal({ ...base, now: openAt + 60_000 }), false);
+  assert.equal(canFinalizeSignal({ ...base, now: openAt + 5_000 }), false);
 });
 
 test("Streaming tick freshness is limited to five seconds", () => {
@@ -40,6 +40,6 @@ test("Streaming tick freshness is limited to five seconds", () => {
   assert.equal(isFreshSignalTick(openAt + 1, openAt), false);
 });
 
-test("signal expires exactly 30 seconds after the target candle opens", () => {
-  assert.equal(signalHoldExpiresAt(candle + 60), openAt + 90_000);
+test("signal expires exactly 30 seconds after the current M1 candle opens", () => {
+  assert.equal(signalHoldExpiresAt(candle), openAt + 30_000);
 });
