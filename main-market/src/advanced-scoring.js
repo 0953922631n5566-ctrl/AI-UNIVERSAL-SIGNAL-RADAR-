@@ -29,7 +29,7 @@ export function analyzeCandleColorMomentum(candles, direction) {
   const analyzed = sample.map(c => {
     const range = Math.max(c.high - c.low, 1e-12);
     const body = c.close - c.open;
-    const doji = Math.abs(body) / range <= 0.08;
+    const doji = Math.abs(body) / range <= 0.02;
     return {
       color: doji ? "DOJI" : body > 0 ? "GREEN" : "RED",
       body: Math.abs(body),
