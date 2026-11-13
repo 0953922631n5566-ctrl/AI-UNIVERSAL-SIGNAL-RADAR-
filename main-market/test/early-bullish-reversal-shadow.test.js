@@ -47,17 +47,17 @@ test("shadow detector does not flag a strong bearish continuation", () => {
   assert.equal(result.bullishRejection, false);
 });
 
-test("one bullish-looking wick alone is not enough to flag a PUT block", () => {
+test("body contraction alone does not block PUT without bullish rejection", () => {
   const candles = makeDowntrend();
   const previous = candles.at(-2);
   const last = candles.at(-1);
   last.open = previous.close;
-  last.close = last.open - 0.00010;
-  last.low = last.close - 0.00010;
-  last.high = last.open + 0.00001;
+  last.close = last.open - 0.000015;
+  last.low = last.close - 0.000005;
+  last.high = last.open + 0.00012;
   const result = assessBullishReversalRisk(candles);
-  assert.equal(result.bullishRejection, true);
-  assert.equal(result.bodyContraction, false);
+  assert.equal(result.bodyContraction, true);
+  assert.equal(result.bullishRejection, false);
   assert.equal(result.wouldBlockPut, false);
 });
 
