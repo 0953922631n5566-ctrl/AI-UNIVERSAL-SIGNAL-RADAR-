@@ -7,7 +7,7 @@ Status: isolated experiment; ORIGINAL 84 remains the immutable rollback baseline
 - Scope: add only Candle Color & Momentum Confirmation to the existing Partial Scoring decision path.
 - Inputs: closed M1 OHLC candles already supplied by Twelve Data; no image capture or OCR.
 - Observation window: latest 3 closed candles.
-- Color: GREEN when close > open; RED when close < open; DOJI when body/range <= 8%.
+- Color: GREEN when close > open; RED when close < open; DOJI when body/range <= 2%.
 - Confirmation: at least 2 of 3 candles align with the candidate direction, the latest candle aligns (or is a strong directional Doji), directional body momentum >= 0.04 of summed candle ranges, and latest close-location >= 0.55.
 - Effect: only a final CALL/PUT candidate (base score >= 65) that fails confirmation is downgraded to PREPARE. Original score, component weights (30/30/20/20), thresholds (65/45), kill switches, source/data guards, timing, API pool, and Mini App code remain unchanged.
 - PREPARE and STANDBY are not changed by this add-on.
