@@ -1,5 +1,6 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
+import { analyzePriceAction } from "./price-action-confirmation.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -14,7 +15,7 @@ function atrAt(candles,end,period=14){
   const trs=part.slice(1).map((c,i)=>Math.max(c.high-c.low,Math.abs(c.high-part[i].close),Math.abs(c.low-part[i].close)));
   return mean(trs);
 }
-function componentScore(candles, direction, ema5, ema20, atr) {
+function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1], p2=candles[i-2];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
   const slopeNow=ema5[i]-ema5[i-1], slopePrev=ema5[i-1]-ema5[i-2];
@@ -40,12 +41,19 @@ function componentScore(candles, direction, ema5, ema20, atr) {
   const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
     :clamp((c.open-c.close+Math.max(0,p.close-c.close)*0.5)/Math.max(atr*0.35,1e-10));
-  const proximityScore=20*(0.55*near+0.45*momentum);
+  const candleConfirmation=direction==="CALL"?priceAction.candle.callScore:priceAction.candle.putScore;
+  const freshness=direction==="CALL"?priceAction.callFreshnessScore:priceAction.putFreshnessScore;
+  const baseProximity=0.55*near+0.45*momentum;
+  // Preserve the existing 20-point component; add candle confirmation and exhaustion-aware freshness as evidence.
+  const proximityScore=20*(0.55*baseProximity+0.30*candleConfirmation+0.15*freshness);
   const aboveEma5=c.close>ema5[i], belowEma5=c.close<ema5[i];
   const structureMove=bullish?c.close-candles[Math.max(0,i-5)].close:candles[Math.max(0,i-5)].close-c.close;
   const structure=clamp(structureMove/Math.max(atr*0.9,1e-10));
   const emaSupport=bullish?aboveEma5:belowEma5;
-  const trendScore=20*(0.55*structure+0.45*(emaSupport?1:0.25));
+  const baseTrend=0.55*structure+0.45*(emaSupport?1:0.25);
+  const marketStructure=direction==="CALL"?priceAction.callStructureScore:priceAction.putStructureScore;
+  // BOS/CHOCH is supporting evidence inside the existing 20-point Trend Context component.
+  const trendScore=20*(0.65*baseTrend+0.35*marketStructure);
   const components={
     ema5SlopeReversal:Math.round(slopeScore*10)/10,
     srFakeout:Math.round(fakeoutScore*10)/10,
@@ -53,7 +61,8 @@ function componentScore(candles, direction, ema5, ema20, atr) {
     trendContext:Math.round(trendScore*10)/10
   };
   return {score:Math.round(Object.values(components).reduce((a,b)=>a+b,0)*10)/10,components,
-    details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20}};
+    details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20,
+      candleConfirmation,freshness,marketStructure}};
 }
 export function scoreMarket(candles) {
   if(!Array.isArray(candles)||candles.length<30||!candles.every(c=>c&&[c.open,c.high,c.low,c.close].every(Number.isFinite)))
@@ -68,8 +77,10 @@ export function scoreMarket(candles) {
   const choppy=tangled&&flat;
   const currentRange=candles[i].high-candles[i].low;
   const atrSpike=(atr>0&&currentRange>atr*2.8)||(baselineAtr>0&&recentAtr>baselineAtr*2.4);
-  const call=componentScore(candles,"CALL",e5,e20,atr);
-  const put=componentScore(candles,"PUT",e5,e20,atr);
+  const priceAction=analyzePriceAction(candles,{ema5:e5[i],atr});
+  if(!priceAction.ready) return {signal:"STANDBY",score:0,reason:"ข้อมูล Price Action ไม่เพียงพอ",riskFlags:["PRICE_ACTION_NOT_READY"],scores:{CALL:0,PUT:0}};
+  const call=componentScore(candles,"CALL",e5,e20,atr,priceAction);
+  const put=componentScore(candles,"PUT",e5,e20,atr,priceAction);
   const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
@@ -91,15 +102,20 @@ export function scoreMarket(candles) {
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_65_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
-      `Proximity & Momentum ${chosen.components.proximityMomentum}/20 · Trend Context ${chosen.components.trendContext}/20`,
+      `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
+      ...priceAction.evidence,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
+    priceAction,
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
-      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5},
+      emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
+      marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
+      candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
+      momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
