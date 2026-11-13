@@ -384,7 +384,7 @@ function dispatchSignalIfReady(feed) {
  console.info("[signal] M1 opening-window signal is available to Telegram Mini App polling", {
    alertId: feed.alertId, signal, sourceCandleEpoch,
    targetCandleEpoch: feed.signalCandle,
-   secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
+   secondsSinceOpen: (now - sourceCandleEpoch * 1000) / 1000,
    expiresAt: new Date(feed.activeUntil).toISOString()
  });
 }
@@ -983,7 +983,7 @@ app.get("/health", (_req, res) => {
       role: "SOLE_INSTANT_MOMENTUM_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: false, localDirectionalFallback: false,
       contextCandles: 50, liveCandleOpeningWindowMs: 5000,
-      trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", thresholds: { tickAgeMaxMs: 5000 }, warmupCandles: 50
+      trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", thresholds: { tickAgeMaxMs: 5000 }, warmupCandles: 54
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
