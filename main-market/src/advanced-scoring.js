@@ -18,7 +18,7 @@ function atrAt(candles,end,period=14){
 /**
  * Candle Color & Momentum Confirmation (isolated add-on).
  * Uses closed OHLC candles only; green/red is derived from close vs open.
- * This layer never changes the ORIGINAL 65/45 score or component weights.
+ * This layer keeps ORIGINAL scoring weights; experiment entry threshold is 70 with PREPARE floor 45.
  */
 export function analyzeCandleColorMomentum(candles, direction) {
   if (!Array.isArray(candles) || candles.length < 3 || !["CALL", "PUT"].includes(direction)) {
@@ -146,13 +146,13 @@ export function scoreMarket(candles) {
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=65){signal=direction;status="SIGNAL";}
+    if(top>=70){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 70`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   const result = {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
@@ -168,7 +168,7 @@ export function scoreMarket(candles) {
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
-    thresholds:{signal:65,prepare:45,standbyBelow:45}
+    thresholds:{signal:70,prepare:45,standbyBelow:45}
   };
   return applyCandleConfirmation(result, candles);
 }
