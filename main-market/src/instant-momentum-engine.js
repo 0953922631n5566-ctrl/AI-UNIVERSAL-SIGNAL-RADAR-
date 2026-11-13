@@ -1,4 +1,6 @@
-const MIN_CONTEXT_CANDLES = 50;
+const CONTEXT_CANDLES = 50;
+const ENTRY_CANDLES = 4;
+const REQUIRED_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
 const OPENING_WINDOW_MS = 5_000;
 const MAX_TICK_AGE_SECONDS = 5;
 const MIN_PRICE_MOVE = 0.00002;
@@ -28,7 +30,7 @@ function validCandle(candle) {
 
 /**
  * Opening-window M1 decision engine.
- * Uses the last 50 fully closed M1 candles only as context and the current
+ * Uses 50 closed M1 context candles plus the latest four closed entry candles, and the current
  * live candle's first 0–5 seconds for the actual momentum/breakout trigger.
  * It deliberately does not force a direction when the opening move is weak
  * or contradictory.
@@ -51,15 +53,17 @@ export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSecon
 
   const closed = all.filter(c => c && c.live !== true &&
     Number.isFinite(c.epoch) && c.epoch < live.epoch);
-  const context = closed.slice(-MIN_CONTEXT_CANDLES);
-  if (context.length < MIN_CONTEXT_CANDLES || !context.every(validCandle)) {
-    return standby(`ข้อมูลแท่งปิดไม่ครบ 50 แท่ง (${context.length}/50)`);
+  const window = closed.slice(-REQUIRED_CLOSED_CANDLES);
+  const context = window.slice(0, CONTEXT_CANDLES);
+  const entry = window.slice(-ENTRY_CANDLES);
+  if (window.length < REQUIRED_CLOSED_CANDLES || !window.every(validCandle)) {
+    return standby(`ข้อมูลแท่งปิดไม่ครบ 54 แท่ง (${window.length}/54)`);
   }
-  if (context.some((c, i) => i > 0 && c.epoch <= context[i - 1].epoch)) {
+  if (window.some((c, i) => i > 0 && c.epoch <= window[i - 1].epoch)) {
     return standby("ลำดับเวลาแท่ง M1 ไม่ถูกต้อง");
   }
 
-  const atr = atr14(context);
+  const atr = atr14(window);
   if (!(atr > 0)) return standby("ATR ของข้อมูลอ้างอิงไม่เพียงพอ");
   const body = live.close - live.open;
   const range = Math.max(0, live.high - live.low);
@@ -67,7 +71,7 @@ export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSecon
   const bodyRatio = range > 0 ? bodyAbs / range : 0;
   const impulseThreshold = Math.max(atr * 0.18, MIN_PRICE_MOVE);
   const breakoutBuffer = Math.max(atr * 0.02, 0.000005);
-  const prior = context.slice(-4);
+  const prior = entry;
   const priorHigh = Math.max(...prior.map(c => c.high));
   const priorLow = Math.min(...prior.map(c => c.low));
 
@@ -108,7 +112,7 @@ export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSecon
       signal: "CALL", direction: "CALL", regime: "BULLISH_IMPULSE",
       reason, summary: reason, strategy: "INSTANT_MOMENTUM_BREAKOUT",
       provider: "LOCAL_LIVE_TICK_ENGINE", entryType: "M1_OPEN_0_5S",
-      confidence: null, score: null, evidence: [reason, "ใช้แท่งปิด 50 แท่งเป็นบริบท", "ใช้ราคา Streaming ของแท่งปัจจุบันเท่านั้น"],
+      confidence: null, score: null, evidence: [reason, "ใช้แท่งปิด 50 แท่งบริบท + 4 แท่งล่าสุดเป็น entry context", "ใช้ราคา Streaming ของแท่งปัจจุบันเท่านั้น"],
       riskFlags: [], metrics, analyzedAt: new Date(now).toISOString()
     };
   }
@@ -141,7 +145,9 @@ function standby(reason, metrics = null) {
 }
 
 export const INSTANT_ENGINE_CONFIG = Object.freeze({
-  contextCandles: MIN_CONTEXT_CANDLES,
+  contextCandles: CONTEXT_CANDLES,
+  entryCandles: ENTRY_CANDLES,
+  requiredClosedCandles: REQUIRED_CLOSED_CANDLES,
   openingWindowMs: OPENING_WINDOW_MS,
   maxTickAgeSeconds: MAX_TICK_AGE_SECONDS
 });
