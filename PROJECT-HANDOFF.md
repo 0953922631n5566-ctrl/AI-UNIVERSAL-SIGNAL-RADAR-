@@ -2159,3 +2159,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The 30-second hold and forecast settlement now refer to the current M1 candle, not the following candle. REST history remains context only and cannot release a directional signal.
 - GitHub Actions caught outdated tests that still expected T-5 finalization, REST-only fallback, and the old adaptive-engine validation label. Those expectations were updated. A later CI run caught one stale requiredCandles=50 assertion after restoring the 50+4 contract; that assertion and health metadata were corrected.
 - CI for the latest branch head is still pending. No production merge or Render deployment has occurred.
+
+
+## 2026-11-13 — Instant Momentum Main Market rollout completed
+
+- Merged PRs #107 (Instant Momentum & Breakout engine + opening lock), #108 (public API timing metadata), #109 (provider event timestamp lock), and #110 (reject stale provider event timestamps).
+- Latest production commit: `1d8501c7f6de7574510f1fa5b6dd5f95a5bd1785`.
+- Render service `ai-signal-radar-main-market` deployment `dep-dbr7funf3r2c73bn0be0` reached `live` at 2026-11-13T02:38:23Z.
+- Live `/health` reports `ok=true`, EUR/USD M1, Instant Momentum Breakout, 50 context + 4 entry candles (54 closed candles), 5s opening window, 5s maximum provider-event age, 5s maximum receipt-tick age, and 30s signal hold.
+- Live `/api/public/signal` responds with the unchanged API shape, `signalTimingWindowSeconds=[0,5]`, 54/54 closed candles, Streaming online, and 10/10 Twelve Data keys available.
+- Latest CI: 158 tests, 154 passed, 0 failed, 4 skipped; Telegram Mini App checks and 50+4 wiring passed.
+- Smoke check confirmed the live API correctly fails closed when the provider event timestamp is older than five seconds. No live CALL/PUT signal was observed in the smoke-check window; no accuracy/profitability claim is made.
+- Telegram Mini App route remains accessible and its layout, controls, sound, and polling were intentionally left unchanged. Its static descriptive copy still references Adaptive EMA 32 / T-10 / T-5 and should be updated only with the user's approval; backend health and API are already on Instant Momentum.
+- Manual-only boundary remains: no broker order execution. Continue paper/manual forward validation before relying on the signal for live trades.
