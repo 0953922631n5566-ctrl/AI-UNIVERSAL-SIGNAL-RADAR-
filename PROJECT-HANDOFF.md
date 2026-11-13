@@ -2206,3 +2206,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Engine, signal timing gate, 100ms re-evaluation timer, health metadata, and tests are aligned to the same policy.
 - Corrected the Mini App's static validation note so no Adaptive EMA / 100-candle diagnostics remain visible.
 - This change does not use REST as a signal fallback and does not loosen server-receipt freshness. HIGH RISK and manual/paper-only validation remain in effect.
+
+
+## 2026-11-13 — Restore ORIGINAL 84 entry-alert timing
+
+- PR #114 restores the original alert sequence while retaining the aggressive live-M1 analyzer: directional setup qualifies the non-directional PREPARE alert at T-10; CALL/PUT order alert is emitted once per target M1 candle during T-5; signal remains visible until 30 seconds after the target candle opens.
+- Mini App sound, vibration, Telegram haptics, toast, and flash are retained. Immediate per-alertId sound/vibration has been removed; repeated analyzer events within one M1 candle do not produce repeated order alerts.
+- Distinct live-M1 analysis events remain enabled throughout the candle; this change does not revert the signal engine or broker/manual-only boundary.
+- Automated timing/UI regression tests cover T-10, T-5, per-candle alert deduplication, and target-candle +30s expiry. Awaiting CI and Render verification.
