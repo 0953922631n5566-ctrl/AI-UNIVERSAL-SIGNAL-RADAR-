@@ -128,9 +128,9 @@ function publicFeed(feed) {
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
     candleCount: feed.candles.length,
-    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, 50),
-    requiredCandles: 50, warmupCandles: 50,
-    analysisWindow: { contextCandles: 50, entryCandles: 1, total: 51, warmup: 50 },
+    closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, 54),
+    requiredCandles: 54, warmupCandles: 54,
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: 54, warmup: 54 },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -976,7 +976,7 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "LOCAL_LIVE_MOMENTUM_OR_FOUR_CLOSED_CANDLE_BREAKOUT",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "50_CLOSED_M1_CONTEXT_TO_LIVE_M1_OPEN_0_5S_MOMENTUM_BREAKOUT_TO_30S_HOLD"
+      signalDecisionPath: "50_CONTEXT_PLUS_4_ENTRY_CLOSED_M1_TO_LIVE_M1_OPEN_0_5S_MOMENTUM_BREAKOUT_TO_30S_HOLD"
     },
     analyzer: {
       provider: "LOCAL_LIVE_TICK_ENGINE", model: null, configured: true,
@@ -999,20 +999,20 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: 50,
-      historyCandles: HISTORY_CANDLES, adaptiveEmaWarmupCandles: 50,
+      minimumClosedCandles: 54,
+      historyCandles: HISTORY_CANDLES, adaptiveEmaWarmupCandles: 54,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
-      entryCandles: 1,
+      entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
       restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      instantMomentum: { contextCandles: 50, openingWindowMs: 5000, maxTickAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
+      instantMomentum: { contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, openingWindowMs: 5000, maxTickAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
     }
   });
 });
