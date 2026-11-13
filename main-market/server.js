@@ -27,9 +27,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ADAPTIVE EMA POOL 32 · EUR/USD";
-const ARCHITECTURE_ID = "ADAPTIVE-EMA-32-PERIODS-2-33-EURUSD";
-const VERSION = "2026-11-12-adaptive-ema32-eurusd-v1";
+const SYSTEM_NAME = "INSTANT MOMENTUM BREAKOUT · EUR/USD";
+const ARCHITECTURE_ID = "INSTANT-MOMENTUM-BREAKOUT-M1-OPEN-0-5S";
+const VERSION = "2026-11-13-instant-momentum-breakout-m1-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -279,7 +279,7 @@ async function evaluate(feed) {
      lastDispatchedCandle: feed.lastDispatchedCandle });
  if (finalizeWindow && feed.lastFinalizeLoggedCandle !== sourceCandleEpoch) {
    feed.lastFinalizeLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] T-5 FINALIZE window entered", {
+   console.info("[timing] M1 OPEN 0-5s decision window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
      candidateSignal: result.signal, eligible: finalizeEligible,
      tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
@@ -301,11 +301,11 @@ async function evaluate(feed) {
    });
    if (canFinalize) {
      feed.activeSignal = result.signal;
-     feed.signalCandle = targetCandleEpoch;
+     feed.signalCandle = sourceCandleEpoch;
      feed.signalSourceCandle = sourceCandleEpoch;
      feed.signalTriggeredAt = now;
-     feed.activeUntil = signalHoldExpiresAt(targetCandleEpoch);
-     feed.alertId = `${targetCandleEpoch}:${result.signal}`;
+     feed.activeUntil = signalHoldExpiresAt(sourceCandleEpoch);
+     feed.alertId = `${sourceCandleEpoch}:${result.signal}`;
      feed.pendingForecast = {
        alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
        targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
@@ -319,7 +319,7 @@ async function evaluate(feed) {
          mode: "ACTIVE_EXISTING_SIGNAL_FLOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
        });
      }
-     result.reason = "ยืนยันสัญญาณ T-5 สำหรับเข้าแท่ง M1 ถัดไป";
+     result.reason = "ยืนยัน Momentum/Breakout ใน 0–5 วินาทีแรกของแท่ง M1 ปัจจุบัน";
    } else {
      result.signal = "STANDBY";
      result.reason = tickAge === null || tickAge > 5
@@ -351,7 +351,7 @@ async function evaluate(feed) {
    signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
-   signalTimingWindowSeconds: [5, 0]
+   signalTimingWindowSeconds: [0, 5]
  };
 }
 
@@ -370,7 +370,7 @@ function dispatchSignalIfReady(feed) {
  feed.lastDispatchedAt = now;
  feed.lastDispatchedCandle = sourceCandleEpoch;
  feed.lastDispatchedAlertId = feed.alertId;
- console.info("[signal] T-5 next-candle signal is available to authenticated Telegram Mini App polling", {
+ console.info("[signal] M1 opening-window signal is available to Telegram Mini App polling", {
    alertId: feed.alertId, signal, sourceCandleEpoch,
    targetCandleEpoch: feed.signalCandle,
    secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
@@ -513,7 +513,7 @@ function startSignalTimer() {
     const current = feed?.candles.at(-1);
     if (!current?.live) return;
     const elapsedMs = Date.now() - current.epoch * 1000;
-    if (elapsedMs < 0 || elapsedMs > 60000) return;
+    if (elapsedMs < 0 || elapsedMs >= 5000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);
