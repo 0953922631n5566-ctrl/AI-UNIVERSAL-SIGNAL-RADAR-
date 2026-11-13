@@ -514,9 +514,9 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  assert.equal(result.signal,"STANDBY");
  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
-test("Experimental Partial Scoring exposes 61/45 entry thresholds",()=>{
+test("Experimental Partial Scoring exposes 65/45 entry thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:61,prepare:45,standbyBelow:45});
+ assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45});
 });
 
 function moderateFakeoutCandles(count = 54) {
@@ -543,12 +543,12 @@ function moderateFakeoutCandles(count = 54) {
   return candles;
 }
 
-test("A 61-69 CALL candidate requires candle confirmation at the 61-point threshold", () => {
+test("A 65-69 CALL candidate requires candle confirmation at the 65-point threshold", () => {
   const result = scoreMarket(moderateFakeoutCandles());
-  assert.ok(result.scores.CALL >= 61 && result.scores.CALL < 70, JSON.stringify(result.scores));
-  assert.equal(result.thresholds.signal, 61);
+  assert.ok(result.scores.CALL >= 65 && result.scores.CALL < 70, JSON.stringify(result.scores));
+  assert.equal(result.thresholds.signal, 65);
   assert.ok(["PREPARE", "CALL"].includes(result.signal));
-  if (result.scores.CALL < 61 || !result.candleConfirmation?.confirmed) assert.equal(result.signal, "PREPARE");
+  if (result.scores.CALL < 65 || !result.candleConfirmation?.confirmed) assert.equal(result.signal, "PREPARE");
   assert.equal(result.riskFlags.includes("CHOPPY_MARKET_KILL_SWITCH"), false);
   assert.equal(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"), false);
 });
