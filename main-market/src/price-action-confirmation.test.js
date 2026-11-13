@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzePriceAction } from "./price-action-confirmation.js";
-import { scoreMarket } from "./advanced-scoring.js";
+import { scoreMarket, assessEntryTiming } from "./advanced-scoring.js";
 
 function risingCandles(count = 54) {
   let previous = 1.1000;
@@ -88,4 +88,60 @@ test("New evidence is blended into existing 30/30/20/20 components without chang
     assert.ok(scores.proximityMomentum >= 0 && scores.proximityMomentum <= 20);
     assert.ok(scores.trendContext >= 0 && scores.trendContext <= 20);
   }
+});
+
+
+test("three consecutive bullish candles block an unconfirmed counter-trend PUT", () => {
+  const candles = risingCandles();
+  const closes = candles.map(c => c.close);
+  const ema5 = (() => {
+    const k = 2 / 6; let value = closes[0]; const out = [value];
+    for (let i = 1; i < closes.length; i++) { value = closes[i] * k + value * (1 - k); out.push(value); }
+    return out;
+  })();
+  const last = candles.at(-1);
+  const priceAction = analyzePriceAction(candles, { ema5: ema5.at(-1), atr: 0.0002 });
+  const timing = assessEntryTiming(candles, "PUT", ema5, priceAction);
+  assert.equal(timing.runDirection, "CALL");
+  assert.ok(timing.runLength >= 3);
+  assert.equal(timing.counterTrendBlocked, true);
+  assert.equal(timing.allowed, false);
+});
+
+test("an early bearish micro-turn after a bullish run clears the counter-trend block", () => {
+  const candles = risingCandles();
+  const previous = candles.at(-2);
+  const last = candles.at(-1);
+  last.open = previous.close;
+  last.close = previous.close - 0.00016;
+  last.high = last.open + 0.00001;
+  last.low = last.close - 0.00001;
+  const closes = candles.map(c => c.close);
+  const k = 2 / 6; let value = closes[0]; const ema5 = [value];
+  for (let i = 1; i < closes.length; i++) { value = closes[i] * k + value * (1 - k); ema5.push(value); }
+  const priceAction = analyzePriceAction(candles, { ema5: ema5.at(-1), atr: 0.0002 });
+  const timing = assessEntryTiming(candles, "PUT", ema5, priceAction);
+  assert.equal(timing.runDirection, "CALL");
+  assert.ok(timing.runLength >= 3);
+  assert.equal(timing.counterTrendBlocked, false);
+});
+
+test("T-5 live candidate is used only when fresh and explicitly enabled", async () => {
+  const { analyzeMarket } = await import("./analyzer.js");
+  const candles = risingCandles();
+  const now = 54 * 60_000 + 55_000;
+  const live = { open: 1.10432, high: 1.10435, low: 1.10410, close: 1.10412,
+    epoch: 54 * 60, live: true };
+  const enabled = await analyzeMarket([...candles, live], {
+    now, tickAgeSeconds: 1, allowRestFallback: false,
+    liveCandidate: live, allowLiveCandidate: true
+  });
+  assert.equal(enabled.analysisCandleMode, "PROVISIONAL_CURRENT_M1_AT_T_MINUS_5");
+  assert.equal(enabled.analysisCandlesUsed, 55);
+  const disabled = await analyzeMarket([...candles, live], {
+    now, tickAgeSeconds: 1, allowRestFallback: false,
+    liveCandidate: live, allowLiveCandidate: false
+  });
+  assert.equal(disabled.analysisCandleMode, "CLOSED_CANDLES_ONLY");
+  assert.equal(disabled.analysisCandlesUsed, 54);
 });

@@ -15,6 +15,52 @@ function atrAt(candles,end,period=14){
   const trs=part.slice(1).map((c,i)=>Math.max(c.high-c.low,Math.abs(c.high-part[i].close),Math.abs(c.low-part[i].close)));
   return mean(trs);
 }
+function directionalRun(candles) {
+  const last = candles.at(-1);
+  const lastSign = Math.sign(last.close - last.open);
+  if (!lastSign) return { direction: null, count: 0 };
+  let count = 0;
+  for (let i = candles.length - 1; i >= 0; i--) {
+    const sign = Math.sign(candles[i].close - candles[i].open);
+    if (sign !== lastSign) break;
+    count++;
+  }
+  return { direction: lastSign > 0 ? "CALL" : "PUT", count };
+}
+
+export function assessEntryTiming(candles, direction, ema5, priceAction) {
+  const run = directionalRun(candles.slice(0, -1));
+  const i = candles.length - 1;
+  const current = candles[i], previous = candles[i - 1];
+  const slopeNow = ema5[i] - ema5[i - 1];
+  const slopePrevious = ema5[i - 1] - ema5[i - 2];
+  const currentDirection = Math.sign(current.close - current.open) > 0 ? "CALL"
+    : Math.sign(current.close - current.open) < 0 ? "PUT" : null;
+  const opposingDirection = run.direction && direction !== run.direction;
+  const microTurn = direction === "CALL"
+    ? current.close > current.open && current.close > previous.close &&
+      priceAction.candle.bodyRatio >= 0.35 && priceAction.candle.closeLocation >= 0.62 &&
+      (slopeNow > slopePrevious || slopeNow > 0)
+    : current.close < current.open && current.close < previous.close &&
+      priceAction.candle.bodyRatio >= 0.35 && priceAction.candle.closeLocation <= 0.38 &&
+      (slopeNow < slopePrevious || slopeNow < 0);
+  const structureTurn = priceAction.structure.event === "CHOCH" &&
+    priceAction.structure.direction === direction;
+  const counterTrendConfirmed = !opposingDirection || microTurn || structureTurn;
+  const counterTrendBlocked = Boolean(opposingDirection && !counterTrendConfirmed && run.count >= 3);
+  const lateContinuation = run.count >= 3 && direction === run.direction &&
+    currentDirection === direction && priceAction.exhaustion.level === "HIGH" &&
+    priceAction.exhaustion.extensionAtr >= 1.0;
+  return {
+    runDirection: run.direction,
+    runLength: run.count,
+    counterTrendConfirmed,
+    counterTrendBlocked,
+    lateContinuation,
+    allowed: !counterTrendBlocked && !lateContinuation
+  };
+}
+
 function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1], p2=candles[i-2];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
@@ -84,20 +130,27 @@ export function scoreMarket(candles) {
   const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
-  const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
+  const entryTiming = direction ? assessEntryTiming(candles, direction, e5, priceAction) : null;
+  const directionalBlocked = Boolean(entryTiming && !entryTiming.allowed);
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
+  if(entryTiming?.counterTrendBlocked)riskFlags.push("COUNTER_TREND_NOT_CONFIRMED");
+  if(entryTiming?.lateContinuation)riskFlags.push("LATE_CONTINUATION_EXHAUSTION");
   let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&direction){
+  if(!choppy&&!atrSpike&&direction&&!directionalBlocked){
     if(top>=65){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
+  } else if(!choppy&&!atrSpike&&directionalBlocked&&top>=45) {
+    signal="PREPARE"; status="PREPARE";
   }
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
+    :entryTiming?.counterTrendBlocked?"EARLY ENTRY GUARD: ยังไม่มีแท่งกลับทิศ/CHOCH ยืนยันหลังวิ่งต่อเนื่อง 3 แท่ง"
+    :entryTiming?.lateContinuation?"LATE ENTRY GUARD: โมเมนตัมฝั่งเดิมยืดตัวและหมดแรง — รอจังหวะใหม่"
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
-    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
+    :signal==="PREPARE"?`PREPARE · คะแนน ${top}/100 · รอการยืนยันที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
@@ -110,13 +163,16 @@ export function scoreMarket(candles) {
       ...priceAction.evidence,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
-    priceAction,
+    priceAction, entryTiming,
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
       marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
-      momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
-    prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
+      momentumExtensionAtr:priceAction.exhaustion.extensionAtr,
+      directionalRun:entryTiming?.runLength ?? 0, runDirection:entryTiming?.runDirection ?? null,
+      counterTrendConfirmed:entryTiming?.counterTrendConfirmed ?? null,
+      lateContinuationBlocked:entryTiming?.lateContinuation ?? false},
+    prepareSignal:signal==="PREPARE"&&!directionalBlocked?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
 }

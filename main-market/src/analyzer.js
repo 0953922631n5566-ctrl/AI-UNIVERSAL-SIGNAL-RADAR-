@@ -139,9 +139,29 @@ export async function analyzeMarket(candles, options = {}) {
       strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
-  const scored=scoreMarket(closedCandles);
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const candidate = options.liveCandidate;
+  const validLiveCandidate = options.allowLiveCandidate === true &&
+    gate.mode === "STREAMING" &&
+    Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds >= 0 &&
+    options.tickAgeSeconds <= 5 &&
+    candidate?.live === true &&
+    Number.isFinite(candidate.epoch) &&
+    candidate.epoch === Math.floor(now / 60000) * 60 &&
+    [candidate.open, candidate.high, candidate.low, candidate.close].every(Number.isFinite) &&
+    candidate.low > 0 && candidate.close > 0 &&
+    candidate.high >= Math.max(candidate.open, candidate.close) &&
+    candidate.low <= Math.min(candidate.open, candidate.close) &&
+    candidate.high >= candidate.low;
+  // At T-5 only, score the nearly completed current candle as a provisional entry candle.
+  // The 54-candle closed-history quality gate remains unchanged; no stale or REST-only live candle is admitted.
+  const scoringCandles = validLiveCandidate ? [...closedCandles, candidate] : closedCandles;
+  const scored=scoreMarket(scoringCandles);
   return {
-    ...scored, ...base,
+    ...scored,
+    analysisCandleMode: validLiveCandidate ? "PROVISIONAL_CURRENT_M1_AT_T_MINUS_5" : "CLOSED_CANDLES_ONLY",
+    analysisCandlesUsed: scoringCandles.length,
+    ...base,
     prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
