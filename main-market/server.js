@@ -235,6 +235,27 @@ async function evaluate(feed) {
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+
+ if (feed.activeSignal && now >= feed.activeUntil) {
+   feed.activeSignal = null;
+   feed.activeUntil = 0;
+   feed.signalCandle = null;
+   feed.signalSourceCandle = null;
+   feed.signalTriggeredAt = 0;
+   feed.alertId = null;
+ }
+ const elapsedSinceOpenMs = sourceCandleEpoch === null
+   ? null : now - sourceCandleEpoch * 1000;
+ if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 5000) {
+   // Keep a previously released signal visible for its 30-second hold, but never re-run analysis late.
+   if (!(feed.activeSignal && now < feed.activeUntil)) {
+     feed.analysis = standby(elapsedSinceOpenMs === null
+       ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
+       : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
+   }
+   return;
+ }
+
  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
@@ -246,14 +267,6 @@ async function evaluate(feed) {
  const result = applySignalReleaseGate(rawResult);
 
 
- if (feed.activeSignal && now >= feed.activeUntil) {
-   feed.activeSignal = null;
-   feed.activeUntil = 0;
-   feed.signalCandle = null;
-   feed.signalSourceCandle = null;
-   feed.signalTriggeredAt = 0;
-   feed.alertId = null;
- }
  const activeForCurrentOrNext = Boolean(feed.activeSignal && now < feed.activeUntil &&
    (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
