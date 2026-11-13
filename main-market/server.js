@@ -27,8 +27,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
+const SYSTEM_NAME = "PARTIAL SCORING 65 CANDLE CONFIRMATION EXPERIMENT";
+const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CANDLE-CONFIRMATION-CHOPPY-ATR-KILL-SWITCH";
 const VERSION = "2026-11-11-streaming-reconnect-v1";
 const app = express();
 const server = http.createServer(app);
@@ -172,7 +172,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "PARTIAL_SCORING_65_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -961,11 +961,11 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_65_AGILE", engines: 1,
+      decisionEngine: "PARTIAL_SCORING_65_CANDLE_CONFIRMATION", engines: 1,
       decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_65_45_CANDLE_CONFIRMATION_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
@@ -1000,7 +1000,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "PARTIAL_SCORING_65_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",

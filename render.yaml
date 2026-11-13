@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: signal-radar-candle-confirmation-test
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-
+    branch: experiment/original-84-candle-confirmation-20261113
+    rootDir: main-market
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: TWELVE_DATA_API_KEYS
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEYS
+      - key: ANDROID_CLIENT_TOKEN
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: ANDROID_CLIENT_TOKEN
