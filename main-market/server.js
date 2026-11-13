@@ -308,14 +308,14 @@ async function evaluate(feed) {
      feed.alertId = `${sourceCandleEpoch}:${result.signal}`;
      feed.pendingForecast = {
        alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
-       targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
-       mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN"
+       targetCandleEpoch: sourceCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
+       mode: recoveryWindow.mode, entryPriceBasis: "CURRENT_M1_CANDLE_OPEN"
      };
      if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
        feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
        console.info("[recovery] active_attempt", {
          symbol: feed.symbol, alertId: feed.alertId, signal: result.signal,
-         targetCandleEpoch, score: result.score ?? null,
+         targetCandleEpoch: sourceCandleEpoch, score: result.score ?? null,
          mode: "ACTIVE_EXISTING_SIGNAL_FLOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
        });
      }
