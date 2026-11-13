@@ -284,8 +284,8 @@ async function evaluateOnce(feed) {
   const result = applySignalReleaseGate(rawResult);
   const activeForCurrentCandle = Boolean(feed.activeSignal && now < feed.activeUntil &&
     feed.signalSourceCandle === sourceCandleEpoch);
-  feed.preAlertStatus = sourceCandleEpoch !== null &&
-    isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+  feed.preAlertStatus = (result.signal === "CALL" || result.signal === "PUT") &&
+    sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
   feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
   feed.preAlertSignal = null;
 
