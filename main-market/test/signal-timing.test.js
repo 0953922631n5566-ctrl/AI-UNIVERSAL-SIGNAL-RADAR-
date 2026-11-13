@@ -54,7 +54,7 @@ test("uses provider event time for the opening lock while still requiring a fres
 
 test("rejects stale provider event timestamps independently of fresh receipt ticks", () => {
   const now = openAt + 7_000;
-  const base = { candleEpoch: candle, tickAt: now - 200, tickEventAt: openAt + 1_000, now };
+  const base = { candleEpoch: candle, tickAt: now - 200, tickEventAt: openAt + 3_000, now };
   assert.equal(canFinalizeSignal(base), true);
   assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt }), false);
 });
