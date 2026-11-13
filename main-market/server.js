@@ -284,8 +284,8 @@ async function evaluateOnce(feed) {
   const result = applySignalReleaseGate(rawResult);
   const activeForCurrentCandle = Boolean(feed.activeSignal && now < feed.activeUntil &&
     feed.signalSourceCandle === sourceCandleEpoch);
-  feed.preAlertStatus = !activeForCurrentCandle && sourceCandleEpoch !== null &&
-    isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+  feed.preAlertStatus = (result.signal === "CALL" || result.signal === "PUT") &&
+    sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
   feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
   feed.preAlertSignal = null;
 
@@ -302,10 +302,10 @@ async function evaluateOnce(feed) {
     feed.lastSignalDirection = result.signal;
     feed.lastSignalSetup = result.setupType || result.regime || "MOMENTUM";
     feed.activeSignal = result.signal;
-    feed.signalCandle = sourceCandleEpoch;
+    feed.signalCandle = targetCandleEpoch;
     feed.signalSourceCandle = sourceCandleEpoch;
     feed.signalTriggeredAt = now;
-    feed.activeUntil = signalHoldExpiresAt(sourceCandleEpoch, now);
+    feed.activeUntil = signalHoldExpiresAt(targetCandleEpoch);
     feed.alertId = `${sourceCandleEpoch}:${feed.signalSequence}:${result.signal}`;
     const recoveryMode = recoveryWindow.mode === "RECOVERY_ACTIVE" &&
       !feed.pendingForecasts.some(item => item.mode === "RECOVERY_ACTIVE" && item.targetCandleEpoch === sourceCandleEpoch);

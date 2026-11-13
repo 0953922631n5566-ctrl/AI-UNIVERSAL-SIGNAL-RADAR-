@@ -37,7 +37,8 @@ test("streaming freshness remains capped at five seconds", () => {
   assert.equal(isFreshSignalTick(openAt, openAt + 5_001), false);
 });
 
-test("signal hold lasts 30 seconds from actual signal time", () => {
-  const signalAt = openAt + 42_000;
-  assert.equal(signalHoldExpiresAt(candle, signalAt), signalAt + 30_000);
+test("signal hold lasts 30 seconds after the target M1 candle opens", () => {
+  const targetCandle = candle + 60;
+  assert.equal(signalHoldExpiresAt(targetCandle), targetCandle * 1000 + 30_000);
+  assert.equal(signalHoldExpiresAt(null), null);
 });
