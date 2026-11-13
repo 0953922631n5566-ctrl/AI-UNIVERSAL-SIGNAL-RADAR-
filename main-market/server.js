@@ -252,9 +252,11 @@ async function evaluate(feed) {
      tickAge === null || tickAge > 5) {
    // Keep a previously released signal visible for its 30-second hold, but never re-run analysis late.
    if (!(feed.activeSignal && now < feed.activeUntil)) {
-     feed.analysis = standby(elapsedSinceOpenMs === null
-       ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
-       : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
+     feed.analysis = standby(tickAge === null || tickAge > 5
+       ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
+       : elapsedSinceOpenMs === null
+         ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
+         : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
      feed.analysis.signalTimingWindowSeconds = [0, 5];
    }
    return;
