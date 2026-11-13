@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: signal-radar-candle-confirmation-test
+    runtime: node
+    plan: free
+    region: singapore
+    repo: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-
+    branch: experiment/original-84-candle-confirmation-20261113
+    rootDir: main-market
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: TWELVE_DATA_API_KEY_1
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_1
+      - key: TWELVE_DATA_API_KEY_2
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_2
+      - key: TWELVE_DATA_API_KEY_3
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_3
+      - key: TWELVE_DATA_API_KEY_4
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_4
+      - key: TWELVE_DATA_API_KEY_5
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_5
+      - key: TWELVE_DATA_API_KEY_6
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_6
+      - key: TWELVE_DATA_API_KEY_7
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_7
+      - key: TWELVE_DATA_API_KEY_8
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_8
+      - key: TWELVE_DATA_API_KEY_9
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_9
+      - key: TWELVE_DATA_API_KEY_10
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: TWELVE_DATA_API_KEY_10
+      - key: ANDROID_CLIENT_TOKEN
+        fromService:
+          name: ai-signal-radar-main-market
+          type: web
+          envVarKey: ANDROID_CLIENT_TOKEN
