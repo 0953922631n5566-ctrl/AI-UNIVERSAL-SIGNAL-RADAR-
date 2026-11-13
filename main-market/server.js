@@ -28,8 +28,8 @@ const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-11-streaming-reconnect-v1";
+const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-EARLY-ENTRY-T5-REVERSAL-GUARD";
+const VERSION = "2026-11-13-early-entry-t5-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -239,7 +239,7 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
+ // Local Partial Scoring is the directional analyst; T-5 live-candle and reversal guards are deterministic.
  const finalizeWindow = sourceCandleEpoch !== null &&
    isSignalFinalizeWindow(sourceCandleEpoch, now);
  const rawResult = await analyzeMarket(feed.candles, {
@@ -972,7 +972,10 @@ app.get("/health", (_req, res) => {
     analyzer: {
       provider: "LOCAL_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE", model: null, configured: true,
       role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: true, localDirectionalFallback: true,
+      closedCandlesOnly: false, closedHistoryGate: "54_CLOSED_M1_CANDLES_REQUIRED",
+      provisionalLiveCandidate: "CURRENT_M1_AT_T_MINUS_5_ONLY_IF_STREAM_TICK_AGE_LE_5S",
+      directionalRunGuard: "BLOCK_COUNTER_TREND_AFTER_3_BAR_RUN_UNLESS_MICRO_TURN_OR_CHOCH",
+      lateContinuationGuard: "BLOCK_HIGH_EXHAUSTION_EXTENDED_RUN", localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" }
@@ -1009,7 +1012,7 @@ app.get("/health", (_req, res) => {
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
         proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
         trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
+        directionalSource: "LOCAL_PARTIAL_SCORING_WITH_T_MINUS_5_PROVISIONAL_LIVE_CANDLE_AND_CLOSED_HISTORY",
         externalAi: false,
         componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
         thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
