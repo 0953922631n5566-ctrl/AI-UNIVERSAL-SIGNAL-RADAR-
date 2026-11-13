@@ -125,7 +125,7 @@ export function calculatePureTechnicalSignal(candles) {
   };
 }
 
-/** Instant Momentum & Breakout is the production directional authority. */
+/** Aggressive Momentum & Breakout is the production directional authority. */
 export async function analyzeMarket(candles, options = {}) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const live = Array.isArray(candles) ? candles.at(-1) : null;
@@ -148,9 +148,9 @@ export async function analyzeMarket(candles, options = {}) {
     lastCandleEpoch: lastClosed?.epoch ?? null,
     analysisWindow: { contextCandles: 50, entryCandles: 4, total: 54, warmup: 54 },
     signalReleaseValidated: false,
-    signalValidationStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote: "M1 เปิดแท่ง 0–5 วินาที · ใช้ 50 แท่งบริบท + 4 แท่งล่าสุดเป็น entry contextและ Streaming tick สด · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
-    signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalValidationStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote: "โหมดรุก HIGH RISK · วิเคราะห์ Streaming สดตลอดแท่ง M1 · ใช้ 50 แท่งบริบท + 4 แท่ง entry · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
+    signalReleaseStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };

@@ -2172,3 +2172,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Smoke check confirmed the live API correctly fails closed when the provider event timestamp is older than five seconds. No live CALL/PUT signal was observed in the smoke-check window; no accuracy/profitability claim is made.
 - Telegram Mini App route remains accessible and its layout, controls, sound, and polling were intentionally left unchanged. Its static descriptive copy still references Adaptive EMA 32 / T-10 / T-5 and should be updated only with the user's approval; backend health and API are already on Instant Momentum.
 - Manual-only boundary remains: no broker order execution. Continue paper/manual forward validation before relying on the signal for live trades.
+
+
+## 2026-11-13 — Aggressive live-M1 signal expansion (implementation branch)
+
+- User explicitly authorized a more aggressive signal mode to increase opportunities, accepting higher false-signal risk.
+- Feature branch: `feature/aggressive-momentum-live-m1-20261113`, based on `main-market`; production remains unchanged until CI and rollout checks pass.
+- Analyzer evaluates fresh Twelve Data Streaming ticks throughout the current M1 candle (0–59.999s), retaining 50 closed context + 4 closed entry candles.
+- Directional setups include lower-threshold momentum, four-candle breakout, and continuation. Signals are tagged HIGH risk; weak, conflicting, malformed, or stale data remains STANDBY.
+- Signal Timing Gate requires provider event timestamp and server receipt tick to each be no older than 5 seconds; the directional window is no longer limited to the first five seconds.
+- Distinct-event protection blocks repeated 100ms evaluations. Same-candle re-alerts require a changed direction/setup with cooldown and price movement, or an 8-second cooldown plus price movement.
+- Each released event receives a unique alertId and a 30-second hold from its actual trigger time. Multiple distinct events may be surfaced in one M1 candle.
+- Forecast tracking records the Streaming entry price and compares it with that M1 candle's close. Recovery remains limited to one attempt per loss; no martingale or broker execution.
+- Telegram Mini App HTML/UI, routes, public API response structure, Twelve Data integration/key pool, auth/session handling, and EUR/USD-only scope remain unchanged.
+- Pending automated CI, review, Render deployment, live health/API verification, and Telegram device test. This aggressive heuristic is not a proven predictive edge; paper/manual forward testing is required.

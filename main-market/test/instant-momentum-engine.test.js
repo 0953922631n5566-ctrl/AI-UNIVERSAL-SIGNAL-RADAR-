@@ -19,74 +19,55 @@ function live(open, close, high = Math.max(open, close), low = Math.min(open, cl
   return { epoch, open, close, high, low, live: true };
 }
 
-test("opening bullish impulse triggers CALL in the first five seconds", () => {
+test("aggressive bullish impulse triggers CALL throughout the current M1 candle", () => {
   const rows = candles();
   rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 2_000, tickAgeSeconds: 0.3 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 27_000, tickEventAt: now + 27_000, tickAgeSeconds: 0.3 });
   assert.equal(result.signal, "CALL");
-  assert.equal(result.strategy, "INSTANT_MOMENTUM_BREAKOUT");
+  assert.equal(result.strategy, "AGGRESSIVE_MOMENTUM_BREAKOUT");
+  assert.equal(result.riskLevel, "HIGH");
+  assert.equal(result.entryType, "LIVE_M1_INTRAMINUTE");
 });
 
-test("opening bearish impulse triggers PUT in the first five seconds", () => {
+test("aggressive bearish impulse triggers PUT mid-candle", () => {
   const rows = candles();
   rows.push(live(1.1, 1.09988, 1.10001, 1.09987));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 2_000, tickAgeSeconds: 0.2 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 42_000, tickEventAt: now + 42_000, tickAgeSeconds: 0.2 });
   assert.equal(result.signal, "PUT");
 });
 
-test("four-candle high breakout triggers CALL without waiting for candle close", () => {
+test("four-candle breakout triggers CALL without waiting for candle close", () => {
   const rows = candles();
   const priorHigh = Math.max(...rows.slice(-4).map(c => c.high));
   rows.push(live(priorHigh - 0.00001, priorHigh + 0.00004, priorHigh + 0.00005, priorHigh - 0.00002));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 1_000, tickAgeSeconds: 0.1 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 15_000, tickEventAt: now + 15_000, tickAgeSeconds: 0.1 });
   assert.equal(result.signal, "CALL");
-  assert.equal(result.metrics.bullishBreakout, true);
+  assert.equal(result.setupType, "BREAKOUT");
 });
 
-test("no directional output after the opening window", () => {
+test("rejects a tick outside the current M1 candle", () => {
   const rows = candles();
   rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 5_000, tickAgeSeconds: 0.1 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 60_000, tickEventAt: now + 60_000, tickAgeSeconds: 0.1 });
   assert.equal(result.signal, "STANDBY");
 });
 
 test("stale streaming tick fails closed", () => {
   const rows = candles();
   rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({ candles: rows, now: now + 2_000, tickAgeSeconds: 5.1 });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 20_000, tickEventAt: now + 14_000, tickAgeSeconds: 5.1 });
   assert.equal(result.signal, "STANDBY");
 });
 
-test("closed candles alone never create an opening signal", () => {
+test("closed candles alone never create a directional signal", () => {
   const result = analyzeInstantMomentum({ candles: candles(), now, tickAgeSeconds: 0 });
   assert.equal(result.signal, "STANDBY");
 });
 
-test("uses provider event time when a fresh opening tick is delivered a few seconds late", () => {
+test("rejects an old provider event timestamp even when receipt is fresh", () => {
   const rows = candles();
   rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({
-    candles: rows, now: now + 7_000, tickEventAt: now + 3_000, tickAgeSeconds: 0.5
-  });
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.metrics.elapsedMs, 3_000);
-});
-
-test("rejects a provider tick whose event timestamp is outside the opening window", () => {
-  const rows = candles();
-  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({
-    candles: rows, now: now + 7_000, tickEventAt: now + 5_000, tickAgeSeconds: 0.5
-  });
-  assert.equal(result.signal, "STANDBY");
-});
-
-test("rejects an old provider event timestamp even when the server just received it", () => {
-  const rows = candles();
-  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
-  const result = analyzeInstantMomentum({
-    candles: rows, now: now + 38_000, tickEventAt: now, tickAgeSeconds: 0.2
-  });
+  const result = analyzeInstantMomentum({ candles: rows, now: now + 38_000, tickEventAt: now + 30_000, tickAgeSeconds: 0.2 });
   assert.equal(result.signal, "STANDBY");
   assert.match(result.reason, /Timestamp/);
 });

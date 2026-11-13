@@ -27,9 +27,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "INSTANT MOMENTUM BREAKOUT · EUR/USD";
-const ARCHITECTURE_ID = "INSTANT-MOMENTUM-BREAKOUT-M1-OPEN-0-5S";
-const VERSION = "2026-11-13-instant-momentum-breakout-m1-v1";
+const SYSTEM_NAME = "AGGRESSIVE MOMENTUM · EUR/USD";
+const ARCHITECTURE_ID = "AGGRESSIVE-MOMENTUM-LIVE-M1";
+const VERSION = "2026-11-13-aggressive-live-m1-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -46,8 +46,10 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
+    pendingForecast: null, pendingForecasts: [], forecastHistory: [], recoveryState: createRecoveryState(),
+    signalSequence: 0, lastSignalCandle: null, lastSignalAt: 0, lastSignalPrice: null,
+    lastSignalDirection: null, lastSignalSetup: null,
+    evaluationPromise: null, lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
 
@@ -172,7 +174,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -230,151 +232,132 @@ function classifyError(error) {
 }
 
 async function evaluate(feed) {
- const now = Date.now();
- const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
- const currentCandle = feed.candles.at(-1);
- const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
- const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+  if (feed.evaluationPromise) return feed.evaluationPromise;
+  feed.evaluationPromise = evaluateOnce(feed).finally(() => { feed.evaluationPromise = null; });
+  return feed.evaluationPromise;
+}
 
- if (feed.activeSignal && now >= feed.activeUntil) {
-   feed.activeSignal = null;
-   feed.activeUntil = 0;
-   feed.signalCandle = null;
-   feed.signalSourceCandle = null;
-   feed.signalTriggeredAt = 0;
-   feed.alertId = null;
- }
- const tickEventAt = Number.isFinite(feed.lastTickEventAt) && feed.lastTickEventAt > 0
-   ? feed.lastTickEventAt : null;
- const elapsedSinceOpenMs = sourceCandleEpoch === null
-   ? null : (tickEventAt ?? now) - sourceCandleEpoch * 1000;
- const eventTimestampFresh = tickEventAt !== null && isFreshEventTimestamp(tickEventAt, now);
- if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 5000 ||
-     !eventTimestampFresh || tickAge === null || tickAge > 5) {
-   // Keep a previously released signal visible for its 30-second hold, but never re-run analysis late.
-   if (!(feed.activeSignal && now < feed.activeUntil)) {
-     feed.analysis = standby(!eventTimestampFresh
-       ? "Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที"
-       : tickAge === null || tickAge > 5
-         ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
-         : elapsedSinceOpenMs === null
-         ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
-         : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
-     feed.analysis.signalTimingWindowSeconds = [0, 5];
-   }
-   return;
- }
+function isNewAggressiveSignal(feed, result, sourceCandleEpoch, now) {
+  const price = feed.lastTick;
+  if (!Number.isFinite(price)) return false;
+  if (feed.lastSignalCandle !== sourceCandleEpoch) return true;
+  const elapsed = now - feed.lastSignalAt;
+  const movement = Number.isFinite(feed.lastSignalPrice) ? Math.abs(price - feed.lastSignalPrice) : Infinity;
+  const setup = result.setupType || result.regime || "MOMENTUM";
+  if (result.signal !== feed.lastSignalDirection) return elapsed >= 4_000 && movement >= 0.00002;
+  if (setup !== feed.lastSignalSetup) return elapsed >= 4_000 && movement >= 0.00001;
+  return elapsed >= 8_000 && movement >= 0.00002;
+}
 
- const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
- feed.recoveryState = recoveryWindow.state;
- // Only the current live M1 candle and its fresh Streaming tick can release a direction.
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, tickEventAt
- });
- const result = applySignalReleaseGate(rawResult);
+async function evaluateOnce(feed) {
+  const now = Date.now();
+  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
+  const currentCandle = feed.candles.at(-1);
+  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
+  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
 
+  if (feed.activeSignal && now >= feed.activeUntil) {
+    feed.activeSignal = null;
+    feed.activeUntil = 0;
+    feed.signalCandle = null;
+    feed.signalSourceCandle = null;
+    feed.signalTriggeredAt = 0;
+    feed.alertId = null;
+  }
+  const tickEventAt = Number.isFinite(feed.lastTickEventAt) && feed.lastTickEventAt > 0 ? feed.lastTickEventAt : null;
+  const elapsedSinceOpenMs = sourceCandleEpoch === null ? null : (tickEventAt ?? now) - sourceCandleEpoch * 1000;
+  const eventTimestampFresh = tickEventAt !== null && isFreshEventTimestamp(tickEventAt, now);
+  if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 60_000 ||
+      !eventTimestampFresh || tickAge === null || tickAge > 5) {
+    if (!(feed.activeSignal && now < feed.activeUntil)) {
+      feed.analysis = standby(!eventTimestampFresh ? "Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที"
+        : tickAge === null || tickAge > 5 ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
+        : elapsedSinceOpenMs === null ? "รอแท่ง M1 ใหม่และราคา Streaming สด" : "แท่ง M1 ปัจจุบันหมดช่วงวิเคราะห์แล้ว");
+      feed.analysis.signalTimingWindowSeconds = [0, 60];
+    }
+    return;
+  }
 
- const activeForCurrentOrNext = Boolean(feed.activeSignal && now < feed.activeUntil &&
-   (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
+  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
+  feed.recoveryState = recoveryWindow.state;
+  const rawResult = await analyzeMarket(feed.candles, { now, symbol: feed.symbol, tickAgeSeconds: tickAge, tickEventAt });
+  const result = applySignalReleaseGate(rawResult);
+  const activeForCurrentCandle = Boolean(feed.activeSignal && now < feed.activeUntil &&
+    feed.signalSourceCandle === sourceCandleEpoch);
+  feed.preAlertStatus = !activeForCurrentCandle && sourceCandleEpoch !== null &&
+    isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
+  feed.preAlertSignal = null;
 
- feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
- feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
- feed.preAlertSignal = null;
+  const signalWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, tickEventAt ?? now);
+  const directional = result.signal === "CALL" || result.signal === "PUT";
+  const fresh = signalWindow && canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt, now });
+  const distinct = directional && fresh && isNewAggressiveSignal(feed, result, sourceCandleEpoch, now);
 
- if (feed.preAlertStatus === "PREPARE_ALERT" &&
-     feed.lastPrepareLoggedCandle !== sourceCandleEpoch) {
-   feed.lastPrepareLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] PREPARE helper window entered", {
-     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     secondsSinceOpen: ((feed.lastTickEventAt || now) - sourceCandleEpoch * 1000) / 1000,
-     directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
-   });
- }
- const finalizeWindow = sourceCandleEpoch !== null &&
-   isSignalFinalizeWindow(sourceCandleEpoch, tickEventAt ?? now);
- const finalizeEligible = finalizeWindow &&
-   (result.signal === "CALL" || result.signal === "PUT") &&
-   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt, now,
-     lastDispatchedCandle: feed.lastDispatchedCandle });
- if (finalizeWindow && feed.lastFinalizeLoggedCandle !== sourceCandleEpoch) {
-   feed.lastFinalizeLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] M1 OPEN 0-5s decision window entered", {
-     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     candidateSignal: result.signal, eligible: finalizeEligible,
-     tickAgeSeconds: tickAge, eventAgeSeconds: tickEventAt === null ? null : (now - tickEventAt) / 1000,
-     requiredMaxTickAgeSeconds: 5,
-     reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
-       : !eventTimestampFresh ? "PROVIDER_EVENT_TIMESTAMP_STALE"
-       : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "NO_OPENING_MOMENTUM_OR_BREAKOUT"
-       : "CANDLE_ALREADY_FINALIZED"
-   });
- }
+  if (distinct) {
+    feed.signalSequence = feed.lastSignalCandle === sourceCandleEpoch ? feed.signalSequence + 1 : 1;
+    feed.lastSignalCandle = sourceCandleEpoch;
+    feed.lastSignalAt = now;
+    feed.lastSignalPrice = feed.lastTick;
+    feed.lastSignalDirection = result.signal;
+    feed.lastSignalSetup = result.setupType || result.regime || "MOMENTUM";
+    feed.activeSignal = result.signal;
+    feed.signalCandle = sourceCandleEpoch;
+    feed.signalSourceCandle = sourceCandleEpoch;
+    feed.signalTriggeredAt = now;
+    feed.activeUntil = signalHoldExpiresAt(sourceCandleEpoch, now);
+    feed.alertId = `${sourceCandleEpoch}:${feed.signalSequence}:${result.signal}`;
+    const recoveryMode = recoveryWindow.mode === "RECOVERY_ACTIVE" &&
+      !feed.pendingForecasts.some(item => item.mode === "RECOVERY_ACTIVE" && item.targetCandleEpoch === sourceCandleEpoch);
+    const pending = {
+      alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
+      targetCandleEpoch: sourceCandleEpoch, signalAt: now, entryAt: null,
+      entryPrice: feed.lastTick, entryPriceBasis: "TWELVE_DATA_STREAM_SIGNAL_TICK",
+      mode: recoveryMode ? "RECOVERY_ACTIVE" : "NORMAL"
+    };
+    feed.pendingForecast = pending;
+    feed.pendingForecasts.push(pending);
+    feed.pendingForecasts = feed.pendingForecasts.slice(-20);
+    if (recoveryMode) {
+      feed.recoveryState = markRecoveryAttempt(feed.recoveryState, pending);
+      console.info("[recovery] active_attempt", { symbol: feed.symbol, alertId: feed.alertId,
+        signal: result.signal, targetCandleEpoch: sourceCandleEpoch, mode: "ONE_RECOVERY_ATTEMPT_MAX_NO_MARTINGALE" });
+    }
+    result.reason = `โหมดรุก · ${result.reason} · สัญญาณใหม่ #${feed.signalSequence}`;
+    console.info("[signal] aggressive live M1 event released", {
+      symbol: feed.symbol, alertId: feed.alertId, signal: result.signal, setupType: result.setupType,
+      entryPrice: feed.lastTick, elapsedSeconds: Math.round(elapsedSinceOpenMs / 1000),
+      holdUntil: new Date(feed.activeUntil).toISOString()
+    });
+  } else if (activeForCurrentCandle) {
+    result.signal = feed.activeSignal;
+    result.reason = "คงสัญญาณล่าสุดระหว่างช่วงแสดงผล 30 วินาที";
+    result.alertId = feed.alertId;
+  } else if (feed.activeSignal && now < feed.activeUntil &&
+      (result.signal === "CALL" || result.signal === "PUT")) {
+    result.signal = feed.activeSignal;
+    result.reason = "มีสัญญาณก่อนหน้ากำลังแสดง · รอจังหวะใหม่ที่แตกต่าง";
+  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
+    result.signal = "STANDBY";
+    result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่ใช่สัญญาณเข้า";
+  } else if (!directional || !fresh) {
+    result.signal = "STANDBY";
+    if (!fresh) result.reason = !eventTimestampFresh
+      ? "ไม่ปล่อยสัญญาณ: Timestamp ต้นทางไม่สด" : "ไม่ปล่อยสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาที";
+  } else {
+    result.signal = "STANDBY";
+    result.reason = "พบรูปแบบเดิม แต่ยังไม่ใช่จังหวะใหม่ที่แยกจากสัญญาณก่อน";
+  }
 
- if (activeForCurrentOrNext) {
-   result.signal = feed.activeSignal;
-   result.reason = "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะถึง 30 วินาทีหลังแท่งใหม่เปิด";
- } else if (finalizeWindow &&
-     (result.signal === "CALL" || result.signal === "PUT")) {
-   const canFinalize = canFinalizeSignal({
-     candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt, now,
-     lastDispatchedCandle: feed.lastDispatchedCandle
-   });
-   if (canFinalize) {
-     feed.activeSignal = result.signal;
-     feed.signalCandle = sourceCandleEpoch;
-     feed.signalSourceCandle = sourceCandleEpoch;
-     feed.signalTriggeredAt = now;
-     feed.activeUntil = signalHoldExpiresAt(sourceCandleEpoch);
-     feed.alertId = `${sourceCandleEpoch}:${result.signal}`;
-     feed.pendingForecast = {
-       alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
-       targetCandleEpoch: sourceCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
-       mode: recoveryWindow.mode, entryPriceBasis: "CURRENT_M1_CANDLE_OPEN"
-     };
-     if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
-       feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
-       console.info("[recovery] active_attempt", {
-         symbol: feed.symbol, alertId: feed.alertId, signal: result.signal,
-         targetCandleEpoch: sourceCandleEpoch, score: result.score ?? null,
-         mode: "ACTIVE_EXISTING_SIGNAL_FLOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
-       });
-     }
-     result.reason = "ยืนยัน Momentum/Breakout ใน 0–5 วินาทีแรกของแท่ง M1 ปัจจุบัน";
-   } else {
-     result.signal = "STANDBY";
-     result.reason = tickAge === null || tickAge > 5
-       ? "ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีหลังเปิดแท่ง"
-       : "ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
-   }
- } else if (feed.activeSignal && now < feed.activeUntil) {
-   result.signal = "STANDBY";
-   result.reason = "รอแท่ง M1 เป้าหมาย";
- } else if (feed.preAlertStatus === "PREPARE_ALERT") {
-   result.signal = "STANDBY";
-   result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อนแท่งใหม่";
- } else {
-   result.signal = "STANDBY";
-   if (sourceCandleEpoch !== null && now < sourceCandleEpoch * 1000 + 50_000) {
-     result.reason = "ยังไม่พบ Momentum หรือ Breakout ที่ชัดเจนใน 5 วินาทีแรก";
-   } else if (sourceCandleEpoch !== null && now >= sourceCandleEpoch * 1000 + 60_000) {
-     result.reason = "รอแท่ง M1 ใหม่และข้อมูล Streaming";
-   }
- }
-
- feed.analysis = {
-   ...result,
-   preAlertStatus: feed.preAlertStatus,
-   preAlertCandle: feed.preAlertCandle,
-   tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
-   lastTickPrice: feed.lastTick,
-   alertId: feed.alertId,
-   signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
-   signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
-   signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
-   signalTimingWindowSeconds: [0, 5]
- };
+  feed.analysis = {
+    ...result, preAlertStatus: feed.preAlertStatus, preAlertCandle: feed.preAlertCandle,
+    tickAgeSeconds: tickAge === null ? null : Math.round(tickAge), lastTickPrice: feed.lastTick,
+    alertId: feed.alertId,
+    signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
+    signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
+    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
+    signalTimingWindowSeconds: [0, 60]
+  };
 }
 
 function dispatchSignalIfReady(feed) {
@@ -392,7 +375,7 @@ function dispatchSignalIfReady(feed) {
  feed.lastDispatchedAt = now;
  feed.lastDispatchedCandle = sourceCandleEpoch;
  feed.lastDispatchedAlertId = feed.alertId;
- console.info("[signal] M1 opening-window signal is available to Telegram Mini App polling", {
+ console.info("[signal] aggressive live-M1 signal is available to Telegram Mini App polling", {
    alertId: feed.alertId, signal, sourceCandleEpoch,
    targetCandleEpoch: feed.signalCandle,
    secondsSinceOpen: ((feed.lastTickEventAt || now) - sourceCandleEpoch * 1000) / 1000,
@@ -406,42 +389,33 @@ function applyTick(feed, price, epoch) {
   if (!current || current.epoch < minute) {
     if (current) {
       current.live = false;
-      const pending = feed.pendingForecast;
-      if (pending && pending.targetCandleEpoch === current.epoch) {
-        const evaluated = evaluateM1Outcome(pending.signal, current);
+      const pendingRows = feed.pendingForecasts.filter(item => item.targetCandleEpoch === current.epoch);
+      for (const pending of pendingRows) {
+        const entryPrice = Number.isFinite(pending.entryPrice) ? pending.entryPrice : current.open;
+        const outcomeCandle = { ...current, open: entryPrice,
+          high: Math.max(current.high, entryPrice), low: Math.min(current.low, entryPrice) };
+        const evaluated = evaluateM1Outcome(pending.signal, outcomeCandle);
         const record = {
-          ...pending,
-          entryAt: current.epoch * 1000,
-          entryPrice: evaluated.entryPrice,
-          exitAt: Date.now(),
-          exitPrice: evaluated.exitPrice,
-          outcome: evaluated.outcome,
-          outcomeReason: evaluated.reason,
-          entryPriceBasis: "TWELVE_DATA_STREAM_M1_OPEN",
+          ...pending, entryAt: pending.signalAt, entryPrice, exitAt: Date.now(),
+          exitPrice: evaluated.exitPrice, outcome: evaluated.outcome, outcomeReason: evaluated.reason,
+          entryPriceBasis: pending.entryPriceBasis || "TWELVE_DATA_STREAM_SIGNAL_TICK",
           exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
-          priceChange: Number.isFinite(evaluated.entryPrice) && Number.isFinite(evaluated.exitPrice)
-            ? evaluated.exitPrice - evaluated.entryPrice : null
+          priceChange: Number.isFinite(entryPrice) && Number.isFinite(evaluated.exitPrice)
+            ? evaluated.exitPrice - entryPrice : null
         };
         feed.forecastHistory.push(record);
-        feed.forecastHistory = feed.forecastHistory.slice(-100);
-        feed.pendingForecast = null;
         if (pending.mode === "RECOVERY_ACTIVE") {
           feed.recoveryState = settleRecoveryAttempt(feed.recoveryState, record);
-          console.info("[recovery] active_result", {
-            symbol: feed.symbol, alertId: pending.alertId, outcome: record.outcome,
-            recoveryState: feed.recoveryState.status,
-            note: "ACTIVE_NO_MARTINGALE_NO_EXTRA_SIGNAL"
-          });
-        } else if (record.outcome === "LOSS") {
+          console.info("[recovery] active_result", { symbol: feed.symbol, alertId: pending.alertId,
+            outcome: record.outcome, recoveryState: feed.recoveryState.status, note: "ACTIVE_NO_MARTINGALE" });
+        } else if (record.outcome === "LOSS" && feed.recoveryState.status === "IDLE") {
           feed.recoveryState = armRecoveryAfterLoss(feed.recoveryState, record);
-          console.info("[recovery] armed", {
-            symbol: feed.symbol, lossAlertId: pending.alertId,
-            armedUntilCandleEpoch: feed.recoveryState.expiresAtCandleEpoch,
-            maxAttempts: 1
-          });
         }
-        console.info("[forecast] next-M1 open-to-close result", record);
+        console.info("[forecast] signal-tick-to-M1-close result", record);
       }
+      feed.forecastHistory = feed.forecastHistory.slice(-100);
+      feed.pendingForecasts = feed.pendingForecasts.filter(item => item.targetCandleEpoch !== current.epoch);
+      feed.pendingForecast = feed.pendingForecasts.at(-1) || null;
     }
     feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
@@ -527,7 +501,7 @@ function startRestTimer() {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Re-evaluate only when the newest provider tick itself belongs to the first five seconds of the live M1 candle.
+  // Re-evaluate throughout the current live M1 candle when provider and receipt timestamps are fresh.
   let evaluationBusy = false;
   signalTimer = setInterval(async () => {
     if (!monitoring || evaluationBusy) return;
@@ -539,7 +513,7 @@ function startSignalTimer() {
     const elapsedMs = eventAt - current.epoch * 1000;
     const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
     const eventAgeMs = now - eventAt;
-    if (elapsedMs < 0 || elapsedMs >= 5000 || tickAgeMs > 5000 ||
+    if (elapsedMs < 0 || elapsedMs >= 60_000 || tickAgeMs > 5000 ||
         eventAgeMs < 0 || eventAgeMs > 5000) return;
     evaluationBusy = true;
     try {
@@ -931,6 +905,8 @@ app.get("/api/public/signal", (_req, res) => {
     market: {
       symbol: state.symbol, signal: state.signal, regime: state.regime,
       reason: state.reason, evidence: state.evidence, metrics: state.metrics,
+       setupType: state.setupType || null, riskLevel: state.riskLevel || null,
+       entryType: state.entryType || null, riskFlags: state.riskFlags || [],
       score: state.score, strategy: state.strategy, indicators: state.indicators,
       higherTimeframe: state.higherTimeframe || null,
       price: state.lastTickPrice, analyzedAt: state.analyzedAt,
@@ -940,7 +916,9 @@ app.get("/api/public/signal", (_req, res) => {
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 5],
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],
+       setupType: state.setupType || null, riskLevel: state.riskLevel || null,
+       entryType: state.entryType || null, riskFlags: state.riskFlags || [],
       engineResults: state.engineResults || null,
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
@@ -993,24 +971,24 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "INSTANT_MOMENTUM_BREAKOUT", engines: 1,
-      decisionAuthority: "LOCAL_LIVE_MOMENTUM_OR_FOUR_CLOSED_CANDLE_BREAKOUT",
+      decisionEngine: "AGGRESSIVE_MOMENTUM_BREAKOUT", engines: 1,
+      decisionAuthority: "LIVE_M1_MOMENTUM_BREAKOUT_CONTINUATION",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "50_CONTEXT_PLUS_4_ENTRY_CLOSED_M1_TO_LIVE_M1_OPEN_0_5S_MOMENTUM_BREAKOUT_TO_30S_HOLD"
+      signalDecisionPath: "50_CONTEXT_PLUS_4_ENTRY_CLOSED_M1_TO_LIVE_M1_FULL_CANDLE_AGGRESSIVE_EVENTS_TO_30S_HOLD"
     },
     analyzer: {
       provider: "LOCAL_LIVE_TICK_ENGINE", model: null, configured: true,
-      role: "SOLE_INSTANT_MOMENTUM_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      role: "SOLE_AGGRESSIVE_LIVE_M1_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: false, localDirectionalFallback: false,
-      contextCandles: 50, liveCandleOpeningWindowMs: 5000,
-      trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", thresholds: { tickAgeMaxMs: 5000 }, warmupCandles: 54
+      contextCandles: 50, liveCandleWindowMs: 60000, riskLevel: "HIGH",
+      trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT_OR_CONTINUATION", thresholds: { tickAgeMaxMs: 5000, repeatCooldownMs: 8000 }, warmupCandles: 54
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
-      resultBasis: "CURRENT_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
+      resultBasis: "STREAMING_SIGNAL_TICK_TO_CURRENT_M1_CLOSE", expiryMinutes: 1,
       minimumSignalScore: 65, maxAttemptsPerLoss: 1, maxWaitCandles: 3,
-      martingale: false, altersMiniApp: false, emitsAdditionalSignals: false,
+      martingale: false, altersMiniApp: false, emitsAdditionalSignals: true,
       usesExistingSignalPipeline: true,
       stateStorage: "IN_MEMORY_PER_PAIR_RESETS_ON_PROCESS_RESTART"
     },
@@ -1032,8 +1010,8 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      instantMomentum: { contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, openingWindowMs: 5000, maxTickAgeMs: 5000, maxEventAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
+      signalReleaseStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      instantMomentum: { mode: "AGGRESSIVE_LIVE_M1", riskLevel: "HIGH", contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, liveM1WindowMs: 60000, maxTickAgeMs: 5000, maxEventAgeMs: 5000, repeatCooldownMs: 8000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT_OR_CONTINUATION", holdSeconds: 30 }
     }
   });
 });
