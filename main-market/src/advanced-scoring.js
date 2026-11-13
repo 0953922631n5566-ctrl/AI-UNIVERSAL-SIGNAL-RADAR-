@@ -14,6 +14,73 @@ function atrAt(candles,end,period=14){
   const trs=part.slice(1).map((c,i)=>Math.max(c.high-c.low,Math.abs(c.high-part[i].close),Math.abs(c.low-part[i].close)));
   return mean(trs);
 }
+
+/**
+ * Candle Color & Momentum Confirmation (isolated add-on).
+ * Uses closed OHLC candles only; green/red is derived from close vs open.
+ * This layer never changes the ORIGINAL 65/45 score or component weights.
+ */
+export function analyzeCandleColorMomentum(candles, direction) {
+  if (!Array.isArray(candles) || candles.length < 3 || !["CALL", "PUT"].includes(direction)) {
+    return { ready: false, confirmed: false, reason: "ต้องมีแท่งปิดอย่างน้อย 3 แท่ง" };
+  }
+  const sign = direction === "CALL" ? 1 : -1;
+  const sample = candles.slice(-3);
+  const analyzed = sample.map(c => {
+    const range = Math.max(c.high - c.low, 1e-12);
+    const body = c.close - c.open;
+    const doji = Math.abs(body) / range <= 0.08;
+    return {
+      color: doji ? "DOJI" : body > 0 ? "GREEN" : "RED",
+      body: Math.abs(body),
+      signedBody: body * sign,
+      range,
+      closeLocation: direction === "CALL" ? (c.close - c.low) / range : (c.high - c.close) / range
+    };
+  });
+  const alignedColor = direction === "CALL" ? "GREEN" : "RED";
+  const alignedCount = analyzed.filter(c => c.color === alignedColor).length;
+  const opposingCount = analyzed.filter(c => c.color !== alignedColor && c.color !== "DOJI").length;
+  const dojiCount = analyzed.filter(c => c.color === "DOJI").length;
+  const totalRange = analyzed.reduce((sum, c) => sum + c.range, 0);
+  const bodyMomentum = totalRange > 0
+    ? analyzed.reduce((sum, c) => sum + c.signedBody, 0) / totalRange : 0;
+  const last = analyzed.at(-1);
+  const lastAligned = last.color === alignedColor ||
+    (last.color === "DOJI" && last.closeLocation >= 0.58);
+  const confirmed = alignedCount >= 2 && lastAligned &&
+    bodyMomentum >= 0.12 && last.closeLocation >= 0.55;
+  return {
+    ready: true, direction, colors: analyzed.map(c => c.color),
+    alignedCount, opposingCount, dojiCount,
+    bodyMomentum: Math.round(bodyMomentum * 1000) / 1000,
+    closeLocation: Math.round(last.closeLocation * 1000) / 1000,
+    confirmed,
+    reason: confirmed
+      ? "สีแท่งเทียนและแรงปิด 3 แท่งยืนยันทิศทาง"
+      : "สีแท่งเทียนหรือแรงปิด 3 แท่งยังไม่ยืนยันทิศทาง"
+  };
+}
+
+export function applyCandleConfirmation(result, candles) {
+  if (!result || !["CALL", "PUT"].includes(result.direction)) return result;
+  const confirmation = analyzeCandleColorMomentum(candles, result.direction);
+  const next = {
+    ...result,
+    candleConfirmation: confirmation,
+    evidence: [...(result.evidence || []),
+      `Candle Confirmation: ${confirmation.colors?.join("/") || "N/A"} · ${confirmation.confirmed ? "CONFIRMED" : "PENDING"}`]
+  };
+  if ((result.signal === "CALL" || result.signal === "PUT") && !confirmation.confirmed) {
+    next.signal = "PREPARE";
+    next.status = "PREPARE";
+    next.prepareSignal = result.direction;
+    next.riskFlags = [...(result.riskFlags || []), "CANDLE_CONFIRMATION_PENDING"];
+    next.reason = `Candle Confirmation ยังไม่ผ่าน · คงคะแนนเดิม ${result.score}/100 และรอยืนยันแท่งถัดไป`;
+    next.summary = next.reason;
+  }
+  return next;
+}
 function componentScore(candles, direction, ema5, ema20, atr) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1], p2=candles[i-2];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
@@ -88,7 +155,7 @@ export function scoreMarket(candles) {
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
-  return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
+  const result = {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
     strategy:"PARTIAL_SCORING_65_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
@@ -103,4 +170,5 @@ export function scoreMarket(candles) {
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
+  return applyCandleConfirmation(result, candles);
 }
