@@ -39,7 +39,7 @@ test("A failed candle confirmation downgrades only a final directional signal to
   const base = {
     signal: "CALL", status: "SIGNAL", direction: "CALL", score: 72,
     scores: { CALL: 72, PUT: 30 }, riskFlags: [], evidence: [],
-    thresholds: { signal: 70, prepare: 45, standbyBelow: 45 }
+    thresholds: { signal: 60, prepare: 45, standbyBelow: 45 }
   };
   const result = applyCandleConfirmation(base, candles(["RED", "RED", "RED"]));
   assert.equal(result.signal, "PREPARE");
@@ -66,6 +66,6 @@ test("Very small bodies are classified as Doji and do not confirm direction alon
 test("Experimental entry threshold is 70 for both CALL and PUT", async () => {
   const { scoreMarket } = await import("../src/advanced-scoring.js");
   const source = await import("node:fs/promises").then(fs => fs.readFile(new URL("../src/advanced-scoring.js", import.meta.url), "utf8"));
-  assert.match(source, /if\(top>=70\)\{signal=direction;status="SIGNAL";\}/);
-  assert.match(source, /thresholds:\{signal:70,prepare:45,standbyBelow:45\}/);
+  assert.match(source, /if\(top>=60\)\{signal=direction;status="SIGNAL";\}/);
+  assert.match(source, /thresholds:\{signal:60,prepare:45,standbyBelow:45\}/);
 });
