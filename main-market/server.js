@@ -240,8 +240,12 @@ async function evaluate(feed) {
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
+ const finalizeWindow = sourceCandleEpoch !== null &&
+   isSignalFinalizeWindow(sourceCandleEpoch, now);
  const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
+   liveCandidate: currentCandle?.live === true ? currentCandle : null,
+   allowLiveCandidate: finalizeWindow && tickAge !== null && tickAge <= 5
  });
  const result = applySignalReleaseGate(rawResult);
 
@@ -271,8 +275,6 @@ async function evaluate(feed) {
      directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
    });
  }
- const finalizeWindow = sourceCandleEpoch !== null &&
-   isSignalFinalizeWindow(sourceCandleEpoch, now);
  const finalizeEligible = finalizeWindow &&
    (result.signal === "CALL" || result.signal === "PUT") &&
    canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
