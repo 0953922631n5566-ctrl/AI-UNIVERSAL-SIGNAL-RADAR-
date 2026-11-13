@@ -1000,8 +1000,8 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      adaptiveEmaPool: { candidateCount: 32, periods: { first: 2, last: 33 }, warmupCandles: HISTORY_CANDLES, scoreThreshold: 68, directionalSource: "LOCAL_ADAPTIVE_EMA_POOL_ON_CLOSED_M1_CANDLES_ONLY", sidewayPolicy: "STANDBY", highVolatilityPolicy: "STANDBY" }
+      signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      instantMomentum: { contextCandles: 50, openingWindowMs: 5000, maxTickAgeMs: 5000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT", holdSeconds: 30 }
     }
   });
 });
