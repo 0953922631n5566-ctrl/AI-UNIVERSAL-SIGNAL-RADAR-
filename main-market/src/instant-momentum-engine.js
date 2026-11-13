@@ -3,6 +3,7 @@ const ENTRY_CANDLES = 4;
 const REQUIRED_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;
 const LIVE_M1_WINDOW_MS = 60_000;
 const MAX_TICK_AGE_SECONDS = 5;
+const MAX_EVENT_AGE_SECONDS = 60;
 const MIN_PRICE_MOVE = 0.00001;
 
 function mean(values) {
@@ -36,8 +37,8 @@ export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSecon
 
   const eventAt = Number.isFinite(tickEventAt) ? tickEventAt : now;
   const eventAgeMs = now - eventAt;
-  if (!Number.isFinite(eventAgeMs) || eventAgeMs < 0 || eventAgeMs > MAX_TICK_AGE_SECONDS * 1000) {
-    return standby("Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที");
+  if (!Number.isFinite(eventAgeMs) || eventAgeMs < 0 || eventAgeMs > MAX_EVENT_AGE_SECONDS * 1000) {
+    return standby("Timestamp ต้นทางของ Streaming อยู่นอกช่วงเวลาแท่ง M1 ปัจจุบัน");
   }
   const elapsedMs = eventAt - live.epoch * 1000;
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= LIVE_M1_WINDOW_MS) {
@@ -129,5 +130,5 @@ function standby(reason, metrics = null) {
 export const INSTANT_ENGINE_CONFIG = Object.freeze({
   contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES,
   requiredClosedCandles: REQUIRED_CLOSED_CANDLES, liveM1WindowMs: LIVE_M1_WINDOW_MS,
-  maxTickAgeSeconds: MAX_TICK_AGE_SECONDS, mode: "AGGRESSIVE_LIVE_M1", riskLevel: "HIGH"
+  maxTickAgeSeconds: MAX_TICK_AGE_SECONDS, maxEventAgeSeconds: MAX_EVENT_AGE_SECONDS, mode: "AGGRESSIVE_LIVE_M1", riskLevel: "HIGH"
 });

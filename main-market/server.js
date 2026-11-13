@@ -29,7 +29,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "AGGRESSIVE MOMENTUM · EUR/USD";
 const ARCHITECTURE_ID = "AGGRESSIVE-MOMENTUM-LIVE-M1";
-const VERSION = "2026-11-13-aggressive-live-m1-v1";
+const VERSION = "2026-11-13-aggressive-live-m1-v2-event-freshness";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -270,7 +270,7 @@ async function evaluateOnce(feed) {
   if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 60_000 ||
       !eventTimestampFresh || tickAge === null || tickAge > 5) {
     if (!(feed.activeSignal && now < feed.activeUntil)) {
-      feed.analysis = standby(!eventTimestampFresh ? "Timestamp ต้นทางของ Streaming เก่ากว่า 5 วินาที"
+      feed.analysis = standby(!eventTimestampFresh ? "Timestamp ต้นทางของ Streaming อยู่นอกช่วงเวลาที่รองรับ"
         : tickAge === null || tickAge > 5 ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
         : elapsedSinceOpenMs === null ? "รอแท่ง M1 ใหม่และราคา Streaming สด" : "แท่ง M1 ปัจจุบันหมดช่วงวิเคราะห์แล้ว");
       feed.analysis.signalTimingWindowSeconds = [0, 60];
@@ -514,7 +514,7 @@ function startSignalTimer() {
     const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
     const eventAgeMs = now - eventAt;
     if (elapsedMs < 0 || elapsedMs >= 60_000 || tickAgeMs > 5000 ||
-        eventAgeMs < 0 || eventAgeMs > 5000) return;
+        eventAgeMs < 0 || eventAgeMs > 60_000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);
@@ -1011,7 +1011,7 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      instantMomentum: { mode: "AGGRESSIVE_LIVE_M1", riskLevel: "HIGH", contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, liveM1WindowMs: 60000, maxTickAgeMs: 5000, maxEventAgeMs: 5000, repeatCooldownMs: 8000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT_OR_CONTINUATION", holdSeconds: 30 }
+      instantMomentum: { mode: "AGGRESSIVE_LIVE_M1", riskLevel: "HIGH", contextCandles: 50, entryCandles: 4, requiredClosedCandles: 54, liveM1WindowMs: 60000, maxTickAgeMs: 5000, maxEventAgeMs: 60000, repeatCooldownMs: 8000, trigger: "MOMENTUM_OR_FOUR_CANDLE_BREAKOUT_OR_CONTINUATION", holdSeconds: 30 }
     }
   });
 });
