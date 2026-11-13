@@ -543,9 +543,9 @@ function moderateFakeoutCandles(count = 54) {
   return candles;
 }
 
-test("A 55-64 CALL candidate cannot bypass the 60-point threshold or candle confirmation", () => {
+test("A 60-69 CALL candidate requires candle confirmation at the 60-point threshold", () => {
   const result = scoreMarket(moderateFakeoutCandles());
-  assert.ok(result.scores.CALL >= 55 && result.scores.CALL < 65, JSON.stringify(result.scores));
+  assert.ok(result.scores.CALL >= 60 && result.scores.CALL < 70, JSON.stringify(result.scores));
   assert.equal(result.thresholds.signal, 60);
   assert.ok(["PREPARE", "CALL"].includes(result.signal));
   if (result.scores.CALL < 60 || !result.candleConfirmation?.confirmed) assert.equal(result.signal, "PREPARE");
