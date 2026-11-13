@@ -14,17 +14,17 @@ function recentClosedCandles() {
   });
 }
 
-test("fresh REST-only candles pass source gate only when fallback is explicitly enabled", async () => {
+test("REST history remains context only and cannot release a live opening signal", async () => {
   const result = await analyzeMarket(recentClosedCandles(), {
     now: Date.now(), tickAgeSeconds: null, allowRestFallback: true
   });
-  assert.equal(result.dataMode, "REST_FALLBACK");
-  assert.equal(result.livePriceReady, true);
-  assert.ok(["CALL", "PUT", "PREPARE", "STANDBY"].includes(result.signal));
+  assert.equal(result.dataMode, "UNAVAILABLE");
+  assert.equal(result.livePriceReady, false);
+  assert.equal(result.signal, "STANDBY");
   assert.equal("assistant" in result, false);
 });
 
-test("REST-only candles remain STANDBY when fallback is not enabled", async () => {
+test("REST-only candles remain STANDBY even if a caller requests fallback", async () => {
   const result = await analyzeMarket(recentClosedCandles(), {
     now: Date.now(), tickAgeSeconds: null, allowRestFallback: false
   });
