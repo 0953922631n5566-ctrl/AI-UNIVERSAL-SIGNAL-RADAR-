@@ -29,9 +29,9 @@
     "externalAiCalls": false,
     "candles": {
       "context": 50,
-      "entry": 1,
-      "totalClosedContext": 50,
-      "warmup": 50
+      "entry": 4,
+      "totalClosedContext": 54,
+      "warmup": 54
     },
     "triggerWindowSeconds": {
       "start": 0,
