@@ -1967,3 +1967,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Twelve Data pool reported 10/10 available. Logs confirm WebSocket subscription accepted and first live EUR/USD tick received; subsequent API sample showed `dataMode=STREAMING`, `tickAgeSeconds=3`, `supportStatus=SUPPORTED`.
 - Render logs show the existing T-10 PREPARE and T-5 finalize windows still execute. No `main-market/public/` files changed; `/signal` route returned the existing Mini App page.
 - User can now open the Telegram Mini App for paper testing. Audio permission and visual behavior on the user's device have not been directly verified. Signal release remains manual-only and not OOS-validated.
+
+
+## 2026-11-13 — User baseline preserved: MAIN-MARKET-EARLY-ENTRY-T5-V1
+
+- User asked to durably record the currently used Main Market version because their own observation is that accuracy has improved, while occasional wrong signals remain. The user's assessment is recorded as user-reported feedback, not as an independently verified win rate or profitability claim.
+- Created `main-market/versions/MAIN-MARKET-EARLY-ENTRY-T5-V1.md` as a durable baseline snapshot.
+- This label maps to the actual production state recorded above under PR #118 / merge commit `a333a1dd4a33e70ddb5e2418c17927d0fc57363e` / Render deploy `dep-dbrffrnf3r2c73c00dn0`: Local Partial Scoring with BOS/CHOCH, candle confirmation and momentum exhaustion blended into existing scoring; 30/30/20/20 component budgets; CALL/PUT 65 and PREPARE 45; closed M1 candles; 100-candle history and 50+4 decision window; T-10 PREPARE, T-5 finalization and 30-second signal hold.
+- This is documentation-only; no analyzer logic, score, timing, Mini App, API or Render configuration was changed.
+- Future strategy changes must compare against this baseline, use exact target-candle outcome grading, preserve experiments separately, and require user approval before Production changes. Predictive accuracy and profitability remain unvalidated by independent OOS/paper-trading evidence.
