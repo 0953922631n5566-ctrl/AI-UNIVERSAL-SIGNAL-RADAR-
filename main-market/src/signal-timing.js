@@ -11,11 +11,11 @@ export function isPrepareAlertWindow(candleEpoch, now = Date.now()) {
   return elapsed >= PREPARE_ALERT_START_MS && elapsed < SIGNAL_FINALIZE_START_MS;
 }
 
-// Finalize the next-candle direction only during T-5s through candle close.
+// Finalize direction only during the first five seconds of the newly opened M1 candle.
 export function isSignalFinalizeWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
-  return elapsed >= SIGNAL_FINALIZE_START_MS && elapsed < M1_CANDLE_MS;
+  return elapsed >= 0 && elapsed < SIGNAL_MAX_TICK_AGE_MS;
 }
 
 export function signalHoldExpiresAt(targetCandleEpoch) {
