@@ -36,7 +36,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0, streamApiKey: null, subscribeAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, lastTickEventAt: 0, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -244,14 +244,19 @@ async function evaluate(feed) {
    feed.signalTriggeredAt = 0;
    feed.alertId = null;
  }
+ const tickEventAt = Number.isFinite(feed.lastTickEventAt) && feed.lastTickEventAt > 0
+   ? feed.lastTickEventAt : null;
  const elapsedSinceOpenMs = sourceCandleEpoch === null
-   ? null : now - sourceCandleEpoch * 1000;
- if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 5000) {
+   ? null : (tickEventAt ?? now) - sourceCandleEpoch * 1000;
+ if (elapsedSinceOpenMs === null || elapsedSinceOpenMs < 0 || elapsedSinceOpenMs >= 5000 ||
+     tickAge === null || tickAge > 5) {
    // Keep a previously released signal visible for its 30-second hold, but never re-run analysis late.
    if (!(feed.activeSignal && now < feed.activeUntil)) {
-     feed.analysis = standby(elapsedSinceOpenMs === null
-       ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
-       : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
+     feed.analysis = standby(tickAge === null || tickAge > 5
+       ? "ราคา Streaming ต้องสดไม่เกิน 5 วินาที"
+       : elapsedSinceOpenMs === null
+         ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
+         : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
      feed.analysis.signalTimingWindowSeconds = [0, 5];
    }
    return;
@@ -261,7 +266,7 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  // Only the current live M1 candle and its fresh Streaming tick can release a direction.
  const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge, tickEventAt
  });
  const result = applySignalReleaseGate(rawResult);
 
@@ -279,15 +284,15 @@ async function evaluate(feed) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
    console.info("[timing] PREPARE helper window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     secondsSinceOpen: (now - sourceCandleEpoch * 1000) / 1000,
+     secondsSinceOpen: ((feed.lastTickEventAt || now) - sourceCandleEpoch * 1000) / 1000,
      directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
    });
  }
  const finalizeWindow = sourceCandleEpoch !== null &&
-   isSignalFinalizeWindow(sourceCandleEpoch, now);
+   isSignalFinalizeWindow(sourceCandleEpoch, tickEventAt ?? now);
  const finalizeEligible = finalizeWindow &&
    (result.signal === "CALL" || result.signal === "PUT") &&
-   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt, now,
      lastDispatchedCandle: feed.lastDispatchedCandle });
  if (finalizeWindow && feed.lastFinalizeLoggedCandle !== sourceCandleEpoch) {
    feed.lastFinalizeLoggedCandle = sourceCandleEpoch;
@@ -308,7 +313,7 @@ async function evaluate(feed) {
  } else if (finalizeWindow &&
      (result.signal === "CALL" || result.signal === "PUT")) {
    const canFinalize = canFinalizeSignal({
-     candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+     candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt, now,
      lastDispatchedCandle: feed.lastDispatchedCandle
    });
    if (canFinalize) {
@@ -374,7 +379,7 @@ function dispatchSignalIfReady(feed) {
      !Number.isFinite(sourceCandleEpoch)) return;
  const now = Date.now();
  if (!canFinalizeSignal({
-   candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+   candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, tickEventAt: feed.lastTickEventAt, now,
    lastDispatchedCandle: feed.lastDispatchedCandle
  })) return;
  if (feed.lastDispatchedAlertId === feed.alertId) return;
@@ -385,7 +390,7 @@ function dispatchSignalIfReady(feed) {
  console.info("[signal] M1 opening-window signal is available to Telegram Mini App polling", {
    alertId: feed.alertId, signal, sourceCandleEpoch,
    targetCandleEpoch: feed.signalCandle,
-   secondsSinceOpen: (now - sourceCandleEpoch * 1000) / 1000,
+   secondsSinceOpen: ((feed.lastTickEventAt || now) - sourceCandleEpoch * 1000) / 1000,
    expiresAt: new Date(feed.activeUntil).toISOString()
  });
 }
@@ -448,6 +453,7 @@ function applyTick(feed, price, epoch) {
 
   feed.lastTick = price;
   feed.tickAt = Date.now();
+  feed.lastTickEventAt = epoch * 1000;
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
@@ -516,16 +522,18 @@ function startRestTimer() {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Re-evaluate during the full newly opened target M1 candle.
-  // The direction uses only the latest fully closed M1 candle.
+  // Re-evaluate only when the newest provider tick itself belongs to the first five seconds of the live M1 candle.
   let evaluationBusy = false;
   signalTimer = setInterval(async () => {
     if (!monitoring || evaluationBusy) return;
     const feed = feeds.get(selectedSymbol);
     const current = feed?.candles.at(-1);
     if (!current?.live) return;
-    const elapsedMs = Date.now() - current.epoch * 1000;
-    if (elapsedMs < 0 || elapsedMs >= 5000) return;
+    const now = Date.now();
+    const eventAt = feed.lastTickEventAt || 0;
+    const elapsedMs = eventAt - current.epoch * 1000;
+    const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
+    if (elapsedMs < 0 || elapsedMs >= 5000 || tickAgeMs > 5000) return;
     evaluationBusy = true;
     try {
       await evaluate(feed);
@@ -573,6 +581,7 @@ function retrySelectedStream(feed, reason) {
     try { socket.close(); } catch {}
   }
   feed.tickAt = 0;
+  feed.lastTickEventAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
   feed.activeUntil = 0;
@@ -746,6 +755,7 @@ function startStream() {
     upstream = null;
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
+  feed.lastTickEventAt = 0;
     feed.activeSignal = null;
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
@@ -765,6 +775,7 @@ async function start(symbolValue) {
   globalLockMessage = null;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
+  feed.lastTickEventAt = 0;
   feed.lastTick = null;
   feed.streamApiKey = null;
   feed.streamStatus = "WAITING";
@@ -790,6 +801,7 @@ async function select(symbolValue) {
   selectedSymbol = symbol;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
+  feed.lastTickEventAt = 0;
   feed.lastTick = null;
   feed.streamApiKey = null;
   feed.streamStatus = "WAITING";
@@ -810,6 +822,7 @@ function stop(clearSignal = true) {
   closeUpstream();
   const feed = feeds.get(selectedSymbol);
   feed.tickAt = 0;
+  feed.lastTickEventAt = 0;
   feed.lastTick = null;
   feed.streamApiKey = null;
   feed.dataLocked = false;

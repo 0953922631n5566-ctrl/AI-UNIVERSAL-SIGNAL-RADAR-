@@ -28,9 +28,10 @@ export function isFreshSignalTick(tickAt, now = Date.now()) {
     tickAt <= now && now - tickAt <= SIGNAL_MAX_TICK_AGE_MS;
 }
 
-export function canFinalizeSignal({ candleEpoch, tickAt, now = Date.now(),
+export function canFinalizeSignal({ candleEpoch, tickAt, tickEventAt, now = Date.now(),
   lastDispatchedCandle = null } = {}) {
-  return isSignalFinalizeWindow(candleEpoch, now) &&
+  const eventAt = Number.isFinite(tickEventAt) ? tickEventAt : now;
+  return isSignalFinalizeWindow(candleEpoch, eventAt) &&
     isFreshSignalTick(tickAt, now) &&
     lastDispatchedCandle !== candleEpoch;
 }

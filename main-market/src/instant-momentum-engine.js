@@ -35,14 +35,15 @@ function validCandle(candle) {
  * It deliberately does not force a direction when the opening move is weak
  * or contradictory.
  */
-export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSeconds } = {}) {
+export function analyzeInstantMomentum({ candles, now = Date.now(), tickAgeSeconds, tickEventAt } = {}) {
   const all = Array.isArray(candles) ? candles : [];
   const live = all.at(-1);
   if (!live || live.live !== true || !validCandle(live)) {
     return standby("รอแท่ง M1 ใหม่และราคา Streaming สด");
   }
 
-  const elapsedMs = now - live.epoch * 1000;
+  const eventAt = Number.isFinite(tickEventAt) ? tickEventAt : now;
+  const elapsedMs = eventAt - live.epoch * 1000;
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0 || elapsedMs >= OPENING_WINDOW_MS) {
     return standby("พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
   }

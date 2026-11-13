@@ -43,3 +43,11 @@ test("Streaming tick freshness is limited to five seconds", () => {
 test("signal expires exactly 30 seconds after the current M1 candle opens", () => {
   assert.equal(signalHoldExpiresAt(candle), openAt + 30_000);
 });
+
+test("uses provider event time for the opening lock while still requiring a fresh receipt tick", () => {
+  const now = openAt + 7_000;
+  const base = { candleEpoch: candle, tickAt: now - 500, tickEventAt: openAt + 4_000, now };
+  assert.equal(canFinalizeSignal(base), true);
+  assert.equal(canFinalizeSignal({ ...base, tickEventAt: openAt + 5_000 }), false);
+  assert.equal(canFinalizeSignal({ ...base, tickAt: now - 5_001 }), false);
+});
