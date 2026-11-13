@@ -158,7 +158,7 @@ export function scoreMarket(candles) {
   const result = {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_65_AGILE",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_70_CANDLE_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
