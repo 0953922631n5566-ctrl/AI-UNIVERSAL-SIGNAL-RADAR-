@@ -61,3 +61,22 @@ test("closed candles alone never create an opening signal", () => {
   const result = analyzeInstantMomentum({ candles: candles(), now, tickAgeSeconds: 0 });
   assert.equal(result.signal, "STANDBY");
 });
+
+test("uses provider event time when a fresh opening tick is delivered a few seconds late", () => {
+  const rows = candles();
+  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
+  const result = analyzeInstantMomentum({
+    candles: rows, now: now + 7_000, tickEventAt: now + 3_000, tickAgeSeconds: 0.5
+  });
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.metrics.elapsedMs, 3_000);
+});
+
+test("rejects a provider tick whose event timestamp is outside the opening window", () => {
+  const rows = candles();
+  rows.push(live(1.1, 1.10012, 1.10013, 1.09999));
+  const result = analyzeInstantMomentum({
+    candles: rows, now: now + 7_000, tickEventAt: now + 5_000, tickAgeSeconds: 0.5
+  });
+  assert.equal(result.signal, "STANDBY");
+});
