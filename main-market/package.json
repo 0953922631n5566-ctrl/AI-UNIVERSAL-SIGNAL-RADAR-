@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/adaptive-ema-pool.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/adaptive-ema-pool.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/instant-momentum-engine.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,26 +17,32 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Adaptive EMA Pool 32 · EUR/USD",
-    "displayName": "Adaptive EMA 32 · EMA 2–33 · M1 · 100 candle warm-up",
+    "name": "Instant Momentum & Breakout · EUR/USD M1",
+    "displayName": "Instant Momentum · M1 open 0–5s · 50 closed-candle context",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_ADAPTIVE_EMA_POOL_32",
-    "decisionAuthority": "ADAPTIVE_EMA_POOL_32_WITH_SIDEWAY_AND_HIGH_VOLATILITY_GUARDS",
+    "executionModel": "LOCAL_LIVE_TICK_MOMENTUM_BREAKOUT",
+    "decisionAuthority": "INSTANT_MOMENTUM_OR_FOUR_CANDLE_BREAKOUT",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
+    "safetyValidation": "FRESH_STREAMING_TICK_5S_AND_CANDLE_LOCK",
     "externalAiCalls": false,
-    "adaptiveEmaPool": { "candidateCount": 32, "firstPeriod": 2, "lastPeriod": 33, "warmupCandles": 100, "signalThreshold": 68 },
     "candles": {
       "context": 50,
       "entry": 4,
-      "totalClosed": 54,
-      "warmup": 100
+      "totalClosedContext": 54,
+      "warmup": 54
     },
+    "triggerWindowSeconds": {
+      "start": 0,
+      "end": 5
+    },
+    "signalHoldSeconds": 30,
     "killSwitches": [
-      "SIDEWAY_MARKET",
-      "HIGH_VOLATILITY"
+      "STALE_STREAM",
+      "INVALID_OHLC",
+      "CONFLICTING_DIRECTION",
+      "OUTSIDE_OPENING_WINDOW"
     ]
   }
 }

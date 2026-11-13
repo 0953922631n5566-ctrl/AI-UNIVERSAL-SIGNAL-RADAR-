@@ -2,7 +2,7 @@ import {
   MIN_CLOSED_CANDLES, ADAPTIVE_EMA_WARMUP_CANDLES, CONTEXT_CANDLES, ENTRY_CANDLES,
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
-import { analyzeAdaptiveEmaPool } from "./adaptive-ema-pool.js";
+import { analyzeInstantMomentum } from "./instant-momentum-engine.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -125,44 +125,31 @@ export function calculatePureTechnicalSignal(candles) {
   };
 }
 
-/** Deterministic Partial Scoring is the Main Market decision authority. */
+/** Instant Momentum & Breakout is the production directional authority. */
 export async function analyzeMarket(candles, options = {}) {
-  const gate = sourceGate(candles, options);
-  const base = {
-    lastCandleEpoch: gate.lastCandleEpoch, dataMode: gate.mode,
-    ageSeconds: gate.ageSeconds, livePriceReady: gate.ready,
-    closedCandleCount: Math.min(gate.closed.length, ADAPTIVE_EMA_WARMUP_CANDLES),
-    requiredCandles: ADAPTIVE_EMA_WARMUP_CANDLES, warmupCandles: ADAPTIVE_EMA_WARMUP_CANDLES,
-    analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES, warmup: ADAPTIVE_EMA_WARMUP_CANDLES }
-  };
-  if (!gate.ready) {
-    return { signal:"STANDBY", reason:gate.reason, regime:"UNCLEAR", score:0, confidence:0,
-      strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
-  }
-  const closedCandles = gate.closed.slice(-ADAPTIVE_EMA_WARMUP_CANDLES);
-  const adaptive = analyzeAdaptiveEmaPool(closedCandles);
-  const metrics = {
-    selectedPeriod: adaptive.selectedPeriod, selectedEma: adaptive.selectedEma,
-    candidateCount: adaptive.candidateCount, efficiencyRatio: adaptive.efficiencyRatio ?? null,
-    alternationRatio: adaptive.alternationRatio ?? null,
-    currentRangeAtrRatio: adaptive.currentRangeAtrRatio ?? null
-  };
-  const evidence = [
-    `Adaptive EMA Pool: ${adaptive.candidateCount} horizons (EMA 2–33)`,
-    `EMA ที่เลือก: ${adaptive.selectedPeriod ?? "—"} · Score ${adaptive.score}/100`,
-    `Regime: ${adaptive.regime}`,
-    ...(adaptive.topCandidates || []).slice(0, 3).map(item => `EMA ${item.period}: ${item.direction || "—"} · ${item.score}/100`)
-  ];
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const live = Array.isArray(candles) ? candles.at(-1) : null;
+  const closed = Array.isArray(candles) ? candles.filter(c => c && c.live !== true) : [];
+  const result = analyzeInstantMomentum({
+    candles: [...closed, ...(live?.live === true ? [live] : [])],
+    now,
+    tickAgeSeconds: options.tickAgeSeconds
+  });
+  const lastClosed = closed.at(-1) || null;
   return {
-    ...adaptive, ...base, signal: adaptive.signal, score: adaptive.score, confidence: adaptive.score,
-    strategy: "ADAPTIVE_EMA_POOL_32", provider: "LOCAL_ADAPTIVE_EMA_POOL",
-    entryType: "ADAPTIVE_EMA_2_33_M1_CLOSED_CANDLE", metrics, evidence,
-    summary: adaptive.reason, prepareSignal: null,
-    analyzedAt: new Date(Number.isFinite(options.now) ? options.now : Date.now()).toISOString(),
+    ...result,
+    symbol: options.symbol || "EUR/USD",
+    dataMode: Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds <= 5 ? "STREAMING" : "UNAVAILABLE",
+    livePriceReady: live?.live === true && Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= 5,
+    closedCandleCount: Math.min(closed.length, 54),
+    requiredCandles: 54,
+    warmupCandles: 54,
+    lastCandleEpoch: lastClosed?.epoch ?? null,
+    analysisWindow: { contextCandles: 50, entryCandles: 4, total: 54, warmup: 54 },
     signalReleaseValidated: false,
-    signalValidationStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote: "Adaptive EMA Pool 32 ช่วง (EMA 2–33) · Warm-up 100 แท่ง M1 · เกณฑ์ 68/100 · Sideway/High Volatility = STANDBY · ยังไม่มีผลประเมิน out-of-sample · ใช้ทดสอบแบบ paper/manual เท่านั้น",
-    signalReleaseStatus: "ADAPTIVE_EMA32_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    signalValidationStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote: "M1 เปิดแท่ง 0–5 วินาที · ใช้ 50 แท่งบริบท + 4 แท่งล่าสุดเป็น entry contextและ Streaming tick สด · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
+    signalReleaseStatus: "INSTANT_MOMENTUM_BREAKOUT_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };

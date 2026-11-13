@@ -98,16 +98,13 @@ test.skip("legacy: analyzeMarket uses Gemini with EMA5 and multi-stage reversal 
 });
 
 
-test("Adaptive EMA pool blocks flat market and does not force a direction", async () => {
-  const candles = flatSidewayCandles();
-  const { fetchImpl, calls } = mockFetch(geminiResponse("CALL"));
-  const result = await analyzeMarket(candles, {
-    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/SIDEWAY-BLOCK",
-    geminiApiKey: "unit-test-key", geminiFetch: fetchImpl
+test("production analyzer does not emit a direction from closed-only history", async () => {
+  const result = await analyzeMarket(flatSidewayCandles(), {
+    now: Date.now(), tickAgeSeconds: 0, symbol: "TEST/CLOSED-ONLY"
   });
   assert.equal(result.signal, "STANDBY");
-  assert.ok(result.riskFlags.includes("ADAPTIVE_EMA_GUARD_BLOCKED"));
-  assert.equal(calls.length, 0);
+  assert.equal(result.strategy, "INSTANT_MOMENTUM_BREAKOUT");
+  assert.equal(result.provider, "LOCAL_LIVE_TICK_ENGINE");
 });
 
 test("one symbol/closed-candle epoch makes only one Gemini request even with repeated ticks", async () => {
@@ -556,4 +553,4 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
 
 test("Adaptive EMA 32 warms up on 100 closed candles and blocks 99",()=>{const candles=history(120),short=analyzeAdaptiveEmaPool(candles.slice(-99)),ready=analyzeAdaptiveEmaPool(candles.slice(-100));assert.equal(short.ready,false);assert.equal(short.signal,"STANDBY");assert.equal(ready.ready,true);assert.equal(ready.candidateCount,32);assert.equal(ready.mode,"PRODUCTION");});
 test("Adaptive EMA 32 can identify aligned CALL and PUT trends",()=>{assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(1,120)).signal,"CALL");assert.equal(analyzeAdaptiveEmaPool(smoothTrendCandles(-1,120)).signal,"PUT");});
-test("production analyzer uses Adaptive EMA Pool 32 after source checks",async()=>{const result=await analyzeMarket(history(120),{now:Date.now(),tickAgeSeconds:0});assert.equal(result.strategy,"ADAPTIVE_EMA_POOL_32");assert.equal(result.provider,"LOCAL_ADAPTIVE_EMA_POOL");assert.equal(result.requiredCandles,100);assert.equal(result.candidateCount,32);assert.equal(result.signalReleaseValidated,false);});
+test("production analyzer requires a live opening M1 candle and does not analyze closed candles late",async()=>{const result=await analyzeMarket(history(120),{now:Date.now(),tickAgeSeconds:0});assert.equal(result.signal,"STANDBY");assert.equal(result.strategy,"INSTANT_MOMENTUM_BREAKOUT");assert.equal(result.provider,"LOCAL_LIVE_TICK_ENGINE");assert.equal(result.requiredCandles,54);assert.equal(result.signalReleaseValidated,false);});
