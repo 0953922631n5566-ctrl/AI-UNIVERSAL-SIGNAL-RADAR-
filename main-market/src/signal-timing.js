@@ -3,18 +3,19 @@ export const PREPARE_ALERT_START_MS = 50_000;
 export const SIGNAL_FINALIZE_START_MS = 55_000;
 export const SIGNAL_HOLD_SECONDS = 30;
 export const SIGNAL_MAX_TICK_AGE_MS = 5_000;
-export const SIGNAL_MAX_EVENT_AGE_MS = M1_CANDLE_MS;
 
+// PREPARE is non-directional and runs from T-10s up to (but not including) T-5s.
 export function isPrepareAlertWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
   return elapsed >= PREPARE_ALERT_START_MS && elapsed < SIGNAL_FINALIZE_START_MS;
 }
 
+// Finalize the next-candle direction only during T-5s through candle close.
 export function isSignalFinalizeWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
-  return elapsed >= 0 && elapsed < M1_CANDLE_MS;
+  return elapsed >= SIGNAL_FINALIZE_START_MS && elapsed < M1_CANDLE_MS;
 }
 
 export function signalHoldExpiresAt(targetCandleEpoch) {
@@ -23,16 +24,13 @@ export function signalHoldExpiresAt(targetCandleEpoch) {
 }
 
 export function isFreshSignalTick(tickAt, now = Date.now()) {
-  return Number.isFinite(tickAt) && Number.isFinite(now) && tickAt <= now && now - tickAt <= SIGNAL_MAX_TICK_AGE_MS;
+  return Number.isFinite(tickAt) && Number.isFinite(now) &&
+    tickAt <= now && now - tickAt <= SIGNAL_MAX_TICK_AGE_MS;
 }
 
-export function isFreshEventTimestamp(eventAt, now = Date.now()) {
-  return Number.isFinite(eventAt) && Number.isFinite(now) && eventAt <= now && now - eventAt <= SIGNAL_MAX_EVENT_AGE_MS;
-}
-
-export function canFinalizeSignal({ candleEpoch, tickAt, tickEventAt, now = Date.now() } = {}) {
-  const eventAt = Number.isFinite(tickEventAt) ? tickEventAt : now;
-  const elapsed = eventAt - candleEpoch * 1000;
-  return Number.isFinite(candleEpoch) && elapsed >= 0 && elapsed < M1_CANDLE_MS &&
-    isFreshSignalTick(tickAt, now) && isFreshEventTimestamp(eventAt, now);
+export function canFinalizeSignal({ candleEpoch, tickAt, now = Date.now(),
+  lastDispatchedCandle = null } = {}) {
+  return isSignalFinalizeWindow(candleEpoch, now) &&
+    isFreshSignalTick(tickAt, now) &&
+    lastDispatchedCandle !== candleEpoch;
 }

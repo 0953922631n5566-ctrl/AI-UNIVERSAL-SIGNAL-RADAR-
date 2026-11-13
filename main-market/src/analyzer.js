@@ -1,8 +1,8 @@
 import {
-  MIN_CLOSED_CANDLES, ADAPTIVE_EMA_WARMUP_CANDLES, CONTEXT_CANDLES, ENTRY_CANDLES,
+  MIN_CLOSED_CANDLES, CONTEXT_CANDLES, ENTRY_CANDLES,
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS
 } from "./config.js";
-import { analyzeInstantMomentum } from "./instant-momentum-engine.js";
+import { scoreMarket } from "./advanced-scoring.js";
 
 function sourceGate(candles, options) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -15,8 +15,8 @@ function sourceGate(candles, options) {
   const stream = Number.isFinite(options.tickAgeSeconds) &&
     options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= MAX_STREAM_AGE_SECONDS;
   const rest = options.allowRestFallback === true && ageSeconds <= MAX_CANDLE_AGE_SECONDS;
-  const enough = closed.length >= ADAPTIVE_EMA_WARMUP_CANDLES;
-  const window = closed.slice(-ADAPTIVE_EMA_WARMUP_CANDLES);
+  const enough = closed.length >= MIN_CLOSED_CANDLES;
+  const window = closed.slice(-MIN_CLOSED_CANDLES);
   const validOHLC = enough && window.every(c =>
     [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
     c.low > 0 && c.close > 0 &&
@@ -24,7 +24,7 @@ function sourceGate(candles, options) {
     c.low <= Math.min(c.open, c.close) && c.high >= c.low
   );
   const ordered = window.every((c, i) => i === 0 || c.epoch > window[i - 1].epoch);
-  const reason = !enough ? `Insufficient closed M1 candles (${closed.length}/${ADAPTIVE_EMA_WARMUP_CANDLES}) for Adaptive EMA warm-up`
+  const reason = !enough ? `Insufficient closed M1 candles (${closed.length}/${MIN_CLOSED_CANDLES})`
     : !validOHLC ? "Invalid OHLC candle data"
     : !ordered ? "Candle timestamps are not strictly increasing"
     : ageSeconds > MAX_CANDLE_AGE_SECONDS ? "Latest closed candle is stale"
@@ -125,32 +125,29 @@ export function calculatePureTechnicalSignal(candles) {
   };
 }
 
-/** Aggressive Momentum & Breakout is the production directional authority. */
+/** Deterministic Partial Scoring is the Main Market decision authority. */
 export async function analyzeMarket(candles, options = {}) {
-  const now = Number.isFinite(options.now) ? options.now : Date.now();
-  const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const closed = Array.isArray(candles) ? candles.filter(c => c && c.live !== true) : [];
-  const result = analyzeInstantMomentum({
-    candles: [...closed, ...(live?.live === true ? [live] : [])],
-    now,
-    tickAgeSeconds: options.tickAgeSeconds,
-    tickEventAt: options.tickEventAt
-  });
-  const lastClosed = closed.at(-1) || null;
+  const gate = sourceGate(candles, options);
+  const base = {
+    lastCandleEpoch: gate.lastCandleEpoch, dataMode: gate.mode,
+    ageSeconds: gate.ageSeconds, livePriceReady: gate.ready,
+    closedCandleCount: gate.closed.length, requiredCandles: MIN_CLOSED_CANDLES,
+    analysisWindow: { contextCandles: CONTEXT_CANDLES, entryCandles: ENTRY_CANDLES, total: MIN_CLOSED_CANDLES }
+  };
+  if (!gate.ready) {
+    return { signal:"STANDBY", reason:gate.reason, regime:"UNCLEAR", score:0, confidence:0,
+      strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
+  }
+  const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
+  const scored=scoreMarket(closedCandles);
   return {
-    ...result,
-    symbol: options.symbol || "EUR/USD",
-    dataMode: Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds <= 5 ? "STREAMING" : "UNAVAILABLE",
-    livePriceReady: live?.live === true && Number.isFinite(options.tickAgeSeconds) && options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= 5,
-    closedCandleCount: Math.min(closed.length, 54),
-    requiredCandles: 54,
-    warmupCandles: 54,
-    lastCandleEpoch: lastClosed?.epoch ?? null,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: 54, warmup: 54 },
-    signalReleaseValidated: false,
-    signalValidationStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote: "โหมดรุก HIGH RISK · วิเคราะห์ Streaming สดตลอดแท่ง M1 · ใช้ 50 แท่งบริบท + 4 แท่ง entry · ยังไม่มีผลประเมิน out-of-sample · ใช้ paper/manual เท่านั้น",
-    signalReleaseStatus: "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED"
+    ...scored, ...base,
+    prepareSignal:scored.prepareSignal||null,
+    analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
+    signalReleaseValidated:false,
+    signalValidationStatus:"PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote:"Partial Scoring 65/45 + Choppy/ATR Kill Switch · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น",
+    signalReleaseStatus:"PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED"
   };
 }
 export { sourceGate };

@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/adaptive-ema-pool.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/instant-momentum-engine.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/recovery.js && node --check src/stream-retry.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,32 +17,35 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "AGGRESSIVE MOMENTUM BREAKOUT · EUR/USD M1",
-    "displayName": "Aggressive live M1 · 50 context + 4 entry candles",
+    "name": "Main Market Advanced Partial Scoring Engine",
+    "displayName": "Partial Scoring 65/45 · EMA5 Slope + S/R Fakeout + Proximity/Momentum + Trend Context",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_LIVE_TICK_MOMENTUM_BREAKOUT",
-    "decisionAuthority": "AGGRESSIVE_MOMENTUM_BREAKOUT_AND_CONTINUATION",
+    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
+    "decisionAuthority": "LOCAL_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
     "directionalVoters": 1,
     "aggregator": 0,
-    "safetyValidation": "FRESH_STREAMING_TICK_5S_AND_DISTINCT_EVENT_COOLDOWN",
+    "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
+    "scoreWeights": {
+      "ema5SlopeReversal": 30,
+      "srFakeout": 30,
+      "proximityMomentum": 20,
+      "trendContext": 20
+    },
+    "thresholds": {
+      "callPut": 65,
+      "prepare": 45,
+      "standbyBelow": 45
+    },
     "candles": {
       "context": 50,
       "entry": 4,
-      "totalClosedContext": 54,
-      "warmup": 54
+      "totalClosed": 54
     },
-    "triggerWindowSeconds": {
-      "start": 0,
-      "end": 60
-    },
-    "signalHoldSeconds": 30,
     "killSwitches": [
-      "STALE_STREAM",
-      "INVALID_OHLC",
-      "CONFLICTING_DIRECTION",
-      "OUTSIDE_CURRENT_M1_CANDLE"
+      "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
+      "ABNORMAL_ATR_SPIKE"
     ]
   }
 }
