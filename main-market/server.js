@@ -994,7 +994,7 @@ app.get("/health", (_req, res) => {
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
-      entryCandles: 4,
+      entryCandles: 1,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
       restFallbackEnabled: false,
