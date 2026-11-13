@@ -27,8 +27,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 70 CANDLE CONFIRMATION EXPERIMENT";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-70-45-CANDLE-CONFIRMATION-CHOPPY-ATR-KILL-SWITCH";
+const SYSTEM_NAME = "PARTIAL SCORING 60 CANDLE CONFIRMATION EXPERIMENT";
+const ARCHITECTURE_ID = "PARTIAL-SCORING-60-45-CANDLE-CONFIRMATION-CHOPPY-ATR-KILL-SWITCH";
 const VERSION = "2026-11-11-streaming-reconnect-v1";
 const app = express();
 const server = http.createServer(app);
@@ -172,7 +172,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_70_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "PARTIAL_SCORING_60_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -961,18 +961,18 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_70_CANDLE_CONFIRMATION", engines: 1,
+      decisionEngine: "PARTIAL_SCORING_60_CANDLE_CONFIRMATION", engines: 1,
       decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_CHOPPY_AND_ATR_KILL_SWITCHES",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_70_45_CANDLE_CONFIRMATION_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
+      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_60_45_CANDLE_CONFIRMATION_TO_CHOPPY_ATR_KILL_SWITCH_TO_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_PARTIAL_SCORING", model: null, configured: true,
       role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      thresholds: { callPut: 70, prepare: 45, standbyBelow: 45 }
+      thresholds: { callPut: 60, prepare: 45, standbyBelow: 45 }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1000,7 +1000,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_70_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "PARTIAL_SCORING_60_CANDLE_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
@@ -1009,7 +1009,7 @@ app.get("/health", (_req, res) => {
         directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
         externalAi: false,
         componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 70, prepare: 45, standbyBelow: 45 },
+        thresholds: { callPut: 60, prepare: 45, standbyBelow: 45 },
         slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
         supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
         sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
