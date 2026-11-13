@@ -133,7 +133,8 @@ export async function analyzeMarket(candles, options = {}) {
   const result = analyzeInstantMomentum({
     candles: [...closed, ...(live?.live === true ? [live] : [])],
     now,
-    tickAgeSeconds: options.tickAgeSeconds
+    tickAgeSeconds: options.tickAgeSeconds,
+    tickEventAt: options.tickEventAt
   });
   const lastClosed = closed.at(-1) || null;
   return {
