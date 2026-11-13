@@ -258,11 +258,9 @@ async function evaluate(feed) {
 
  const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
  feed.recoveryState = recoveryWindow.state;
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Instant Momentum & Breakout is the sole directional analyst; the timing gate enforces the opening window.
+ // Only the current live M1 candle and its fresh Streaming tick can release a direction.
  const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
+   now, symbol: feed.symbol, tickAgeSeconds: tickAge
  });
  const result = applySignalReleaseGate(rawResult);
 
