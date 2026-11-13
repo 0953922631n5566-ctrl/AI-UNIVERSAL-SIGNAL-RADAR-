@@ -252,6 +252,7 @@ async function evaluate(feed) {
      feed.analysis = standby(elapsedSinceOpenMs === null
        ? "รอแท่ง M1 ใหม่และราคา Streaming สด"
        : "พ้นช่วงวิเคราะห์ต้นแท่ง M1 0–5 วินาที");
+     feed.analysis.signalTimingWindowSeconds = [0, 5];
    }
    return;
  }
@@ -919,7 +920,7 @@ app.get("/api/public/signal", (_req, res) => {
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 5],
       engineResults: state.engineResults || null,
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
