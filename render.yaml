@@ -12,56 +12,16 @@ services:
     healthCheckPath: /health
     autoDeployTrigger: checksPass
     envVars:
-      - key: TWELVE_DATA_API_KEY_1
+      - key: TWELVE_DATA_API_KEYS
         fromService:
           name: ai-signal-radar-main-market
           type: web
-          envVarKey: TWELVE_DATA_API_KEY_1
-      - key: TWELVE_DATA_API_KEY_2
+          envVarKey: TWELVE_DATA_API_KEYS
+      - key: TWELVE_DATA_API_KEY
         fromService:
           name: ai-signal-radar-main-market
           type: web
-          envVarKey: TWELVE_DATA_API_KEY_2
-      - key: TWELVE_DATA_API_KEY_3
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_3
-      - key: TWELVE_DATA_API_KEY_4
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_4
-      - key: TWELVE_DATA_API_KEY_5
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_5
-      - key: TWELVE_DATA_API_KEY_6
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_6
-      - key: TWELVE_DATA_API_KEY_7
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_7
-      - key: TWELVE_DATA_API_KEY_8
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_8
-      - key: TWELVE_DATA_API_KEY_9
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_9
-      - key: TWELVE_DATA_API_KEY_10
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY_10
+          envVarKey: TWELVE_DATA_API_KEY
       - key: ANDROID_CLIENT_TOKEN
         fromService:
           name: ai-signal-radar-main-market
