@@ -17,11 +17,6 @@ services:
           name: ai-signal-radar-main-market
           type: web
           envVarKey: TWELVE_DATA_API_KEYS
-      - key: TWELVE_DATA_API_KEY
-        fromService:
-          name: ai-signal-radar-main-market
-          type: web
-          envVarKey: TWELVE_DATA_API_KEY
       - key: ANDROID_CLIENT_TOKEN
         fromService:
           name: ai-signal-radar-main-market
