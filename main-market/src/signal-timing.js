@@ -17,9 +17,9 @@ export function isSignalFinalizeWindow(candleEpoch, now = Date.now()) {
   return elapsed >= 0 && elapsed < M1_CANDLE_MS;
 }
 
-export function signalHoldExpiresAt(_candleEpoch, triggeredAt = Date.now()) {
-  if (!Number.isFinite(triggeredAt)) return null;
-  return triggeredAt + SIGNAL_HOLD_SECONDS * 1000;
+export function signalHoldExpiresAt(targetCandleEpoch) {
+  if (!Number.isFinite(targetCandleEpoch)) return null;
+  return targetCandleEpoch * 1000 + SIGNAL_HOLD_SECONDS * 1000;
 }
 
 export function isFreshSignalTick(tickAt, now = Date.now()) {
