@@ -4,19 +4,19 @@ import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED, SIGNAL_VALIDATION_STA
 
 test("out-of-sample validation status is informational, not a runtime lock", () => {
   assert.equal(SIGNAL_RELEASE_VALIDATED, false);
-  assert.equal(SIGNAL_VALIDATION_STATUS, "AGGRESSIVE_MOMENTUM_BREAKOUT_HIGH_RISK_MANUAL_ONLY_NOT_OOS_VALIDATED");
+  assert.equal(SIGNAL_VALIDATION_STATUS, "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
-test("Adaptive EMA CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
+test("Partial Scoring CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
   for (const signal of ["CALL", "PUT"]) {
-    const result = applySignalReleaseGate({ signal, reason: "candidate from Adaptive EMA analyzer", evidence: ["100 closed M1 candles"], alertId: "candidate-id" });
+    const result = applySignalReleaseGate({ signal, reason: "candidate from Partial Scoring analyzer", evidence: ["54 closed M1 candles"], alertId: "candidate-id" });
     assert.equal(result.signal, signal);
     assert.equal(result.signalReleaseLocked, false);
     assert.equal(result.signalReleaseValidated, false);
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /out-of-sample/);
-    assert.deepEqual(result.evidence, ["100 closed M1 candles"]);
+    assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
 });
 
