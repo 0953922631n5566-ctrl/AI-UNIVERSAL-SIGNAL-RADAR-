@@ -1,6 +1,7 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
+import { assessEntryTiming } from "./entry-timing.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -86,18 +87,23 @@ export function scoreMarket(candles) {
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
   const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
+  const chosen=direction==="PUT"?put:call;
+  const entryTiming=direction?assessEntryTiming(candles,direction,{
+    ema5:e5[i],atr,exhaustionScore:priceAction.exhaustion.score
+  }):null;
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
+  if(entryTiming?.waitForPullback)riskFlags.push("V1_LATE_ENTRY_WAIT_FOR_PULLBACK");
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=65){signal=direction;status="SIGNAL";}
+    if(top>=65&&!entryTiming?.waitForPullback){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
-  const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
+    :entryTiming?.waitForPullback&&top>=45?`V1 ENTRY TIMING: ${entryTiming.reason} · คะแนน ${top}/100 · ยังไม่ปล่อย CALL/PUT`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65 และจังหวะเข้าเหมาะสม`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
@@ -109,6 +115,7 @@ export function scoreMarket(candles) {
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
       ...priceAction.evidence,
+      ...(entryTiming?[entryTiming.reason]:[]),
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
     priceAction,
@@ -116,7 +123,11 @@ export function scoreMarket(candles) {
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
       marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
-      momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
+      momentumExtensionAtr:priceAction.exhaustion.extensionAtr,
+      entryTimingStatus:entryTiming?.status||"UNAVAILABLE",
+      entryExtensionAtr:entryTiming?.extensionAtr??null,
+      entrySameDirectionRun:entryTiming?.sameDirectionRun??null},
+    entryTiming,
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
