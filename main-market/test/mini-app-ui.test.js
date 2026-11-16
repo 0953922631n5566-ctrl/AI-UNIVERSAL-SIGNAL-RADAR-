@@ -38,6 +38,14 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="bbCard"/);
   assert.match(html, /id="trendCard"/);
   assert.match(html, /id="trendSignal"/);
+  assert.match(html, /id="engine4Card"/);
+  assert.match(html, /id="engine4Signal"/);
+  assert.match(html, /id="engine4Reason"/);
+  assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
+  assert.match(html, /#engine4Card\.call\{border-color:#9c4355\}/);
+  assert.match(html, /#engine4Card\.call \.engine-value\{color:#ff7d91\}/);
+  assert.match(html, /#engine4Card\.put\{border-color:#25885d\}/);
+  assert.match(html, /#engine4Card\.put \.engine-value\{color:#5df0a4\}/);
   assert.match(html, /#trendCard\.call\{border-color:#9c4355\}/);
   assert.match(html, /#trendCard\.call \.engine-value\{color:#ff7d91\}/);
   assert.match(html, /#trendCard\.put\{border-color:#25885d\}/);
@@ -98,4 +106,14 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
   assert.match(serverJs, /finalizeWindow && finalSignal &&/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
+});
+
+test("Engine 4 is displayed separately and does not enter the existing alert/sound pipeline", () => {
+  assert.match(serverJs, /engine4: engine4Result/);
+  assert.match(serverJs, /analyzeEveryCandle\(closedCandles\)/);
+  assert.match(serverJs, /engine4SourceReady = closedCandles\.length >= 20/);
+  assert.match(serverJs, /engines: 4/);
+  assert.match(html, /function paintEngineCards/);
+  assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
+  assert.doesNotMatch(serverJs.slice(serverJs.indexOf("const activeSignals ="), serverJs.indexOf("const activeDirections")), /ENGINE_4/);
 });
