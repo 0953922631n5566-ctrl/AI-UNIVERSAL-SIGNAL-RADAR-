@@ -292,7 +292,7 @@ async function evaluate(feed) {
          reason: "Engine 4 ต้องมีแท่ง M1 ปิดอย่างน้อย 20 แท่งและข้อมูลราคาต้องสด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       targetCandleAt: new Date((engine4Raw.candleEpoch + 60) * 1000).toISOString(),
+       targetCandleAt: new Date((engine4Raw.candleEpoch + 120) * 1000).toISOString(),
        signal: engine4Raw.signal, status: "EVERY_CANDLE_SIGNAL" }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
  const candidates = {
