@@ -119,6 +119,7 @@ export function scoreMarket(candles) {
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
+      `BB Pure Scalper ${bbPureScalper.signal||bbPureScalper.status} · ${bbPureScalper.reason} · V1 bonus +${bbBonus}`,
       ...priceAction.evidence,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
