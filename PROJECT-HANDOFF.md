@@ -1985,3 +1985,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App has a local V1 / BB PURE SCALPER · B selector. The selector changes the displayed analyzer only; V1 remains computed independently and its thresholds, scoring, timing and release gates are not changed.
 - Added tests for pending confirmation, confirmed CALL, confirmed PUT, malformed/insufficient candles, and ignoring the in-progress live candle.
 - No merge/deploy/live-device verification has been performed at this checkpoint. Keep the existing Main Market service unchanged until PR tests pass and the candidate is reviewed.
+
+
+### BB Pure Scalper B-mode deployment result — 2026-11-16
+- PR #123 merged to `main-market`; merge commit `8f829eac3cd159e4ababada6e5bf0d57355c3708`.
+- GitHub Actions: Main Market Checks run #881 passed; Main Market Telegram Mini App Checks run #549 passed. The checks include unit tests, Mini App wiring checks, and JavaScript syntax checks.
+- Render service `ai-signal-radar-main-market` (service ID `srv-dbjls149v7es73ag0k4g`) auto-deployed merge commit `8f829eac3cd159e4ababada6e5bf0d57355c3708`; deploy `dep-dbt7hjlbedkc73cv9230` ended with status `live`. Build succeeded and process startup was observed on port 10000.
+- Existing Mini App URL remains https://ai-signal-radar-main-market.onrender.com. The V1 / BB selector is stored locally in the browser session and defaults to V1 unless BB is selected.
+- No Telegram Android device interaction was performed by the assistant; user should open the existing Mini App, choose `BB PURE SCALPER · B`, and confirm the UI appears. Do not claim device-side verification or strategy profitability.
+- Strategy note: because B-mode requires the confirmation candle to be fully closed and the existing release gate finalizes at T-5, a confirmed setup may be released in the T-5 window of the following M1 candle for the next target candle. No live signal guarantee; fail closed on insufficient/stale data.
+- The V1 analyzer and `main-market/versions/MAIN-MARKET-EARLY-ENTRY-T5-V1.md` baseline were not modified by PR #123.
