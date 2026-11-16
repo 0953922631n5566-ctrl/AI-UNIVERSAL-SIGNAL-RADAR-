@@ -1968,3 +1968,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App displays BB(20,2) state, score, and bonus in the scoring breakdown; no chat messages and no broker execution.
 - New tests: `main-market/test/bb-pure-scalper.test.js` covering no-touch neutrality, touch without confirmation, upper-band PUT rejection, lower-band CALL rejection, and insufficient history.
 - New branch commits include module, integration, package architecture metadata, health metadata, Mini App display and tests. Automated test/build, PR review, Render deployment, live endpoint and Android Telegram device verification are still pending. Do not claim deployed or production validated until each gate is verified.
+
+
+## 2026-11-16 — V1 + BB cooperative deployment checkpoint
+
+- Merged cooperative implementation via PR #125; fixed the two stale Mini App header assertions via PR #126.
+- Live Main Market deployment: Render deploy `dep-dbt9hsijnfac73d4a69g`, commit `69955a6866ed970ffad93705b13a97818f705853`, status `live`.
+- Render build/install passed: `npm test` reports 123 tests, 119 passed, 0 failed, 4 skipped; subsequent JavaScript syntax checks and build completed successfully.
+- Live `/health` verified version `2026-11-16-v1-bb-cooperative-v1`; architecture reports two cooperative analyzers, V1 primary, BB(20,2) supplementary, maximum +10 confirmation points, no standalone BB direction, conflict policy STANDBY.
+- Live `/signal` serves the updated Telegram Mini App HTML and labels V1 + BB Pure Scalper.
+- Live `/api/public/signal` verified EUR/USD, M1, Streaming, 54/54 closed candles, API ONLINE, Twelve Data pool 10/10 ready. Current snapshot was STANDBY with V1 PUT score 61.7 and BB TOUCH_WITHOUT_CONFIRMATION (bonus +0), correctly withholding a signal until confirmation and score/timing requirements are met.
+- Not yet verified: actual Telegram Android device session, sound permission, vibration, and end-to-end alert delivery. User must open the Mini App in Telegram and tap Start / enable sound to complete device acceptance.
+- Signal release remains manual-only and not out-of-sample validated. Do not claim predictive accuracy or Production-Ready.
