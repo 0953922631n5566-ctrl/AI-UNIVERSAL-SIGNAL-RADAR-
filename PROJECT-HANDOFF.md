@@ -1976,3 +1976,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - This label maps to the actual production state recorded above under PR #118 / merge commit `a333a1dd4a33e70ddb5e2418c17927d0fc57363e` / Render deploy `dep-dbrffrnf3r2c73c00dn0`: Local Partial Scoring with BOS/CHOCH, candle confirmation and momentum exhaustion blended into existing scoring; 30/30/20/20 component budgets; CALL/PUT 65 and PREPARE 45; closed M1 candles; 100-candle history and 50+4 decision window; T-10 PREPARE, T-5 finalization and 30-second signal hold.
 - This is documentation-only; no analyzer logic, score, timing, Mini App, API or Render configuration was changed.
 - Future strategy changes must compare against this baseline, use exact target-candle outcome grading, preserve experiments separately, and require user approval before Production changes. Predictive accuracy and profitability remain unvalidated by independent OOS/paper-trading evidence.
+
+
+## 2026-11-16 — BB Pure Scalper standalone B-mode (isolated candidate)
+- Work is isolated on branch `feature/bb-pure-scalper-standalone-b`; it does not modify the V1 version snapshot or the V1 scoring engine.
+- The existing Main Market backend already computes `bbScalper` alongside the V1 analyzer and exposes it in the Mini App state. This task changes only the BB analyzer rules and Mini App presentation/selection.
+- BB B-mode is confirmation-only: a closed candle must touch BB(20,2), close back inside with a rejection wick and minimum matching pressure; the next closed M1 candle must break the rejection candle high (CALL) or low (PUT), close with matching pressure, and pass the counter-trend Band Walk guard. Same-candle immediate reversal is disabled.
+- Mini App has a local V1 / BB PURE SCALPER · B selector. The selector changes the displayed analyzer only; V1 remains computed independently and its thresholds, scoring, timing and release gates are not changed.
+- Added tests for pending confirmation, confirmed CALL, confirmed PUT, malformed/insufficient candles, and ignoring the in-progress live candle.
+- No merge/deploy/live-device verification has been performed at this checkpoint. Keep the existing Main Market service unchanged until PR tests pass and the candidate is reviewed.

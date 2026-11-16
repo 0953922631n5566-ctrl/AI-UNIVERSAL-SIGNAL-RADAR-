@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#07110d">
-  <title>SIGNAL RADAR PRO · EMA 5/20 RELAXED TREND FLOW</title>
+  <title>SIGNAL RADAR PRO · V1 / BB PURE SCALPER</title>
   <link rel="stylesheet" href="/styles.css?v=20261109-no-standby-display">
 </head>
 <body>
   <main class="shell">
     <header class="header">
-      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>PURE TECHNICAL · EMA 5/20 <i>·</i> NON-OTC</small></div></div>
+      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>V1 / BB PURE SCALPER <i>·</i> NON-OTC</small></div></div>
       <div id="connection" class="status offline"><span></span> OFFLINE</div>
     </header>
 
@@ -25,6 +25,12 @@
       <label class="pair-field"><span>คู่เงิน · MANUAL</span>
         <select id="pairSelect" disabled>
           <option selected>EUR/USD</option>
+        </select>
+      </label>
+      <label class="pair-field strategy-field"><span>ANALYZER · เลือกแยกอิสระ</span>
+        <select id="strategySelect">
+          <option value="V1">V1 · MAIN MARKET</option>
+          <option value="BB">BB PURE SCALPER · B</option>
         </select>
       </label>
       <div class="time-field"><span>TIMEFRAME</span><b>M1 <small>· 1 นาที</small></b></div>
@@ -49,9 +55,9 @@
     <section class="metrics">
       <div class="metric"><span>LIVE PRICE</span><b id="livePrice">—</b></div>
       <div class="metric"><span>CLOSED CLOSE</span><b id="closePrice">—</b></div>
-      <div class="metric"><span>RSI 14</span><b id="rsiValue">—</b></div>
-      <div class="metric"><span>EMA 5 / 20</span><b id="emaValue">—</b></div>
-      <div class="metric"><span>MACD HISTOGRAM</span><b id="macdValue">—</b></div>
+      <div class="metric"><span id="metricOneLabel">RSI 14</span><b id="rsiValue">—</b></div>
+      <div class="metric"><span id="metricTwoLabel">EMA 5 / 20</span><b id="emaValue">—</b></div>
+      <div class="metric"><span id="metricThreeLabel">MACD HISTOGRAM</span><b id="macdValue">—</b></div>
       <div class="metric"><span>DATA AGE</span><b id="dataAge">—</b></div>
     </section>
 

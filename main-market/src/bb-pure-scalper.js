@@ -1,29 +1,201 @@
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
-const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
+const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+
 export const BB_PERIOD = 20;
 export const BB_DEVIATION = 2;
-function valid(xs) { return Array.isArray(xs) && xs.length >= 22 && xs.every(c => c && c.live !== true && [c.open,c.high,c.low,c.close].every(Number.isFinite) && c.low > 0 && c.high >= Math.max(c.open,c.close) && c.low <= Math.min(c.open,c.close) && c.high >= c.low); }
-function bands(xs, end) { const a=xs.slice(end-19,end+1).map(c=>c.close), m=mean(a), sd=Math.sqrt(mean(a.map(x=>(x-m)**2))); return {middle:m,upper:m+2*sd,lower:m-2*sd,width:m?4*sd/m:0}; }
-function shape(c) { const r=Math.max(c.high-c.low,1e-12); return {bodyRatio:Math.abs(c.close-c.open)/r,upperWickRatio:(c.high-Math.max(c.open,c.close))/r,lowerWickRatio:(Math.min(c.open,c.close)-c.low)/r,closeLocation:(c.close-c.low)/r,bullish:c.close>c.open,bearish:c.close<c.open}; }
-function pressure(c) { const s=shape(c); return {buying:clamp(.45*(s.bullish?s.bodyRatio:0)+.30*s.closeLocation+.25*s.lowerWickRatio),selling:clamp(.45*(s.bearish?s.bodyRatio:0)+.30*(1-s.closeLocation)+.25*s.upperWickRatio),shape:s}; }
-function ema(xs,p) { const k=2/(p+1); let v=xs[0]; const out=[v]; for(let i=1;i<xs.length;i++){v=xs[i]*k+v*(1-k);out.push(v);} return out; }
-function rejection(c,b,d) { const p=pressure(c),s=p.shape; if(d==="CALL"){const touched=c.low<=b.lower,reclaimed=c.close>b.lower,rejected=s.lowerWickRatio>=.30&&s.closeLocation>=.55;return {valid:touched&&reclaimed&&rejected&&p.buying>=.48,pressure:p.buying};} const touched=c.high>=b.upper,reclaimed=c.close<b.upper,rejected=s.upperWickRatio>=.30&&s.closeLocation<=.45;return {valid:touched&&reclaimed&&rejected&&p.selling>=.48,pressure:p.selling}; }
+
+function valid(xs) {
+  return Array.isArray(xs) && xs.length >= BB_PERIOD + 2 &&
+    xs.every(c => c && c.live !== true &&
+      [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+      c.low > 0 && c.high >= Math.max(c.open, c.close) &&
+      c.low <= Math.min(c.open, c.close) && c.high >= c.low);
+}
+
+function bands(xs, end) {
+  const closes = xs.slice(end - BB_PERIOD + 1, end + 1).map(c => c.close);
+  const middle = mean(closes);
+  const deviation = Math.sqrt(mean(closes.map(x => (x - middle) ** 2)));
+  return {
+    middle,
+    upper: middle + BB_DEVIATION * deviation,
+    lower: middle - BB_DEVIATION * deviation,
+    width: middle ? (BB_DEVIATION * 2 * deviation) / middle : 0
+  };
+}
+
+function candlePressure(candle) {
+  const range = Math.max(candle.high - candle.low, 1e-12);
+  const bodyRatio = Math.abs(candle.close - candle.open) / range;
+  const upperWickRatio = (candle.high - Math.max(candle.open, candle.close)) / range;
+  const lowerWickRatio = (Math.min(candle.open, candle.close) - candle.low) / range;
+  const closeLocation = (candle.close - candle.low) / range;
+  const bullish = candle.close > candle.open;
+  const bearish = candle.close < candle.open;
+  const buying = clamp(
+    0.45 * (bullish ? bodyRatio : 0) +
+    0.30 * closeLocation +
+    0.25 * lowerWickRatio
+  );
+  const selling = clamp(
+    0.45 * (bearish ? bodyRatio : 0) +
+    0.30 * (1 - closeLocation) +
+    0.25 * upperWickRatio
+  );
+  return {
+    buying, selling,
+    bodyRatio, upperWickRatio, lowerWickRatio, closeLocation,
+    bullish, bearish
+  };
+}
+
+function ema(values, period) {
+  const multiplier = 2 / (period + 1);
+  let current = values[0];
+  const output = [current];
+  for (let i = 1; i < values.length; i++) {
+    current = values[i] * multiplier + current * (1 - multiplier);
+    output.push(current);
+  }
+  return output;
+}
+
+function rejection(candle, band, direction) {
+  const p = candlePressure(candle);
+  if (direction === "CALL") {
+    const touched = candle.low <= band.lower;
+    const reclaimed = candle.close > band.lower;
+    const rejected = p.lowerWickRatio >= 0.30 && p.closeLocation >= 0.55;
+    return { valid: touched && reclaimed && rejected && p.buying >= 0.48, pressure: p.buying };
+  }
+  const touched = candle.high >= band.upper;
+  const reclaimed = candle.close < band.upper;
+  const rejected = p.upperWickRatio >= 0.30 && p.closeLocation <= 0.45;
+  return { valid: touched && reclaimed && rejected && p.selling >= 0.48, pressure: p.selling };
+}
+
+/**
+ * BB Pure Scalper B-mode:
+ * 1) A fully closed candle must touch an outer BB and close back inside with rejection wick.
+ * 2) The next fully closed candle must break the rejection candle's high/low and confirm
+ *    the matching buying/selling pressure.
+ * No same-candle/immediate reversal signals are permitted.
+ */
 export function analyzeBBPureScalper(input) {
- const xs=Array.isArray(input)?input.filter(c=>c&&c.live!==true):[];
- if(!valid(xs)) return {ready:false,signal:"STANDBY",setup:"NONE",strategy:"BB_PURE_SCALPER_STANDALONE",reason:"ต้องมีแท่ง M1 ปิดแล้วและ OHLC ถูกต้องอย่างน้อย 22 แท่ง",evidence:[]};
- const i=xs.length-1,c=xs[i],p=xs[i-1],b=bands(xs,i),pb=bands(xs,i-1),ps=pressure(c),s=ps.shape,closes=xs.map(x=>x.close),e=ema(closes,20),slope=e[i]-e[i-3];
- const expanding=b.width>pb.width*1.04;
- const prior=xs.slice(-4,-1);
- const upperWalk=prior.filter((x,j)=>x.close>bands(xs,xs.length-4+j).upper).length>=2;
- const lowerWalk=prior.filter((x,j)=>x.close<bands(xs,xs.length-4+j).lower).length>=2;
- const bullDrive=slope>0&&expanding&&upperWalk, bearDrive=slope<0&&expanding&&lowerWalk;
- const callNow=rejection(c,b,"CALL"),putNow=rejection(c,b,"PUT");
- let signal="STANDBY",setup="NONE",reason="ยังไม่พบการแตะขอบ BB พร้อมแรงปฏิเสธราคา",confirmed=false;
- if(callNow.valid&&!bearDrive){signal="CALL";setup="IMMEDIATE_REJECTION";reason="แตะ BB ล่างแล้วปิดกลับเข้ากรอบ พร้อมแรงซื้อ";}
- else if(putNow.valid&&!bullDrive){signal="PUT";setup="IMMEDIATE_REJECTION";reason="แตะ BB บนแล้วปิดกลับเข้ากรอบ พร้อมแรงขาย";}
- else { const prevBand=bands(xs,i-1),callPrev=rejection(p,prevBand,"CALL"),putPrev=rejection(p,prevBand,"PUT"); const callConfirm=callPrev.valid&&c.close>p.high&&ps.buying>=.48&&s.closeLocation>=.58; const putConfirm=putPrev.valid&&c.close<p.low&&ps.selling>=.48&&s.closeLocation<=.42;
- if(callConfirm&&!bearDrive){signal="CALL";setup="CONFIRMED_REVERSAL";confirmed=true;reason="แท่งก่อนปฏิเสธ BB ล่าง และแท่งล่าสุดยืนยันทะลุ High พร้อมแรงซื้อ";}
- else if(putConfirm&&!bullDrive){signal="PUT";setup="CONFIRMED_REVERSAL";confirmed=true;reason="แท่งก่อนปฏิเสธ BB บน และแท่งล่าสุดยืนยันทะลุ Low พร้อมแรงขาย";} }
- if(signal==="STANDBY"&&(bullDrive||bearDrive)) reason="กรองสัญญาณกลับตัว: พบ Band Walk และแรงขยายตัวตามเทรนด์";
- return {ready:true,signal,direction:["CALL","PUT"].includes(signal)?signal:null,setup,confirmed,reason,strategy:"BB_PURE_SCALPER_STANDALONE",provider:"LOCAL_BOLLINGER_PRICE_ACTION",evidence:["BB(20,2) Upper "+b.upper.toFixed(5)+" · Middle "+b.middle.toFixed(5)+" · Lower "+b.lower.toFixed(5),"แรงซื้อ "+(ps.buying*100).toFixed(0)+"% · แรงขาย "+(ps.selling*100).toFixed(0)+"%","ไส้บน "+(s.upperWickRatio*100).toFixed(0)+"% · ไส้ล่าง "+(s.lowerWickRatio*100).toFixed(0)+"%","Band width "+b.width.toFixed(5)+" · "+(expanding?"กำลังกว้างขึ้น":"ไม่ขยายตัวเด่นชัด"),"EMA20 slope "+slope.toExponential(2)+" · "+(bullDrive?"UPPER BAND WALK":bearDrive?"LOWER BAND WALK":"ไม่พบ Band Walk ที่ยืนยัน")],metrics:{period:20,deviation:2,upper:b.upper,middle:b.middle,lower:b.lower,bandwidth:b.width,buyingPressure:ps.buying,sellingPressure:ps.selling,upperWickRatio:s.upperWickRatio,lowerWickRatio:s.lowerWickRatio,bandExpanding:expanding,bullishBandWalk:bullDrive,bearishBandWalk:bearDrive,lastClosedCandleEpoch:c.epoch??null},riskFlags:bullDrive||bearDrive?["COUNTER_TREND_BAND_WALK_BLOCK"]:[]};
+  const candles = Array.isArray(input) ? input.filter(c => c && c.live !== true) : [];
+  if (!valid(candles)) {
+    return {
+      ready: false, signal: "STANDBY", setup: "NONE",
+      strategy: "BB_PURE_SCALPER_STANDALONE_B",
+      reason: "ต้องมีแท่ง M1 ปิดแล้วและ OHLC ถูกต้องอย่างน้อย 22 แท่ง",
+      evidence: []
+    };
+  }
+
+  const index = candles.length - 1;
+  const previous = candles[index - 1];
+  const current = candles[index];
+  const currentBand = bands(candles, index);
+  const previousBand = bands(candles, index - 1);
+  const currentPressure = candlePressure(current);
+  const previousPressure = candlePressure(previous);
+  const closes = candles.map(c => c.close);
+  const ema20 = ema(closes, 20);
+  const slope = ema20[index] - ema20[index - 3];
+  const expanding = currentBand.width > previousBand.width * 1.04;
+
+  const priorThree = candles.slice(-4, -1);
+  const bandWalkUp = priorThree.filter((c, offset) =>
+    c.close > bands(candles, candles.length - 4 + offset).upper
+  ).length >= 2;
+  const bandWalkDown = priorThree.filter((c, offset) =>
+    c.close < bands(candles, candles.length - 4 + offset).lower
+  ).length >= 2;
+  const bullishBandWalk = slope > 0 && expanding && bandWalkUp;
+  const bearishBandWalk = slope < 0 && expanding && bandWalkDown;
+
+  const currentLowerRejection = rejection(current, currentBand, "CALL");
+  const currentUpperRejection = rejection(current, currentBand, "PUT");
+  const priorLowerRejection = rejection(previous, previousBand, "CALL");
+  const priorUpperRejection = rejection(previous, previousBand, "PUT");
+  const callConfirmed =
+    priorLowerRejection.valid &&
+    current.close > previous.high &&
+    currentPressure.buying >= 0.48 &&
+    currentPressure.closeLocation >= 0.58 &&
+    currentPressure.bullish;
+  const putConfirmed =
+    priorUpperRejection.valid &&
+    current.close < previous.low &&
+    currentPressure.selling >= 0.48 &&
+    currentPressure.closeLocation <= 0.42 &&
+    currentPressure.bearish;
+
+  let signal = "STANDBY";
+  let setup = "WAIT_FOR_BB_TOUCH_AND_REJECTION";
+  let confirmed = false;
+  let reason = "รอแท่งปิดแตะขอบ BB และยืนยันการกลับตัวด้วยแท่งถัดไป";
+
+  if (callConfirmed && !bearishBandWalk) {
+    signal = "CALL";
+    setup = "CONFIRMED_REVERSAL";
+    confirmed = true;
+    reason = "แท่งก่อนปฏิเสธ BB ล่าง และแท่งล่าสุดปิดทะลุ High พร้อมแรงซื้อยืนยัน";
+  } else if (putConfirmed && !bullishBandWalk) {
+    signal = "PUT";
+    setup = "CONFIRMED_REVERSAL";
+    confirmed = true;
+    reason = "แท่งก่อนปฏิเสธ BB บน และแท่งล่าสุดปิดทะลุ Low พร้อมแรงขายยืนยัน";
+  } else if (bullishBandWalk || bearishBandWalk) {
+    setup = "BAND_WALK_BLOCK";
+    reason = "กรองสัญญาณกลับตัว: พบ Band Walk และแรงขยายตัวตามเทรนด์";
+  } else if (currentLowerRejection.valid || currentUpperRejection.valid || priorLowerRejection.valid || priorUpperRejection.valid) {
+    setup = "WAIT_FOR_CONFIRMATION";
+    reason = currentLowerRejection.valid
+      ? "แท่งล่าสุดแตะ BB ล่างและปิดกลับเข้ากรอบแล้ว · รอแท่งถัดไปยืนยันแรงซื้อ"
+      : currentUpperRejection.valid
+        ? "แท่งล่าสุดแตะ BB บนและปิดกลับเข้ากรอบแล้ว · รอแท่งถัดไปยืนยันแรงขาย"
+        : "พบแท่งปฏิเสธขอบ BB แล้ว แต่แท่งล่าสุดยังไม่ยืนยันทะลุ High/Low";
+  }
+
+  return {
+    ready: true,
+    signal,
+    direction: ["CALL", "PUT"].includes(signal) ? signal : null,
+    setup,
+    confirmed,
+    reason,
+    strategy: "BB_PURE_SCALPER_STANDALONE_B",
+    provider: "LOCAL_BOLLINGER_PRICE_ACTION",
+    evidence: [
+      "BB(20,2) Upper " + currentBand.upper.toFixed(5) +
+        " · Middle " + currentBand.middle.toFixed(5) +
+        " · Lower " + currentBand.lower.toFixed(5),
+      "แรงซื้อแท่งล่าสุด " + (currentPressure.buying * 100).toFixed(0) +
+        "% · แรงขาย " + (currentPressure.selling * 100).toFixed(0) + "%",
+      "ไส้บน " + (previousPressure.upperWickRatio * 100).toFixed(0) +
+        "% · ไส้ล่าง " + (previousPressure.lowerWickRatio * 100).toFixed(0) + "% (แท่งก่อนหน้า)",
+      "แท่งยืนยัน: " + (confirmed ? "ผ่าน" : "ยังไม่ผ่าน") +
+        " · " + (currentPressure.bullish ? "แท่งเขียว" : currentPressure.bearish ? "แท่งแดง" : "แท่งไม่มีทิศทาง"),
+      "EMA20 slope " + slope.toExponential(2) +
+        " · " + (bullishBandWalk ? "UPPER BAND WALK" : bearishBandWalk ? "LOWER BAND WALK" : "ไม่พบ Band Walk ที่ยืนยัน")
+    ],
+    metrics: {
+      period: BB_PERIOD, deviation: BB_DEVIATION,
+      upper: currentBand.upper, middle: currentBand.middle, lower: currentBand.lower,
+      bandwidth: currentBand.width,
+      buyingPressure: currentPressure.buying,
+      sellingPressure: currentPressure.selling,
+      previousBuyingPressure: previousPressure.buying,
+      previousSellingPressure: previousPressure.selling,
+      upperWickRatio: previousPressure.upperWickRatio,
+      lowerWickRatio: previousPressure.lowerWickRatio,
+      bandExpanding: expanding,
+      bullishBandWalk, bearishBandWalk,
+      lastClosedCandleEpoch: current.epoch ?? null,
+      previousClosedCandleEpoch: previous.epoch ?? null,
+      confirmationCandleEpoch: current.epoch ?? null
+    },
+    riskFlags: bullishBandWalk || bearishBandWalk ? ["COUNTER_TREND_BAND_WALK_BLOCK"] : []
+  };
 }
