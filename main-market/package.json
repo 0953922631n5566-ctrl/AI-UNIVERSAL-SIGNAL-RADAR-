@@ -17,7 +17,7 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "V1 Partial Scoring + BB Pure Scalper Independent Engines",
+    "name": "V1 + BB + Trend Rider AI Independent Engines",
     "displayName": "Three Independent Engines: V1 + BB(20,2) + Trend Rider EMA5/20",
     "engineCount": 3,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
