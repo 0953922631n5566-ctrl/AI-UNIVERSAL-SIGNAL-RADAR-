@@ -23,13 +23,13 @@
 <section class="engine-grid">
 <div id="v1Card" class="engine-card"><div class="engine-title">01 · V1 ORIGINAL</div><b id="v1Signal" class="engine-value">STANDBY</b><p id="v1Reason" class="engine-reason">รอผลวิเคราะห์ V1</p></div>
 <div id="bbCard" class="engine-card"><div class="engine-title">02 · BB PURE SCALPER</div><b id="bbSignal" class="engine-value">STANDBY</b><p id="bbReason" class="engine-reason">รอผลวิเคราะห์ BB</p></div>
-<div class="engine-card unavailable"><div class="engine-title">03 · TREND RIDER AI</div><b class="engine-value">ยังไม่เชื่อมต่อ</b><p class="engine-reason">การ์ดเตรียมไว้ · ยังไม่มีเครื่องยนต์ในเซิร์ฟเวอร์ จึงไม่แสดงสัญญาณจำลอง</p></div>
+<div id="trendCard" class="engine-card"><div class="engine-title">03 · TREND RIDER AI</div><b id="trendSignal" class="engine-value">STANDBY</b><p id="trendReason" class="engine-reason">รอผลวิเคราะห์ Trend Rider</p></div>
 </section>
 <section class="grid"><div class="metric"><span>MARKET REGIME</span><b id="regime">—</b></div><div class="metric"><span>CLOSED CANDLES</span><b id="candles">—</b></div></section>
 <section class="card"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">V1 และ BB วิเคราะห์แยกอิสระ · Manual only</div></section>
 <details class="api-drawer"><summary><span>ศูนย์ API · สถานะคีย์</span><b id="apiSummary" class="api-summary">กำลังโหลด</b><span>⌄</span></summary><div id="apiKeys" class="api-grid"></div><div class="note api-note">เขียว = พร้อมใช้ · แดง = พัก/โควตา · เทา = ยังไม่ได้ตั้งค่า</div></details>
 <div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
-<footer class="footer">V1 + BB PURE SCALPER · วิเคราะห์แยกอิสระ · EUR/USD ONLY · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
+<footer class="footer">V1 + BB + TREND RIDER AI · วิเคราะห์แยกอิสระ · EUR/USD ONLY · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
 </main><script>
 const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKeys=new Set(),lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 const tg=window.Telegram?.WebApp||null;
@@ -70,10 +70,10 @@ function ensureAuth(){if(!authPromise)authPromise=authenticate().finally(()=>{au
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0),cooldown=Math.max(0,total-ready);$("apiSummary").textContent="ตั้งค่า "+total+"/10 คีย์ · พร้อมใช้ "+ready+" · พัก/จำกัด "+cooldown;$("apiKeys").replaceChildren();for(let n=1;n<=10;n++){const item=states.find(v=>Number(v.number)===n);const row=document.createElement("div"),name=document.createElement("span"),status=document.createElement("b");row.className="api-key "+(!item?"empty":item.available===false?"bad":"good");name.textContent="API KEY "+String(n).padStart(2,"0");status.textContent=!item?"NOT SET":item.status==="ACTIVE"?"ACTIVE":item.status==="COOLDOWN"?"COOLDOWN":"READY";row.append(name,status);$("apiKeys").append(row);}}
 function paintEngineCards(m,usable){
  const engines=m.engineResults||{};
- const configs=[{key:"V1",card:"v1Card",signal:"v1Signal",reason:"v1Reason",fallback:"V1 Original"},{key:"BB",card:"bbCard",signal:"bbSignal",reason:"bbReason",fallback:"BB Pure Scalper"}];
+ const configs=[{key:"V1",card:"v1Card",signal:"v1Signal",reason:"v1Reason",fallback:"V1 Original"},{key:"BB",card:"bbCard",signal:"bbSignal",reason:"bbReason",fallback:"BB Pure Scalper"},{key:"TREND_RIDER",card:"trendCard",signal:"trendSignal",reason:"trendReason",fallback:"Trend Rider AI"}];
  for(const item of configs){
    const engine=engines[item.key]||{};
-   const required=item.key==="V1"?54:21; 
+   const required=item.key==="V1"?54:item.key==="BB"?21:30; 
    const engineUsable=usable&&Number(m.closedCandleCount||0)>=required; 
    const active=engineUsable&&engine.active&&["CALL","PUT"].includes(engine.signal);
    const candidate=engineUsable&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
@@ -103,7 +103,7 @@ function paint(m){
  const signal=direction||(preparing?"PREPARE":"STANDBY");
  $("panel").className="signal "+(signal==="PREPARE"?"prepare":signal.toLowerCase());
  $("signal").textContent=signal==="PREPARE"?"PREPARE / เฝ้าระวัง":signal;
- $("hint").textContent=signal==="CALL"?"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป":signal==="PUT"?"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป":signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
+ $("hint").textContent=signal==="CALL"?"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป":signal==="PUT"?"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป":signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB/Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
  $("action").textContent=signal==="CALL"?"พิจารณา CALL ด้วยตนเอง":signal==="PUT"?"พิจารณา PUT ด้วยตนเอง":signal==="PREPARE"?"เฝ้าระวัง · ยังไม่มี CALL/PUT":"ยังไม่เข้าออเดอร์";
  $("api").className="pill "+(api!=="ONLINE"?"off":support==="REST_ONLY"?"rest":"live");
  $("api").textContent=api!=="ONLINE"?"API "+api:support==="REST_ONLY"?"REST DATA":"STREAM LIVE";
@@ -111,13 +111,13 @@ function paint(m){
  $("regime").textContent=regime(m.regime);
  $("candles").textContent=(m.closedCandleCount??0)+"/"+required+" · "+(m.analysisWindow?.contextCandles??50)+"+"+(m.analysisWindow?.entryCandles??4);
  $("age").textContent=Number.isFinite(m.ageSeconds)?Math.round(m.ageSeconds)+"s":Number.isFinite(m.tickAgeSeconds)?Math.round(m.tickAgeSeconds)+"s":"—";
- $("reason").textContent=usable?(m.reason||m.statusMessage||"V1 และ BB กำลังวิเคราะห์แยกอิสระ"):(m.statusMessage||m.reason||"รอข้อมูลตลาดที่สดและครบถ้วน");
+ $("reason").textContent=usable?(m.reason||m.statusMessage||"V1, BB และ Trend Rider กำลังวิเคราะห์แยกอิสระ"):(m.statusMessage||m.reason||"รอข้อมูลตลาดที่สดและครบถ้วน");
  const scoreParts=m.components||{};
  const scoreBreakdown="V1 CALL "+(m.scores?.CALL??"—")+"/100 · PUT "+(m.scores?.PUT??"—")+"/100 · EMA5 "+(scoreParts.ema5SlopeReversal??"—")+"/30 · S/R "+(scoreParts.srFakeout??"—")+"/30 · P/M "+(scoreParts.proximityMomentum??"—")+"/20 · Trend "+(scoreParts.trendContext??"—")+"/20 · BB ทำคะแนนแยก";
  $("reversal").textContent=scoreBreakdown;
  $("reversal").className="reversal-stage "+(m.killSwitch?"warning":signal==="CALL"||signal==="PUT"?"confirmed":"");
  $("evidence").replaceChildren(...(Array.isArray(m.evidence)?m.evidence:[]).slice(0,5).map(v=>{const li=document.createElement("li");li.textContent=String(v);return li}));
- $("validation").textContent=m.signalValidationNote||"V1 Partial Scoring และ BB Pure Scalper วิเคราะห์แยกอิสระ · BB ใช้ BB(20,2) แบบ Early Touch · ทั้งสองใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · ไม่มีการส่งข้อความเข้าแชตหรือส่งคำสั่งซื้อ";
+ $("validation").textContent=m.signalValidationNote||"V1, BB Pure Scalper และ Trend Rider AI วิเคราะห์แยกอิสระ · Trend Rider ใช้ EMA5/20 + โครงสร้าง + Pullback · ทั้งสามใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · ไม่มีการส่งข้อความเข้าแชตหรือส่งคำสั่งซื้อ";
  $("updated").textContent="UPDATED "+new Date().toLocaleTimeString("th-TH");
  if(activeSignals.length){
    for(const item of activeSignals){
