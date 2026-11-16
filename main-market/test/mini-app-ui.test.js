@@ -5,6 +5,7 @@ import { Script } from "node:vm";
 
 const html = readFileSync(new URL("../public/signal.html", import.meta.url), "utf8");
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
+const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("Mini App includes all six selectable currency pairs and ten API slots", () => {
   for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
@@ -68,4 +69,10 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
   assert.doesNotMatch(dashboardJs, /remaining <= 3/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /T-10 PREPARE alert/);
+});
+
+test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
+  assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
+  assert.match(serverJs, /finalizeWindow && finalSignal &&/);
+  assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
