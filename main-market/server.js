@@ -279,7 +279,7 @@ async function evaluate(feed) {
  if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null };
 
  const engineResults = {};
- for (const engine of ["V1", "BB"]) {
+ for (const engine of ["V1", "BB", "TREND_RIDER"]) {
    const candidate = candidates[engine];
    // Only a finalized CALL/PUT from the engine may be released at T-5.
    // V1 PREPARE remains a watch candidate unless its guarded strong-pressure fast lane explicitly returns CALL/PUT.
@@ -430,7 +430,7 @@ async function evaluate(feed) {
 
 function dispatchSignalIfReady(feed) {
  const now = Date.now();
- for (const engine of ["V1", "BB"]) {
+ for (const engine of ["V1", "BB", "TREND_RIDER"]) {
    const active = feed.engineActive?.[engine];
    if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
    if (!canFinalizeSignal({
