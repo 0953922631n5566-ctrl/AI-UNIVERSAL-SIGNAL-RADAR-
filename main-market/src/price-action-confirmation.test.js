@@ -72,15 +72,15 @@ test("Price-action analysis fails closed on insufficient or invalid candles", ()
   assert.equal(analyzePriceAction([{ open: 1, high: 1, low: 1, close: NaN }]).ready, false);
 });
 
-test("New evidence is blended into existing 30/30/20/20 components without changing thresholds", () => {
+test("New evidence is blended into existing 30/30/20/20 components with faster V1 thresholds", () => {
   const result = scoreMarket(risingCandles());
   assert.ok(result.priceAction?.ready);
   assert.ok(Object.hasOwn(result.metrics, "marketStructure"));
   assert.ok(Object.hasOwn(result.metrics, "candleBodyRatio"));
   assert.ok(Object.hasOwn(result.metrics, "momentumExhaustion"));
   assert.equal(Object.keys(result.componentScores.CALL).length, 4);
-  assert.equal(result.thresholds.signal, 65);
-  assert.equal(result.thresholds.prepare, 45);
+  assert.equal(result.thresholds.signal, 55);
+  assert.equal(result.thresholds.prepare, 40);
   for (const side of ["CALL", "PUT"]) {
     const scores = result.componentScores[side];
     assert.ok(scores.ema5SlopeReversal >= 0 && scores.ema5SlopeReversal <= 30);
