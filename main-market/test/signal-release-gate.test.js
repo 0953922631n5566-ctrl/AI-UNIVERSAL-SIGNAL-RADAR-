@@ -4,7 +4,7 @@ import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED, SIGNAL_VALIDATION_STA
 
 test("out-of-sample validation status is informational, not a runtime lock", () => {
   assert.equal(SIGNAL_RELEASE_VALIDATED, false);
-  assert.equal(SIGNAL_VALIDATION_STATUS, "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED");
+  assert.equal(SIGNAL_VALIDATION_STATUS, "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED");
 });
 
 test("Partial Scoring CALL and PUT decisions are preserved with an explicit manual-only validation note", () => {
@@ -16,6 +16,7 @@ test("Partial Scoring CALL and PUT decisions are preserved with an explicit manu
     assert.equal(result.signalValidationStatus, SIGNAL_VALIDATION_STATUS);
     assert.equal(result.alertId, "candidate-id");
     assert.match(result.signalValidationNote, /out-of-sample/);
+    assert.match(result.signalValidationNote, /V1 Partial Scoring 55\/40/);
     assert.deepEqual(result.evidence, ["54 closed M1 candles"]);
   }
 });
