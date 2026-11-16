@@ -47,9 +47,13 @@
       "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
       "ABNORMAL_ATR_SPIKE"
     ],
-    "entryTimingGuard": { "scope": "V1_ONLY", "lateExtensionAtr": 1.25, "extremeExtensionAtr": 1.8, "waitStatus": "PREPARE", "bbIndependent": true },
-    "strongPressureEarlyEntry": { "scope": "V1_ONLY", "minimumScore": 58, "minimumDirectionGap": 8, "requiresPressureAndEmaOrStructure": true, "riskGuardsRemainActive": true },
-    "trendRider": { "emaFast": 5, "emaTrend": 20, "scoreThreshold": 65, "minimumClosedCandles": 30, "independent": true },
+    "trendRider": {
+      "emaFast": 5,
+      "emaTrend": 20,
+      "scoreThreshold": 65,
+      "minimumClosedCandles": 30,
+      "independent": true
+    },
     "bbPureScalper": {
       "period": 20,
       "standardDeviation": 2,
