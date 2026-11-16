@@ -120,6 +120,7 @@ function paintEngineCards(m,usable){
    $(item.reason).textContent=engineUsable?(engine.reason||engine.status||"รอข้อมูลตลาด"):"รอแท่งปิด "+required+" แท่ง";
  }
  if(!engineEnabled.ENGINE_4){
+   engine4HeldSignal=null;engine4HoldUntil=0;engine4FlashUntil=0;engine4LastFinalKey="";
    $("engine4Card").className="engine-card engine-disabled";
    $("engine4Signal").textContent="OFF";
    $("engine4Reason").textContent="ปิดการวิเคราะห์และหยุดส่งสัญญาณแล้ว · แตะเพื่อเปิด";
