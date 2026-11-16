@@ -7,11 +7,13 @@ const html = readFileSync(new URL("../public/signal.html", import.meta.url), "ut
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
-test("Mini App includes all six selectable currency pairs and ten API slots", () => {
-  for (const symbol of ["AUD/USD", "EUR/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
-    assert.match(html, new RegExp(symbol.replace("/", "\\/")));
+test("Mini App is restricted to EUR/USD and keeps API details inside a collapsible menu", () => {
+  assert.match(html, /EUR \/ USD/);
+  assert.match(html, /value="EUR\/USD" selected/);
+  for (const symbol of ["AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
+    assert.doesNotMatch(html, new RegExp(symbol.replace("/", "\\/")));
   }
-  assert.match(html, /TWELVE DATA API KEYS · 01–10/);
+  assert.match(html, /<details class="api-drawer">/);
   assert.match(html, /apiKeys/);
 });
 
