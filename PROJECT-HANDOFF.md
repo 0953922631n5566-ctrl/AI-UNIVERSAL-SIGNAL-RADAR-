@@ -1957,3 +1957,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Source-quality gate, 50+4 closed-candle window, 100-candle history, Twelve Data, streaming freshness, T-10 PREPARE, T-5 finalization, 30-second hold, signal dedupe, Telegram Mini App UI/auth/session, notification sound/vibration and manual-only broker behavior are preserved. No files under `main-market/public/` were changed.
 - Updated health/architecture metadata and analyzer validation note to describe the added evidence. Added deterministic tests for BOS, CHOCH, candle confirmation, exhaustion, invalid data and unchanged component budgets/thresholds.
 - Pending: CI and PR review; only after both Main Market and Telegram Mini App checks pass should this merge and trigger Render deploy. Then verify `/health`, `/api/public/signal`, `/signal`, fresh streaming feed and unchanged T-10/T-5/30s behavior. Predictive accuracy and profitability remain unvalidated; user-side Telegram device testing is still required.
+
+
+## 2026-11-16 — V1 + BB Pure Scalper cooperative analyzer (in progress)
+
+- Preserve the original V1 implementation and commit `a333a1dd4a33e70ddb5e2418c17927d0fc57363e`; work is isolated on branch `feature/v1-bb-cooperative-analysis` created from `main-market`.
+- Additive module `main-market/src/bb-pure-scalper.js`: Bollinger Bands SMA(20), 2 population standard deviations; closed M1 candle only; reversal candidate requires outer-band touch/pierce, close back inside, wick ratio >= 0.35, and directional candle confirmation.
+- V1 Partial Scoring remains the primary decision authority and retains original 30/30/20/20 component weights and 65/45 thresholds.
+- BB Pure Scalper is supplementary only: may add up to 10 confirmation points when a strong BB rejection (score >= 65) agrees with V1; cannot create CALL/PUT by itself. A strong opposite BB rejection forces STANDBY. Choppy/ATR/data/timing guards remain in force.
+- Mini App displays BB(20,2) state, score, and bonus in the scoring breakdown; no chat messages and no broker execution.
+- New tests: `main-market/test/bb-pure-scalper.test.js` covering no-touch neutrality, touch without confirmation, upper-band PUT rejection, lower-band CALL rejection, and insufficient history.
+- New branch commits include module, integration, package architecture metadata, health metadata, Mini App display and tests. Automated test/build, PR review, Render deployment, live endpoint and Android Telegram device verification are still pending. Do not claim deployed or production validated until each gate is verified.
