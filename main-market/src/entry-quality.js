@@ -8,7 +8,7 @@ export function assessEntryQuality(candles, direction, { atr, priceAction } = {}
   if (!Array.isArray(candles) || candles.length < 12 ||
       !["CALL", "PUT"].includes(direction) ||
       !Number.isFinite(atr) || atr <= 0 ||
-      !priceAction?.ready ||
+      !priceAction?.ready || !priceAction.structure || !priceAction.exhaustion ||
       !candles.slice(-7).every(c => c && [c.open, c.high, c.low, c.close].every(Number.isFinite))) {
     return {
       ready: false, blocked: true, status: "UNAVAILABLE",
@@ -21,7 +21,6 @@ export function assessEntryQuality(candles, direction, { atr, priceAction } = {}
   const prior = candles.slice(-7, -1);
   const swingHigh = Math.max(...prior.map(c => c.high));
   const swingLow = Math.min(...prior.map(c => c.low));
-  const sign = direction === "CALL" ? 1 : -1;
   const range = Math.max(last.high - last.low, 1e-12);
   const bodyRatio = clamp(Math.abs(last.close - last.open) / range);
   const brokeSwing = direction === "CALL"
@@ -31,8 +30,7 @@ export function assessEntryQuality(candles, direction, { atr, priceAction } = {}
     ? (swingHigh - last.close) / atr
     : (last.close - swingLow) / atr;
   const nearOpposingSwing = !brokeSwing &&
-    distanceToOpposingSwingAtr >= 0 &&
-    distanceToOpposingSwingAtr <= 0.20;
+    Math.abs(distanceToOpposingSwingAtr) <= 0.20;
 
   const exhaustion = priceAction.exhaustion;
   const sameDirectionRun = exhaustion?.sameDirectionRun ?? 0;
