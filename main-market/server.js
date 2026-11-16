@@ -30,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
 const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-independent-v2";
+const VERSION = "2026-11-16-v1-bb-independent-v3";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -281,10 +281,12 @@ async function evaluate(feed) {
  const engineResults = {};
  for (const engine of ["V1", "BB"]) {
    const candidate = candidates[engine];
-   const candidateSignal = ["CALL", "PUT"].includes(candidate.signal)
-     ? candidate.signal
-     : engine === "V1" && candidate.signal === "PREPARE" &&
-       ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null;
+   // Only a finalized CALL/PUT from the engine may be released at T-5.
+   // V1 PREPARE (45-64 points) remains a watch candidate and must never be promoted.
+   const finalSignal = ["CALL", "PUT"].includes(candidate.signal) ? candidate.signal : null;
+   const candidateSignal = finalSignal ||
+     (engine === "V1" && candidate.signal === "PREPARE" &&
+       ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
    let active = feed.engineActive[engine];
    if (active && now >= active.expiresAt) {
      active = null;
@@ -292,20 +294,20 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   if (!activeForCurrentOrNext && finalizeWindow && candidateSignal &&
+   if (!activeForCurrentOrNext && finalizeWindow && finalSignal &&
        canFinalizeSignal({
          candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
        })) {
      active = {
-       engine, signal: candidateSignal, sourceCandleEpoch, targetCandleEpoch,
+       engine, signal: finalSignal, sourceCandleEpoch, targetCandleEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
        score: candidate.score ?? 0, sourceReason: candidate.reason || null,
-       alertId: `${engine}:${targetCandleEpoch}:${candidateSignal}`
+       alertId: `${engine}:${targetCandleEpoch}:${finalSignal}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
-       engine, symbol: feed.symbol, signal: candidateSignal,
+       engine, symbol: feed.symbol, signal: finalSignal,
        sourceCandleEpoch, targetCandleEpoch, score: candidate.score ?? null,
        expiresAt: new Date(active.expiresAt).toISOString()
      });

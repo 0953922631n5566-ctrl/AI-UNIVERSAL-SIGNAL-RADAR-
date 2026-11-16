@@ -2018,3 +2018,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Created `feature/active-signal-clarity-20261116` to label active held signal separately from latest candidate and to retain the score/reason that produced the held signal. This clarification is not yet deployed.
 - `/signal` HTML is served and contains the new independent engine cards. Actual JavaScript session initialization, Telegram Android sound/vibration, and end-to-end T-5 alert delivery still require a real Mini App session on the user's device.
 - Keep the current live build active until the clarity patch passes build and deploy. Do not claim out-of-sample validation or trading accuracy.
+
+
+## 2026-11-16 — V1 PREPARE must not become a T-5 release
+
+- Live API inspection after the independent-engine deployment exposed a release-gate bug: a V1 `PREPARE` candidate with a 45–64 score could be promoted at T-5 because the server treated its `prepareSignal` as a final directional signal.
+- Created branch `fix/v1-prepare-not-final-signal-20261116`.
+- Server now distinguishes `finalSignal` (only V1/BB candidate `CALL` or `PUT`) from `candidateSignal` (which may include V1 PREPARE for watch display). T-5 finalization uses only `finalSignal`.
+- V1 remains CALL/PUT only at >=65; 45–64 remains PREPARE/watch and cannot be dispatched. BB remains independently eligible under its BB touch/reversal rule.
+- Version bumped to `2026-11-16-v1-bb-independent-v3`; added a regression test ensuring PREPARE cannot be promoted.
+- This fix is not yet deployed. Merge and verify Render tests/build before treating the new V1 threshold guard as live.
