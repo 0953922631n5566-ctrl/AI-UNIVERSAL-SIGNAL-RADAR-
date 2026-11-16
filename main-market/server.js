@@ -9,7 +9,6 @@ import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
@@ -257,12 +256,8 @@ async function evaluate(feed) {
  // Local Partial Scoring is the directional analyst; T-5 live-candle and reversal guards are deterministic.
  const finalizeWindow = sourceCandleEpoch !== null &&
    isSignalFinalizeWindow(sourceCandleEpoch, now);
- const rawResult = await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
-   liveCandidate: currentCandle?.live === true ? currentCandle : null,
-   allowLiveCandidate: finalizeWindow && tickAge !== null && tickAge <= 5
- });
- const result = applySignalReleaseGate(rawResult);
+ // BB-only operating mode: retain V1 source/tests for rollback, but do not execute V1 analysis.
+ const result = standby("ปิดการวิเคราะห์ V1 ชั่วคราว · ใช้ BB PURE SCALPER เท่านั้น");
  const bbCandidate = analyzeBBPureScalper(feed.candles);
  feed.bbCandidate = bbCandidate;
  if (feed.bbActiveSignal && now >= feed.bbActiveUntil) {
@@ -290,6 +285,13 @@ async function evaluate(feed) {
    });
  }
 
+ // V1 signal state is deliberately inert during the BB-only trial.
+ feed.activeSignal = null;
+ feed.activeUntil = 0;
+ feed.signalCandle = null;
+ feed.signalSourceCandle = null;
+ feed.signalTriggeredAt = 0;
+ feed.alertId = null;
 
  if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
