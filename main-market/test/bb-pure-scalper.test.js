@@ -4,12 +4,11 @@ import { analyzeBBPureScalper } from "../src/bb-pure-scalper.js";
 
 function baseCandles(count = 24) {
   const rows = [];
-  let price = 1.1;
   for (let i = 0; i < count; i++) {
-    const open = price;
-    price += (i % 2 === 0 ? 1 : -1) * 0.00002;
-    rows.push({ open, close: price, high: Math.max(open, price) + 0.00004,
-      low: Math.min(open, price) - 0.00004, live: false });
+    const close = 1.1 + i * 0.00001;
+    const open = close - 0.000008;
+    rows.push({ open, close, high: Math.max(open, close) + 0.000005,
+      low: Math.min(open, close) - 0.000005, live: false });
   }
   return rows;
 }
