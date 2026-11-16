@@ -36,6 +36,8 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /m\.activeSignals/);
   assert.match(html, /id="v1Card"/);
   assert.match(html, /id="bbCard"/);
+  assert.match(html, /id="trendCard"/);
+  assert.match(html, /id="trendSignal"/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /SCORING BREAKDOWN/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
@@ -49,6 +51,8 @@ test("Mini App identifies Partial Scoring and exposes weighted score breakdown",
   assert.match(html, /m\.activeSignals/);
   assert.match(html, /id="v1Card"/);
   assert.match(html, /id="bbCard"/);
+  assert.match(html, /id="trendCard"/);
+  assert.match(html, /id="trendSignal"/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /m\.components\|\|\{\}/);
   assert.match(html, /m\.killSwitch/);
