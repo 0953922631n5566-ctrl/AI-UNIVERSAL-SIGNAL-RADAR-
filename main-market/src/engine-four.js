@@ -61,7 +61,7 @@ export function analyzeEveryCandle(input) {
     return {
       ready: true, signal: null, candidateSignal: null, status: "BELOW_THRESHOLD",
       score, confidence: score, candleEpoch: last.epoch,
-      targetCandleAt: new Date((last.epoch + 60) * 1000).toISOString(),
+      targetCandleAt: new Date((last.epoch + 120) * 1000).toISOString(),
       reason: `ข้อมูลแท่ง M1 ถูกต้อง แต่คะแนนแรงทิศทาง ${score}/100 ต่ำกว่าเกณฑ์ 20/100`,
       metrics: {
         ema5: Number(fast.toFixed(6)), ema20: Number(slow.toFixed(6)),
