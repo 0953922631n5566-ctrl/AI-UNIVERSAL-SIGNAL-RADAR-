@@ -10,6 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -97,6 +98,7 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
+  const bbScalper = analyzeBBPureScalper(feed.candles);
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
   const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
@@ -112,6 +114,7 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
+    bbScalper,
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
