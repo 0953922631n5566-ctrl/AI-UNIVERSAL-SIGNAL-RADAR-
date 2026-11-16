@@ -2028,3 +2028,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - V1 remains CALL/PUT only at >=65; 45–64 remains PREPARE/watch and cannot be dispatched. BB remains independently eligible under its BB touch/reversal rule.
 - Version bumped to `2026-11-16-v1-bb-independent-v3`; added a regression test ensuring PREPARE cannot be promoted.
 - This fix is not yet deployed. Merge and verify Render tests/build before treating the new V1 threshold guard as live.
+
+
+## 2026-11-16 — V1 Entry Timing Quality Guard (validation pending)
+
+- User reported that V1 sometimes waits a long time, then enters at visibly poor/late moments while apparently better opportunities are missed.
+- Audited the current independent V1/BB source. V1 already blends BOS/CHOCH, candle confirmation and momentum exhaustion into the original 30/30/20/20 score, but those remain supporting score evidence and did not independently stop late continuation entries.
+- Created isolated branch feature/v1-entry-timing-quality-20261116 from the deployed main-market baseline commit 98cfb17bd8df5591d02a16375e728b9482c9aa27.
+- Added main-market/src/entry-timing.js and integrated a V1-only late-entry guard. It preserves direction scores and 65/45 thresholds; when extension from EMA5 is at least 1.25 ATR with mature-run / exhaustion evidence, V1 is held at PREPARE until a better pullback/reversal setup. Extreme extension >=1.8 ATR with a same-direction run >=2 also waits.
+- BB remains independent and unchanged. Twelve Data, source-quality guard, Mini App UI, T-10/T-5 timing, 30-second hold, sound/vibration and broker-manual-only behavior are untouched.
+- Added tests for late continuation suppression, fresh pullback eligibility, opposite-direction movement, invalid inputs and score-to-entry gating. Package postinstall now syntax-checks the new module. Health metadata version: 2026-11-16-v1-bb-independent-v4-entry-timing.
+- Pending: PR CI test results, code review, merge/deploy, Render live health/API/UI verification, and user-side Telegram Mini App sound/vibration test. Do not claim win-rate improvement or out-of-sample validation from this guard.
