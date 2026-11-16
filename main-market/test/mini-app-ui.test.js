@@ -117,3 +117,19 @@ test("Engine 4 is displayed separately and does not enter the existing alert/sou
   assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
   assert.doesNotMatch(serverJs.slice(serverJs.indexOf("const activeSignals ="), serverJs.indexOf("const activeDirections")), /ENGINE_4/);
 });
+
+
+test("Engine 4 follows shared T-10/T-5 timing, holds 30 seconds, and flashes only its own card without sound or vibration", () => {
+  assert.match(html, /engine4Prepare=fourthReady&&remainingSeconds>5&&remainingSeconds<=10/);
+  assert.match(html, /engine4Finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
+  assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
+  assert.match(html, /#engine4Card\.engine4-flash-call/);
+  assert.match(html, /#engine4Card\.engine4-flash-put/);
+  assert.match(html, /engine4BorderFlashCall/);
+  assert.match(html, /engine4BorderFlashPut/);
+  const start = html.indexOf("const fourth=m.engine4||{}");
+  const end = html.indexOf("\n}\nfunction paint(m)", start);
+  assert.ok(start >= 0 && end > start, "expected isolated Engine 4 card renderer");
+  const engine4Ui = html.slice(start, end);
+  assert.doesNotMatch(engine4Ui, /playSequence|navigator\.vibrate|HapticFeedback|triggerSignalAlert/);
+});
