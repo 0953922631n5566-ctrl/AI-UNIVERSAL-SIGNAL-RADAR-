@@ -544,12 +544,16 @@ function moderateFakeoutCandles(count = 54) {
   return candles;
 }
 
-test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill switches", () => {
+test("Partial Scoring rejects an unconfirmed partial wick sweep instead of awarding fakeout points", () => {
   const result = scoreMarket(moderateFakeoutCandles());
-  assert.ok(result.scores.CALL >= 65 && result.scores.CALL < 75, JSON.stringify(result.scores));
-  assert.equal(result.signal, "CALL");
+  assert.equal(result.componentScores.CALL.srFakeout, 0);
+  assert.notEqual(result.signal, "CALL");
   assert.equal(result.thresholds.signal, 65);
-  assert.equal(result.riskFlags.length, 0);
+});
+
+test("Partial Scoring awards full S/R Fakeout points only after a genuine sweep and close reclaim", () => {
+  const result = scoreMarket(fakeoutCandles(1));
+  assert.equal(result.componentScores.CALL.srFakeout, 30);
 });
 
 
