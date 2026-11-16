@@ -17,14 +17,14 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "V1 Partial Scoring + BB Pure Scalper Cooperative Analyzer",
-    "displayName": "V1 65/45 + BB(20,2) Outer-Band Rejection Confirmation",
-    "engineCount": 1,
+    "name": "V1 Partial Scoring + BB Pure Scalper Independent Engines",
+    "displayName": "Independent V1 65/45 + BB(20,2) Early Touch Reversal",
+    "engineCount": 2,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "V1_PRIMARY_WITH_BB_PURE_SCALPER_CONFIRMATION",
-    "directionalVoters": 1,
-    "aggregator": 0,
+    "decisionAuthority": "V1_AND_BB_INDEPENDENT_DIRECTIONAL_ANALYSTS",
+    "directionalVoters": 2,
+    "aggregator": 1,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
     "scoreWeights": {
@@ -50,10 +50,11 @@
     "bbPureScalper": {
       "period": 20,
       "standardDeviation": 2,
-      "role": "SUPPLEMENTARY_CONFIRMATION_ONLY",
-      "maxBonus": 10,
-      "conflictPolicy": "STANDBY",
-      "mayCreateSignalAlone": false
+      "role": "INDEPENDENT_SIGNAL_ENGINE",
+      "entryMode": "EARLY_TOUCH_ONE_SOFT_CUE",
+      "wickThreshold": 0.18,
+      "conflictPolicy": "SHOW_BOTH_SEPARATELY",
+      "mayCreateSignalAlone": true
     }
   }
 }
