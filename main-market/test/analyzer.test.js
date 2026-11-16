@@ -4,6 +4,7 @@ import { MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES } from "../src/config.
 import { analyzeMarket, sourceGate, calculatePureTechnicalSignal } from "../src/analyzer.js";
 import { detectMultiStageReversal } from "../src/reversal-detection.js";
 import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, GEMINI_MODEL } from "../src/gemini-analyzer.js";
+import { applySignalReleaseGate, SIGNAL_VALIDATION_STATUS } from "../src/signal-release-gate.js";
 
 function history(count = 220, direction = 1) {
   const minuteStart = Math.floor(Date.now() / 60000) * 60;
@@ -622,4 +623,13 @@ test("BB standalone does not reverse on an outer-band touch with no rejection cu
   const result = analyzeBBPureScalper(candles);
   assert.equal(result.signal, null);
   assert.equal(result.status, "TOUCH_WATCHING");
+});
+
+
+test("V1 signal release metadata reports the updated 55/40 thresholds without claiming validation", () => {
+  const gated = applySignalReleaseGate({ signal: "PREPARE" });
+  assert.equal(SIGNAL_VALIDATION_STATUS, "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED");
+  assert.match(gated.signalValidationNote, /V1 Partial Scoring 55\/40/);
+  assert.equal(gated.signalReleaseLocked, false);
+  assert.equal(gated.signalReleaseValidated, false);
 });
