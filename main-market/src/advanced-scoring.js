@@ -1,7 +1,6 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
-import { analyzeBBPureScalper } from "./bb-pure-scalper.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -82,32 +81,22 @@ export function scoreMarket(candles) {
   if(!priceAction.ready) return {signal:"STANDBY",score:0,reason:"ข้อมูล Price Action ไม่เพียงพอ",riskFlags:["PRICE_ACTION_NOT_READY"],scores:{CALL:0,PUT:0}};
   const call=componentScore(candles,"CALL",e5,e20,atr,priceAction);
   const put=componentScore(candles,"PUT",e5,e20,atr,priceAction);
-  const v1Scores={CALL:call.score,PUT:put.score};
-  const v1Direction=v1Scores.CALL>v1Scores.PUT?"CALL":v1Scores.PUT>v1Scores.CALL?"PUT":null;
-  const bbPureScalper=analyzeBBPureScalper(candles);
-  const bbConfirmsV1=Boolean(v1Direction && bbPureScalper.signal===v1Direction && bbPureScalper.score>=65);
-  const bbConflictsWithV1=Boolean(v1Direction && bbPureScalper.signal && bbPureScalper.signal!==v1Direction && bbPureScalper.score>=65);
-  // V1 remains primary. BB adds up to 10 confirmation points and cannot create a direction alone.
-  const bbBonus=bbConfirmsV1?Math.round(Math.min(10,bbPureScalper.score*0.10)):0;
-  const scores={CALL:v1Scores.CALL+(bbPureScalper.signal==="CALL"&&bbConfirmsV1?bbBonus:0),
-    PUT:v1Scores.PUT+(bbPureScalper.signal==="PUT"&&bbConfirmsV1?bbBonus:0)};
+  // V1 is fully independent: its score is calculated only from its own four components.
+  const scores={CALL:call.score,PUT:put.score};
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
   const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
-  if(bbConfirmsV1)riskFlags.push("BB_PURE_SCALPER_CONFIRMED_V1");
-  if(bbConflictsWithV1)riskFlags.push("BB_V1_DIRECTION_CONFLICT");
   let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&!bbConflictsWithV1&&direction){
+  if(!choppy&&!atrSpike&&direction){
     if(top>=65){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :bbConflictsWithV1?"BB Pure Scalper กับ V1 ยืนยันคนละทิศทาง — STANDBY"
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
@@ -119,11 +108,10 @@ export function scoreMarket(candles) {
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
-      `BB Pure Scalper ${bbPureScalper.signal||bbPureScalper.status} · ${bbPureScalper.reason} · V1 bonus +${bbBonus}`,
       ...priceAction.evidence,
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
-    priceAction, bbPureScalper, v1Scores, bbBonus,
+    priceAction,
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
       marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,

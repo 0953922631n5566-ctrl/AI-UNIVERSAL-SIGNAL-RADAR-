@@ -491,6 +491,7 @@ test.skip("legacy: Gemini must agree with BEAR_TRAP CALL and BULL_TRAP PUT befor
 });
 
 import { scoreMarket } from "../src/advanced-scoring.js";
+import { analyzeBBPureScalper } from "../src/bb-pure-scalper.js";
 test("Partial Scoring keeps each side's four weighted components within 100 points",()=>{
  const result=scoreMarket(reversalTestCandles(1));
  for(const side of ["CALL","PUT"]){
@@ -549,4 +550,56 @@ test("Partial Scoring releases a 65-74 CALL candidate while retaining both kill 
   assert.equal(result.signal, "CALL");
   assert.equal(result.thresholds.signal, 65);
   assert.equal(result.riskFlags.length, 0);
+});
+
+
+function bbRangeHistory(count = 24) {
+  const minuteStart = Math.floor(Date.now() / 60000) * 60;
+  return Array.from({ length: count }, (_, i) => {
+    const close = 1.1 + Math.sin(i * 0.8) * 0.00008;
+    return { epoch: minuteStart - (count - i) * 60, open: close - 0.000005,
+      high: close + 0.00002, low: close - 0.00002, close, live: false };
+  });
+}
+
+test("BB engine is independent and V1 scoring no longer includes BB bonus or conflict veto", () => {
+  const v1 = scoreMarket(reversalTestCandles(1));
+  assert.equal("bbPureScalper" in v1, false);
+  assert.equal("bbBonus" in v1, false);
+  assert.equal(v1.scores.CALL, v1.componentScores.CALL.ema5SlopeReversal +
+    v1.componentScores.CALL.srFakeout + v1.componentScores.CALL.proximityMomentum +
+    v1.componentScores.CALL.trendContext);
+});
+
+test("BB standalone accepts an outer-band touch with a soft cue and a small wick", () => {
+  const candles = bbRangeHistory();
+  const sample = candles.slice(-20).map(c => c.close);
+  const middle = sample.reduce((a, b) => a + b, 0) / sample.length;
+  const sd = Math.sqrt(sample.reduce((a, b) => a + (b - middle) ** 2, 0) / sample.length);
+  const last = candles.at(-1);
+  const upper = middle + 2 * sd;
+  last.high = upper + 0.00001;
+  last.open = upper - 0.000002;
+  last.close = last.open - 0.00008;
+  last.low = last.close - 0.00001;
+  const result = analyzeBBPureScalper(candles);
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.strategy, "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL");
+  assert.ok(result.candle.upperWickRatio < 0.35);
+});
+
+test("BB standalone does not reverse on an outer-band touch with no rejection cue", () => {
+  const candles = bbRangeHistory();
+  const sample = candles.slice(-20).map(c => c.close);
+  const middle = sample.reduce((a, b) => a + b, 0) / sample.length;
+  const sd = Math.sqrt(sample.reduce((a, b) => a + (b - middle) ** 2, 0) / sample.length);
+  const last = candles.at(-1);
+  const upper = middle + 2 * sd;
+  last.low = last.open - 0.00001;
+  last.open = upper - 0.00001;
+  last.close = upper + 0.00001;
+  last.high = last.close + 0.000001;
+  const result = analyzeBBPureScalper(candles);
+  assert.equal(result.signal, null);
+  assert.equal(result.status, "TOUCH_WATCHING");
 });

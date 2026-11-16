@@ -10,6 +10,7 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -28,8 +29,8 @@ const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
-const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-COOPERATIVE-65-45";
-const VERSION = "2026-11-16-v1-bb-cooperative-v1";
+const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
+const VERSION = "2026-11-16-v1-bb-independent-v2";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -47,6 +48,9 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
+    engineActive: { V1: null, BB: null },
+    engineLastDispatchedCandle: { V1: null, BB: null },
+    engineLastDispatchedAlertId: { V1: null, BB: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -136,7 +140,7 @@ function publicFeed(feed) {
         ? feed.candles.at(-1).epoch + 60
         : Math.max(feed.candles.at(-1).epoch + 60, Math.floor(Date.now() / 60000) * 60 + 60)) * 1000
       : null,
-    signalExpiresAt: feed.activeSignal
+    signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     forecastStats: forecastStats(feed),
@@ -202,6 +206,9 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
+  feed.engineActive = { V1: null, BB: null };
+  feed.engineLastDispatchedCandle = { V1: null, BB: null };
+  feed.engineLastDispatchedAlertId = { V1: null, BB: null };
   feed.activeUntil = 0;
   feed.signalCandle = null;
   feed.signalSourceCandle = null;
@@ -216,6 +223,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
   feed.activeSignal = null;
+  feed.engineActive = { V1: null, BB: null };
   feed.activeUntil = 0;
   feed.analysis = standby(reason);
   feed.streamMessage = reason;
@@ -239,143 +247,193 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // V1 Partial Scoring is primary; BB Pure Scalper adds closed-candle outer-band rejection confirmation.
- const rawResult = await analyzeMarket(feed.candles, {
+
+ // Shared source-quality gate; after it passes, V1 and BB evaluate independently.
+ const v1Raw = await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
- const result = applySignalReleaseGate(rawResult);
+ const v1Result = applySignalReleaseGate(v1Raw);
+ const closedCandles = feed.candles.filter(c => c && c.live !== true &&
+   Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-54);
+ const latestClosed = closedCandles.at(-1);
+ const latestClosedAge = latestClosed ? now / 1000 - (latestClosed.epoch + 60) : Infinity;
+ const bbOhlcValid = closedCandles.slice(-21).length === 21 &&
+   closedCandles.slice(-21).every(c => [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+     c.low > 0 && c.high >= Math.max(c.open, c.close) &&
+     c.low <= Math.min(c.open, c.close) && c.high >= c.low);
+ const bbSourceReady = bbOhlcValid && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
+ const bbRaw = bbSourceReady
+   ? analyzeBBPureScalper(closedCandles)
+   : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
+       reason: "BB ต้องมีแท่ง M1 ปิดอย่างน้อย 21 แท่งและข้อมูลราคาต้องสด" };
+ const candidates = {
+   V1: v1Result,
+   BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" }
+ };
 
+ const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
+ const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
+ if (!feed.engineActive) feed.engineActive = { V1: null, BB: null };
+ if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null };
+ if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null };
 
- if (feed.activeSignal && now >= feed.activeUntil) {
-   feed.activeSignal = null;
-   feed.activeUntil = 0;
-   feed.signalCandle = null;
-   feed.signalSourceCandle = null;
-   feed.signalTriggeredAt = 0;
-   feed.alertId = null;
+ const engineResults = {};
+ for (const engine of ["V1", "BB"]) {
+   const candidate = candidates[engine];
+   const candidateSignal = ["CALL", "PUT"].includes(candidate.signal)
+     ? candidate.signal
+     : engine === "V1" && candidate.signal === "PREPARE" &&
+       ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null;
+   let active = feed.engineActive[engine];
+   if (active && now >= active.expiresAt) {
+     active = null;
+     feed.engineActive[engine] = null;
+   }
+   const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
+     (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
+   if (!activeForCurrentOrNext && finalizeWindow && candidateSignal &&
+       canFinalizeSignal({
+         candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+         lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
+       })) {
+     active = {
+       engine, signal: candidateSignal, sourceCandleEpoch, targetCandleEpoch,
+       triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
+       alertId: `${engine}:${targetCandleEpoch}:${candidateSignal}`
+     };
+     feed.engineActive[engine] = active;
+     console.info("[signal] independent engine candidate finalized", {
+       engine, symbol: feed.symbol, signal: candidateSignal,
+       sourceCandleEpoch, targetCandleEpoch, score: candidate.score ?? null,
+       expiresAt: new Date(active.expiresAt).toISOString()
+     });
+   }
+   const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
+   engineResults[engine] = {
+     ...candidate,
+     engine,
+     candidateSignal,
+     signal: currentActive && active ? active.signal : "STANDBY",
+     status: currentActive && active ? "SIGNAL" : candidateSignal ? "WATCH" : "STANDBY",
+     active: Boolean(currentActive && active),
+     alertId: currentActive && active ? active.alertId : null,
+     signalExpiresAt: currentActive && active ? new Date(active.expiresAt).toISOString() : null,
+     signalTargetCandleAt: currentActive && active ? new Date(active.targetCandleEpoch * 1000).toISOString() : null
+   };
  }
- const activeForCurrentOrNext = Boolean(feed.activeSignal && now < feed.activeUntil &&
-   (feed.signalCandle === sourceCandleEpoch || feed.signalCandle === targetCandleEpoch));
 
- feed.preAlertStatus = !activeForCurrentOrNext && sourceCandleEpoch !== null &&
-   ["PREPARE","CALL","PUT"].includes(result.signal) && isPrepareAlertWindow(sourceCandleEpoch, now) ? "PREPARE_ALERT" : null;
+ const activeSignals = Object.values(engineResults)
+   .filter(engine => engine.active)
+   .map(engine => ({
+     engine: engine.engine, signal: engine.signal, alertId: engine.alertId,
+     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt
+   }));
+ const activeDirections = [...new Set(activeSignals.map(item => item.signal))];
+ const aggregateSignal = activeDirections.length === 1 ? activeDirections[0] : "STANDBY";
+ const conflicting = activeDirections.length > 1;
+ const activeEngineNames = activeSignals.map(item => item.engine);
+ const v1Candidate = engineResults.V1.candidateSignal;
+ const bbCandidate = engineResults.BB.candidateSignal;
+ feed.preAlertStatus = !activeSignals.length && prepareWindow &&
+   Boolean(v1Candidate || bbCandidate) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
  if (feed.preAlertStatus === "PREPARE_ALERT" &&
      feed.lastPrepareLoggedCandle !== sourceCandleEpoch) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] T-10 PREPARE window entered", {
+   console.info("[timing] T-10 independent engine watch window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
-     directionalSignal: null, preAlertStatus: "PREPARE_ALERT"
-   });
- }
- const finalizeWindow = sourceCandleEpoch !== null &&
-   isSignalFinalizeWindow(sourceCandleEpoch, now);
- const finalizeEligible = finalizeWindow &&
-   (result.signal === "CALL" || result.signal === "PUT") &&
-   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-     lastDispatchedCandle: feed.lastDispatchedCandle });
- if (finalizeWindow && feed.lastFinalizeLoggedCandle !== sourceCandleEpoch) {
-   feed.lastFinalizeLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] T-5 FINALIZE window entered", {
-     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     candidateSignal: result.signal, eligible: finalizeEligible,
-     tickAgeSeconds: tickAge, requiredMaxTickAgeSeconds: 5,
-     reason: finalizeEligible ? "FRESH_TICK_AND_DIRECTION_READY"
-       : tickAge === null || tickAge > 5 ? "STREAMING_TICK_STALE_OR_MISSING"
-       : result.signal === "STANDBY" ? "EMA_TREND_FLOW_RETURNED_STANDBY"
-       : "CANDLE_ALREADY_FINALIZED"
+     v1Candidate, bbCandidate
    });
  }
 
- if (activeForCurrentOrNext) {
-   result.signal = feed.activeSignal;
-   result.reason = "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะถึง 30 วินาทีหลังแท่งใหม่เปิด";
- } else if (finalizeWindow &&
-     (result.signal === "CALL" || result.signal === "PUT")) {
-   const canFinalize = canFinalizeSignal({
-     candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-     lastDispatchedCandle: feed.lastDispatchedCandle
-   });
-   if (canFinalize) {
-     feed.activeSignal = result.signal;
-     feed.signalCandle = targetCandleEpoch;
-     feed.signalSourceCandle = sourceCandleEpoch;
-     feed.signalTriggeredAt = now;
-     feed.activeUntil = signalHoldExpiresAt(targetCandleEpoch);
-     feed.alertId = `${targetCandleEpoch}:${result.signal}`;
-     feed.pendingForecast = {
-       alertId: feed.alertId, symbol: feed.symbol, signal: result.signal,
-       targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
-       mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN"
-     };
-     if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
-       feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
-       console.info("[recovery] active_attempt", {
-         symbol: feed.symbol, alertId: feed.alertId, signal: result.signal,
-         targetCandleEpoch, score: result.score ?? null,
-         mode: "ACTIVE_EXISTING_SIGNAL_FLOW_ONLY_NO_EXTRA_SIGNAL_OR_UI_CHANGE"
-       });
-     }
-     result.reason = "ยืนยันสัญญาณ T-5 สำหรับเข้าแท่ง M1 ถัดไป";
-   } else {
-     result.signal = "STANDBY";
-     result.reason = tickAge === null || tickAge > 5
-       ? "ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในช่วง T-5"
-       : "ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
+ // Keep legacy aggregate fields for existing UI/forecast consumers while exposing each engine separately.
+ feed.activeSignal = aggregateSignal === "STANDBY" ? null : aggregateSignal;
+ const activeStates = activeSignals.map(item => feed.engineActive[item.engine]).filter(Boolean);
+ feed.signalCandle = activeStates.length ? activeStates[0].targetCandleEpoch : null;
+ feed.signalSourceCandle = activeStates.length ? activeStates[0].sourceCandleEpoch : null;
+ feed.signalTriggeredAt = activeStates.length
+   ? Math.min(...activeStates.map(x => x.triggeredAt)) : 0;
+ feed.activeUntil = activeSignals.length
+   ? Math.min(...Object.values(feed.engineActive).filter(Boolean).map(x => x.expiresAt)) : 0;
+ feed.alertId = activeSignals.length === 1 ? activeSignals[0].alertId
+   : activeSignals.length ? activeSignals.map(x => x.alertId).join("|") : null;
+
+ if (feed.activeSignal && feed.signalCandle && feed.pendingForecast?.targetCandleEpoch !== feed.signalCandle) {
+   feed.pendingForecast = {
+     alertId: feed.alertId, symbol: feed.symbol, signal: feed.activeSignal,
+     targetCandleEpoch: feed.signalCandle, signalAt: now, entryAt: null, entryPrice: null,
+     mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
+     engines: activeEngineNames
+   };
+   if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
+     feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
    }
- } else if (feed.activeSignal && now < feed.activeUntil) {
-   result.signal = "STANDBY";
-   result.reason = "รอแท่ง M1 เป้าหมาย";
+ }
+
+ let reason;
+ if (conflicting) {
+   reason = "V1 และ BB ออกสัญญาณคนละทิศทาง · แสดงผลแยกแต่ไม่รวมเป็นคำสั่งเดียว";
+ } else if (activeSignals.length) {
+   reason = `สัญญาณ ${aggregateSignal} จาก ${activeEngineNames.join(" + ")} · แสดงผลแยกตามเครื่องยนต์`;
  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
-   result.signal = "STANDBY";
-   result.reason = "PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5";
+   reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · รอยืนยัน T-5`;
  } else {
-   result.signal = "STANDBY";
-   if (sourceCandleEpoch !== null && now < sourceCandleEpoch * 1000 + 50_000) {
-     result.reason = "รอช่วง PREPARE T-10 และยืนยัน CALL/PUT ที่ T-5";
-   } else if (sourceCandleEpoch !== null && now >= sourceCandleEpoch * 1000 + 60_000) {
-     result.reason = "รอแท่ง M1 ใหม่และข้อมูล Streaming";
-   }
+   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"}`;
  }
-
+ const primary = activeSignals.length
+   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB)
+   : v1Result;
  feed.analysis = {
-   ...result,
+   ...v1Result,
+   signal: aggregateSignal,
+   direction: aggregateSignal === "STANDBY" ? null : aggregateSignal,
+   status: aggregateSignal === "STANDBY" ? (feed.preAlertStatus ? "PREPARE" : "STANDBY") : "SIGNAL",
+   prepareSignal: feed.preAlertStatus ? (v1Candidate || bbCandidate) : null,
+   reason,
+   summary: reason,
+   score: primary.score ?? v1Result.score ?? 0,
+   confidence: primary.confidence ?? primary.score ?? v1Result.confidence ?? 0,
+   engineResults,
+   activeSignals,
+   bbPureScalper: bbRaw,
    preAlertStatus: feed.preAlertStatus,
    preAlertCandle: feed.preAlertCandle,
+   preAlertSignal: null,
    tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
    lastTickPrice: feed.lastTick,
    alertId: feed.alertId,
    signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
-   signalExpiresAt: feed.activeSignal ? new Date(feed.activeUntil).toISOString() : null,
+   signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
-   signalTimingWindowSeconds: [5, 0]
+   signalTimingWindowSeconds: [5, 0],
+   signalValidationNote: "V1 Partial Scoring และ BB Pure Scalper วิเคราะห์แยกอิสระ · BB ใช้ BB(20,2) และเงื่อนไข Early Touch ที่ผ่อนคลาย · ทั้งสองใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · แสดงสัญญาณแยกเมื่อขัดแย้ง · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
 function dispatchSignalIfReady(feed) {
- const signal = feed.activeSignal;
- const sourceCandleEpoch = feed.signalSourceCandle;
- if (!signal || !["CALL", "PUT"].includes(signal) || !feed.alertId ||
-     !Number.isFinite(sourceCandleEpoch)) return;
  const now = Date.now();
- if (!canFinalizeSignal({
-   candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-   lastDispatchedCandle: feed.lastDispatchedCandle
- })) return;
- if (feed.lastDispatchedAlertId === feed.alertId) return;
-
- feed.lastDispatchedAt = now;
- feed.lastDispatchedCandle = sourceCandleEpoch;
- feed.lastDispatchedAlertId = feed.alertId;
- console.info("[signal] T-5 next-candle signal is available to authenticated Telegram Mini App polling", {
-   alertId: feed.alertId, signal, sourceCandleEpoch,
-   targetCandleEpoch: feed.signalCandle,
-   secondsBeforeClose: ((sourceCandleEpoch + 60) * 1000 - now) / 1000,
-   expiresAt: new Date(feed.activeUntil).toISOString()
- });
+ for (const engine of ["V1", "BB"]) {
+   const active = feed.engineActive?.[engine];
+   if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
+   if (!canFinalizeSignal({
+     candleEpoch: active.sourceCandleEpoch, tickAt: feed.tickAt, now,
+     lastDispatchedCandle: feed.engineLastDispatchedCandle?.[engine]
+   })) continue;
+   if (feed.engineLastDispatchedAlertId?.[engine] === active.alertId) continue;
+   feed.engineLastDispatchedAt = feed.engineLastDispatchedAt || {};
+   feed.engineLastDispatchedAt[engine] = now;
+   feed.engineLastDispatchedCandle[engine] = active.sourceCandleEpoch;
+   feed.engineLastDispatchedAlertId[engine] = active.alertId;
+   console.info("[signal] T-5 independent signal available to Telegram Mini App polling", {
+     engine, alertId: active.alertId, signal: active.signal,
+     symbol: feed.symbol, sourceCandleEpoch: active.sourceCandleEpoch,
+     targetCandleEpoch: active.targetCandleEpoch,
+     expiresAt: new Date(active.expiresAt).toISOString()
+   });
+ }
 }
 
 function applyTick(feed, price, epoch) {
@@ -563,6 +621,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
+  feed.engineActive = { V1: null, BB: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -724,6 +783,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
     feed.activeSignal = null;
+    feed.engineActive = { V1: null, BB: null };
     feed.activeUntil = 0;
     void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
@@ -735,6 +795,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
     feed.activeSignal = null;
+    feed.engineActive = { V1: null, BB: null };
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
       feed.streamStatus = "ERROR";
@@ -961,19 +1022,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_PARTIAL_SCORING_PLUS_BB_PURE_SCALPER", engines: 2,
-      decisionAuthority: "V1_PRIMARY_WITH_BB_PURE_SCALPER_CONFIRMATION_ONLY",
-      bbPureScalper: { period: 20, standardDeviation: 2, role: "SUPPLEMENTARY_CONFIRMATION_ONLY", maxBonus: 10, mayCreateSignalAlone: false, conflictPolicy: "STANDBY" },
+      decisionEngine: "V1_AND_BB_PURE_SCALPER_INDEPENDENT", engines: 2,
+      decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
+      bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_V1_PARTIAL_SCORING_PLUS_BB_REJECTION_CONFIRMATION_TO_EXISTING_RISK_AND_TIMING_GUARDS"
+      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_AND_BB_ENGINES_TO_SHARED_T5_TIMING_GUARD"
     },
     analyzer: {
-      provider: "LOCAL_V1_PARTIAL_SCORING_WITH_BB_PURE_SCALPER_CONFIRMATION", model: null, configured: true,
-      role: "V1_PRIMARY_BB_SUPPLEMENTARY_ANALYST", externalAiCalls: false,
+      provider: "LOCAL_V1_AND_BB_INDEPENDENT_ANALYSTS", model: null, configured: true,
+      role: "TWO_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      bbPureScalper: { period: 20, standardDeviation: 2, maxConfirmationBonus: 10, mayCreateSignalAlone: false, strongOppositeRejection: "STANDBY" },
+      bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" }
     },
