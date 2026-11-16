@@ -57,6 +57,19 @@ export function analyzeEveryCandle(input) {
   const score = Math.max(0, Math.min(100, Math.round(Math.abs(raw) * 45)));
   const bias = fast >= slow ? "EMA5 อยู่เหนือ EMA20" : "EMA5 อยู่ใต้ EMA20";
   const momentum = momentum3 >= 0 ? "โมเมนตัม 3 แท่งเป็นบวก" : "โมเมนตัม 3 แท่งเป็นลบ";
+  if (score < 20) {
+    return {
+      ready: true, signal: null, candidateSignal: null, status: "BELOW_THRESHOLD",
+      score, confidence: score, candleEpoch: last.epoch,
+      targetCandleAt: new Date((last.epoch + 60) * 1000).toISOString(),
+      reason: `ข้อมูลแท่ง M1 ถูกต้อง แต่คะแนนแรงทิศทาง ${score}/100 ต่ำกว่าเกณฑ์ 20/100`,
+      metrics: {
+        ema5: Number(fast.toFixed(6)), ema20: Number(slow.toFixed(6)),
+        momentum3: Number(momentum3.toFixed(6)), momentum6: Number(momentum6.toFixed(6)),
+        bodyRatio: Number(bodyRatio.toFixed(3)), closeLocation: Number(closeLocation.toFixed(3))
+      }
+    };
+  }
   return {
     ready: true, signal, candidateSignal: signal, status: "EVERY_CANDLE_SIGNAL",
     score, confidence: score, candleEpoch: last.epoch,
