@@ -65,6 +65,12 @@ test("V1 still blocks a marginal close just beyond the swing until breakout dist
 
 test("V1 waits on a mature continuation run when bodies contract", () => {
   const candles = candlesWithTrend(1);
+  const priorSwingHigh = Math.max(...candles.slice(-7, -1).map(c => c.high));
+  const last = candles.at(-1);
+  last.close = priorSwingHigh - 0.00001;
+  last.open = last.close - 0.00005;
+  last.high = priorSwingHigh;
+  last.low = last.open - 0.00001;
   const result = assessEntryQuality(candles, "CALL", {
     atr: 0.0002,
     priceAction: action({ exhaustion: { sameDirectionRun: 3, bodyContraction: 0.42, opposingWickRatio: 0.1 } })
