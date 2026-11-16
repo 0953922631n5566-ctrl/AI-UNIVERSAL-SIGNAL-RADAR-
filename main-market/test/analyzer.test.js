@@ -566,9 +566,10 @@ test("BB engine is independent and V1 scoring no longer includes BB bonus or con
   const v1 = scoreMarket(reversalTestCandles(1));
   assert.equal("bbPureScalper" in v1, false);
   assert.equal("bbBonus" in v1, false);
-  assert.equal(v1.scores.CALL, v1.componentScores.CALL.ema5SlopeReversal +
+  const componentTotal = v1.componentScores.CALL.ema5SlopeReversal +
     v1.componentScores.CALL.srFakeout + v1.componentScores.CALL.proximityMomentum +
-    v1.componentScores.CALL.trendContext);
+    v1.componentScores.CALL.trendContext;
+  assert.ok(Math.abs(v1.scores.CALL - componentTotal) < 1e-9);
 });
 
 test("BB standalone accepts an outer-band touch with a soft cue and a small wick", () => {
@@ -595,10 +596,10 @@ test("BB standalone does not reverse on an outer-band touch with no rejection cu
   const sd = Math.sqrt(sample.reduce((a, b) => a + (b - middle) ** 2, 0) / sample.length);
   const last = candles.at(-1);
   const upper = middle + 2 * sd;
-  last.low = last.open - 0.00001;
-  last.open = upper - 0.00001;
-  last.close = upper + 0.00001;
+  last.close = upper + 0.0005;
+  last.open = last.close - 0.0001;
   last.high = last.close + 0.000001;
+  last.low = last.open - 0.000001;
   const result = analyzeBBPureScalper(candles);
   assert.equal(result.signal, null);
   assert.equal(result.status, "TOUCH_WATCHING");

@@ -58,7 +58,11 @@ export function analyzeBBPureScalper(candles, options = {}) {
   else if (callValid && putValid && Math.abs(callScore - putScore) >= 8) {
     signal = callScore > putScore ? "CALL" : "PUT";
   }
-  if (signal) status = "EARLY_REVERSAL_CANDIDATE";
+  if (signal) {
+    const strongPut = signal === "PUT" && upperReclaimed && upperWickRatio >= 0.35 && bearishMomentum;
+    const strongCall = signal === "CALL" && lowerReclaimed && lowerWickRatio >= 0.35 && bullishMomentum;
+    status = strongPut || strongCall ? "REJECTION_CONFIRMED" : "EARLY_REVERSAL_CANDIDATE";
+  }
   else if (upperTouch || lowerTouch) status = callValid && putValid
     ? "BOTH_BANDS_AMBIGUOUS" : "TOUCH_WATCHING";
 

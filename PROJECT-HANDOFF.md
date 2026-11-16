@@ -1995,3 +1995,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added tests for V1/BB score isolation, BB early touch with a small wick, and a touch without a reversal cue. Tests/build/deploy/device behavior are not yet verified at this checkpoint.
 - Next: inspect diff, run all `main-market` tests and syntax checks, create/validate PR into `main-market`, merge only after checks pass, verify Render deploy and live `/health`, `/api/public/signal`, and Mini App payload. Then ask user to open the Telegram Mini App for the final Android sound/vibration test.
 - Do not label this release validated or Production-Ready until real Telegram device testing and chronological paper-trading/out-of-sample validation are complete.
+
+
+## 2026-11-16 — Independent V1 + BB build-failure corrections
+
+- PR #127 was merged to `main-market` as commit `65d77fe969ddff0a19637b9e1006ff2ef33a006e`, but Render Build failed and the prior live deployment remained active.
+- Build logs show the full test suite ran 126 tests: 115 passed, 7 failed, 4 skipped. Failures were test expectation/fixture mismatches after changing BB from strict confirmation to independent early-touch behavior, plus one strict floating-point equality assertion. The source syntax checks did not run because `npm test` exited non-zero.
+- Created correction branch `feature/fix-independent-bb-tests-20261116` from the merged `main-market` commit.
+- BB strong rejection cases retain status `REJECTION_CONFIRMED`; relaxed one-cue entries use `EARLY_REVERSAL_CANDIDATE`.
+- Updated legacy BB tests to expect the new one-cue behavior and to use a true no-reversal-cue fixture. Updated the V1 isolation assertion to use a floating-point tolerance.
+- Updated Mini App UI tests to verify separate V1/BB engine cards and the independent `engineResults` / `activeSignals` payload rather than the old cooperative BB property.
+- Next: merge only after checking correction diff; let Render run all tests and syntax checks. If successful, verify live `/health`, `/api/public/signal`, and `/signal` page and confirm the new version/engine metadata. The actual Android Telegram alert and vibration test still requires the user to open the Mini App.
