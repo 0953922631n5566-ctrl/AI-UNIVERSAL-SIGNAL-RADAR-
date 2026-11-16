@@ -545,7 +545,7 @@ function moderateFakeoutCandles(count = 54) {
 }
 
 test("Partial Scoring rejects an unconfirmed partial wick sweep instead of awarding fakeout points", () => {
-  const result = scoreMarket(moderateFakeoutCandles());
+  const result = scoreMarket(slopeShiftCandles(1));
   assert.equal(result.componentScores.CALL.srFakeout, 0);
   assert.notEqual(result.signal, "CALL");
   assert.equal(result.thresholds.signal, 65);
