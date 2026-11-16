@@ -50,6 +50,19 @@ test("V1 blocks PUT immediately above a recent swing low without a confirmed clo
   assert.ok(result.flags.includes("V1_NEAR_SWING_SUPPORT"));
 });
 
+test("V1 still blocks a marginal close just beyond the swing until breakout distance is decisive", () => {
+  const candles = candlesWithTrend(1);
+  const high = Math.max(...candles.slice(-7, -1).map(c => c.high));
+  const last = candles.at(-1);
+  last.open = high - 0.00001;
+  last.close = high + 0.000005;
+  last.high = last.close + 0.00001;
+  last.low = last.open - 0.00001;
+  const result = assessEntryQuality(candles, "CALL", { atr: 0.0002, priceAction: action() });
+  assert.equal(result.blocked, true);
+  assert.equal(result.confirmedBreakout, false);
+});
+
 test("V1 waits on a mature continuation run when bodies contract", () => {
   const candles = candlesWithTrend(1);
   const result = assessEntryQuality(candles, "CALL", {
