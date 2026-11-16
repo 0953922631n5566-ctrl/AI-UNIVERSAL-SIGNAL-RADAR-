@@ -1,9 +1,6 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
-import { assessEntryTiming } from "./entry-timing.js";
-import { assessDirectionalPressure, qualifiesForStrongPressureEarlyEntry } from "./strong-pressure.js";
-import { assessEntryQuality } from "./entry-quality.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -39,7 +36,7 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const wickStrength=clamp((wickRatio-0.12)/0.48);
   const reclaimStrength=reclaim?1:clamp(1-Math.abs(c.close-level)/Math.max(atr*0.25,1e-10));
   const fakeoutConfirmed=sweepDistance>0&&reclaim&&wickRatio>=0.35;
-  const fakeoutScore= fakeoutConfirmed ? 30 : 0;
+  const fakeoutScore=30*(fakeoutConfirmed?1:0.45*sweepStrength+0.35*wickStrength+0.20*reclaimStrength);
   const distance=atr>0?Math.abs(c.close-ema5[i])/atr:Infinity;
   const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
@@ -89,35 +86,18 @@ export function scoreMarket(candles) {
   const direction=scores.CALL>scores.PUT?"CALL":scores.PUT>scores.CALL?"PUT":null;
   const top=direction?scores[direction]:Math.max(...Object.values(scores));
   const gap=direction?Math.abs(scores.CALL-scores.PUT):0;
-  const chosen=direction==="PUT"?put:call;
-  const entryTiming=direction?assessEntryTiming(candles,direction,{
-    ema5:e5[i],atr,exhaustionScore:priceAction.exhaustion.score
-  }):null;
-  const directionalPressure=direction?assessDirectionalPressure(candles,direction,{
-    ema5:e5[i],ema5Slope:slope5,atr,structureDirection:priceAction.structure.direction
-  }):null;
-  const entryQuality=direction?assessEntryQuality(candles,direction,{atr,priceAction}):null;
-  const entryBlocked=Boolean(entryTiming?.waitForPullback||entryQuality?.blocked);
-  const strongPressureEarly=qualifiesForStrongPressureEarlyEntry({
-    pressure:directionalPressure,score:top,gap,choppy,atrSpike,
-    waitForPullback:entryBlocked
-  });
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
-  if(entryTiming?.waitForPullback)riskFlags.push("V1_LATE_ENTRY_WAIT_FOR_PULLBACK");
-  if(entryQuality?.blocked)riskFlags.push(...entryQuality.flags);
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=65&&!entryBlocked){signal=direction;status="SIGNAL";}
-    else if(strongPressureEarly){signal=direction;status="SIGNAL";}
+    if(top>=65){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
+  const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :entryBlocked&&top>=45?`V1 ENTRY QUALITY: ${entryQuality?.blocked?entryQuality.reason:entryTiming?.reason} · คะแนน ${top}/100 · ยังไม่ปล่อย CALL/PUT`
-    :strongPressureEarly?`${directionalPressure.reason} · คะแนน V1 ${top}/100 · Early Entry ผ่านเกณฑ์แรงกดดัน`
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65 และจังหวะเข้าเหมาะสม`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
@@ -129,8 +109,6 @@ export function scoreMarket(candles) {
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
       `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
       ...priceAction.evidence,
-      ...(entryTiming?[entryTiming.reason]:[]),
-      ...(directionalPressure?[directionalPressure.reason]:[]),
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
     priceAction,
@@ -138,20 +116,7 @@ export function scoreMarket(candles) {
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
       marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
-      momentumExtensionAtr:priceAction.exhaustion.extensionAtr,
-      entryTimingStatus:entryTiming?.status||"UNAVAILABLE",
-      entryQualityStatus:entryQuality?.status||"UNAVAILABLE",
-      entrySwingDistanceAtr:entryQuality?.distanceToOpposingSwingAtr??null,
-      entryConfirmedBreakout:entryQuality?.confirmedBreakout??false,
-      entryExtensionAtr:entryTiming?.extensionAtr??null,
-      entrySameDirectionRun:entryTiming?.sameDirectionRun??null,
-      directionalPressureScore:directionalPressure?.score??null,
-      directionalPressureType:directionalPressure?.type??"UNAVAILABLE",
-      directionalPressureBodyAtr:directionalPressure?.bodyAtr??null,
-      strongPressureEarly},
-    directionalPressure,
-    entryTiming,
-    entryQuality,
+      momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
