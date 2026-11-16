@@ -1980,3 +1980,18 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` verified EUR/USD, M1, Streaming, 54/54 closed candles, API ONLINE, Twelve Data pool 10/10 ready. Current snapshot was STANDBY with V1 PUT score 61.7 and BB TOUCH_WITHOUT_CONFIRMATION (bonus +0), correctly withholding a signal until confirmation and score/timing requirements are met.
 - Not yet verified: actual Telegram Android device session, sound permission, vibration, and end-to-end alert delivery. User must open the Mini App in Telegram and tap Start / enable sound to complete device acceptance.
 - Signal release remains manual-only and not out-of-sample validated. Do not claim predictive accuracy or Production-Ready.
+
+
+## 2026-11-16 — Independent V1 + BB Pure Scalper revision (implementation branch)
+
+- User requested V1 and BB Pure Scalper to analyze and emit signals independently because the prior BB confirmation rules were too strict and missed entries.
+- Root cause found in the previous deployed source: `main-market/src/advanced-scoring.js` imported BB into V1 scoring, added up to 10 BB bonus points, and forced V1 to STANDBY on strong BB/V1 disagreement. This did not satisfy the requested independent-engine architecture.
+- Created isolated implementation branch: `feature/v1-bb-independent-20261116`; production branch `main-market` has not yet been changed by this revision.
+- V1 scorer decoupled: its original four component scores (30/30/20/20), thresholds (65/45), Choppy and ATR kill switches remain internal to V1; no BB bonus, BB veto, or BB dependency remains in `advanced-scoring.js`.
+- BB Pure Scalper changed to an independent BB(20,2) early-touch reversal engine. A band touch plus one soft cue (close reclaim, wick ratio >= 0.18, or first directional momentum turn) can produce its own CALL/PUT candidate. A touch without any cue remains WATCH/STANDBY. BB no longer needs V1 agreement and can run with its own 21-closed-candle source gate.
+- Server evaluates V1 and BB separately, maintains independent T-5 signal states and alert IDs, and exposes `engineResults` and `activeSignals` in the Mini App API. If directions conflict, both engine results remain visible separately; the aggregate top-level signal stays STANDBY rather than concealing either engine.
+- Shared safety remains: validated Twelve Data source freshness/quality, closed M1 candle inputs, T-5 live Streaming freshness, and 30-second signal hold. No Telegram chat messages and no broker order execution.
+- Mini App UI now has separate V1 Original and BB Pure Scalper cards, per-engine WATCH/CALL/PUT status, and per-engine sound/vibration alert deduplication.
+- Added tests for V1/BB score isolation, BB early touch with a small wick, and a touch without a reversal cue. Tests/build/deploy/device behavior are not yet verified at this checkpoint.
+- Next: inspect diff, run all `main-market` tests and syntax checks, create/validate PR into `main-market`, merge only after checks pass, verify Render deploy and live `/health`, `/api/public/signal`, and Mini App payload. Then ask user to open the Telegram Mini App for the final Android sound/vibration test.
+- Do not label this release validated or Production-Ready until real Telegram device testing and chronological paper-trading/out-of-sample validation are complete.
