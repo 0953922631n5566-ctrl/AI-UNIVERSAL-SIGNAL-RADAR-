@@ -1100,7 +1100,7 @@ app.get("/health", (_req, res) => {
         directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
         externalAi: false,
         componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
+        thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
         slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
         supportResistanceFakeout: "FULL_POINTS_ONLY_ON_CONFIRMED_SWEEP_CLOSE_RECLAIM",
         sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
