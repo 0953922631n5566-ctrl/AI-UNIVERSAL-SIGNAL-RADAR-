@@ -27,9 +27,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
-const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-CHOPPY-ATR-KILL-SWITCH";
-const VERSION = "2026-11-11-streaming-reconnect-v1";
+const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
+const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-COOPERATIVE-65-45";
+const VERSION = "2026-11-16-v1-bb-cooperative-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -239,7 +239,7 @@ async function evaluate(feed) {
  feed.recoveryState = recoveryWindow.state;
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- // Gemini is the sole directional analyst; EMA5 and reversal stages are deterministic guard context.
+ // V1 Partial Scoring is primary; BB Pure Scalper adds closed-candle outer-band rejection confirmation.
  const rawResult = await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback
  });
@@ -961,17 +961,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION", engines: 1,
-      decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_BOS_CHOCH_CANDLE_AND_EXHAUSTION_EVIDENCE",
+      decisionEngine: "V1_PARTIAL_SCORING_PLUS_BB_PURE_SCALPER", engines: 2,
+      decisionAuthority: "V1_PRIMARY_WITH_BB_PURE_SCALPER_CONFIRMATION_ONLY",
+      bbPureScalper: { period: 20, standardDeviation: 2, role: "SUPPLEMENTARY_CONFIRMATION_ONLY", maxBonus: 10, mayCreateSignalAlone: false, conflictPolicy: "STANDBY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE_TO_EXISTING_RISK_AND_TIMING_GUARDS"
+      signalDecisionPath: "SOURCE_GATE_TO_V1_PARTIAL_SCORING_PLUS_BB_REJECTION_CONFIRMATION_TO_EXISTING_RISK_AND_TIMING_GUARDS"
     },
     analyzer: {
-      provider: "LOCAL_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE", model: null, configured: true,
-      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      provider: "LOCAL_V1_PARTIAL_SCORING_WITH_BB_PURE_SCALPER_CONFIRMATION", model: null, configured: true,
+      role: "V1_PRIMARY_BB_SUPPLEMENTARY_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
+      bbPureScalper: { period: 20, standardDeviation: 2, maxConfirmationBonus: 10, mayCreateSignalAlone: false, strongOppositeRejection: "STANDBY" },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" }
     },
