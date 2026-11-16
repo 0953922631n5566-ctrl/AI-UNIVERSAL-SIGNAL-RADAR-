@@ -4,7 +4,7 @@ import { analyzeTrendRider } from "../src/trend-rider.js";
 
 function risingCandles(count = 54) {
   return Array.from({ length: count }, (_, i) => {
-    const close = 1.1 + i * 0.0002;
+    const close = 1.1 + i * 0.00005;
     return { open: close - 0.00008, close, high: close + 0.00004, low: close - 0.00012, live: false };
   });
 }
@@ -16,11 +16,7 @@ test("Trend Rider requires valid closed-candle history", () => {
 });
 
 test("Trend Rider detects a sustained rising trend independently", () => {
-  const rows = risingCandles().map((c, i) => {
-    const close = 1.1 + i * 0.00005;
-    return { open: close - 0.00008, close, high: close + 0.00004, low: close - 0.00012, live: false };
-  });
-  const result = analyzeTrendRider(rows);
+  const result = analyzeTrendRider(risingCandles());
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
   assert.ok(result.score >= 65);
