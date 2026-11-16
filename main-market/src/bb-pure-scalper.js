@@ -192,6 +192,7 @@ export function analyzeBBPureScalper(input) {
       lowerWickRatio: previousPressure.lowerWickRatio,
       bandExpanding: expanding,
       bullishBandWalk, bearishBandWalk,
+      lastClosedCandleEpoch: current.epoch ?? null,
       previousClosedCandleEpoch: previous.epoch ?? null,
       confirmationCandleEpoch: current.epoch ?? null
     },
