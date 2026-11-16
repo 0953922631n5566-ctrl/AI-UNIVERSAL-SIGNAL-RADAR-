@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { assessEntryTiming } from "./entry-timing.js";
+import { scoreMarket } from "./advanced-scoring.js";
 
 function risingCandles(count = 12) {
   let previous = 1.1000;
@@ -50,4 +51,12 @@ test("V1 does not mistake an opposite-direction move for a late continuation ent
 test("Entry timing fails closed when the ATR or candle data is unavailable", () => {
   const candles = risingCandles();
   assert.equal(assessEntryTiming(candles, "CALL", { ema5: 1.1, atr: 0 }).status, "UNAVAILABLE");
+});
+
+test("V1 high score cannot release a late continuation entry before a pullback", () => {
+  const candles = risingCandles(54);
+  const result = scoreMarket(candles);
+  assert.equal(result.entryTiming.status, "WAIT_FOR_PULLBACK");
+  assert.notEqual(result.signal, "CALL");
+  assert.ok(result.riskFlags.includes("V1_LATE_ENTRY_WAIT_FOR_PULLBACK"));
 });
