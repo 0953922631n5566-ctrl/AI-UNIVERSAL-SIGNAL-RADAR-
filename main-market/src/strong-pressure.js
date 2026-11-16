@@ -57,3 +57,15 @@ export function assessDirectionalPressure(candles, direction, { ema5, ema5Slope,
       : "แรงซื้อ/ขายยังไม่ผ่านเกณฑ์ความแข็งแกร่งสำหรับเข้าเร็ว"
   };
 }
+
+/**
+ * A conditional fast lane, not a blanket lower score threshold.
+ * Strong price pressure may release from 58 only when direction is decisive,
+ * market is not choppy/abnormally volatile, and the late-entry guard is clear.
+ */
+export function qualifiesForStrongPressureEarlyEntry({
+  pressure, score, gap, choppy = false, atrSpike = false, waitForPullback = false
+} = {}) {
+  return Boolean(pressure?.strong && Number.isFinite(score) && score >= 58 &&
+    Number.isFinite(gap) && gap >= 8 && !choppy && !atrSpike && !waitForPullback);
+}
