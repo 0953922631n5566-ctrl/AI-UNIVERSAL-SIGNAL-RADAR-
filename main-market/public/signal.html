@@ -69,12 +69,12 @@ function paintEngineCards(m,usable){
  const configs=[{key:"V1",card:"v1Card",signal:"v1Signal",reason:"v1Reason",fallback:"V1 Original"},{key:"BB",card:"bbCard",signal:"bbSignal",reason:"bbReason",fallback:"BB Pure Scalper"}];
  for(const item of configs){
    const engine=engines[item.key]||{};
-   const active=usable&&engine.active&&["CALL","PUT"].includes(engine.signal);
-   const candidate=usable&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
+   const required=item.key==="V1"?54:21;\n   const engineUsable=usable&&Number(m.closedCandleCount||0)>=required;\n   const active=engineUsable&&engine.active&&["CALL","PUT"].includes(engine.signal);
+   const candidate=engineUsable&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
    const value=active?engine.signal:candidate?("WATCH · "+candidate):"STANDBY";
    $(item.card).className="engine-card "+(active?engine.signal.toLowerCase():candidate?"watch":"");
    $(item.signal).textContent=value;
-   $(item.reason).textContent=engine.reason||engine.status||"รอข้อมูลตลาด";
+   $(item.reason).textContent=engineUsable?(engine.reason||engine.status||"รอข้อมูลตลาด"):"รอแท่งปิด "+required+" แท่ง";
  }
 }
 function paint(m){
@@ -83,7 +83,7 @@ function paint(m){
  if(m.selectedSymbol&&$("pairSelect").value!==m.selectedSymbol)$("pairSelect").value=m.selectedSymbol;
  paintApiPool(m.apiPool||{});
  const required=Number(m.requiredCandles||54);
- const usable=api==="ONLINE"&&m.monitoring!==false&&Number(m.closedCandleCount||0)>=required;
+ const usable=api==="ONLINE"&&m.monitoring!==false;
  paintEngineCards(m,usable);
  const activeSignals=usable&&Array.isArray(m.activeSignals)?m.activeSignals:[];
  const direction=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;
