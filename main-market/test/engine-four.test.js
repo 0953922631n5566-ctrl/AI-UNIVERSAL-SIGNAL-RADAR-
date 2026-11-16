@@ -13,11 +13,12 @@ function candles(direction = "up", count = 24) {
 }
 
 test("Engine 4 independently emits a direction on every valid closed candle", () => {
-  for (const direction of ["up", "down", "flat"]) {
+  for (const direction of ["up", "down"]) {
     const result = analyzeEveryCandle(candles(direction));
     assert.equal(result.ready, true);
     assert.ok(["CALL", "PUT"].includes(result.signal));
     assert.equal(result.status, "EVERY_CANDLE_SIGNAL");
+    assert.ok(result.score >= 20);
     assert.ok(result.alertId.startsWith("ENGINE_4:"));
   }
 });
@@ -37,4 +38,22 @@ test("Engine 4 refuses missing, malformed, or insufficient candle data", () => {
   const malformed = candles("up");
   malformed[23] = { ...malformed[23], high: 1.0 };
   assert.equal(analyzeEveryCandle(malformed).ready, false);
+});
+
+
+test("Engine 4 requires a minimum directional score of 20 before emitting CALL or PUT", () => {
+  const rows = candles("flat");
+  const result = analyzeEveryCandle(rows);
+  assert.equal(result.ready, true);
+  assert.equal(result.status, "BELOW_THRESHOLD");
+  assert.equal(result.signal, null);
+  assert.ok(result.score < 20);
+  assert.match(result.reason, /ต่ำกว่าเกณฑ์ 20\/100/);
+});
+
+
+test("Engine 4 signal target aligns with the shared countdown for the candle after the currently forming candle", () => {
+  const rows = candles("up");
+  const result = analyzeEveryCandle(rows);
+  assert.equal(result.targetCandleAt, new Date((rows.at(-1).epoch + 120) * 1000).toISOString());
 });
