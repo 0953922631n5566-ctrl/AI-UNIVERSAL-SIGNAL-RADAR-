@@ -405,7 +405,7 @@ async function evaluate(feed) {
  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
    reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · Trend Rider: ${trendCandidate || "รอ"} · รอยืนยัน T-5`;
  } else {
-   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"}`;
+   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
  }
  const primary = activeSignals.length
    ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB : engineResults.TREND_RIDER)
