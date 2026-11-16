@@ -1047,19 +1047,21 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_AND_BB_PURE_SCALPER_INDEPENDENT", engines: 2,
+      decisionEngine: "V1_BB_AND_TREND_RIDER_INDEPENDENT", engines: 3,
       decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_AND_BB_ENGINES_TO_SHARED_T5_TIMING_GUARD"
+      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_BB_AND_TREND_RIDER_ENGINES_TO_SHARED_T5_TIMING_GUARD"
     },
     analyzer: {
-      provider: "LOCAL_V1_AND_BB_INDEPENDENT_ANALYSTS", model: null, configured: true,
+      provider: "LOCAL_V1_BB_TREND_RIDER_INDEPENDENT_ANALYSTS", model: null, configured: true,
       role: "TWO_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
+      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
       entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true },
