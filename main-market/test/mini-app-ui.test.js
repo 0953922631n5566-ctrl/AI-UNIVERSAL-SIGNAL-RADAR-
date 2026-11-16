@@ -56,6 +56,15 @@ test("Mini App identifies Partial Scoring and exposes weighted score breakdown",
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
+
+test("Mini App script only references DOM elements that exist in the fixed EUR/USD layout", () => {
+  const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(match => match[1]));
+  const references = [...html.matchAll(/\$\("([^"]+)"\)/g)].map(match => match[1]);
+  const missing = [...new Set(references.filter(id => !ids.has(id)))];
+  assert.deepEqual(missing, []);
+  assert.doesNotMatch(html, /pairSelect|changePair/);
+});
+
 test("Mini App inline JavaScript parses successfully", () => {
   const start = html.indexOf("<script>") + "<script>".length;
   const end = html.lastIndexOf("</script>");
