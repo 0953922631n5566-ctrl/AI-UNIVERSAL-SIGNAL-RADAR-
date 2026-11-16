@@ -43,6 +43,8 @@ function newFeed(symbol) {
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
+    bbCandidate: null, bbActiveSignal: null, bbActiveUntil: 0, bbSignalCandle: null,
+    bbSignalSourceCandle: null, bbAlertId: null, bbLastDispatchedCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
@@ -98,7 +100,17 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
-  const bbScalper = analyzeBBPureScalper(feed.candles);
+  const bbCandidate = feed.bbCandidate || analyzeBBPureScalper(feed.candles);
+  const bbActive = Boolean(feed.bbActiveSignal && Date.now() < feed.bbActiveUntil);
+  const bbScalper = {
+    ...bbCandidate,
+    candidateSignal: bbCandidate.signal,
+    signal: bbActive ? feed.bbActiveSignal : "STANDBY",
+    status: bbActive ? "ACTIVE" : "WAITING_FOR_T_MINUS_5",
+    alertId: bbActive ? feed.bbAlertId : null,
+    signalExpiresAt: bbActive ? new Date(feed.bbActiveUntil).toISOString() : null,
+    reason: bbActive ? "BB Pure Scalper · ยืนยันสัญญาณ T-5 สำหรับแท่ง M1 ถัดไป" : bbCandidate.reason
+  };
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
   const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
@@ -251,6 +263,32 @@ async function evaluate(feed) {
    allowLiveCandidate: finalizeWindow && tickAge !== null && tickAge <= 5
  });
  const result = applySignalReleaseGate(rawResult);
+ const bbCandidate = analyzeBBPureScalper(feed.candles);
+ feed.bbCandidate = bbCandidate;
+ if (feed.bbActiveSignal && now >= feed.bbActiveUntil) {
+   feed.bbActiveSignal = null; feed.bbActiveUntil = 0; feed.bbSignalCandle = null;
+   feed.bbSignalSourceCandle = null; feed.bbAlertId = null;
+ }
+ const bbTargetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
+ const bbActiveForCurrentOrNext = Boolean(feed.bbActiveSignal && now < feed.bbActiveUntil &&
+   (feed.bbSignalCandle === sourceCandleEpoch || feed.bbSignalCandle === bbTargetCandleEpoch));
+ const bbFinalizeEligible = !bbActiveForCurrentOrNext && finalizeWindow &&
+   ["CALL", "PUT"].includes(bbCandidate.signal) &&
+   canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+     lastDispatchedCandle: feed.bbLastDispatchedCandle });
+ if (bbFinalizeEligible) {
+   feed.bbActiveSignal = bbCandidate.signal;
+   feed.bbSignalCandle = bbTargetCandleEpoch;
+   feed.bbSignalSourceCandle = sourceCandleEpoch;
+   feed.bbActiveUntil = signalHoldExpiresAt(bbTargetCandleEpoch);
+   feed.bbAlertId = "BB:" + bbTargetCandleEpoch + ":" + bbCandidate.signal;
+   feed.bbLastDispatchedCandle = sourceCandleEpoch;
+   console.info("[bb-scalper] T-5 next-candle signal released", {
+     symbol: feed.symbol, alertId: feed.bbAlertId, signal: feed.bbActiveSignal,
+     setup: bbCandidate.setup, targetCandleEpoch: bbTargetCandleEpoch,
+     expiresAt: new Date(feed.bbActiveUntil).toISOString()
+   });
+ }
 
 
  if (feed.activeSignal && now >= feed.activeUntil) {
