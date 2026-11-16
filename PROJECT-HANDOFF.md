@@ -2039,3 +2039,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - BB remains independent and unchanged. Twelve Data, source-quality guard, Mini App UI, T-10/T-5 timing, 30-second hold, sound/vibration and broker-manual-only behavior are untouched.
 - Added tests for late continuation suppression, fresh pullback eligibility, opposite-direction movement, invalid inputs and score-to-entry gating. Package postinstall now syntax-checks the new module. Health metadata version: 2026-11-16-v1-bb-independent-v4-entry-timing.
 - Pending: PR CI test results, code review, merge/deploy, Render live health/API/UI verification, and user-side Telegram Mini App sound/vibration test. Do not claim win-rate improvement or out-of-sample validation from this guard.
+
+
+## 2026-11-16 — V1 Strong Pressure Early Entry (validation pending)
+
+- User requested V1 alone enter earlier when buying or selling pressure is strong; BB must remain independent.
+- Created isolated branch feature/v1-strong-pressure-early-entry-20261116 from current main-market.
+- Added src/strong-pressure.js: closed-candle OHLC proxy based on directional body ratio, close location, body/ATR and EMA slope or BOS/CHOCH alignment. It does not claim to measure actual volume/order flow.
+- V1 can now use a conditional early-entry threshold of 58 (normal remains 65) only when strong pressure passes, direction score gap >=8, and choppy, ATR-spike, and late-extension guards all pass. The existing wait-for-pullback protection is never bypassed. PREPARE remains 45.
+- BB, shared source quality, T-10/T-5 timing, 30-second hold, alerts, sound/vibration and Mini App UI remain unchanged.
+- Added unit tests and health metadata version 2026-11-16-v1-bb-independent-v5-strong-pressure.
+- Pending CI, PR review/merge, Render deployment, live endpoint and Telegram Mini App verification. This change has not demonstrated better win rate; use demo/paper testing.
