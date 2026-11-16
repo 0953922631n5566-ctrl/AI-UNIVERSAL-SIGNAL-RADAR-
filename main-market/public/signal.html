@@ -117,7 +117,7 @@ function paint(m){
  $("reversal").textContent=scoreBreakdown;
  $("reversal").className="reversal-stage "+(m.killSwitch?"warning":signal==="CALL"||signal==="PUT"?"confirmed":"");
  $("evidence").replaceChildren(...(Array.isArray(m.evidence)?m.evidence:[]).slice(0,5).map(v=>{const li=document.createElement("li");li.textContent=String(v);return li}));
- $("validation").textContent=m.signalValidationNote||"V1, BB Pure Scalper และ Trend Rider AI วิเคราะห์แยกอิสระ · Trend Rider ใช้ EMA5/20 + โครงสร้าง + Pullback · ทั้งสามใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · ไม่มีการส่งข้อความเข้าแชตหรือส่งคำสั่งซื้อ";
+ $("validation").textContent=m.signalValidationNote||"V1, BB Pure Scalper และ Trend Rider AI วิเคราะห์แยกอิสระ · BB ใช้ BB(20,2) Early Touch · Trend Rider ใช้ EMA5/20 + โครงสร้าง + Pullback · ทั้งสามใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · ไม่มีการส่งข้อความเข้าแชตหรือส่งคำสั่งซื้อ";
  $("updated").textContent="UPDATED "+new Date().toLocaleTimeString("th-TH");
  if(activeSignals.length){
    for(const item of activeSignals){
