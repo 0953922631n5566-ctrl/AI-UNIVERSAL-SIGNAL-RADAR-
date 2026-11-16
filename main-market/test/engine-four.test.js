@@ -38,3 +38,13 @@ test("Engine 4 refuses missing, malformed, or insufficient candle data", () => {
   malformed[23] = { ...malformed[23], high: 1.0 };
   assert.equal(analyzeEveryCandle(malformed).ready, false);
 });
+
+
+test("Engine 4 requires a minimum directional score of 20 before emitting CALL or PUT", () => {
+  const rows = candles("flat");
+  const result = analyzeEveryCandle(rows);
+  assert.equal(result.ready, true);
+  assert.equal(result.status, "BELOW_THRESHOLD");
+  assert.equal(result.signal, null);
+  assert.ok(result.score < 20);
+});
