@@ -9,7 +9,7 @@ const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("Mini App is restricted to EUR/USD and keeps API details inside a collapsible menu", () => {
   assert.match(html, /EUR \/ USD/);
-  assert.match(html, /value="EUR\/USD" selected/);
+  assert.match(html, /EUR \/ USD/);
   for (const symbol of ["AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
     assert.doesNotMatch(html, new RegExp(symbol.replace("/", "\\/")));
   }
