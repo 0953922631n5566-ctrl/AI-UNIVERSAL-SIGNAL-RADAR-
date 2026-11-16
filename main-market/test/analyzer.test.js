@@ -58,6 +58,8 @@ test("V1 uses the faster 55/40 partial-scoring path without later entry guards",
   assert.equal(result.strategy, "PARTIAL_SCORING_55_EARLY_ENTRY_PRICE_ACTION_CONFIRMATION");
   assert.equal(result.thresholds.signal, 55);
   assert.equal(result.thresholds.prepare, 40);
+  assert.match(result.signalValidationNote, /V1 Partial Scoring 55\/40/);
+  assert.equal(result.signalReleaseStatus, "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED");
   assert.equal(result.entryTiming, undefined);
   assert.equal(result.entryQuality, undefined);
   assert.equal(result.directionalPressure, undefined);
