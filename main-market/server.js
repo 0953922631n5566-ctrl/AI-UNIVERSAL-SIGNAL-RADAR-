@@ -30,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
 const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-independent-v3";
+const VERSION = "2026-11-16-v1-bb-independent-v4-entry-timing";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1051,7 +1051,8 @@ app.get("/health", (_req, res) => {
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
-      priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" }
+      priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
+      entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
