@@ -447,7 +447,7 @@ async function evaluate(feed) {
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   signalValidationNote: "V1, BB Pure Scalper และ Trend Rider AI ยังคงวิเคราะห์แยกอิสระตามเดิม · Engine 4 เป็นตัววิเคราะห์อิสระที่ออก CALL/PUT ทุกแท่ง M1 ปิดเมื่อข้อมูลถูกต้อง โดยไม่ใช้เสียง/สั่น · ไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: "V1, BB Pure Scalper และ Trend Rider AI วิเคราะห์แยกอิสระ · Trend Rider ใช้ EMA5/20, โครงสร้างราคา และจังหวะ pullback/continuation · ทั้งสามใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · แสดงสัญญาณแยกเมื่อขัดแย้ง · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
@@ -1066,6 +1066,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      engine4: { independent: true, cadence: "EVERY_NEW_CLOSED_M1_CANDLE", minimumClosedCandles: 20, emitsCallPutInSideways: true, participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "RED", PUT: "GREEN" } },
       signalDecisionPath: "V1_BB_TREND_RIDER_KEEP_EXISTING_T5_PIPELINE_PLUS_ENGINE_4_EVERY_CLOSED_CANDLE_DIRECTIONAL_OUTPUT"
     },
     analyzer: {
