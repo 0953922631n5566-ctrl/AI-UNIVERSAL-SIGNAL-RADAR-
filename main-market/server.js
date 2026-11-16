@@ -30,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "PARTIAL SCORING 65 AGILE ANALYZER";
 const ARCHITECTURE_ID = "PARTIAL-SCORING-65-45-EARLY-ENTRY-T5-REVERSAL-GUARD";
-const VERSION = "2026-11-13-early-entry-t5-v1";
+const VERSION = "2026-11-16-v1-plus-bb-pure-scalper-standalone";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -960,6 +960,7 @@ app.get("/api/public/signal", (_req, res) => {
       lastPrice: state.lastPrice,
       lastTickPrice: state.lastTickPrice,
       monitoring: state.monitoring,
+      bbScalper: state.bbScalper,
       apiPool: state.apiPool
     }
   });
@@ -1008,11 +1009,12 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_BOS_CHOCH_CANDLE_AND_EXHAUSTION_EVIDENCE",
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE_TO_EXISTING_RISK_AND_TIMING_GUARDS"
+      signalDecisionPath: "SOURCE_GATE_TO_V1_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE_TO_EXISTING_RISK_AND_TIMING_GUARDS",
+      standaloneAnalyzers: { bbPureScalper: { enabled: true, mode: "PARALLEL_STANDALONE_NOT_MIXED_WITH_V1", bands: "SMA_20_2_STANDARD_DEVIATIONS", entries: ["IMMEDIATE_CLOSED_CANDLE_REJECTION", "NEXT_CANDLE_CONFIRMATION"], pressure: ["BUYING", "SELLING"], release: "T_MINUS_5_FRESH_STREAM_TICK_NEXT_M1_30_SECOND_HOLD" } }
     },
     analyzer: {
       provider: "LOCAL_PARTIAL_SCORING_WITH_PRICE_ACTION_EVIDENCE", model: null, configured: true,
-      role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false,
+      role: "PRIMARY_DETERMINISTIC_DIRECTIONAL_ANALYST_V1", externalAiCalls: false,
       closedCandlesOnly: false, closedHistoryGate: "54_CLOSED_M1_CANDLES_REQUIRED",
       provisionalLiveCandidate: "CURRENT_M1_AT_T_MINUS_5_ONLY_IF_STREAM_TICK_AGE_LE_5S",
       directionalRunGuard: "BLOCK_COUNTER_TREND_AFTER_3_BAR_RUN_UNLESS_MICRO_TURN_OR_CHOCH",
@@ -1035,6 +1037,7 @@ app.get("/health", (_req, res) => {
       androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
+      bbPureScalperEnabled: true,
       minimumClosedCandles: MIN_CLOSED_CANDLES,
       historyCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
