@@ -29,7 +29,10 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /EMA5/);
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
-  assert.match(html, /m\.bbPureScalper/);
+  assert.match(html, /m\.engineResults/);
+  assert.match(html, /m\.activeSignals/);
+  assert.match(html, /id="v1Card"/);
+  assert.match(html, /id="bbCard"/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /SCORING BREAKDOWN/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
@@ -39,11 +42,14 @@ test("Mini App identifies Partial Scoring and exposes weighted score breakdown",
   assert.ok(html.includes("V1 + BB PURE SCALPER"));
   assert.match(html, /SCORING BREAKDOWN/);
   assert.match(html, /m\.scores\?\.PUT/);
-  assert.match(html, /m\.bbPureScalper/);
+  assert.match(html, /m\.engineResults/);
+  assert.match(html, /m\.activeSignals/);
+  assert.match(html, /id="v1Card"/);
+  assert.match(html, /id="bbCard"/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /m\.components\|\|\{\}/);
   assert.match(html, /m\.killSwitch/);
-  assert.match(html, /Partial Scoring 65\/45/);
+  assert.match(html, /V1 Partial Scoring/);
   assert.doesNotMatch(html, /EMA5 ONLY TREND FLOW/);
 });
 
