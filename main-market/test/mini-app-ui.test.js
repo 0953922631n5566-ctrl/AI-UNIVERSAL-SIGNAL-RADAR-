@@ -58,8 +58,8 @@ test("Mini App identifies Partial Scoring and exposes weighted score breakdown",
 
 
 test("Mini App script only references DOM elements that exist in the fixed EUR/USD layout", () => {
-  const ids = new Set([...html.matchAll(/\\bid=["']([^"']+)["']/g)].map(match => match[1]));
-  const references = [...html.matchAll(/\\$\\(["']([^"']+)["']\\)/g)].map(match => match[1]);
+  const ids = new Set([...html.matchAll(/id="([^"]+)"/g)].map(match => match[1]));
+  const references = [...html.matchAll(/\$\("([^"]+)"\)/g)].map(match => match[1]);
   const missing = [...new Set(references.filter(id => !ids.has(id)))];
   assert.deepEqual(missing, []);
   assert.doesNotMatch(html, /pairSelect|changePair/);
