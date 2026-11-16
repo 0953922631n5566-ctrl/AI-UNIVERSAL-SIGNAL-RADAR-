@@ -48,6 +48,7 @@
       "ABNORMAL_ATR_SPIKE"
     ],
     "entryTimingGuard": { "scope": "V1_ONLY", "lateExtensionAtr": 1.25, "extremeExtensionAtr": 1.8, "waitStatus": "PREPARE", "bbIndependent": true },
+    "strongPressureEarlyEntry": { "scope": "V1_ONLY", "minimumScore": 58, "minimumDirectionGap": 8, "requiresPressureAndEmaOrStructure": true, "riskGuardsRemainActive": true },
     "bbPureScalper": {
       "period": 20,
       "standardDeviation": 2,
