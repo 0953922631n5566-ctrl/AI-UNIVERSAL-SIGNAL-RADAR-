@@ -1995,3 +1995,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No Telegram Android device interaction was performed by the assistant; user should open the existing Mini App, choose `BB PURE SCALPER · B`, and confirm the UI appears. Do not claim device-side verification or strategy profitability.
 - Strategy note: because B-mode requires the confirmation candle to be fully closed and the existing release gate finalizes at T-5, a confirmed setup may be released in the T-5 window of the following M1 candle for the next target candle. No live signal guarantee; fail closed on insufficient/stale data.
 - The V1 analyzer and `main-market/versions/MAIN-MARKET-EARLY-ENTRY-T5-V1.md` baseline were not modified by PR #123.
+
+
+## 2026-11-16 — BB-only Mini App operating mode
+- User requested to run BB PURE SCALPER only for the initial trial and temporarily remove V1 analysis from the active flow, while retaining V1 for rollback.
+- Branch `feature/bb-only-miniapp` disables execution of `analyzeMarket` in the live evaluation path and supplies a neutral inactive V1 result. V1 source files and tests remain in the repository unchanged.
+- Mini App removes the V1/BB strategy selector and presents BB PURE SCALPER as the sole active analyzer. BB is the default and the T-5 BB release path remains unchanged.
+- Pair selection (EUR/USD), Twelve Data feed, API lock/freshness handling, countdown, sound/vibration, and manual-only behavior are intentionally untouched.
+- Do not merge/deploy until CI passes. After deployment, separately verify Render health and ask the user to confirm the Mini App on device; no device test is implied by a successful build.
