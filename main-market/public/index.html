@@ -1,22 +1,81 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080d18">
-<title>SIGNAL RADAR · EUR/USD M1</title><link rel="stylesheet" href="/styles.css?v=dashboard-20261116">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07110d">
+  <title>SIGNAL RADAR PRO · EMA 5/20 RELAXED TREND FLOW</title>
+  <link rel="stylesheet" href="/styles.css?v=20261109-no-standby-display">
 </head>
-<body><main class="shell">
-<header class="topbar"><div class="brand"><span class="brand-icon">◈</span><div><b>SIGNAL RADAR</b><small>MAIN MARKET · NON-OTC</small></div></div><div id="connection" class="status offline"><span></span> ออฟไลน์</div></header>
-<section id="pairing" class="pairing" hidden><b>เชื่อมต่ออุปกรณ์</b><p id="pairingMessage">กรอกรหัสเชื่อมต่ออุปกรณ์เพื่อเริ่มใช้งาน</p><input id="clientToken" type="password" autocomplete="off" placeholder="รหัสเชื่อมต่ออุปกรณ์"><button id="connectDevice" class="primary" type="button">เชื่อมต่อ</button></section>
-<section class="market-strip"><div><span class="eyebrow">ตลาดที่กำลังวิเคราะห์</span><strong>EUR / USD</strong><small>คู่เงินเดียว · M1 · NON-OTC</small></div><div class="price-block"><span class="eyebrow">ราคาสด</span><strong id="livePrice">—</strong><small id="priceAge">รอ Tick ราคา</small></div></section>
-<div class="live-row"><span id="marketStatus" class="live-pill">รอเริ่มสแกน</span><span id="apiMessage">รอข้อมูลจาก Twelve Data</span></div>
-<section class="countdown-panel"><div><span class="eyebrow">นับถอยหลังแท่งถัดไป</span><strong id="candleCountdown">--:--</strong></div><div class="expiry"><span class="eyebrow">สัญญาณคงเหลือ</span><strong id="signalExpiry">—</strong></div></section>
-<section class="engines"><div class="section-title"><div><span class="eyebrow">INDEPENDENT ANALYZERS</span><h2>สัญญาณแยกแต่ละระบบ</h2></div><span class="system-count">03 ระบบ</span></div>
-<article id="engineV1" class="engine-card wait"><div class="engine-head"><span class="engine-number">01</span><div><h3>V1</h3><small>ตัววิเคราะห์หลัก</small></div><span class="engine-tag">รอวิเคราะห์</span></div><strong class="engine-signal">รอสัญญาณ</strong><p class="engine-state">รอข้อมูลวิเคราะห์</p><div class="engine-foot"><span>คะแนนอิสระ</span><b class="engine-score">คะแนน —</b></div></article>
-<article id="engineBB" class="engine-card wait"><div class="engine-head"><span class="engine-number">02</span><div><h3>BB</h3><small>Bollinger Bands</small></div><span class="engine-tag">รอวิเคราะห์</span></div><strong class="engine-signal">รอสัญญาณ</strong><p class="engine-state">รอข้อมูลวิเคราะห์</p><div class="engine-foot"><span>คะแนนอิสระ</span><b class="engine-score">คะแนน —</b></div></article>
-<article id="engineTrend" class="engine-card unavailable"><div class="engine-head"><span class="engine-number">03</span><div><h3>TREND RIDER AI</h3><small>ตัวไล่ตามเทรนด์</small></div><span class="engine-tag">ยังไม่พร้อม</span></div><strong class="engine-signal">ยังไม่เชื่อมต่อ</strong><p class="engine-state">ยังไม่มีตัววิเคราะห์ในเซิร์ฟเวอร์</p><div class="engine-foot"><span>คะแนนอิสระ</span><b class="engine-score">คะแนน —</b></div></article>
-</section>
-<section class="control-row"><button id="start" class="primary" disabled>เริ่มสแกน</button><button id="stop" class="secondary" disabled>หยุดสแกน</button></section>
-<details class="api-drawer"><summary><span>ศูนย์ API · สถานะการเชื่อมต่อ</span><b id="apiCount">— / —</b><span class="chevron">⌄</span></summary><div class="api-details"><div><span>API Pool</span><b id="apiPoolDetail">กำลังโหลด</b></div><div><span>REST ราคา</span><b id="restDetail">—</b></div><div><span>Streaming สด</span><b id="streamDetail">—</b></div><div><span>อายุข้อมูล Tick</span><b id="ageDetail">—</b></div></div></details>
-<details class="settings-drawer"><summary>ตั้งค่าเสียงและการสั่น <span class="chevron">⌄</span></summary><div class="settings-content"><label><input id="sound" type="checkbox" checked> เสียงแจ้งเตือน</label><label><input id="vibration" type="checkbox" checked> สั่นแจ้งเตือน</label><div class="test-buttons"><button id="testSound" type="button">ทดสอบเสียง</button><button id="testVibration" type="button">ทดสอบสั่น</button></div><p id="testStatus">เปิดใช้งานเสียง/สั่นเหมือนเดิม</p></div></details>
-<footer><b>MANUAL ONLY · ไม่มีการส่งคำสั่งซื้อ</b><span>อัปเดตอัตโนมัติทุก 2 วินาที</span></footer>
-</main><script src="/app.js?v=dashboard-20261116"></script></body></html>
+<body>
+  <main class="shell">
+    <header class="header">
+      <div class="brand"><span class="brand-icon">◈</span><div><b>UNIVERSAL RADAR</b><small>PURE TECHNICAL · EMA 5/20 <i>·</i> NON-OTC</small></div></div>
+      <div id="connection" class="status offline"><span></span> OFFLINE</div>
+    </header>
+
+    <section id="pairing" class="pairing" hidden>
+      <b>เชื่อมต่ออุปกรณ์</b>
+      <p id="pairingMessage">กรอกรหัสเชื่อมต่ออุปกรณ์เพื่อเริ่มใช้งาน</p>
+      <input id="clientToken" type="password" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="รหัสเชื่อมต่ออุปกรณ์">
+      <button id="connectDevice" class="primary" type="button">เชื่อมต่อเซิร์ฟเวอร์</button>
+    </section>
+
+    <section class="toolbar">
+      <label class="pair-field"><span>คู่เงิน · MANUAL</span>
+        <select id="pairSelect" disabled>
+          <option selected>EUR/USD</option>
+        </select>
+      </label>
+      <div class="time-field"><span>TIMEFRAME</span><b>M1 <small>· 1 นาที</small></b></div>
+    </section>
+
+    <section id="feed" class="feed">
+      <div class="feed-title"><span id="feedDot"></span><b id="feedTitle">กำลังตรวจสอบการเชื่อมต่อ</b></div>
+      <p id="apiMessage" role="status" aria-live="polite">รอการเชื่อมต่ออุปกรณ์</p>
+      <div class="feed-meta"><span id="restStatus">REST · —</span><span id="streamStatus">STREAM · —</span><span id="candleCount">CANDLES · 0/200</span><span id="apiPoolStatus">API KEYS · —</span></div>
+    </section>
+
+    <section class="signal-card">
+      <div class="section-head"><span>MARKET SIGNAL</span><span id="signalTime">—</span></div>
+      <div id="signalPanel" class="signal-panel neutral">
+        <div class="signal-light"><span></span></div>
+        <div class="signal-text"><small id="signalHint">รอข้อมูลตลาดจริง</small><strong id="signalValue">—</strong><em id="signalAction">ยังไม่เข้าออเดอร์</em></div>
+      </div>
+      <div class="regime"><span>MARKET REGIME</span><b id="regimeValue">ยังไม่ทราบ</b></div>
+      <div class="reason"><b>✦ เหตุผลและหลักฐาน</b><p id="reasonText">กดเริ่มสแกนเพื่อโหลดข้อมูลจาก Twelve Data</p><ul id="evidenceList"></ul><small id="validationNote">EMA 5/20 Relaxed Trend Flow · ยังไม่มีผลประเมิน out-of-sample · Manual only</small></div>
+    </section>
+
+    <section class="metrics">
+      <div class="metric"><span>LIVE PRICE</span><b id="livePrice">—</b></div>
+      <div class="metric"><span>CLOSED CLOSE</span><b id="closePrice">—</b></div>
+      <div class="metric"><span>RSI 14</span><b id="rsiValue">—</b></div>
+      <div class="metric"><span>EMA 5 / 20</span><b id="emaValue">—</b></div>
+      <div class="metric"><span>MACD HISTOGRAM</span><b id="macdValue">—</b></div>
+      <div class="metric"><span>DATA AGE</span><b id="dataAge">—</b></div>
+    </section>
+
+    <section class="timers">
+      <div><span>แท่ง M1 ถัดไป</span><b id="candleCountdown">--:--</b></div>
+      <div><span>สัญญาณหมดอายุ</span><b id="signalExpiry">—</b></div>
+    </section>
+
+    <section class="actions">
+      <button id="start" class="primary" disabled>เริ่มสแกน</button>
+      <button id="stop" class="secondary" disabled>หยุด</button>
+    </section>
+
+    <section class="preferences">
+      <label><input id="sound" type="checkbox" checked><span>เสียงแจ้งเตือน</span></label>
+      <label><input id="vibration" type="checkbox" checked><span>สั่นแจ้งเตือน</span></label>
+    </section>
+    <section class="tests">
+      <button id="testSound" type="button">ทดสอบเสียง</button>
+      <button id="testVibration" type="button">ทดสอบสั่น</button>
+    </section>
+    <p id="testStatus" class="test-status">แตะปุ่มทดสอบเพื่อตรวจอุปกรณ์</p>
+    <footer><b>MANUAL ONLY · ไม่ส่งคำสั่งซื้อ</b><span id="updatedAt">ยังไม่มีข้อมูล</span></footer>
+  </main>
+  <script src="/app.js?v=20261109-no-standby-display"></script>
+</body>
+</html>
