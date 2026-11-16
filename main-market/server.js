@@ -609,6 +609,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
+  feed.engineActive = { V1: null, BB: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -770,6 +771,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
     feed.activeSignal = null;
+    feed.engineActive = { V1: null, BB: null };
     feed.activeUntil = 0;
     void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
@@ -781,6 +783,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
     feed.activeSignal = null;
+    feed.engineActive = { V1: null, BB: null };
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
       feed.streamStatus = "ERROR";
@@ -1012,7 +1015,7 @@ app.get("/health", (_req, res) => {
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SOURCE_GATE_TO_V1_PARTIAL_SCORING_PLUS_BB_REJECTION_CONFIRMATION_TO_EXISTING_RISK_AND_TIMING_GUARDS"
+      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_AND_BB_ENGINES_TO_SHARED_T5_TIMING_GUARD"
     },
     analyzer: {
       provider: "LOCAL_V1_AND_BB_INDEPENDENT_ANALYSTS", model: null, configured: true,
