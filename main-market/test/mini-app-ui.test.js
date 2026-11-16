@@ -133,3 +133,17 @@ test("Engine 4 follows shared T-10/T-5 timing, holds 30 seconds, and flashes onl
   const engine4Ui = html.slice(start, end);
   assert.doesNotMatch(engine4Ui, /playSequence|navigator\.vibrate|HapticFeedback|triggerSignalAlert/);
 });
+
+
+test("four engine cards are independently toggleable and Engine 4 has no cross-card alert pipeline", () => {
+  for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
+    assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
+  }
+  assert.match(html, /signalRadarEngineEnabled/);
+  assert.match(html, /api\/telegram\/engines/);
+  assert.match(html, /engineEnabled\.ENGINE_4/);
+  assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
+  assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
+  assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
+  assert.match(serverJs, /minimumSignalScore: 20/);
+});
