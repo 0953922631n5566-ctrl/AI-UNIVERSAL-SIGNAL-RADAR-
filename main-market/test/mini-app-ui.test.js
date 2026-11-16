@@ -38,6 +38,10 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="bbCard"/);
   assert.match(html, /id="trendCard"/);
   assert.match(html, /id="trendSignal"/);
+  assert.match(html, /#trendCard\\.call\\{border-color:#9c4355\\}/);
+  assert.match(html, /#trendCard\\.call \\.engine-value\\{color:#ff7d91\\}/);
+  assert.match(html, /#trendCard\\.put\\{border-color:#25885d\\}/);
+  assert.match(html, /#trendCard\\.put \\.engine-value\\{color:#5df0a4\\}/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /SCORING BREAKDOWN/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
