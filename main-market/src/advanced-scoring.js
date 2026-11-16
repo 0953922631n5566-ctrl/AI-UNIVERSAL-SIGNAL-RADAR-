@@ -2,6 +2,7 @@ const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
 import { assessEntryTiming } from "./entry-timing.js";
+import { assessDirectionalPressure, qualifiesForStrongPressureEarlyEntry } from "./strong-pressure.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -91,6 +92,13 @@ export function scoreMarket(candles) {
   const entryTiming=direction?assessEntryTiming(candles,direction,{
     ema5:e5[i],atr,exhaustionScore:priceAction.exhaustion.score
   }):null;
+  const directionalPressure=direction?assessDirectionalPressure(candles,direction,{
+    ema5:e5[i],ema5Slope:slope5,atr,structureDirection:priceAction.structure.direction
+  }):null;
+  const strongPressureEarly=qualifiesForStrongPressureEarlyEntry({
+    pressure:directionalPressure,score:top,gap,choppy,atrSpike,
+    waitForPullback:entryTiming?.waitForPullback
+  });
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
@@ -98,11 +106,13 @@ export function scoreMarket(candles) {
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
     if(top>=65&&!entryTiming?.waitForPullback){signal=direction;status="SIGNAL";}
+    else if(strongPressureEarly){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
     :entryTiming?.waitForPullback&&top>=45?`V1 ENTRY TIMING: ${entryTiming.reason} · คะแนน ${top}/100 · ยังไม่ปล่อย CALL/PUT`
+    :strongPressureEarly?`${directionalPressure.reason} · คะแนน V1 ${top}/100 · Early Entry ผ่านเกณฑ์แรงกดดัน`
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65 และจังหวะเข้าเหมาะสม`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
@@ -116,6 +126,7 @@ export function scoreMarket(candles) {
       `Proximity/Momentum + Candle + Exhaustion ${chosen.components.proximityMomentum}/20 · Trend + BOS/CHOCH ${chosen.components.trendContext}/20`,
       ...priceAction.evidence,
       ...(entryTiming?[entryTiming.reason]:[]),
+      ...(directionalPressure?[directionalPressure.reason]:[]),
       `EMA5/EMA20 ${tangled?"พันกัน":"แยกตัว"} · ATR ${atrSpike?"ผิดปกติ":"ปกติ"}`
     ],
     priceAction,
@@ -126,7 +137,12 @@ export function scoreMarket(candles) {
       momentumExtensionAtr:priceAction.exhaustion.extensionAtr,
       entryTimingStatus:entryTiming?.status||"UNAVAILABLE",
       entryExtensionAtr:entryTiming?.extensionAtr??null,
-      entrySameDirectionRun:entryTiming?.sameDirectionRun??null},
+      entrySameDirectionRun:entryTiming?.sameDirectionRun??null,
+      directionalPressureScore:directionalPressure?.score??null,
+      directionalPressureType:directionalPressure?.type??"UNAVAILABLE",
+      directionalPressureBodyAtr:directionalPressure?.bodyAtr??null,
+      strongPressureEarly},
+    directionalPressure,
     entryTiming,
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}

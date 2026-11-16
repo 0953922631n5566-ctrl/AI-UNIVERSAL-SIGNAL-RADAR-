@@ -30,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
 const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-independent-v4-entry-timing";
+const VERSION = "2026-11-16-v1-bb-independent-v5-strong-pressure";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -282,7 +282,7 @@ async function evaluate(feed) {
  for (const engine of ["V1", "BB"]) {
    const candidate = candidates[engine];
    // Only a finalized CALL/PUT from the engine may be released at T-5.
-   // V1 PREPARE (45-64 points) remains a watch candidate and must never be promoted.
+   // V1 PREPARE remains a watch candidate unless its guarded strong-pressure fast lane explicitly returns CALL/PUT.
    const finalSignal = ["CALL", "PUT"].includes(candidate.signal) ? candidate.signal : null;
    const candidateSignal = finalSignal ||
      (engine === "V1" && candidate.signal === "PREPARE" &&
@@ -1052,7 +1052,8 @@ app.get("/health", (_req, res) => {
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
-      entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true }
+      entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true },
+      strongPressureEarlyEntry: { enabled: true, minScore: 58, minDirectionGap: 8, candleBodyRatio: 0.62, closeLocation: 0.78, minBodyAtr: 0.55, requiresEmaOrStructureAlignment: true, blockedByChopAtrSpikeOrLateExtension: true, scope: "V1_ONLY" }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
