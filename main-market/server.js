@@ -351,19 +351,20 @@ async function evaluate(feed) {
 
  // Keep legacy aggregate fields for existing UI/forecast consumers while exposing each engine separately.
  feed.activeSignal = aggregateSignal === "STANDBY" ? null : aggregateSignal;
- feed.signalCandle = activeSignals.length ? targetCandleEpoch : null;
- feed.signalSourceCandle = activeSignals.length ? sourceCandleEpoch : null;
- feed.signalTriggeredAt = activeSignals.length
-   ? Math.min(...Object.values(feed.engineActive).filter(Boolean).map(x => x.triggeredAt)) : 0;
+ const activeStates = activeSignals.map(item => feed.engineActive[item.engine]).filter(Boolean);
+ feed.signalCandle = activeStates.length ? activeStates[0].targetCandleEpoch : null;
+ feed.signalSourceCandle = activeStates.length ? activeStates[0].sourceCandleEpoch : null;
+ feed.signalTriggeredAt = activeStates.length
+   ? Math.min(...activeStates.map(x => x.triggeredAt)) : 0;
  feed.activeUntil = activeSignals.length
    ? Math.min(...Object.values(feed.engineActive).filter(Boolean).map(x => x.expiresAt)) : 0;
  feed.alertId = activeSignals.length === 1 ? activeSignals[0].alertId
    : activeSignals.length ? activeSignals.map(x => x.alertId).join("|") : null;
 
- if (feed.activeSignal && targetCandleEpoch && feed.pendingForecast?.targetCandleEpoch !== targetCandleEpoch) {
+ if (feed.activeSignal && feed.signalCandle && feed.pendingForecast?.targetCandleEpoch !== feed.signalCandle) {
    feed.pendingForecast = {
      alertId: feed.alertId, symbol: feed.symbol, signal: feed.activeSignal,
-     targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
+     targetCandleEpoch: feed.signalCandle, signalAt: now, entryAt: null, entryPrice: null,
      mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
      engines: activeEngineNames
    };
