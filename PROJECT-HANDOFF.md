@@ -2006,3 +2006,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated legacy BB tests to expect the new one-cue behavior and to use a true no-reversal-cue fixture. Updated the V1 isolation assertion to use a floating-point tolerance.
 - Updated Mini App UI tests to verify separate V1/BB engine cards and the independent `engineResults` / `activeSignals` payload rather than the old cooperative BB property.
 - Next: merge only after checking correction diff; let Render run all tests and syntax checks. If successful, verify live `/health`, `/api/public/signal`, and `/signal` page and confirm the new version/engine metadata. The actual Android Telegram alert and vibration test still requires the user to open the Mini App.
+
+
+## 2026-11-16 — Independent engine deployment verified
+
+- PR #128 merged as `224e720fc3a6e6b20e660c4b87b8da4a9d16e28c`.
+- Render deployment `dep-dbt9sj95efls73fjocag` is LIVE for service `ai-signal-radar-main-market`.
+- Build/test result: 126 tests, 122 passed, 0 failed, 4 skipped. The build command then completed syntax checks and uploaded successfully.
+- Live `/health` returned `ok:true`, version `2026-11-16-v1-bb-independent-v2`, architecture `V1_AND_BB_PURE_SCALPER_INDEPENDENT`, 2 engines, BB may create its own signal, and Twelve Data pool 10/10 available.
+- Live `/api/public/signal` returned EUR/USD, M1, API ONLINE, Streaming fresh, 54/54 required closed candles, and separate `engineResults.V1` / `engineResults.BB` fields. Snapshot showed a V1-held CALL while the latest V1 scan had moved to a PUT PREPARE candidate; the 30-second hold was correct but the per-engine reason/score could be confusing.
+- Created `feature/active-signal-clarity-20261116` to label active held signal separately from latest candidate and to retain the score/reason that produced the held signal. This clarification is not yet deployed.
+- `/signal` HTML is served and contains the new independent engine cards. Actual JavaScript session initialization, Telegram Android sound/vibration, and end-to-end T-5 alert delivery still require a real Mini App session on the user's device.
+- Keep the current live build active until the clarity patch passes build and deploy. Do not claim out-of-sample validation or trading accuracy.

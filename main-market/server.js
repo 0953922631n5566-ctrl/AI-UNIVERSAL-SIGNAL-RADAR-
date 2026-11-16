@@ -300,6 +300,7 @@ async function evaluate(feed) {
      active = {
        engine, signal: candidateSignal, sourceCandleEpoch, targetCandleEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
+       score: candidate.score ?? 0, sourceReason: candidate.reason || null,
        alertId: `${engine}:${targetCandleEpoch}:${candidateSignal}`
      };
      feed.engineActive[engine] = active;
@@ -310,23 +311,35 @@ async function evaluate(feed) {
      });
    }
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
+   const isActive = Boolean(currentActive && active);
+   const activeReason = isActive
+     ? `ACTIVE ${active.signal} · hold 30s · ${candidateSignal && candidateSignal !== active.signal ? `latest scan sees ${candidateSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
+     : candidate.reason;
    engineResults[engine] = {
      ...candidate,
      engine,
      candidateSignal,
-     signal: currentActive && active ? active.signal : "STANDBY",
-     status: currentActive && active ? "SIGNAL" : candidateSignal ? "WATCH" : "STANDBY",
-     active: Boolean(currentActive && active),
-     alertId: currentActive && active ? active.alertId : null,
-     signalExpiresAt: currentActive && active ? new Date(active.expiresAt).toISOString() : null,
-     signalTargetCandleAt: currentActive && active ? new Date(active.targetCandleEpoch * 1000).toISOString() : null
+     candidateScore: candidate.score ?? 0,
+     candidateReason: candidate.reason || null,
+     direction: isActive ? active.signal : (candidate.direction || candidateSignal || null),
+     score: isActive ? active.score : (candidate.score ?? 0),
+     confidence: isActive ? active.score : (candidate.confidence ?? candidate.score ?? 0),
+     reason: activeReason,
+     signal: isActive ? active.signal : "STANDBY",
+     status: isActive ? "SIGNAL" : candidateSignal ? "WATCH" : "STANDBY",
+     active: isActive,
+     activeSignalScore: isActive ? active.score : null,
+     alertId: isActive ? active.alertId : null,
+     signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
+     signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null
    };
  }
 
  const activeSignals = Object.values(engineResults)
    .filter(engine => engine.active)
    .map(engine => ({
-     engine: engine.engine, signal: engine.signal, alertId: engine.alertId,
+     engine: engine.engine, signal: engine.signal, score: engine.activeSignalScore,
+     reason: engine.reason, alertId: engine.alertId,
      expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt
    }));
  const activeDirections = [...new Set(activeSignals.map(item => item.signal))];
