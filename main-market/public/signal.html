@@ -69,7 +69,9 @@ function paintEngineCards(m,usable){
  const configs=[{key:"V1",card:"v1Card",signal:"v1Signal",reason:"v1Reason",fallback:"V1 Original"},{key:"BB",card:"bbCard",signal:"bbSignal",reason:"bbReason",fallback:"BB Pure Scalper"}];
  for(const item of configs){
    const engine=engines[item.key]||{};
-   const required=item.key==="V1"?54:21;\n   const engineUsable=usable&&Number(m.closedCandleCount||0)>=required;\n   const active=engineUsable&&engine.active&&["CALL","PUT"].includes(engine.signal);
+   const required=item.key==="V1"?54:21; 
+   const engineUsable=usable&&Number(m.closedCandleCount||0)>=required; 
+   const active=engineUsable&&engine.active&&["CALL","PUT"].includes(engine.signal);
    const candidate=engineUsable&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
    const value=active?engine.signal:candidate?("WATCH · "+candidate):"STANDBY";
    $(item.card).className="engine-card "+(active?engine.signal.toLowerCase():candidate?"watch":"");
