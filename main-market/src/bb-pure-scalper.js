@@ -114,6 +114,8 @@ export function analyzeBBPureScalper(input) {
   const bullishBandWalk = slope > 0 && expanding && bandWalkUp;
   const bearishBandWalk = slope < 0 && expanding && bandWalkDown;
 
+  const currentLowerRejection = rejection(current, currentBand, "CALL");
+  const currentUpperRejection = rejection(current, currentBand, "PUT");
   const priorLowerRejection = rejection(previous, previousBand, "CALL");
   const priorUpperRejection = rejection(previous, previousBand, "PUT");
   const callConfirmed =
@@ -147,9 +149,13 @@ export function analyzeBBPureScalper(input) {
   } else if (bullishBandWalk || bearishBandWalk) {
     setup = "BAND_WALK_BLOCK";
     reason = "กรองสัญญาณกลับตัว: พบ Band Walk และแรงขยายตัวตามเทรนด์";
-  } else if (priorLowerRejection.valid || priorUpperRejection.valid) {
+  } else if (currentLowerRejection.valid || currentUpperRejection.valid || priorLowerRejection.valid || priorUpperRejection.valid) {
     setup = "WAIT_FOR_CONFIRMATION";
-    reason = "พบแท่งปฏิเสธขอบ BB แล้ว แต่แท่งล่าสุดยังไม่ยืนยันทะลุ High/Low";
+    reason = currentLowerRejection.valid
+      ? "แท่งล่าสุดแตะ BB ล่างและปิดกลับเข้ากรอบแล้ว · รอแท่งถัดไปยืนยันแรงซื้อ"
+      : currentUpperRejection.valid
+        ? "แท่งล่าสุดแตะ BB บนและปิดกลับเข้ากรอบแล้ว · รอแท่งถัดไปยืนยันแรงขาย"
+        : "พบแท่งปฏิเสธขอบ BB แล้ว แต่แท่งล่าสุดยังไม่ยืนยันทะลุ High/Low";
   }
 
   return {
