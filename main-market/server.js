@@ -12,6 +12,7 @@ import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
+import { analyzeEveryCandle } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -29,9 +30,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-THREE-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-trend-rider-independent-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-EVERY-CANDLE-ENGINE-4";
+const VERSION = "2026-11-16-v1-bb-trend-rider-engine4-every-candle-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -274,6 +275,17 @@ async function evaluate(feed) {
    ? analyzeTrendRider(closedCandles)
    : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
        reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
+ const engine4SourceReady = closedCandles.length >= 20 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
+ const engine4Raw = engine4SourceReady
+   ? analyzeEveryCandle(closedCandles)
+   : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
+       reason: "Engine 4 ต้องมีแท่ง M1 ปิดอย่างน้อย 20 แท่งและข้อมูลราคาต้องสด" };
+ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
+   ? { ...engine4Raw, engine: "ENGINE_4", active: true,
+       targetCandleAt: new Date((engine4Raw.candleEpoch + 60) * 1000).toISOString(),
+       signal: engine4Raw.signal, status: "EVERY_CANDLE_SIGNAL" }
+   : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: "SOURCE_LOCKED" };
  const candidates = {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
@@ -424,6 +436,7 @@ async function evaluate(feed) {
    activeSignals,
    bbPureScalper: bbRaw,
    trendRider: trendRaw,
+   engine4: engine4Result,
    preAlertStatus: feed.preAlertStatus,
    preAlertCandle: feed.preAlertCandle,
    preAlertSignal: null,
@@ -1047,17 +1060,18 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_BB_AND_TREND_RIDER_INDEPENDENT", engines: 3,
+      decisionEngine: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_INDEPENDENT", engines: 4,
       decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_BB_AND_TREND_RIDER_ENGINES_TO_SHARED_T5_TIMING_GUARD"
+      engine4: { independent: true, cadence: "EVERY_NEW_CLOSED_M1_CANDLE", minimumClosedCandles: 20, emitsCallPutInSideways: true, participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "RED", PUT: "GREEN" } },
+      signalDecisionPath: "V1_BB_TREND_RIDER_KEEP_EXISTING_T5_PIPELINE_PLUS_ENGINE_4_EVERY_CLOSED_CANDLE_DIRECTIONAL_OUTPUT"
     },
     analyzer: {
-      provider: "LOCAL_V1_BB_TREND_RIDER_INDEPENDENT_ANALYSTS", model: null, configured: true,
-      role: "THREE_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
+      provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
+      role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
