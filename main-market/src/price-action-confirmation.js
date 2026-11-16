@@ -83,7 +83,7 @@ export function analyzePriceAction(candles, { ema5, atr } = {}) {
   };
 
   const structureScore = direction => {
-    if (structureEvent === "NONE") return 0.50;
+    if (structureEvent === "NONE") return 0;
     if (structureDirection === direction) return structureEvent === "CHOCH" ? 1.0 : 0.90;
     return 0.15;
   };
