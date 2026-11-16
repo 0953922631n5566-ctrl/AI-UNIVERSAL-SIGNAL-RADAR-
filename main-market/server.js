@@ -11,6 +11,7 @@ import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
+import { analyzeTrendRider } from "./src/trend-rider.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -28,9 +29,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
-const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-independent-v6-reversal-entry-guard";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-THREE-INDEPENDENT-ENGINES";
+const VERSION = "2026-11-16-v1-bb-trend-rider-independent-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -48,9 +49,9 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    engineActive: { V1: null, BB: null },
-    engineLastDispatchedCandle: { V1: null, BB: null },
-    engineLastDispatchedAlertId: { V1: null, BB: null },
+    engineActive: { V1: null, BB: null, TREND_RIDER: null },
+    engineLastDispatchedCandle: { V1: null, BB: null, TREND_RIDER: null },
+    engineLastDispatchedAlertId: { V1: null, BB: null, TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -206,9 +207,9 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null };
-  feed.engineLastDispatchedCandle = { V1: null, BB: null };
-  feed.engineLastDispatchedAlertId = { V1: null, BB: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+  feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null };
+  feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.signalCandle = null;
   feed.signalSourceCandle = null;
@@ -223,7 +224,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.analysis = standby(reason);
   feed.streamMessage = reason;
@@ -267,19 +268,26 @@ async function evaluate(feed) {
    ? analyzeBBPureScalper(closedCandles)
    : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
        reason: "BB ต้องมีแท่ง M1 ปิดอย่างน้อย 21 แท่งและข้อมูลราคาต้องสด" };
+ const trendSourceReady = closedCandles.length >= 30 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
+ const trendRaw = trendSourceReady
+   ? analyzeTrendRider(closedCandles)
+   : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
+       reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
  const candidates = {
    V1: v1Result,
-   BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" }
+   BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
+   TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
  const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
- if (!feed.engineActive) feed.engineActive = { V1: null, BB: null };
- if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null };
- if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null };
+ if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+ if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null };
+ if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null };
 
  const engineResults = {};
- for (const engine of ["V1", "BB"]) {
+ for (const engine of ["V1", "BB", "TREND_RIDER"]) {
    const candidate = candidates[engine];
    // Only a finalized CALL/PUT from the engine may be released at T-5.
    // V1 PREPARE remains a watch candidate unless its guarded strong-pressure fast lane explicitly returns CALL/PUT.
@@ -350,8 +358,9 @@ async function evaluate(feed) {
  const activeEngineNames = activeSignals.map(item => item.engine);
  const v1Candidate = engineResults.V1.candidateSignal;
  const bbCandidate = engineResults.BB.candidateSignal;
+ const trendCandidate = engineResults.TREND_RIDER.candidateSignal;
  feed.preAlertStatus = !activeSignals.length && prepareWindow &&
-   Boolean(v1Candidate || bbCandidate) ? "PREPARE_ALERT" : null;
+   Boolean(v1Candidate || bbCandidate || trendCandidate) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -360,7 +369,7 @@ async function evaluate(feed) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
    console.info("[timing] T-10 independent engine watch window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     v1Candidate, bbCandidate
+     v1Candidate, bbCandidate, trendCandidate
    });
  }
 
@@ -394,12 +403,12 @@ async function evaluate(feed) {
  } else if (activeSignals.length) {
    reason = `สัญญาณ ${aggregateSignal} จาก ${activeEngineNames.join(" + ")} · แสดงผลแยกตามเครื่องยนต์`;
  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
-   reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · รอยืนยัน T-5`;
+   reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · Trend Rider: ${trendCandidate || "รอ"} · รอยืนยัน T-5`;
  } else {
-   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"}`;
+   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
  }
  const primary = activeSignals.length
-   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB)
+   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB : engineResults.TREND_RIDER)
    : v1Result;
  feed.analysis = {
    ...v1Result,
@@ -414,6 +423,7 @@ async function evaluate(feed) {
    engineResults,
    activeSignals,
    bbPureScalper: bbRaw,
+   trendRider: trendRaw,
    preAlertStatus: feed.preAlertStatus,
    preAlertCandle: feed.preAlertCandle,
    preAlertSignal: null,
@@ -424,13 +434,13 @@ async function evaluate(feed) {
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   signalValidationNote: "V1 Partial Scoring และ BB Pure Scalper วิเคราะห์แยกอิสระ · BB ใช้ BB(20,2) และเงื่อนไข Early Touch ที่ผ่อนคลาย · ทั้งสองใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · แสดงสัญญาณแยกเมื่อขัดแย้ง · ยังไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: "V1, BB Pure Scalper และ Trend Rider AI วิเคราะห์แยกอิสระ · Trend Rider ใช้ EMA5/20, โครงสร้างราคา และจังหวะ pullback/continuation · ทั้งสามใช้ Data Quality และ T-5 Timing Guard ร่วมกัน · แสดงสัญญาณแยกเมื่อขัดแย้ง · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
 function dispatchSignalIfReady(feed) {
  const now = Date.now();
- for (const engine of ["V1", "BB"]) {
+ for (const engine of ["V1", "BB", "TREND_RIDER"]) {
    const active = feed.engineActive?.[engine];
    if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
    if (!canFinalizeSignal({
@@ -636,7 +646,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -798,7 +808,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null };
+    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
     feed.activeUntil = 0;
     void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
@@ -810,7 +820,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null };
+    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
       feed.streamStatus = "ERROR";
@@ -1037,19 +1047,21 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_AND_BB_PURE_SCALPER_INDEPENDENT", engines: 2,
+      decisionEngine: "V1_BB_AND_TREND_RIDER_INDEPENDENT", engines: 3,
       decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_AND_BB_ENGINES_TO_SHARED_T5_TIMING_GUARD"
+      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      signalDecisionPath: "SHARED_SOURCE_QUALITY_GATE_TO_INDEPENDENT_V1_BB_AND_TREND_RIDER_ENGINES_TO_SHARED_T5_TIMING_GUARD"
     },
     analyzer: {
-      provider: "LOCAL_V1_AND_BB_INDEPENDENT_ANALYSTS", model: null, configured: true,
+      provider: "LOCAL_V1_BB_TREND_RIDER_INDEPENDENT_ANALYSTS", model: null, configured: true,
       role: "TWO_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
+      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
       entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true },

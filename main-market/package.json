@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/price-action-confirmation.js && node --check src/entry-timing.js && node --check src/strong-pressure.js && node --check src/entry-quality.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/bb-pure-scalper.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/price-action-confirmation.js && node --check src/entry-timing.js && node --check src/strong-pressure.js && node --check src/entry-quality.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/bb-pure-scalper.js && node --check src/trend-rider.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,13 +17,13 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "V1 Partial Scoring + BB Pure Scalper Independent Engines",
-    "displayName": "Independent V1 65/45 + BB(20,2) Early Touch Reversal",
-    "engineCount": 2,
+    "name": "V1 + BB + Trend Rider AI Independent Engines",
+    "displayName": "Three Independent Engines: V1 + BB(20,2) + Trend Rider EMA5/20",
+    "engineCount": 3,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "V1_AND_BB_INDEPENDENT_DIRECTIONAL_ANALYSTS",
-    "directionalVoters": 2,
+    "decisionAuthority": "V1_BB_AND_TREND_RIDER_INDEPENDENT_DIRECTIONAL_ANALYSTS",
+    "directionalVoters": 3,
     "aggregator": 1,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
@@ -49,6 +49,7 @@
     ],
     "entryTimingGuard": { "scope": "V1_ONLY", "lateExtensionAtr": 1.25, "extremeExtensionAtr": 1.8, "waitStatus": "PREPARE", "bbIndependent": true },
     "strongPressureEarlyEntry": { "scope": "V1_ONLY", "minimumScore": 58, "minimumDirectionGap": 8, "requiresPressureAndEmaOrStructure": true, "riskGuardsRemainActive": true },
+    "trendRider": { "emaFast": 5, "emaTrend": 20, "scoreThreshold": 65, "minimumClosedCandles": 30, "independent": true },
     "bbPureScalper": {
       "period": 20,
       "standardDeviation": 2,
