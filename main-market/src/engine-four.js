@@ -17,12 +17,13 @@ function validCandle(candle) {
 }
 
 export function analyzeEveryCandle(input) {
-  const candles = Array.isArray(input) ? input.filter(validCandle).slice(-30) : [];
-  if (candles.length < 20) {
+  const source = Array.isArray(input) ? input.slice(-30) : [];
+  if (source.length < 20 || source.slice(-20).some(candle => !validCandle(candle))) {
     return { ready: false, signal: null, status: "SOURCE_LOCKED", score: 0,
       reason: "Engine 4 ต้องมีแท่ง M1 ปิดที่ถูกต้องอย่างน้อย 20 แท่ง" };
   }
 
+  const candles = source;
   const closes = candles.map(c => c.close);
   const last = candles.at(-1);
   const previous = candles.at(-2);
