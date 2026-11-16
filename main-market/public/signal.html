@@ -68,8 +68,6 @@ function accessMessage(message,kind="off"){$("access").hidden=false;$("accessTex
 async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const response=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.sessionToken){const retrySeconds=Math.max(5,Number(response.headers.get("Retry-After")||15));authRetryAt=Date.now()+retrySeconds*1000;throw new Error(body.error||"Session creation failed");}authRetryAt=0;sessionToken=body.sessionToken;$("access").hidden=true;$("api").className="pill live";$("api").textContent="SESSION READY";}
 function ensureAuth(){if(!authPromise)authPromise=authenticate().finally(()=>{authPromise=null;});return authPromise;}
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0),cooldown=Math.max(0,total-ready);$("apiSummary").textContent="ตั้งค่า "+total+"/10 คีย์ · พร้อมใช้ "+ready+" · พัก/จำกัด "+cooldown;$("apiKeys").replaceChildren();for(let n=1;n<=10;n++){const item=states.find(v=>Number(v.number)===n);const row=document.createElement("div"),name=document.createElement("span"),status=document.createElement("b");row.className="api-key "+(!item?"empty":item.available===false?"bad":"good");name.textContent="API KEY "+String(n).padStart(2,"0");status.textContent=!item?"NOT SET":item.status==="ACTIVE"?"ACTIVE":item.status==="COOLDOWN"?"COOLDOWN":"READY";row.append(name,status);$("apiKeys").append(row);}}
-async function changePair(symbol){const picker=$("pairSelect");picker.disabled=true;try{if(!sessionToken)await ensureAuth();const response=await fetch("/api/telegram/select",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sessionToken},cache:"no-store",body:JSON.stringify({symbol})});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||("HTTP "+response.status));latest=null;lastAlertKeys=new Set();if(signalClearTimer)clearTimeout(signalClearTimer);paint(body.market||{});picker.value=body.market?.selectedSymbol||symbol;await poll();}catch(error){picker.value=latest?.selectedSymbol||"EUR/USD";$("reason").textContent="เปลี่ยนคู่เงินไม่สำเร็จ: "+error.message;}finally{picker.disabled=false;}}
-$("pairSelect").addEventListener("change",event=>changePair(event.target.value));
 function paintEngineCards(m,usable){
  const engines=m.engineResults||{};
  const configs=[{key:"V1",card:"v1Card",signal:"v1Signal",reason:"v1Reason",fallback:"V1 Original"},{key:"BB",card:"bbCard",signal:"bbSignal",reason:"bbReason",fallback:"BB Pure Scalper"}];
@@ -88,7 +86,6 @@ function paintEngineCards(m,usable){
 function paint(m){
  latest=m||{};
  const api=m.apiStatus||"OFFLINE",support=m.supportStatus||"";
- if(m.selectedSymbol&&$("pairSelect").value!==m.selectedSymbol)$("pairSelect").value=m.selectedSymbol;
  paintApiPool(m.apiPool||{});
  const required=Number(m.requiredCandles||54);
  const usable=api==="ONLINE"&&m.monitoring!==false;
