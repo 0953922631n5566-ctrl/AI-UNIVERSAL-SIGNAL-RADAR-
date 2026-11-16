@@ -255,10 +255,18 @@ async function evaluate(feed) {
  const v1Result = applySignalReleaseGate(v1Raw);
  const closedCandles = feed.candles.filter(c => c && c.live !== true &&
    Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-54);
- const bbRaw = v1Raw.livePriceReady
+ const latestClosed = closedCandles.at(-1);
+ const latestClosedAge = latestClosed ? now / 1000 - (latestClosed.epoch + 60) : Infinity;
+ const bbOhlcValid = closedCandles.slice(-21).length === 21 &&
+   closedCandles.slice(-21).every(c => [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
+     c.low > 0 && c.high >= Math.max(c.open, c.close) &&
+     c.low <= Math.min(c.open, c.close) && c.high >= c.low);
+ const bbSourceReady = bbOhlcValid && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
+ const bbRaw = bbSourceReady
    ? analyzeBBPureScalper(closedCandles)
    : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
-       reason: v1Raw.reason || "ข้อมูลตลาดยังไม่ผ่าน Data Quality Guard" };
+       reason: "BB ต้องมีแท่ง M1 ปิดอย่างน้อย 21 แท่งและข้อมูลราคาต้องสด" };
  const candidates = {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" }
