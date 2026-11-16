@@ -1064,9 +1064,6 @@ app.get("/health", (_req, res) => {
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
-      entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true },
-      strongPressureEarlyEntry: { enabled: true, minScore: 58, minDirectionGap: 8, candleBodyRatio: 0.62, closeLocation: 0.78, minBodyAtr: 0.55, requiresEmaOrStructureAlignment: true, blockedByChopAtrSpikeOrLateExtension: true, blockedByEntryQualityGuard: true, scope: "V1_ONLY" },
-      entryQualityGuard: { enabled: true, scope: "V1_ONLY", swingProximityAtr: 0.20, confirmedBreakoutBufferAtr: 0.05, matureRunMinimumCandles: 3, requiresBodyContractionOrOpposingWick: true, independentOfBB: true }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
