@@ -51,13 +51,13 @@ test("M1 scoring window remains 50 context plus 4 entry candles with 100-candle 
   assert.equal(MAX_CANDLES, 110);
 });
 
-test("V1 uses the original 65/45 partial-scoring path without later entry guards", async () => {
+test("V1 uses the faster 55/40 partial-scoring path without later entry guards", async () => {
   const result = await analyzeMarket(history(54, 1), {
     now: Date.now(), tickAgeSeconds: 0
   });
-  assert.equal(result.strategy, "PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION");
-  assert.equal(result.thresholds.signal, 65);
-  assert.equal(result.thresholds.prepare, 45);
+  assert.equal(result.strategy, "PARTIAL_SCORING_55_EARLY_ENTRY_PRICE_ACTION_CONFIRMATION");
+  assert.equal(result.thresholds.signal, 55);
+  assert.equal(result.thresholds.prepare, 40);
   assert.equal(result.entryTiming, undefined);
   assert.equal(result.entryQuality, undefined);
   assert.equal(result.directionalPressure, undefined);
@@ -528,9 +528,9 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
  assert.equal(result.signal,"STANDBY");
  assert.ok(result.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
-test("Partial Scoring exposes requested 65/45 agile thresholds",()=>{
+test("Partial Scoring exposes faster 55/40 entry thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:65,prepare:45,standbyBelow:45});
+ assert.deepEqual(result.thresholds,{signal:55,prepare:40,standbyBelow:40});
 });
 
 function moderateFakeoutCandles(count = 54) {
@@ -561,7 +561,7 @@ test("Original Partial Scoring gives partial S/R Fakeout evidence before full sw
   const result = scoreMarket(slopeShiftCandles(1));
   assert.ok(result.componentScores.CALL.srFakeout > 0);
   assert.ok(result.componentScores.CALL.srFakeout < 30);
-  assert.equal(result.thresholds.signal, 65);
+  assert.equal(result.thresholds.signal, 55);
 });
 
 test("Partial Scoring awards full S/R Fakeout points only after a genuine sweep and close reclaim", () => {

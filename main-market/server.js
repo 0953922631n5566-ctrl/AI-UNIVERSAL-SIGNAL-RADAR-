@@ -177,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -1062,7 +1062,7 @@ app.get("/health", (_req, res) => {
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
-      thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
+      thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
     },
     recovery: {
@@ -1091,7 +1091,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_65_AGILE_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
@@ -1100,7 +1100,7 @@ app.get("/health", (_req, res) => {
         directionalSource: "LOCAL_PARTIAL_SCORING_ON_CLOSED_M1_CANDLES_ONLY",
         externalAi: false,
         componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
+        thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
         slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
         supportResistanceFakeout: "FULL_POINTS_ONLY_ON_CONFIRMED_SWEEP_CLOSE_RECLAIM",
         sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
