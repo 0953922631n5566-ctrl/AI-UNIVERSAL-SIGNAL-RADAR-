@@ -18,3 +18,5 @@
 
 /* Neutral dashboard state: no STANDBY label; internal decision state remains unchanged. */
 .signal-panel.neutral{border-color:#39483e;background:#17231b}.signal-panel.neutral .signal-light{border-color:#59685d;background:#202e24}.signal-panel.neutral .signal-light span{background:#7c897f}.signal-panel.neutral .signal-text strong{color:#d6e0d8}
+
+.strategy-field{flex:1.25}.strategy-field select{font-size:12px;max-width:100%;white-space:normal}.strategy-field select option{background:#101d16}
