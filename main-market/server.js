@@ -1057,7 +1057,7 @@ app.get("/health", (_req, res) => {
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_INDEPENDENT_ANALYSTS", model: null, configured: true,
-      role: "TWO_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
+      role: "THREE_INDEPENDENT_DIRECTIONAL_ANALYSTS", externalAiCalls: false,
       closedCandlesOnly: true, localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
