@@ -3,6 +3,7 @@ const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
 import { assessEntryTiming } from "./entry-timing.js";
 import { assessDirectionalPressure, qualifiesForStrongPressureEarlyEntry } from "./strong-pressure.js";
+import { assessEntryQuality } from "./entry-quality.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -38,7 +39,7 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const wickStrength=clamp((wickRatio-0.12)/0.48);
   const reclaimStrength=reclaim?1:clamp(1-Math.abs(c.close-level)/Math.max(atr*0.25,1e-10));
   const fakeoutConfirmed=sweepDistance>0&&reclaim&&wickRatio>=0.35;
-  const fakeoutScore=30*(fakeoutConfirmed?1:0.45*sweepStrength+0.35*wickStrength+0.20*reclaimStrength);
+  const fakeoutScore= fakeoutConfirmed ? 30 : 0;
   const distance=atr>0?Math.abs(c.close-ema5[i])/atr:Infinity;
   const near=clamp(1-distance/0.70);
   const momentum=bullish?clamp((c.close-c.open+Math.max(0,c.close-p.close)*0.5)/Math.max(atr*0.35,1e-10))
@@ -95,23 +96,26 @@ export function scoreMarket(candles) {
   const directionalPressure=direction?assessDirectionalPressure(candles,direction,{
     ema5:e5[i],ema5Slope:slope5,atr,structureDirection:priceAction.structure.direction
   }):null;
+  const entryQuality=direction?assessEntryQuality(candles,direction,{atr,priceAction}):null;
+  const entryBlocked=Boolean(entryTiming?.waitForPullback||entryQuality?.blocked);
   const strongPressureEarly=qualifiesForStrongPressureEarlyEntry({
     pressure:directionalPressure,score:top,gap,choppy,atrSpike,
-    waitForPullback:entryTiming?.waitForPullback
+    waitForPullback:entryBlocked
   });
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   if(entryTiming?.waitForPullback)riskFlags.push("V1_LATE_ENTRY_WAIT_FOR_PULLBACK");
+  if(entryQuality?.blocked)riskFlags.push(...entryQuality.flags);
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=65&&!entryTiming?.waitForPullback){signal=direction;status="SIGNAL";}
+    if(top>=65&&!entryBlocked){signal=direction;status="SIGNAL";}
     else if(strongPressureEarly){signal=direction;status="SIGNAL";}
     else if(top>=45){signal="PREPARE";status="PREPARE";}
   }
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :entryTiming?.waitForPullback&&top>=45?`V1 ENTRY TIMING: ${entryTiming.reason} · คะแนน ${top}/100 · ยังไม่ปล่อย CALL/PUT`
+    :entryBlocked&&top>=45?`V1 ENTRY QUALITY: ${entryQuality?.blocked?entryQuality.reason:entryTiming?.reason} · คะแนน ${top}/100 · ยังไม่ปล่อย CALL/PUT`
     :strongPressureEarly?`${directionalPressure.reason} · คะแนน V1 ${top}/100 · Early Entry ผ่านเกณฑ์แรงกดดัน`
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65 และจังหวะเข้าเหมาะสม`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
@@ -136,6 +140,9 @@ export function scoreMarket(candles) {
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
       momentumExtensionAtr:priceAction.exhaustion.extensionAtr,
       entryTimingStatus:entryTiming?.status||"UNAVAILABLE",
+      entryQualityStatus:entryQuality?.status||"UNAVAILABLE",
+      entrySwingDistanceAtr:entryQuality?.distanceToOpposingSwingAtr??null,
+      entryConfirmedBreakout:entryQuality?.confirmedBreakout??false,
       entryExtensionAtr:entryTiming?.extensionAtr??null,
       entrySameDirectionRun:entryTiming?.sameDirectionRun??null,
       directionalPressureScore:directionalPressure?.score??null,
@@ -144,6 +151,7 @@ export function scoreMarket(candles) {
       strongPressureEarly},
     directionalPressure,
     entryTiming,
+    entryQuality,
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
     thresholds:{signal:65,prepare:45,standbyBelow:45}
   };
