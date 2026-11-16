@@ -51,6 +51,19 @@ test("M1 scoring window remains 50 context plus 4 entry candles with 100-candle 
   assert.equal(MAX_CANDLES, 110);
 });
 
+test("V1 uses the original 65/45 partial-scoring path without later entry guards", async () => {
+  const result = await analyzeMarket(history(54, 1), {
+    now: Date.now(), tickAgeSeconds: 0
+  });
+  assert.equal(result.strategy, "PARTIAL_SCORING_65_PRICE_ACTION_CONFIRMATION");
+  assert.equal(result.thresholds.signal, 65);
+  assert.equal(result.thresholds.prepare, 45);
+  assert.equal(result.entryTiming, undefined);
+  assert.equal(result.entryQuality, undefined);
+  assert.equal(result.directionalPressure, undefined);
+  assert.equal(result.strongPressureEarly, undefined);
+});
+
 test("technical indicator snapshot contains finite M1 EMA, RSI, MACD and ATR values", () => {
   const values = buildTechnicalIndicators(history(80));
   for (const key of ["ema9", "ema21", "ema50", "emaSpreadPercent", "rsi14", "rsi14Previous", "rsi14Change", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20", "microSupport8", "microResistance8", "microRange8"]) {
