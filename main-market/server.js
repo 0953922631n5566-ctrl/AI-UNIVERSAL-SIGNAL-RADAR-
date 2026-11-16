@@ -140,7 +140,7 @@ function publicFeed(feed) {
         ? feed.candles.at(-1).epoch + 60
         : Math.max(feed.candles.at(-1).epoch + 60, Math.floor(Date.now() / 60000) * 60 + 60)) * 1000
       : null,
-    signalExpiresAt: feed.activeSignal
+    signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     forecastStats: forecastStats(feed),
