@@ -2,7 +2,7 @@ const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
 import { assessEntryTiming } from "./entry-timing.js";
-import { assessDirectionalPressure } from "./strong-pressure.js";
+import { assessDirectionalPressure, qualifiesForStrongPressureEarlyEntry } from "./strong-pressure.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -95,8 +95,10 @@ export function scoreMarket(candles) {
   const directionalPressure=direction?assessDirectionalPressure(candles,direction,{
     ema5:e5[i],ema5Slope:slope5,atr,structureDirection:priceAction.structure.direction
   }):null;
-  const strongPressureEarly=Boolean(directionalPressure?.strong&&top>=58&&gap>=8&&
-    !choppy&&!atrSpike&&!entryTiming?.waitForPullback);
+  const strongPressureEarly=qualifiesForStrongPressureEarlyEntry({
+    pressure:directionalPressure,score:top,gap,choppy,atrSpike,
+    waitForPullback:entryTiming?.waitForPullback
+  });
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
