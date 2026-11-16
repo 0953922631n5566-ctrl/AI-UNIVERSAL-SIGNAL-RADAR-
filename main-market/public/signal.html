@@ -29,7 +29,7 @@
 <section class="card"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">V1 และ BB วิเคราะห์แยกอิสระ · Manual only</div></section>
 <details class="api-drawer"><summary><span>ศูนย์ API · สถานะคีย์</span><b id="apiSummary" class="api-summary">กำลังโหลด</b><span>⌄</span></summary><div id="apiKeys" class="api-grid"></div><div class="note api-note">เขียว = พร้อมใช้ · แดง = พัก/โควตา · เทา = ยังไม่ได้ตั้งค่า</div></details>
 <div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
-<footer class="footer">V1 + BB วิเคราะห์แยกอิสระ · EUR/USD ONLY · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
+<footer class="footer">V1 + BB PURE SCALPER · วิเคราะห์แยกอิสระ · EUR/USD ONLY · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
 </main><script>
 const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKeys=new Set(),lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 const tg=window.Telegram?.WebApp||null;
