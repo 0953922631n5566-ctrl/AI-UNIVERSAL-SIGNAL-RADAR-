@@ -74,7 +74,7 @@ export function analyzeEveryCandle(input) {
     ready: true, signal, candidateSignal: signal, status: "EVERY_CANDLE_SIGNAL",
     score, confidence: score, candleEpoch: last.epoch,
     alertId: `ENGINE_4:${last.epoch}:${signal}`,
-    targetCandleAt: new Date((last.epoch + 60) * 1000).toISOString(),
+    targetCandleAt: new Date((last.epoch + 120) * 1000).toISOString(),
     reason: `วิเคราะห์แท่งปิดล่าสุดแล้ว · ${bias} · ${momentum} · คะแนนแรงทิศทาง ${score}/100 · ออกสัญญาณทุกแท่ง`,
     metrics: {
       ema5: Number(fast.toFixed(6)), ema20: Number(slow.toFixed(6)),
