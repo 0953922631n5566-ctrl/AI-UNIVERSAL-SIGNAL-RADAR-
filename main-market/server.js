@@ -285,6 +285,13 @@ async function evaluate(feed) {
    });
  }
 
+ // V1 signal state is deliberately inert during the BB-only trial.
+ feed.activeSignal = null;
+ feed.activeUntil = 0;
+ feed.signalCandle = null;
+ feed.signalSourceCandle = null;
+ feed.signalTriggeredAt = 0;
+ feed.alertId = null;
 
  if (feed.activeSignal && now >= feed.activeUntil) {
    feed.activeSignal = null;
