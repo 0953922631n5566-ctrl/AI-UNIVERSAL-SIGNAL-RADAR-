@@ -50,3 +50,24 @@ test("fails closed when ATR or EMA context is unavailable", () => {
   const candles = [{ open: 1.1, high: 1.101, low: 1.099, close: 1.1009 }];
   assert.equal(assessDirectionalPressure(candles, "CALL", { ema5: 1.1, ema5Slope: 0.1, atr: 0 }).ready, false);
 });
+
+import { qualifiesForStrongPressureEarlyEntry } from "./strong-pressure.js";
+
+test("strong pressure can qualify V1 below the normal 65 threshold", () => {
+  assert.equal(qualifiesForStrongPressureEarlyEntry({
+    pressure: { strong: true }, score: 60, gap: 12
+  }), true);
+});
+
+test("strong pressure fast lane rejects weak score or ambiguous direction", () => {
+  assert.equal(qualifiesForStrongPressureEarlyEntry({ pressure: { strong: true }, score: 57.9, gap: 12 }), false);
+  assert.equal(qualifiesForStrongPressureEarlyEntry({ pressure: { strong: true }, score: 60, gap: 7.9 }), false);
+});
+
+test("strong pressure fast lane never bypasses chop, ATR spike, or late-entry guard", () => {
+  for (const extra of [{ choppy: true }, { atrSpike: true }, { waitForPullback: true }]) {
+    assert.equal(qualifiesForStrongPressureEarlyEntry({
+      pressure: { strong: true }, score: 62, gap: 10, ...extra
+    }), false);
+  }
+});
