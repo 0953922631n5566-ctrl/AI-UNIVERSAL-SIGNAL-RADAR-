@@ -30,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 PARTIAL SCORING + BB PURE SCALPER";
 const ARCHITECTURE_ID = "V1-BB-PURE-SCALPER-INDEPENDENT-ENGINES";
-const VERSION = "2026-11-16-v1-bb-independent-v5-strong-pressure";
+const VERSION = "2026-11-16-v1-bb-independent-v6-reversal-entry-guard";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1053,7 +1053,8 @@ app.get("/health", (_req, res) => {
       thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
       entryTiming: { mode: "V1_LATE_EXTENSION_EXHAUSTION_GUARD", waitForPullbackExtensionAtr: 1.25, extremeExtensionAtr: 1.8, independentOfBB: true },
-      strongPressureEarlyEntry: { enabled: true, minScore: 58, minDirectionGap: 8, candleBodyRatio: 0.62, closeLocation: 0.78, minBodyAtr: 0.55, requiresEmaOrStructureAlignment: true, blockedByChopAtrSpikeOrLateExtension: true, scope: "V1_ONLY" }
+      strongPressureEarlyEntry: { enabled: true, minScore: 58, minDirectionGap: 8, candleBodyRatio: 0.62, closeLocation: 0.78, minBodyAtr: 0.55, requiresEmaOrStructureAlignment: true, blockedByChopAtrSpikeOrLateExtension: true, blockedByEntryQualityGuard: true, scope: "V1_ONLY" },
+      entryQualityGuard: { enabled: true, scope: "V1_ONLY", swingProximityAtr: 0.20, confirmedBreakoutBufferAtr: 0.05, matureRunMinimumCandles: 3, requiresBodyContractionOrOpposingWick: true, independentOfBB: true }
     },
     recovery: {
       enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
@@ -1092,7 +1093,7 @@ app.get("/health", (_req, res) => {
         componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
         thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 },
         slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
-        supportResistanceFakeout: "PARTIAL_SWEEP_WICK_REJECTION_AND_RECLAIM_POINTS",
+        supportResistanceFakeout: "FULL_POINTS_ONLY_ON_CONFIRMED_SWEEP_CLOSE_RECLAIM",
         sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
         volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
       }
