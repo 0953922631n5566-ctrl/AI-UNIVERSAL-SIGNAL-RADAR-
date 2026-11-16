@@ -389,6 +389,9 @@ async function evaluate(feed) {
  feed.analysis = {
    ...v1Result,
    signal: aggregateSignal,
+   direction: aggregateSignal === "STANDBY" ? null : aggregateSignal,
+   status: aggregateSignal === "STANDBY" ? (feed.preAlertStatus ? "PREPARE" : "STANDBY") : "SIGNAL",
+   prepareSignal: feed.preAlertStatus ? (v1Candidate || bbCandidate) : null,
    reason,
    summary: reason,
    score: primary.score ?? v1Result.score ?? 0,
