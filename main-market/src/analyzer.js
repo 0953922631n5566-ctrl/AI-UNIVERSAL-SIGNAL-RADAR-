@@ -136,7 +136,8 @@ export async function analyzeMarket(candles, options = {}) {
   };
   if (!gate.ready) {
     return { signal:"STANDBY", reason:gate.reason, regime:"UNCLEAR", score:0, confidence:0,
-      strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
+      strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason],
+      analysisMode:"SOURCE_LOCKED", livePreviewIncluded:false, ...base };
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
   const liveCandle = options.liveCandle;
