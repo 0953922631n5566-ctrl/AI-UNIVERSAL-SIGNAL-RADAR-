@@ -14,7 +14,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   for (const symbol of ["AUD/USD", "EUR/GBP", "GBP/JPY", "EUR/JPY", "GBP/USD"]) {
     assert.doesNotMatch(html, new RegExp(symbol.replace("/", "\\/")));
   }
-  assert.match(html, /<details class="api-drawer">/);
+  assert.match(html, /<details class="api-drawer" data-panel="api">/);
   assert.match(html, /apiKeys/);
 });
 
@@ -44,7 +44,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="engine4Reason"/);
   assert.match(html, /<div class="engine-title">04 · STRICT TREND RIDER AI<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
-  assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
+  assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
   assert.match(html, /\.engine-card\.put\{border-color:var\(--put-color\)\}/);
   assert.match(html, /\.engine-card\.light-inverted\{--call-color:#39e879/);
@@ -104,47 +104,38 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
 
 test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
-  assert.match(serverJs, /finalizeWindow && finalSignal &&/);
+  assert.match(serverJs, /!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal &&/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
-test("Engine 4 is displayed separately and does not enter the existing alert/sound pipeline", () => {
-  assert.match(serverJs, /engine4: engine4Result/);
-  assert.match(serverJs, /analyzeStrictTrendRider\(analysisCandles, \{ livePreview: Boolean\(livePreview\) \}\)/);
-  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS \* 1000/);
-  assert.match(serverJs, /createLiveCandlePreview\(currentCandle/);
-  assert.match(serverJs, /engine4SourceReady = closedCandles\.length >= 35/);
-  assert.match(serverJs, /engines: 4/);
+test("Engine 4 is exposed as an independent analyzer and participates in recovery", () => {
+  assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
+  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_STRICT_TREND_RIDER"/);
+  assert.match(serverJs, /const engineResults = \{\}/);
+  assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
+  assert.match(serverJs, /engineRecoveryStates\[engine\]/);
   assert.match(html, /function paintEngineCards/);
-  assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
-  assert.doesNotMatch(serverJs.slice(serverJs.indexOf("const activeSignals ="), serverJs.indexOf("const activeDirections")), /ENGINE_4/);
+  assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
+  assert.match(html, /id="engine4Card"/);
+  assert.match(html, /id="engine4Signal"/);
+  assert.match(html, /id="engine4Reason"/);
+  assert.match(serverJs, /engine4Candidate/);
+  assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-
-test("Engine 4 follows T-10/T-5 timing, holds 30 seconds, and has its own sound/vibration alert", () => {
-  assert.match(html, /engine4Prepare=fourthReady&&remainingSeconds>5&&remainingSeconds<=10/);
-  assert.match(html, /engine4Finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
+test("Engine 4 uses the shared T-10/T-5 alert pipeline and holds its card for 30 seconds", () => {
+  assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
+  assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
+  assert.match(html, /playSequence\(\[587,784\]/);
+  assert.match(html, /navigator\.vibrate\(\[100,60,100\]\)/);
+  assert.match(html, /const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
   assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
-  assert.match(html, /#engine4Card\.engine4-flash-call/);
-  assert.match(html, /#engine4Card\.engine4-flash-put/);
-  assert.match(html, /engine4BorderFlashCall/);
-  assert.match(html, /engine4BorderFlashPut/);
-  assert.ok(html.includes("@keyframes engine4BorderFlashCall{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--call-color)"));
-  assert.ok(html.includes("@keyframes engine4BorderFlashPut{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--put-color)"));
-  assert.ok(serverJs.includes('colors: { CALL: "RED", PUT: "GREEN" }'));
-  const start = html.indexOf("const fourth=m.engine4||{}");
-  const end = html.indexOf("\n}\nfunction paint(m)", start);
-  assert.ok(start >= 0 && end > start, "expected isolated Engine 4 card renderer");
-  const engine4Ui = html.slice(start, end);
-  assert.match(html, /function triggerEngine4SoundAndVibration\(signal\)/);
+  assert.match(html, /engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil/);
+  assert.match(html, /triggerSignalAlert\(item\.signal,alertKey,item\.engine\)/);
   assert.match(html, /playSequence\(isCall\?\[660,880,1175,880\]:\[880,660,440,660\]/);
   assert.match(html, /navigator\.vibrate\(isCall\?\[250,100,250,100,450\]:\[450,120,250,120,450\]/);
-  assert.match(engine4Ui, /triggerEngine4SoundAndVibration\(fourth\.signal\)/);
-  assert.match(engine4Ui, /engine4WindowKey=String\(fourth\.candleEpoch\|\|""\)/);
-  assert.match(engine4Ui, /engine4Holding=Boolean\(engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil\)/);
-  assert.doesNotMatch(engine4Ui, /triggerSignalAlert/);
+  assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
-
 
 test("four engine cards are independently toggleable and Engine 4 has no cross-card alert pipeline", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
