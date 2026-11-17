@@ -42,7 +42,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="engine4Card"/);
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
-  assert.match(html, /<div class="engine-title">04 · STRICT TREND RIDER AI<\/div>/);
+  assert.match(html, /<div class="engine-title">04 · EARLY ENTRY AI · 0–30s<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -104,13 +104,13 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
 
 test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
-  assert.match(serverJs, /if \(!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal/);
+  assert.match(serverJs, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
 test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_STRICT_TREND_RIDER"/);
+  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_EARLY_ENTRY_ENGINE_4"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -153,8 +153,8 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /minimumSignalScore: 75/);
-  assert.match(serverJs, /copiedFrom: "TREND_RIDER_AI"/);
+  assert.match(serverJs, /minimumSignalScore: 70/);
+  assert.match(serverJs, /copiedFrom: null/);
 });
 
 test("all four analyzers are scheduled every two seconds without increasing Twelve Data REST cadence", () => {
