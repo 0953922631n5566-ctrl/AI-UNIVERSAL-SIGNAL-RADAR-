@@ -33,8 +33,8 @@ function validClosedCandle(candle) {
 }
 
 /**
- * Engine 4 is an isolated, stricter copy of Engine 3 (Trend Rider AI).
- * It uses closed M1 candles only and never reads another engine's score.
+ * Engine 4 is an isolated, stricter copy of Trend Rider AI and never reads another engine's score.
+ * It accepts closed history plus an explicitly marked provisional live M1 candle for preview scans.
  */
 export function analyzeStrictTrendRider(candles, options = {}) {
   const minimum = Number.isInteger(options.minimumCandles) ? options.minimumCandles : 35;
@@ -83,7 +83,7 @@ export function analyzeStrictTrendRider(candles, options = {}) {
   const candleEpoch = last.epoch;
   const base = {
     ready: true, signal: null, candidateSignal: null, score, scoreUp, scoreDown,
-    candleEpoch, targetCandleAt: new Date((candleEpoch + 120) * 1000).toISOString(),
+    candleEpoch, targetCandleAt: new Date((candleEpoch + (options.livePreview === true ? 60 : 120)) * 1000).toISOString(),
     strategy: "STRICT_COPY_OF_TREND_RIDER_EMA5_20_STRUCTURE_PULLBACK",
     regime: upAligned ? "UPTREND" : downAligned ? "DOWNTREND" : "UNCLEAR",
     metrics: { ema5: fastNow, ema20: slowNow, emaGapAtr: Number(gapAtr.toFixed(3)),
