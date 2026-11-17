@@ -16,7 +16,7 @@ import { analyzeTrendRider } from "./src/trend-rider.js";
 import { analyzeStrictTrendRider } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
-import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
+import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
@@ -344,18 +344,13 @@ async function evaluate(feed) {
    const candidateSignal = finalSignal ||
      (engine === "V1" && candidate.signal === "PREPARE" &&
        ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
-   const recoveryPool = Object.entries(candidates)
-     .filter(([sourceKey, source]) => engineEnabled[sourceKey] &&
-       ["CALL", "PUT"].includes(source.signal) &&
-       Number.isFinite(Number(source.score)) &&
-       Number(source.score) >= 60)
-     .sort((a, b) => Number(b[1].score) - Number(a[1].score));
-   const recoveryCandidate = recoveryPool[0] || null;
-   const selectedCandidate = recoveryMode === "RECOVERY_ACTIVE" && recoveryCandidate
-     ? { ...recoveryCandidate[1], recoverySourceEngine: recoveryCandidate[0] }
-     : candidate;
+   const recoveryCandidate = selectRecoveryCandidate(
+     candidates, engine, recoveryMode,
+     ENGINE_KEYS.filter(key => engineEnabled[key]), 60
+   );
+   const selectedCandidate = recoveryCandidate || candidate;
    const selectedFinalSignal = recoveryMode === "RECOVERY_ACTIVE"
-     ? (recoveryCandidate ? recoveryCandidate[1].signal : null)
+     ? (recoveryCandidate?.signal || null)
      : finalSignal;
    let active = feed.engineActive[engine];
    if (active && now >= active.expiresAt) {
