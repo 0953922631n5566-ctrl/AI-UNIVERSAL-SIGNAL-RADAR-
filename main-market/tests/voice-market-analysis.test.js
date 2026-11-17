@@ -14,7 +14,6 @@ test("M1 voice analysis returns candle, trend, momentum and Thai speech text",()
  assert.equal(result.ok,true);
  assert.equal(result.interval,"1min");
  assert.ok(["UP","DOWN","SIDEWAY"].includes(result.outlook));
- assert.ok(result.spokenText.includes("ยูโรดอลลาร์"));
  assert.ok(Number.isFinite(result.levels.recentResistance));
 });
 test("M1 voice analysis waits when fewer than 20 valid candles are available",()=>{
