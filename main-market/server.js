@@ -359,23 +359,18 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   const recoveryStartWindow = recoveryMode === "RECOVERY_ACTIVE" && sourceCandleEpoch !== null &&
-     now - sourceCandleEpoch * 1000 >= 0 && now - sourceCandleEpoch * 1000 <= 10_000 &&
-     Number.isFinite(feed.tickAt) && now - feed.tickAt <= MAX_STREAM_AGE_SECONDS * 1000;
-   const signalTargetEpoch = recoveryStartWindow ? sourceCandleEpoch : targetCandleEpoch;
-   const canFinalizeRecoveryNow = recoveryStartWindow && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch && feed.enginePendingForecasts[engine]?.targetCandleEpoch !== sourceCandleEpoch;
-   const canFinalizeNormalNow = recoveryMode !== "RECOVERY_ACTIVE" && finalizeWindow &&
-     canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-       lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
-   if (!activeForCurrentOrNext && selectedFinalSignal && (canFinalizeRecoveryNow || canFinalizeNormalNow)) {
+   if (!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal &&
+       canFinalizeSignal({
+         candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+         lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
+       })) {
      active = {
-       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: recoveryStartWindow ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
-       score: selectedCandidate.score ?? selectedCandidate.confidence ?? 0,
-       sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.sourceEngine || engine, mode: recoveryMode,
-       entryPrice: recoveryStartWindow && Number.isFinite(feed.lastTick) ? feed.lastTick : null,
-       entryPriceBasis: recoveryStartWindow ? "LIVE_TICK_AT_RECOVERY_ALERT" : "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
+       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch,
+       triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
+       score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
+       sourceEngine: engine, mode: "NORMAL",
+       entryPrice: null, entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
+       alertId: `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:NORMAL`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -384,10 +379,10 @@ async function evaluate(feed) {
        expiresAt: new Date(active.expiresAt).toISOString()
      });
    }
-   const currentActive = activeForCurrentOrNext || Boolean(active && (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
+   const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `${active.mode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · " : ""}ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    engineResults[engine] = {
      ...selectedCandidate,
