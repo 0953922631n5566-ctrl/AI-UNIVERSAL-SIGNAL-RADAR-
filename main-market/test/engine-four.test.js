@@ -5,7 +5,7 @@ import { analyzeStrictTrendRider } from "../src/engine-four.js";
 function candles(direction = "up", count = 48) {
   return Array.from({ length: count }, (_, i) => {
     const close = direction === "up" ? 1.1 + i * 0.0001
-      : direction === "down" ? 1.11 - i * 0.0002 : 1.105;
+      : direction === "down" ? 1.11 - i * 0.0001 : 1.105;
     const open = direction === "up" ? close - 0.00012
       : direction === "down" ? close + 0.00012 : close;
     return { epoch: 1_800_000_000 + i * 60, open,
