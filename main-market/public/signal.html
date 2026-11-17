@@ -121,16 +121,13 @@ function paintEngineCards(m,usable){
  paintEngineToggleState();const engines=m.engineResults||{};
  const cfg=[["V1","v1Card","v1Signal","v1Reason",54],["BB","bbCard","bbSignal","bbReason",21],["TREND_RIDER","trendCard","trendSignal","trendReason",30],["ENGINE_4","engine4Card","engine4Signal","engine4Reason",35]];
  for(const [key,cardId,signalId,reasonId,required] of cfg){
-  const card=$(cardId),state=m.recovery?.engines?.[key]||{},engine=engines[key]||m.engine4||{};
+  const card=$(cardId),engine=engines[key]||m.engine4||{};
   if(!engineEnabled[key]){card.className="engine-card engine-disabled";$(signalId).textContent="OFF";$(reasonId).textContent="ปิดการวิเคราะห์ · แตะเพื่อเปิด";continue;}
   const ready=usable&&Number(m.closedCandleCount||0)>=required,active=ready&&engine.active&&["CALL","PUT"].includes(engine.signal);
   const candidate=ready&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
-  const recovering=state.mode==="RECOVERY_ACTIVE"||state.status==="ARMED"||state.status==="ATTEMPT_PENDING";
   $(signalId).textContent=active?engine.signal:candidate?"WATCH · "+candidate:"STANDBY";
-  card.className="engine-card engine-enabled "+(active?engine.signal.toLowerCase():recovering?"recovering":candidate?"watch":"");
-  let tag=card.querySelector(".engine-state");if(!tag){tag=document.createElement("span");tag.className="engine-state";card.append(tag);}
-  tag.textContent="กำลังแก้มือ";
-  tag.hidden=!recovering;
+  card.className="engine-card engine-enabled "+(active?engine.signal.toLowerCase():candidate?"watch":"");
+  const tag=card.querySelector(".engine-state");if(tag)tag.remove();
   $(reasonId).textContent=ready?(engine.reason||engine.status||"รอข้อมูลตลาด"):"รอแท่งปิด "+required+" แท่ง";
  }
  if(engineEnabled.ENGINE_4){
