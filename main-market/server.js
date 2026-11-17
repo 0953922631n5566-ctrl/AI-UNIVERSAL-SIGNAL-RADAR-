@@ -400,7 +400,8 @@ async function evaluate(feed) {
    .map(engine => ({
      engine: engine.engine, signal: engine.signal, score: engine.activeSignalScore,
      reason: engine.reason, alertId: engine.alertId,
-     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt
+     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt,
+     targetCandleEpoch: feed.engineActive[engine.engine]?.targetCandleEpoch
    }));
  const activeDirections = [...new Set(activeSignals.map(item => item.signal))];
  const aggregateSignal = activeDirections.length === 1 ? activeDirections[0] : "STANDBY";
