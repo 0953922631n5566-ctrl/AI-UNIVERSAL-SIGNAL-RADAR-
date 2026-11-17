@@ -45,18 +45,15 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /<div class="engine-title">04 · STRICT TREND RIDER AI<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
-  assert.match(html, /#engine4Card\.call\{border-color:#9c4355\}/);
-  assert.match(html, /#engine4Card\.call \.engine-value\{color:#ff7d91\}/);
-  assert.match(html, /#engine4Card\.put\{border-color:#25885d\}/);
-  assert.match(html, /#engine4Card\.put \.engine-value\{color:#5df0a4\}/);
-  assert.match(html, /#trendCard\.call\{border-color:#9c4355\}/);
-  assert.match(html, /#trendCard\.call \.engine-value\{color:#ff7d91\}/);
-  assert.match(html, /#trendCard\.put\{border-color:#25885d\}/);
-  assert.match(html, /#trendCard\.put \.engine-value\{color:#5df0a4\}/);
-  assert.match(html, /#v1Card\.call\{border-color:#25885d\}/);
-  assert.match(html, /#v1Card\.call \.engine-value\{color:#5df0a4\}/);
-  assert.match(html, /#v1Card\.put\{border-color:#9c4355\}/);
-  assert.match(html, /#v1Card\.put \.engine-value\{color:#ff7d91\}/);
+  assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
+  assert.match(html, /\.engine-card\.put\{border-color:var\(--put-color\)\}/);
+  assert.match(html, /\.engine-card\.light-inverted\{--call-color:#39e879/);
+  assert.match(html, /\.signal\.call\{background:linear-gradient\(135deg,#481b29/);
+  assert.match(html, /\.signal\.put\{background:linear-gradient\(135deg,#103c2b/);
+  assert.match(html, /\.call \.lamp\{background:#ff535b/);
+  assert.match(html, /\.put \.lamp\{background:#39e879/);
+  assert.match(html, /#alertToast\.real-call\{border-color:#ff535b/);
+  assert.match(html, /#alertToast\.real-put\{border-color:#39e879/);
   assert.match(html, /BB\(20,2\)/);
   assert.match(html, /SCORING BREAKDOWN/);
   assert.doesNotMatch(html, /EMA 3\/8\/50|geminiQuota/);
@@ -132,8 +129,8 @@ test("Engine 4 follows T-10/T-5 timing, holds 30 seconds, and has its own sound/
   assert.match(html, /#engine4Card\.engine4-flash-put/);
   assert.match(html, /engine4BorderFlashCall/);
   assert.match(html, /engine4BorderFlashPut/);
-  assert.ok(html.includes("#engine4Card.call{border-color:#9c4355}#engine4Card.call .engine-value{color:#ff7d91}"));
-  assert.ok(html.includes("#engine4Card.put{border-color:#25885d}#engine4Card.put .engine-value{color:#5df0a4}"));
+  assert.ok(html.includes("@keyframes engine4BorderFlashCall{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--call-color)"));
+  assert.ok(html.includes("@keyframes engine4BorderFlashPut{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--put-color)"));
   assert.ok(serverJs.includes('colors: { CALL: "RED", PUT: "GREEN" }'));
   const start = html.indexOf("const fourth=m.engine4||{}");
   const end = html.indexOf("\n}\nfunction paint(m)", start);
@@ -153,6 +150,12 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
+  for (const key of ["V1", "BB", "TREND_RIDER", "ENGINE_4"]) {
+    assert.match(html, new RegExp('data-light-toggle="' + key + '"'));
+  }
+  assert.match(html, /signalRadarEngineLightInverted/);
+  assert.match(html, /function toggleEngineLight/);
+  assert.match(html, /function paintEngineLightSettings/);
   assert.match(html, /signalRadarEngineEnabled/);
   assert.match(html, /api\/telegram\/engines/);
   assert.match(html, /engineEnabled\.ENGINE_4/);
