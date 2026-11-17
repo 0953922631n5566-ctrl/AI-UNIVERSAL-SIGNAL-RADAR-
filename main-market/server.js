@@ -12,7 +12,7 @@ import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
-import { analyzeEveryCandle } from "./src/engine-four.js";
+import { analyzeStrictTrendRider } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
@@ -282,18 +282,18 @@ async function evaluate(feed) {
      ? analyzeTrendRider(closedCandles)
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
- const engine4SourceReady = closedCandles.length >= 20 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+ const engine4SourceReady = closedCandles.length >= 35 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
    ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
-     ? analyzeEveryCandle(closedCandles)
+     ? analyzeStrictTrendRider(closedCandles)
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
-         reason: "Engine 4 ต้องมีแท่ง M1 ปิดอย่างน้อย 20 แท่งและข้อมูลราคาต้องสด" };
+         reason: "Engine 4 (Strict Trend Rider Copy) ต้องมีแท่ง M1 ปิดอย่างน้อย 35 แท่งและข้อมูลราคาต้องสด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       targetCandleAt: new Date((engine4Raw.candleEpoch + 120) * 1000).toISOString(),
-       signal: engine4Raw.signal, status: "EVERY_CANDLE_SIGNAL" }
+       targetCandleAt: engine4Raw.targetCandleAt || new Date((engine4Raw.candleEpoch + 120) * 1000).toISOString(),
+       signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
  const candidates = {
    V1: v1Result,
@@ -1106,9 +1106,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, cadence: "EVERY_NEW_CLOSED_M1_CANDLE_WHEN_SCORE_AT_LEAST_20", minimumClosedCandles: 20, minimumSignalScore: 20, emitsCallPutInSideways: true, participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: "TREND_RIDER_AI", strategy: "STRICT_EMA5_20_STRUCTURE_PULLBACK_CONTINUATION", cadence: "T5_FINALIZE_ON_CONFIRMED_M1_SIGNAL", minimumClosedCandles: 35, minimumSignalScore: 75, minimumDirectionalMargin: 18, guards: ["SIDEWAYS_GAP_0_18_ATR", "LATE_EXTENSION_1_25_ATR", "ABNORMAL_RANGE_2_3_ATR"], participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_KEEP_EXISTING_T5_PIPELINE_PLUS_ENGINE_4_EVERY_CLOSED_CANDLE_DIRECTIONAL_OUTPUT"
+      signalDecisionPath: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_STRICT_TREND_RIDER_COPY_WITH_SHARED_T5_TIMING"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
