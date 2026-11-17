@@ -418,8 +418,9 @@ async function evaluate(feed) {
  const v1Candidate = engineResults.V1.candidateSignal;
  const bbCandidate = engineResults.BB.candidateSignal;
  const trendCandidate = engineResults.TREND_RIDER.candidateSignal;
+ const engine4Candidate = engineResults.ENGINE_4.candidateSignal;
  feed.preAlertStatus = !activeSignals.length && prepareWindow &&
-   Boolean(v1Candidate || bbCandidate || trendCandidate) ? "PREPARE_ALERT" : null;
+   Boolean(v1Candidate || bbCandidate || trendCandidate || engine4Candidate) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -428,7 +429,7 @@ async function evaluate(feed) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
    console.info("[timing] T-10 independent engine watch window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     v1Candidate, bbCandidate, trendCandidate
+     v1Candidate, bbCandidate, trendCandidate, engine4Candidate
    });
  }
 
