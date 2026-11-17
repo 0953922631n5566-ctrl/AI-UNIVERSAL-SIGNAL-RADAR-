@@ -23,7 +23,40 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const prevNorm=atr>0?sign*slopePrev/atr:0;
   const shift=clamp((slopeNorm+0.025)/0.10);
   const reversal=clamp((slopeNorm-prevNorm+0.02)/0.10);
-  const slopeScore=30*(0.55*shift+0.45*reversal);
+  const slopeScoreBase=30*(0.55*shift+0.45*reversal);
+  // V1-only exhaustion entry: after a mature run loses force, require a closed
+  // opposite candle with a meaningful body and close through the prior candle midpoint.
+  const exhaustionDirection = direction;
+  const priorDirection = exhaustionDirection === "CALL" ? -1 : 1;
+  let priorRun = 0;
+  for (let j = n - 2; j >= Math.max(0, n - 6); j--) {
+    if (Math.sign(candles[j].close - candles[j].open) !== priorDirection) break;
+    priorRun++;
+  }
+  const priorRunCandles = candles.slice(n - 1 - priorRun, n - 1);
+  const priorBodies = priorRunCandles.map(x => Math.abs(x.close - x.open));
+  const earlierBodyMean = mean(priorBodies.slice(0, -1));
+  const latestPrior = p;
+  const priorRange = Math.max(latestPrior.high - latestPrior.low, 1e-12);
+  const priorOpposingWick = priorDirection < 0
+    ? (latestPrior.high - Math.max(latestPrior.open, latestPrior.close)) / priorRange
+    : (Math.min(latestPrior.open, latestPrior.close) - latestPrior.low) / priorRange;
+  const priorBodyContracted = earlierBodyMean > 0 && priorBodies.at(-1) <= earlierBodyMean * 0.78;
+  const priorMomentumFaded = Math.abs(p.close - p2.close) <= Math.abs(p2.close - candles[n - 4].close) * 0.72;
+  const fadingEvidence = priorBodyContracted || priorOpposingWick >= 0.30 || priorMomentumFaded;
+  const lastBodyRatio = Math.abs(c.close - c.open) / range;
+  const reversalCandle = Math.sign(c.close - c.open) === (exhaustionDirection === "CALL" ? 1 : -1);
+  const priorMidpoint = (p.open + p.close) / 2;
+  const reversalCloseConfirmed = exhaustionDirection === "CALL"
+    ? c.close > priorMidpoint && c.close > p.close
+    : c.close < priorMidpoint && c.close < p.close;
+  const exhaustionEntryConfirmed = priorRun >= 3 && fadingEvidence &&
+    reversalCandle && reversalCloseConfirmed && lastBodyRatio >= 0.35;
+  const exhaustionEntryStrength = exhaustionEntryConfirmed
+    ? clamp(0.66 + Math.min(0.12, (priorRun - 3) * 0.04) +
+        (priorBodyContracted ? 0.08 : 0) + (priorOpposingWick >= 0.30 ? 0.06 : 0))
+    : 0;
+  const slopeScore=Math.max(slopeScoreBase, 30 * exhaustionEntryStrength);
   const prior=candles.slice(-8,-2);
   const level=bullish?Math.min(...prior.map(x=>x.low)):Math.max(...prior.map(x=>x.high));
   const swept=bullish?Math.min(c.low,p.low):Math.max(c.high,p.high);
@@ -62,7 +95,7 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   };
   return {score:Math.round(Object.values(components).reduce((a,b)=>a+b,0)*10)/10,components,
     details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20,
-      candleConfirmation,freshness,marketStructure}};
+      candleConfirmation,freshness,marketStructure,exhaustionEntryConfirmed,exhaustionEntryStrength,priorRun,priorBodyContracted,priorOpposingWick}};
 }
 export function scoreMarket(candles) {
   if(!Array.isArray(candles)||candles.length<30||!candles.every(c=>c&&[c.open,c.high,c.low,c.close].every(Number.isFinite)))
@@ -114,7 +147,7 @@ export function scoreMarket(candles) {
     priceAction,
     metrics:{ema5:e5[i],ema20:e20[i],ema5Slope:slope5,ema20Slope:slope20,atr14:atr,baselineAtr,
       emaTangled:tangled,slopesFlat:flat,nearEma5:chosen.details.nearEma5,
-      marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,
+      marketStructure:priceAction.structure.event,marketStructureDirection:priceAction.structure.direction,\n      v1ExhaustionEntry:direction ? chosen.details.exhaustionEntryConfirmed : false,
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
       momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
