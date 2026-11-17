@@ -363,7 +363,7 @@ async function evaluate(feed) {
      now - sourceCandleEpoch * 1000 >= 0 && now - sourceCandleEpoch * 1000 <= 10_000 &&
      Number.isFinite(feed.tickAt) && now - feed.tickAt <= MAX_STREAM_AGE_SECONDS * 1000;
    const signalTargetEpoch = recoveryStartWindow ? sourceCandleEpoch : targetCandleEpoch;
-   const canFinalizeRecoveryNow = recoveryStartWindow && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch;
+   const canFinalizeRecoveryNow = recoveryStartWindow && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch && feed.enginePendingForecasts[engine]?.targetCandleEpoch !== sourceCandleEpoch;
    const canFinalizeNormalNow = recoveryMode !== "RECOVERY_ACTIVE" && finalizeWindow &&
      canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
        lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
