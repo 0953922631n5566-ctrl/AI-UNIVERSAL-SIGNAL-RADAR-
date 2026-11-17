@@ -54,3 +54,16 @@ test("Trend Rider blocks a flat sideways market", () => {
   assert.equal(result.signal, null);
   assert.equal(result.status, "SIDEWAYS_BLOCK");
 });
+
+test("Trend Rider evaluates a provisional current M1 candle after closed history", () => {
+  const rows = risingCandles();
+  const last = rows.at(-1);
+  const preview = {
+    ...last, open: last.close - 0.00008, close: last.close + 0.00005,
+    high: last.close + 0.00009, low: last.close - 0.00012,
+    live: false, provisional: true
+  };
+  const result = analyzeTrendRider([...rows, preview]);
+  assert.equal(result.ready, true);
+  assert.equal(result.signal, "CALL");
+});

@@ -2,7 +2,7 @@ const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value))
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
 /**
- * Independent BB Pure Scalper for closed M1 candles.
+ * Independent BB Pure Scalper for closed M1 history plus an optional provisional current M1 candle.
  * Standard BB(20,2). A band touch is the primary setup; one soft reversal cue
  * is enough to emit an independent candidate. No V1 score, trend, or vote is used.
  */

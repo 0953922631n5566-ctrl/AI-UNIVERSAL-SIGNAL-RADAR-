@@ -55,3 +55,15 @@ test("Engine 4 target timing and alert identity are tied to the latest closed M1
   const second = analyzeStrictTrendRider(rows);
   assert.notEqual(first.alertId, second.alertId);
 });
+
+test("Engine 4 preview targets the immediately following M1 candle", () => {
+  const rows = candles("up");
+  const lastClosed = rows.at(-1);
+  const livePreview = {
+    ...lastClosed, epoch: lastClosed.epoch + 60, live: false, provisional: true
+  };
+  const result = analyzeStrictTrendRider([...rows, livePreview], { livePreview: true });
+  assert.equal(result.ready, true);
+  assert.equal(result.candleEpoch, livePreview.epoch);
+  assert.equal(result.targetCandleAt, new Date((livePreview.epoch + 60) * 1000).toISOString());
+});

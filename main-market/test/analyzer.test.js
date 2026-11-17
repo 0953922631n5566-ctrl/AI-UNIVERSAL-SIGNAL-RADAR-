@@ -633,3 +633,33 @@ test("V1 signal release metadata reports the updated 55/40 thresholds without cl
   assert.equal(gated.signalReleaseLocked, false);
   assert.equal(gated.signalReleaseValidated, false);
 });
+
+test("V1 re-scores a fresh forming M1 candle without changing its 54-closed-candle history gate", async () => {
+  const now = Date.now();
+  const epoch = Math.floor(now / 60000) * 60;
+  const liveCandle = {
+    epoch, open: 1.0820, high: 1.0824, low: 1.0818, close: 1.0823,
+    live: false, provisional: true
+  };
+  const result = await analyzeMarket(history(54, 1), {
+    now, tickAgeSeconds: 1, liveCandle
+  });
+  assert.equal(result.livePreviewIncluded, true);
+  assert.equal(result.analysisMode, "LIVE_M1_PREVIEW");
+  assert.equal(result.analysisCandleEpoch, epoch);
+  assert.equal(result.closedCandleCount, 54);
+});
+
+test("V1 ignores a provisional candle when the Streaming tick is stale", async () => {
+  const now = Date.now();
+  const epoch = Math.floor(now / 60000) * 60;
+  const liveCandle = {
+    epoch, open: 1.0820, high: 1.0824, low: 1.0818, close: 1.0823,
+    live: false, provisional: true
+  };
+  const result = await analyzeMarket(history(54, 1), {
+    now, tickAgeSeconds: 26, allowRestFallback: true, liveCandle
+  });
+  assert.equal(result.livePreviewIncluded, false);
+  assert.equal(result.analysisMode, "CLOSED_M1_ONLY");
+});
