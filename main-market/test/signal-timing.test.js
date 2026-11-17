@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow,
+  canDispatchEngine4Signal, canFinalizeSignal, isEngine4EntryWindow, isFreshSignalTick, isPrepareAlertWindow,
   isSignalFinalizeWindow, signalHoldExpiresAt
 } from "../src/signal-timing.js";
 
@@ -42,4 +42,13 @@ test("Streaming tick freshness is limited to five seconds", () => {
 
 test("signal expires exactly 30 seconds after the target candle opens", () => {
   assert.equal(signalHoldExpiresAt(candle + 60), openAt + 90_000);
+});
+
+test("Engine 4 entry is limited to the first 30 seconds and requires fresh data", () => {
+  const now = openAt + 12_000;
+  assert.equal(isEngine4EntryWindow(candle, now), true);
+  assert.equal(isEngine4EntryWindow(candle, openAt + 30_000), false);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 1_000, now }), true);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 6_000, now }), false);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 1_000, now, lastDispatchedCandle: candle }), false);
 });
