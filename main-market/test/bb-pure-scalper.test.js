@@ -64,3 +64,17 @@ test("BB Pure Scalper fails closed on insufficient candles", () => {
   assert.equal(result.ready, false);
   assert.equal(result.signal, null);
 });
+
+test("BB Pure Scalper evaluates a provisional current M1 candle supplied after closed history", () => {
+  const rows = baseCandles();
+  const bands = analyzeBBPureScalper(rows).bands;
+  const previous = rows.at(-1);
+  const preview = {
+    ...previous, open: bands.lower + 0.00001, low: bands.lower - 0.00012,
+    close: bands.lower + 0.00008, high: bands.lower + 0.00009,
+    live: false, provisional: true
+  };
+  const result = analyzeBBPureScalper([...rows, preview]);
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.status, "REJECTION_CONFIRMED");
+});
