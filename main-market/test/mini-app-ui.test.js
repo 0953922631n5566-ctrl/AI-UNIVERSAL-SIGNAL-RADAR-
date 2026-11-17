@@ -129,8 +129,8 @@ test("Engine 4 follows T-10/T-5 timing, holds 30 seconds, and has its own sound/
   assert.match(html, /#engine4Card\.engine4-flash-put/);
   assert.match(html, /engine4BorderFlashCall/);
   assert.match(html, /engine4BorderFlashPut/);
-  assert.match(html, /engine4BorderFlashCall[^}]*var\(--call-color\)/);
-  assert.match(html, /engine4BorderFlashPut[^}]*var\(--put-color\)/);
+  assert.ok(html.includes("@keyframes engine4BorderFlashCall{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--call-color)"));
+  assert.ok(html.includes("@keyframes engine4BorderFlashPut{0%,100%{box-shadow:0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 2px var(--put-color)"));
   assert.ok(serverJs.includes('colors: { CALL: "RED", PUT: "GREEN" }'));
   const start = html.indexOf("const fourth=m.engine4||{}");
   const end = html.indexOf("\n}\nfunction paint(m)", start);
