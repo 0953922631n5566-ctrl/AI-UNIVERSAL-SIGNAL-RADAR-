@@ -139,7 +139,8 @@ function paintEngineCards(m,usable){
  const engine4WindowKey=String(fourth.candleEpoch||"")+":"+String(m.nextCandleAt||"");
  const engine4Prepare=fourthReady&&remainingSeconds>5&&remainingSeconds<=10;
  const engine4Finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5;
- if(engine4LastFinalKey&&engine4LastFinalKey!==engine4WindowKey){engine4HeldSignal=null;engine4HoldUntil=0;engine4FlashUntil=0;engine4LastFinalKey="";}
+ if(engine4LastFinalKey&&engine4LastFinalKey!==engine4WindowKey){engine4FlashUntil=0;engine4LastFinalKey="";}
+ if(engine4HeldSignal&&Date.now()>=engine4HoldUntil)engine4HeldSignal=null;
  if(engine4Finalize&&engine4WindowKey!==engine4LastFinalKey){
    engine4LastFinalKey=engine4WindowKey;
    triggerEngine4SoundAndVibration(fourth.signal);
@@ -147,7 +148,7 @@ function paintEngineCards(m,usable){
    engine4HoldUntil=Date.now()+30000;
    engine4FlashUntil=Date.now()+4200;
  }
- const engine4Holding=Boolean(engine4HeldSignal&&Date.now()<engine4HoldUntil&&engine4LastFinalKey===engine4WindowKey);
+ const engine4Holding=Boolean(engine4HeldSignal&&Date.now()<engine4HoldUntil);
  const engine4Signal=engine4Holding?engine4HeldSignal:engine4Finalize?fourth.signal:null;
  const engine4Watch=engine4Prepare&&!engine4Signal;
  const engine4Flash=Boolean(engine4Signal&&Date.now()<engine4FlashUntil);
