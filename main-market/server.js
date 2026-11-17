@@ -373,7 +373,7 @@ async function evaluate(feed) {
        engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
        score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.recoverySourceEngine || engine, mode: recoveryMode,
-       alertId: `${engine}:${targetCandleEpoch}:${finalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
+       alertId: `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
