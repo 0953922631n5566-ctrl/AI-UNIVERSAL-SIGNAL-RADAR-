@@ -44,10 +44,10 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /<div class="engine-title">04 · STRICT TREND RIDER AI<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|\{\}/);
-  assert.match(html, /#engine4Card\.call\{border-color:#25885d\}/);
-  assert.match(html, /#engine4Card\.call \.engine-value\{color:#5df0a4\}/);
-  assert.match(html, /#engine4Card\.put\{border-color:#9c4355\}/);
-  assert.match(html, /#engine4Card\.put \.engine-value\{color:#ff7d91\}/);
+  assert.match(html, /#engine4Card\.call\{border-color:#9c4355\}/);
+  assert.match(html, /#engine4Card\.call \.engine-value\{color:#ff7d91\}/);
+  assert.match(html, /#engine4Card\.put\{border-color:#25885d\}/);
+  assert.match(html, /#engine4Card\.put \.engine-value\{color:#5df0a4\}/);
   assert.match(html, /#trendCard\.call\{border-color:#9c4355\}/);
   assert.match(html, /#trendCard\.call \.engine-value\{color:#ff7d91\}/);
   assert.match(html, /#trendCard\.put\{border-color:#25885d\}/);
@@ -129,9 +129,9 @@ test("Engine 4 follows shared T-10/T-5 timing, holds 30 seconds, and flashes onl
   assert.match(html, /#engine4Card\.engine4-flash-put/);
   assert.match(html, /engine4BorderFlashCall/);
   assert.match(html, /engine4BorderFlashPut/);
-  assert.match(html, /#engine4Card\\.call\\{border-color:#9c4355\\}#engine4Card\\.call \\.engine-value\\{color:#ff7d91\\}/);
-  assert.match(html, /#engine4Card\\.put\\{border-color:#25885d\\}#engine4Card\\.put \\.engine-value\\{color:#5df0a4\\}/);
-  assert.match(serverJs, /colors: \\{ CALL: "RED", PUT: "GREEN" \\}/);
+  assert.ok(html.includes("#engine4Card.call{border-color:#9c4355}#engine4Card.call .engine-value{color:#ff7d91}"));
+  assert.ok(html.includes("#engine4Card.put{border-color:#25885d}#engine4Card.put .engine-value{color:#5df0a4}"));
+  assert.ok(serverJs.includes('colors: { CALL: "RED", PUT: "GREEN" }'));
   const start = html.indexOf("const fourth=m.engine4||{}");
   const end = html.indexOf("\n}\nfunction paint(m)", start);
   assert.ok(start >= 0 && end > start, "expected isolated Engine 4 card renderer");
