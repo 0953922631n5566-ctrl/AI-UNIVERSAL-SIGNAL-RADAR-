@@ -37,12 +37,11 @@ export function armRecoveryAfterLoss(state, record) {
     expiresAtCandleEpoch: null, attemptAlertId: null, lastOutcome: "LOSS", lastAttemptAt: null };
 }
 
-export function inspectRecoveryWindow(state, sourceCandleEpoch) {
+export function inspectRecoveryWindow(state, _sourceCandleEpoch) {
+  // Restore the original independent-analyzer behavior: every engine always
+  // evaluates and dispatches only its own analyzer. Recovery is disabled.
   const current = state || createRecoveryState();
-  if (current.status !== "ARMED" || !Number.isFinite(sourceCandleEpoch)) {
-    return { state: current, mode: "NORMAL" };
-  }
-  return { state: current, mode: "RECOVERY_ACTIVE" };
+  return { state: { ...createRecoveryState(), lastOutcome: current.lastOutcome || null }, mode: "NORMAL" };
 }
 
 export function markRecoveryAttempt(state, record) {
