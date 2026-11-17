@@ -112,7 +112,9 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is displayed separately and does not enter the existing alert/sound pipeline", () => {
   assert.match(serverJs, /engine4: engine4Result/);
-  assert.match(serverJs, /analyzeStrictTrendRider\(closedCandles\)/);
+  assert.match(serverJs, /analyzeStrictTrendRider\(analysisCandles, \{ livePreview: Boolean\(livePreview\) \}\)/);
+  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS \* 1000/);
+  assert.match(serverJs, /createLiveCandlePreview\(currentCandle/);
   assert.match(serverJs, /engine4SourceReady = closedCandles\.length >= 35/);
   assert.match(serverJs, /engines: 4/);
   assert.match(html, /function paintEngineCards/);
@@ -121,7 +123,7 @@ test("Engine 4 is displayed separately and does not enter the existing alert/sou
 });
 
 
-test("Engine 4 follows shared T-10/T-5 timing, holds 30 seconds, and flashes only its own card without sound or vibration", () => {
+test("Engine 4 follows T-10/T-5 timing, holds 30 seconds, and has its own sound/vibration alert", () => {
   assert.match(html, /engine4Prepare=fourthReady&&remainingSeconds>5&&remainingSeconds<=10/);
   assert.match(html, /engine4Finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
   assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
@@ -136,7 +138,13 @@ test("Engine 4 follows shared T-10/T-5 timing, holds 30 seconds, and flashes onl
   const end = html.indexOf("\n}\nfunction paint(m)", start);
   assert.ok(start >= 0 && end > start, "expected isolated Engine 4 card renderer");
   const engine4Ui = html.slice(start, end);
-  assert.doesNotMatch(engine4Ui, /playSequence|navigator\.vibrate|HapticFeedback|triggerSignalAlert/);
+  assert.match(html, /function triggerEngine4SoundAndVibration\(signal\)/);
+  assert.match(html, /playSequence\(isCall\?\[660,880,1175,880\]:\[880,660,440,660\]/);
+  assert.match(html, /navigator\.vibrate\(isCall\?\[250,100,250,100,450\]:\[450,120,250,120,450\]/);
+  assert.match(engine4Ui, /triggerEngine4SoundAndVibration\(fourth\.signal\)/);
+  assert.match(engine4Ui, /engine4WindowKey=String\(fourth\.candleEpoch\|\|""\)/);
+  assert.match(engine4Ui, /engine4Holding=Boolean\(engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil\)/);
+  assert.doesNotMatch(engine4Ui, /triggerSignalAlert/);
 });
 
 
@@ -152,4 +160,13 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /minimumSignalScore: 75/);
   assert.match(serverJs, /copiedFrom: "TREND_RIDER_AI"/);
+});
+
+test("all four analyzers are scheduled every two seconds without increasing Twelve Data REST cadence", () => {
+  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS = 2/);
+  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS \* 1000/);
+  assert.match(serverJs, /REST_SYNC_SECONDS \* 1000/);
+  assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
+  assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
+  assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
 });
