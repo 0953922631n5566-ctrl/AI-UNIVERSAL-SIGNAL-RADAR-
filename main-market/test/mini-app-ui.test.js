@@ -108,7 +108,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
-test("Engine 4 is exposed as an independent analyzer and participates in recovery", () => {
+test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
   assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_STRICT_TREND_RIDER"/);
   assert.match(serverJs, /const engineResults = \{\}/);
@@ -165,3 +165,5 @@ test("all four analyzers are scheduled every two seconds without increasing Twel
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
 });
+
+test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });

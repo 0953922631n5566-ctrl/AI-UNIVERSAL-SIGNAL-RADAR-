@@ -22,12 +22,12 @@ test("equal open and close is FLAT; malformed OHLC is UNKNOWN", () => {
   assert.equal(evaluateM1Outcome("WAIT", candle(1.1, 1.1002)).outcome, "UNKNOWN");
 });
 
-test("only a normal LOSS arms independent recovery", () => {
+test("a LOSS is recorded but never switches an engine out of its original analyzer", () => {
   const armed = armRecoveryAfterLoss(createRecoveryState(), {
     alertId: "loss-1", targetCandleEpoch: 1_800_000_000, outcome: "LOSS", mode: "NORMAL"
   });
   assert.equal(armed.status, "ARMED");
-  assert.equal(inspectRecoveryWindow(armed, 1_800_000_060).mode, "RECOVERY_ACTIVE");
+  assert.equal(inspectRecoveryWindow(armed, 1_800_000_060).mode, "NORMAL");
   assert.equal(armRecoveryAfterLoss(armed, { outcome: "WIN", targetCandleEpoch: 1_800_000_060 }).status, "ARMED");
 });
 
@@ -41,7 +41,7 @@ test("recovery keeps analyzing later M1 candles after consecutive losses", () =>
     assert.equal(pending.attempts, attempt);
     state = settleRecoveryAttempt(pending, { alertId: "recovery-" + attempt, outcome: "LOSS" });
     assert.equal(state.status, "ARMED");
-    assert.equal(inspectRecoveryWindow(state, 1_800_000_000 + attempt * 60).mode, "RECOVERY_ACTIVE");
+    assert.equal(inspectRecoveryWindow(state, 1_800_000_000 + attempt * 60).mode, "NORMAL");
   }
   assert.equal(state.attempts, 3);
 });
@@ -82,3 +82,5 @@ test("recovery outcome uses the actual alert entry price within the target M1 ca
   assert.equal(evaluateM1Outcome("PUT", bar, 1.1002).outcome, "LOSS");
   assert.equal(evaluateM1Outcome("CALL", bar, 1.1008).outcome, "LOSS");
 });
+
+test("recovery mode always stays disabled after a loss", () => { const armed = armRecoveryAfterLoss(createRecoveryState(), { alertId: "loss", targetCandleEpoch: 1_800_000_000, outcome: "LOSS" }); assert.equal(inspectRecoveryWindow(armed, 1_800_000_060).mode, "NORMAL"); });
