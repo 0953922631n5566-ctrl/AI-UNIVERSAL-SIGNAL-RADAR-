@@ -1051,6 +1051,7 @@ app.get("/api/public/signal", (_req, res) => {
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
+      recovery: state.recovery || null,
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
@@ -1128,7 +1129,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: "TREND_RIDER_AI", strategy: "STRICT_EMA5_20_STRUCTURE_PULLBACK_CONTINUATION", cadence: "LIVE_M1_PREVIEW_EVERY_2S_T5_FINALIZE", minimumClosedCandles: 35, minimumSignalScore: 75, minimumDirectionalMargin: 18, guards: ["SIDEWAYS_GAP_0_18_ATR", "LATE_EXTENSION_1_25_ATR", "ABNORMAL_RANGE_2_3_ATR"], participatesInAggregate: false, sound: true, vibration: true, colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: "TREND_RIDER_AI", strategy: "STRICT_EMA5_20_STRUCTURE_PULLBACK_CONTINUATION", cadence: "LIVE_M1_PREVIEW_EVERY_2S_T5_FINALIZE", minimumClosedCandles: 35, minimumSignalScore: 75, minimumDirectionalMargin: 18, guards: ["SIDEWAYS_GAP_0_18_ATR", "LATE_EXTENSION_1_25_ATR", "ABNORMAL_RANGE_2_3_ATR"], participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_STRICT_TREND_RIDER_COPY_WITH_SHARED_T5_TIMING"
     },
@@ -1144,11 +1145,14 @@ app.get("/health", (_req, res) => {
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
     },
     recovery: {
-      enabled: true, mode: "ACTIVE", status: "LIVE_BACKEND_ONLY",
-      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: 1,
-      minimumSignalScore: 65, maxAttemptsPerLoss: 1, maxWaitCandles: 3,
-      martingale: false, altersMiniApp: false, emitsAdditionalSignals: false,
-      usesExistingSignalPipeline: true,
+      enabled: true, mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN", status: "LIVE_PER_ENGINE",
+      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: null,
+      minimumSignalScore: 60, maxAttemptsPerLoss: null, maxWaitCandles: null,
+      strategy: "HIGHEST_SCORE_ENABLED_ANALYZER_CALL_PUT",
+      waitsWhenNoCandidate: true, resetsToOriginalAnalyzerAfterWin: true,
+      martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ",
+      emitsAdditionalSignals: false, usesExistingSignalPipeline: true,
+      independentEngines: ENGINE_KEYS,
       stateStorage: "IN_MEMORY_PER_PAIR_RESETS_ON_PROCESS_RESTART"
     },
     configuration: {
