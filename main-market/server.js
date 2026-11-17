@@ -393,10 +393,10 @@ async function evaluate(feed) {
      ...selectedCandidate,
      engine,
      analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
-     candidateSignal,
+     candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
-     direction: isActive ? active.signal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null),
+     direction: isActive ? active.signal : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null)),
      score: isActive ? active.score : (selectedCandidate.score ?? 0),
      confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
      reason: activeReason,
@@ -547,7 +547,7 @@ function applyTick(feed, price, epoch) {
         const pending = feed.enginePendingForecasts?.[engine];
         if (!pending || pending.targetCandleEpoch !== current.epoch) continue;
         const evaluated = evaluateM1Outcome(pending.signal, current, pending.entryPrice);
-        const record = { ...pending, entryAt: current.epoch * 1000, entryPrice: evaluated.entryPrice,
+        const record = { ...pending, entryAt: pending.entryAt ?? current.epoch * 1000, entryPrice: evaluated.entryPrice,
           exitAt: Date.now(), exitPrice: evaluated.exitPrice, outcome: evaluated.outcome,
           outcomeReason: evaluated.reason, entryPriceBasis: pending.entryPriceBasis || "TWELVE_DATA_STREAM_M1_OPEN",
           exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
