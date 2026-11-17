@@ -4,13 +4,13 @@ import { analyzeStrictTrendRider } from "../src/engine-four.js";
 
 function candles(direction = "up", count = 48) {
   return Array.from({ length: count }, (_, i) => {
-    const close = direction === "up" ? 1.1 + i * 0.0002
+    const close = direction === "up" ? 1.1 + i * 0.0001
       : direction === "down" ? 1.11 - i * 0.0002 : 1.105;
-    const open = direction === "up" ? close - 0.00015
-      : direction === "down" ? close + 0.00015 : close;
+    const open = direction === "up" ? close - 0.00012
+      : direction === "down" ? close + 0.00012 : close;
     return { epoch: 1_800_000_000 + i * 60, open,
-      high: Math.max(open, close) + 0.00005,
-      low: Math.min(open, close) - 0.00005, close, live: false };
+      high: Math.max(open, close) + 0.00004,
+      low: Math.min(open, close) - 0.00004, close, live: false };
   });
 }
 
@@ -51,7 +51,7 @@ test("Engine 4 target timing and alert identity are tied to the latest closed M1
   const rows = candles("up");
   const first = analyzeStrictTrendRider(rows);
   assert.equal(first.targetCandleAt, new Date((rows.at(-1).epoch + 120) * 1000).toISOString());
-  rows.push({ epoch: rows.at(-1).epoch + 60, open: 1.1093, high: 1.1095, low: 1.1092, close: 1.10945, live: false });
+  rows.push({ epoch: rows.at(-1).epoch + 60, open: rows.at(-1).close - 0.00012, high: rows.at(-1).close + 0.00014, low: rows.at(-1).close - 0.00016, close: rows.at(-1).close + 0.0001, live: false });
   const second = analyzeStrictTrendRider(rows);
   assert.notEqual(first.alertId, second.alertId);
 });
