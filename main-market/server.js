@@ -346,7 +346,7 @@ async function evaluate(feed) {
        ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
    const recoveryCandidate = selectRecoveryCandidate(
      candidates, engine, recoveryMode,
-     ENGINE_KEYS.filter(key => engineEnabled[key]), 60
+     ENGINE_KEYS.filter(key => engineEnabled[key]), null
    );
    const selectedCandidate = recoveryCandidate || candidate;
    const selectedFinalSignal = recoveryMode === "RECOVERY_ACTIVE"
@@ -359,16 +359,23 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   if (!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal &&
-       canFinalizeSignal({
-         candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-         lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
-       })) {
+   const recoveryStartWindow = recoveryMode === "RECOVERY_ACTIVE" && sourceCandleEpoch !== null &&
+     now - sourceCandleEpoch * 1000 >= 0 && now - sourceCandleEpoch * 1000 <= 10_000 &&
+     Number.isFinite(feed.tickAt) && now - feed.tickAt <= MAX_STREAM_AGE_SECONDS * 1000;
+   const signalTargetEpoch = recoveryStartWindow ? sourceCandleEpoch : targetCandleEpoch;
+   const canFinalizeRecoveryNow = recoveryStartWindow && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch && feed.enginePendingForecasts[engine]?.targetCandleEpoch !== sourceCandleEpoch;
+   const canFinalizeNormalNow = recoveryMode !== "RECOVERY_ACTIVE" && finalizeWindow &&
+     canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+       lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
+   if (!activeForCurrentOrNext && selectedFinalSignal && (canFinalizeRecoveryNow || canFinalizeNormalNow)) {
      active = {
-       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch,
-       triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
-       score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.sourceEngine || engine, mode: recoveryMode,
-       alertId: `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
+       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch: signalTargetEpoch,
+       triggeredAt: now, expiresAt: recoveryStartWindow ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
+       score: selectedCandidate.score ?? selectedCandidate.confidence ?? 0,
+       sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.sourceEngine || engine, mode: recoveryMode,
+       entryPrice: recoveryStartWindow && Number.isFinite(feed.lastTick) ? feed.lastTick : null,
+       entryPriceBasis: recoveryStartWindow ? "LIVE_TICK_AT_RECOVERY_ALERT" : "TARGET_M1_CANDLE_OPEN",
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -386,10 +393,10 @@ async function evaluate(feed) {
      ...selectedCandidate,
      engine,
      analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
-     candidateSignal,
+     candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
-     direction: isActive ? active.signal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null),
+     direction: isActive ? active.signal : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null)),
      score: isActive ? active.score : (selectedCandidate.score ?? 0),
      confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
      reason: activeReason,
@@ -448,9 +455,13 @@ async function evaluate(feed) {
  for (const item of activeSignals) {
     const engine = item.engine, existing = feed.enginePendingForecasts[engine];
     if (existing?.targetCandleEpoch === item.targetCandleEpoch) continue;
+    const liveActive = feed.engineActive[engine];
     const pending = { engine, alertId: item.alertId, symbol: feed.symbol, signal: item.signal,
-      targetCandleEpoch: item.targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
-      mode: feed.engineActive[engine]?.mode || "NORMAL", entryPriceBasis: "TARGET_M1_CANDLE_OPEN" };
+      targetCandleEpoch: item.targetCandleEpoch, signalAt: now,
+      entryAt: liveActive?.entryPrice !== null && liveActive?.entryPrice !== undefined ? liveActive.triggeredAt : null,
+      entryPrice: liveActive?.entryPrice ?? null,
+      mode: liveActive?.mode || "NORMAL",
+      entryPriceBasis: liveActive?.entryPriceBasis || "TARGET_M1_CANDLE_OPEN" };
     feed.enginePendingForecasts[engine] = pending;
     if (pending.mode === "RECOVERY_ACTIVE") feed.engineRecoveryStates[engine] =
       markRecoveryAttempt(feed.engineRecoveryStates[engine], pending);
@@ -535,10 +546,10 @@ function applyTick(feed, price, epoch) {
       for (const engine of ENGINE_KEYS) {
         const pending = feed.enginePendingForecasts?.[engine];
         if (!pending || pending.targetCandleEpoch !== current.epoch) continue;
-        const evaluated = evaluateM1Outcome(pending.signal, current);
-        const record = { ...pending, entryAt: current.epoch * 1000, entryPrice: evaluated.entryPrice,
+        const evaluated = evaluateM1Outcome(pending.signal, current, pending.entryPrice);
+        const record = { ...pending, entryAt: pending.entryAt ?? current.epoch * 1000, entryPrice: evaluated.entryPrice,
           exitAt: Date.now(), exitPrice: evaluated.exitPrice, outcome: evaluated.outcome,
-          outcomeReason: evaluated.reason, entryPriceBasis: "TWELVE_DATA_STREAM_M1_OPEN",
+          outcomeReason: evaluated.reason, entryPriceBasis: pending.entryPriceBasis || "TWELVE_DATA_STREAM_M1_OPEN",
           exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
           priceChange: Number.isFinite(evaluated.entryPrice) && Number.isFinite(evaluated.exitPrice)
             ? evaluated.exitPrice - evaluated.entryPrice : null };
@@ -1146,9 +1157,9 @@ app.get("/health", (_req, res) => {
     },
     recovery: {
       enabled: true, mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN", status: "LIVE_PER_ENGINE",
-      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: null,
-      minimumSignalScore: 60, maxAttemptsPerLoss: null, maxWaitCandles: null,
-      strategy: "HIGHEST_SCORE_ENABLED_ANALYZER_CALL_PUT",
+      resultBasis: "RECOVERY_ALERT_ENTRY_PRICE_TO_TARGET_M1_CLOSE", expiryMinutes: null,
+      minimumSignalScore: null, maxAttemptsPerLoss: null, maxWaitCandles: null,
+      strategy: "ANY_ENABLED_ANALYZER_DIRECTIONAL_CALL_PUT", recoveryTiming: "IMMEDIATELY_ON_NEXT_M1_OPEN",
       waitsWhenNoCandidate: true, resetsToOriginalAnalyzerAfterWin: true,
       martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ",
       emitsAdditionalSignals: false, usesExistingSignalPipeline: true,

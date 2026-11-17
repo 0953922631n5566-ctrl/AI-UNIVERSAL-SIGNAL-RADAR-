@@ -48,3 +48,14 @@ test("recovery direction is selected, never inverted automatically", () => {
   };
   assert.equal(selectRecoveryCandidate(candidates, "V1", "RECOVERY_ACTIVE").signal, "PUT");
 });
+
+test("recovery may use any enabled directional formula without a fixed score cutoff", () => {
+  const candidates = {
+    V1: source("CALL", 32),
+    BB: source("PUT", 18),
+    TREND_RIDER: source("STANDBY", 99)
+  };
+  const chosen = selectRecoveryCandidate(candidates, "V1", "RECOVERY_ACTIVE", ["V1", "BB", "TREND_RIDER"], null);
+  assert.equal(chosen.sourceEngine, "V1");
+  assert.equal(chosen.signal, "CALL");
+});

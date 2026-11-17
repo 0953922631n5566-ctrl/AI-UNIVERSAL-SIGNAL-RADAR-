@@ -6,8 +6,8 @@ const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("health metadata reports unlimited independent next-M1 recovery until win", () => {
   assert.match(server, /mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN"/);
-  assert.match(server, /minimumSignalScore: 60, maxAttemptsPerLoss: null, maxWaitCandles: null/);
-  assert.match(server, /waitsWhenNoCandidate: true, resetsToOriginalAnalyzerAfterWin: true/);
+  assert.match(server, /minimumSignalScore: null, maxAttemptsPerLoss: null, maxWaitCandles: null/);
+  assert.match(server, /recoveryTiming: "IMMEDIATELY_ON_NEXT_M1_OPEN"/);
   assert.match(server, /martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ"/);
   assert.match(server, /independentEngines: ENGINE_KEYS/);
 });
