@@ -543,7 +543,8 @@ function applyTick(feed, price, epoch) {
           outcome: record.outcome, mode: pending.mode, state: feed.engineRecoveryStates[engine].status,
           next: feed.engineRecoveryStates[engine].status === "ARMED" ? "REANALYZE_NEXT_M1" : "NORMAL_MODE" });
       }
-      feed.candles.push({
+    }
+    feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
       epoch: minute, open: price, high: price, low: price, close: price, live: true
     });
