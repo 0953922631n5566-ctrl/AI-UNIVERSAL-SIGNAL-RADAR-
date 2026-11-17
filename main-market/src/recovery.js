@@ -25,7 +25,7 @@ export function evaluateM1Outcome(signal, candle, entryPrice = candle?.open) {
   };
   const won = signal === "CALL" ? candle.close > entry : candle.close < entry;
   return { outcome: won ? "WIN" : "LOSS", entryPrice: entry, exitPrice: candle.close,
-    reason: signal === "CALL" ? "CALL_OPEN_TO_CLOSE" : "PUT_OPEN_TO_CLOSE" };
+    reason: signal === "CALL" ? "CALL_ENTRY_TO_CLOSE" : "PUT_ENTRY_TO_CLOSE" };
 }
 
 export function armRecoveryAfterLoss(state, record) {
@@ -72,7 +72,7 @@ export function selectRecoveryCandidate(candidates, engine, mode, enabledEngines
     .filter(([key, candidate]) => enabledEngines.includes(key) &&
       ["CALL", "PUT"].includes(candidate?.signal) &&
       Number.isFinite(Number(candidate?.score ?? candidate?.confidence ?? 0)) &&
-      (minimumScore === null || minimumScore === undefined || Number(candidate.score) >= minimumScore))
+      (minimumScore === null || minimumScore === undefined || Number(candidate.score ?? candidate.confidence ?? 0) >= minimumScore))
     .sort((a, b) => Number(b[1].score ?? b[1].confidence ?? 0) - Number(a[1].score ?? a[1].confidence ?? 0))
     .map(([sourceEngine, candidate]) => ({ ...candidate, sourceEngine }))[0] || null;
 }
