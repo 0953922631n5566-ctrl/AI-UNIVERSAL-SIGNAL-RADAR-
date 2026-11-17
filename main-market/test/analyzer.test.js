@@ -658,7 +658,7 @@ test("V1 ignores a provisional candle when the Streaming tick is stale", async (
     live: false, provisional: true
   };
   const result = await analyzeMarket(history(54, 1), {
-    now, tickAgeSeconds: 26, liveCandle
+    now, tickAgeSeconds: 26, allowRestFallback: true, liveCandle
   });
   assert.equal(result.livePreviewIncluded, false);
   assert.equal(result.analysisMode, "CLOSED_M1_ONLY");
