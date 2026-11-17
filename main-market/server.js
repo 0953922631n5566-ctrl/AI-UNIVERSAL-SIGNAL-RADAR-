@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles } from "./src/twelve-data.js";
 import { createLiveCandlePreview } from "./src/live-candle-preview.js";
+import { analyzeM1Voice } from "./src/voice-market-analysis.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
@@ -34,7 +35,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + STRICT ENGINE 4";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-STRICT-TREND-RIDER-COPY-ENGINE-4";
-const VERSION = "2026-11-17-live-m1-2s-preview-v1";
+const VERSION = "2026-11-17-live-m1-voice-analysis-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1092,6 +1093,28 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
     res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
   }
 });
+app.get("/api/telegram/voice-analysis", requireTelegramSession, (req, res) => {
+  noCache(res);
+  const feed = feeds.get("EUR/USD");
+  if (!feed) return res.status(503).json({ ok: false, error: "ไม่พบข้อมูล EUR/USD" });
+  const now = Date.now();
+  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : Infinity;
+  const currentCandle = feed.candles.at(-1);
+  const livePreview = createLiveCandlePreview(currentCandle, {
+    now, tickAt: feed.tickAt, maxAgeMs: MAX_STREAM_AGE_SECONDS * 1000
+  });
+  const closed = feed.candles.filter(c => c && c.live !== true &&
+    Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-59);
+  const candles = livePreview ? [...closed, livePreview] : closed.slice(-60);
+  const livePrice = Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS
+    ? feed.lastTick : null;
+  const analysis = analyzeM1Voice(candles, { now, price: livePrice });
+  res.json({ ok: analysis.ok, analysis, marketData: {
+    source: "Twelve Data M1 OHLC", restStatus: feed.restStatus,
+    streamStatus: feed.streamStatus, tickAgeSeconds: Number.isFinite(tickAge) ? Math.round(tickAge) : null,
+    candleCount: candles.length, livePriceAvailable: livePrice !== null
+  }});
+});
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
@@ -1129,6 +1152,7 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
+      voiceMarketAnalysis: { enabled: true, symbol: "EUR/USD", interval: "1min", cadenceSeconds: 60, independentOfSignalEngines: true, speechLanguage: "th-TH", execution: "READ_ONLY_NO_TRADING" },
       decisionEngine: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_INDEPENDENT", engines: 4,
       decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
