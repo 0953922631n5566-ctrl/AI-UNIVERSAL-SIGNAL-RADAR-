@@ -11,20 +11,20 @@ function history(direction="UP"){
 }
 test("Engine 4 confirms bullish pressure during first 30 seconds",()=>{
  const h=history("UP"),epoch=h.at(-1).epoch+60;
- const live={epoch,open:1.1002,high:1.10055,low:1.10018,close:1.10050,live:true};
+ const live={epoch,open:1.1002,high:1.10055,low:1.10018,close:1.10050,live:false,provisional:true};
  const out=analyzeEarlyEntryEngine4([...h,live],{livePreview:true,now:epoch*1000+12000});
  assert.equal(out.signal,"CALL");
  assert.equal(out.targetCandleAt,new Date(epoch*1000).toISOString());
 });
 test("Engine 4 confirms bearish pressure during first 30 seconds",()=>{
  const h=history("DOWN"),epoch=h.at(-1).epoch+60;
- const live={epoch,open:1.1000,high:1.10002,low:1.09965,close:1.09970,live:true};
+ const live={epoch,open:1.1000,high:1.10002,low:1.09965,close:1.09970,live:false,provisional:true};
  const out=analyzeEarlyEntryEngine4([...h,live],{livePreview:true,now:epoch*1000+12000});
  assert.equal(out.signal,"PUT");
 });
 test("Engine 4 refuses signal at second 30 and later",()=>{
  const h=history("UP"),epoch=h.at(-1).epoch+60;
- const live={epoch,open:1.1002,high:1.10055,low:1.10018,close:1.10050,live:true};
+ const live={epoch,open:1.1002,high:1.10055,low:1.10018,close:1.10050,live:false,provisional:true};
  const out=analyzeEarlyEntryEngine4([...h,live],{livePreview:true,now:epoch*1000+30000});
  assert.equal(out.signal,null);assert.equal(out.status,"ENTRY_WINDOW_CLOSED");
 });
