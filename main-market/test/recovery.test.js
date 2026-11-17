@@ -75,3 +75,10 @@ test("recovery policy never uses Martingale and delegates direction to original 
   assert.equal(RECOVERY_POLICY.strategy, "REANALYZE_WITH_ORIGINAL_ENGINE_EACH_NEXT_M1");
   assert.equal(RECOVERY_POLICY.maxAttemptsPerLoss, null);
 });
+
+test("recovery outcome uses the actual alert entry price within the target M1 candle", () => {
+  const bar = { epoch: 1_800_000_000, open: 1.1, high: 1.101, low: 1.099, close: 1.1005 };
+  assert.equal(evaluateM1Outcome("CALL", bar, 1.1002).outcome, "WIN");
+  assert.equal(evaluateM1Outcome("PUT", bar, 1.1002).outcome, "LOSS");
+  assert.equal(evaluateM1Outcome("CALL", bar, 1.1008).outcome, "LOSS");
+});
