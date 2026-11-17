@@ -55,7 +55,7 @@ async function requestVoiceAnalysis(){
   $("voiceMomentum").textContent="ขึ้น "+a.momentum.lastFiveUp+" / ลง "+a.momentum.lastFiveDown;
   $("voiceResistance").textContent=fmt(a.levels.recentResistance);
   $("voiceSupport").textContent=fmt(a.levels.recentSupport);
-  $("voiceSummary").textContent=a.summary+" ราคา "+fmt(a.price)+". "+a.details.structure;
+  $("voiceSummary").textContent=a.summary+" O "+fmt(a.candle.open)+" · H "+fmt(a.candle.high)+" · L "+fmt(a.candle.low)+" · C "+fmt(a.candle.close)+" · Body "+a.candle.bodyPercent+"% · ไส้บน "+a.candle.upperWickPercent+"% · ไส้ล่าง "+a.candle.lowerWickPercent+"% · ราคา "+fmt(a.price)+". "+a.details.structure;
   $("voiceStatus").textContent="อัปเดต "+new Date(a.analyzedAt).toLocaleTimeString("th-TH")+" · "+(body.marketData?.livePriceAvailable?"มีราคา Streaming สด":"อ้างอิงแท่ง M1 ล่าสุด");
   if(voiceSoundEnabled&&"speechSynthesis"in window&&typeof SpeechSynthesisUtterance!=="undefined"){
    window.speechSynthesis.cancel();
