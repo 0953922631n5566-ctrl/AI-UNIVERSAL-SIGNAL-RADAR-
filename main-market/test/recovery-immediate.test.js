@@ -8,7 +8,7 @@ test("normal signals use the original T-5 finalization window and target the nex
   assert.match(server, /const engineWindow = engine === "ENGINE_4" \? engine4EntryWindow : finalizeWindow/);
   assert.match(server, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
   assert.match(server, /canFinalizeSignal\(/);
-  assert.match(server, /targetCandleEpoch,\s*triggeredAt: now, expiresAt: signalHoldExpiresAt\(targetCandleEpoch\)/);
+  assert.match(server, /targetCandleEpoch: signalTargetEpoch,\s*triggeredAt: now, expiresAt: signalHoldExpiresAt\(signalTargetEpoch\)/);
   assert.doesNotMatch(server, /const recoveryStartWindow/);
   assert.doesNotMatch(server, /LIVE_TICK_AT_RECOVERY_ALERT/);
 });
