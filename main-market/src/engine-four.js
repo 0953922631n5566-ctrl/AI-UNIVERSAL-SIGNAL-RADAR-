@@ -1,127 +1,81 @@
-const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
-const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
-
-function ema(values, period) {
-  if (values.length < period) return [];
-  const alpha = 2 / (period + 1);
-  let value = mean(values.slice(0, period));
-  const result = Array(period - 1).fill(null);
-  result.push(value);
-  for (let i = period; i < values.length; i++) {
-    value = values[i] * alpha + value * (1 - alpha);
-    result.push(value);
-  }
-  return result;
+const mean = values => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
+function valid(c) {
+  return c && [c.epoch,c.open,c.high,c.low,c.close].every(Number.isFinite) &&
+    c.epoch >= 0 && c.low > 0 && c.high >= Math.max(c.open,c.close) &&
+    c.low <= Math.min(c.open,c.close) && c.high >= c.low;
 }
-
-function atr(candles, period = 14) {
-  const ranges = candles.slice(1).map((c, i) => Math.max(
-    c.high - c.low,
-    Math.abs(c.high - candles[i].close),
-    Math.abs(c.low - candles[i].close)
-  ));
-  return mean(ranges.slice(-period));
+function atr(rows, period = 14) {
+  const tr = rows.slice(1).map((c,i)=>Math.max(c.high-c.low,
+    Math.abs(c.high-rows[i].close),Math.abs(c.low-rows[i].close)));
+  return mean(tr.slice(-period));
 }
-
-function validClosedCandle(candle) {
-  return candle && candle.live !== true &&
-    [candle.epoch, candle.open, candle.high, candle.low, candle.close].every(Number.isFinite) &&
-    candle.epoch >= 0 && candle.low > 0 &&
-    candle.high >= Math.max(candle.open, candle.close) &&
-    candle.low <= Math.min(candle.open, candle.close) &&
-    candle.high >= candle.low;
-}
-
-/**
- * Engine 4 is an isolated, stricter copy of Trend Rider AI and never reads another engine's score.
- * It accepts closed history plus an explicitly marked provisional live M1 candle for preview scans.
- */
-export function analyzeStrictTrendRider(candles, options = {}) {
-  const minimum = Number.isInteger(options.minimumCandles) ? options.minimumCandles : 35;
-  const source = Array.isArray(candles) ? candles.slice(-54) : [];
-  if (source.length < minimum || !source.every(validClosedCandle)) {
-    return { ready: false, signal: null, candidateSignal: null, score: 0, status: "NOT_READY",
-      reason: `Engine 4 ต้องมีแท่ง M1 ปิดที่ถูกต้องอย่างน้อย ${minimum} แท่ง`,
-      strategy: "STRICT_COPY_OF_TREND_RIDER_EMA5_20_STRUCTURE_PULLBACK" };
+/** Engine 4: independent pressure/rejection/structure entry on the live M1 candle, seconds 0-29 only. */
+export function analyzeEarlyEntryEngine4(candles, options = {}) {
+  const minimum = Number.isInteger(options.minimumClosedCandles) ? options.minimumClosedCandles : 35;
+  const rows = Array.isArray(candles) ? candles.slice(-55) : [];
+  const live = rows.at(-1), closed = rows.slice(0,-1);
+  if (options.livePreview !== true || !live || live.live !== true || !valid(live) ||
+      closed.length < minimum || !closed.every(c=>c.live!==true && valid(c))) {
+    return {ready:false,signal:null,candidateSignal:null,score:0,status:"NOT_READY",
+      reason:`Engine 4 ต้องมีแท่งปิดอย่างน้อย ${minimum} แท่งและแท่ง M1 ปัจจุบันที่กำลังก่อตัว`,
+      strategy:"ENGINE_4_EARLY_PRESSURE_REJECTION_STRUCTURE_0_30S"};
   }
-
-  const closes = source.map(c => c.close);
-  const fast = ema(closes, 5), slow = ema(closes, 20);
-  const last = source.at(-1), previous = source.at(-2);
-  const fastNow = fast.at(-1), slowNow = slow.at(-1);
-  const fastBack = fast.at(-4), slowBack = slow.at(-4);
-  const volatility = atr(source);
-  const range = Math.max(last.high - last.low, Number.EPSILON);
-  const bodyRatio = Math.abs(last.close - last.open) / range;
-  const gapAtr = volatility > 0 ? Math.abs(fastNow - slowNow) / volatility : 0;
-  const extensionAtr = volatility > 0 ? Math.abs(last.close - fastNow) / volatility : Infinity;
-  const recent = source.slice(-8, -1);
-  const priorHigh = Math.max(...recent.map(c => c.high));
-  const priorLow = Math.min(...recent.map(c => c.low));
-  const risingStructure = last.close > slowNow &&
-    source.slice(-5).filter((c, i, rows) => i > 0 && c.low >= rows[i - 1].low).length >= 2;
-  const fallingStructure = last.close < slowNow &&
-    source.slice(-5).filter((c, i, rows) => i > 0 && c.high <= rows[i - 1].high).length >= 2;
-  const upAligned = fastNow > slowNow && fastNow > fastBack && slowNow >= slowBack;
-  const downAligned = fastNow < slowNow && fastNow < fastBack && slowNow <= slowBack;
-  const upPullback = last.low <= fastNow + volatility * 0.18 && last.close > fastNow && last.close >= last.open;
-  const downPullback = last.high >= fastNow - volatility * 0.18 && last.close < fastNow && last.close <= last.open;
-  const upBreak = last.close > priorHigh, downBreak = last.close < priorLow;
-  const upMomentum = last.close > previous.close && bodyRatio >= 0.45;
-  const downMomentum = last.close < previous.close && bodyRatio >= 0.45;
-
-  const scoreUp = Math.round(30 * Number(upAligned) + 20 * clamp(gapAtr / 0.55) +
-    20 * Number(risingStructure) + 15 * Number(upPullback || upBreak) + 15 * Number(upMomentum));
-  const scoreDown = Math.round(30 * Number(downAligned) + 20 * clamp(gapAtr / 0.55) +
-    20 * Number(fallingStructure) + 15 * Number(downPullback || downBreak) + 15 * Number(downMomentum));
-
-  // Tighter than Engine 3: stronger trend separation and stricter market guards.
-  const sideways = gapAtr < 0.18;
-  const late = extensionAtr > 1.25;
-  const volatilitySpike = volatility > 0 && range > volatility * 2.3;
-  const score = Math.max(scoreUp, scoreDown);
-  const candleEpoch = last.epoch;
-  const base = {
-    ready: true, signal: null, candidateSignal: null, score, scoreUp, scoreDown,
-    candleEpoch, targetCandleAt: new Date((candleEpoch + (options.livePreview === true ? 60 : 120)) * 1000).toISOString(),
-    strategy: "STRICT_COPY_OF_TREND_RIDER_EMA5_20_STRUCTURE_PULLBACK",
-    regime: upAligned ? "UPTREND" : downAligned ? "DOWNTREND" : "UNCLEAR",
-    metrics: { ema5: fastNow, ema20: slowNow, emaGapAtr: Number(gapAtr.toFixed(3)),
-      extensionAtr: Number(extensionAtr.toFixed(3)), atr: volatility,
-      bodyRatio: Number(bodyRatio.toFixed(3)), priorHigh, priorLow },
-    evidence: [
-      upAligned || downAligned ? "EMA5/EMA20 alignment and slope agree" : "EMA alignment incomplete",
-      risingStructure || fallingStructure ? "Recent swing structure supports trend" : "Swing structure not confirmed",
-      upPullback || downPullback ? "Pullback reclaimed EMA5" : upBreak || downBreak ? "Recent structure breakout" : "No clean continuation trigger",
-      sideways ? "Strict sideways guard active" : late ? "Strict late-extension guard active" :
-        volatilitySpike ? "Strict abnormal-range guard active" : "Market guards passed"
-    ]
-  };
-
-  if (sideways) return { ...base, status: "SIDEWAYS_BLOCK",
-    reason: "EMA5/EMA20 ยังใกล้กันเกินไป · งดสัญญาณในตลาด Sideway" };
-  if (late) return { ...base, status: "LATE_ENTRY_BLOCK",
-    reason: "ราคาออกห่าง EMA5 เกิน 1.25 ATR · ไม่ไล่ตามราคา" };
-  if (volatilitySpike) return { ...base, status: "VOLATILITY_BLOCK",
-    reason: "แท่งล่าสุดกว้างเกิน 2.3 ATR · รอความผันผวนลดลง" };
-
-  if (scoreUp >= 75 && scoreUp - scoreDown >= 18 && upAligned &&
-      (risingStructure || upBreak) && (upPullback || upBreak) && upMomentum) {
-    return { ...base, signal: "CALL", candidateSignal: "CALL", score: scoreUp,
-      status: "STRICT_UPTREND_CONFIRMED",
-      alertId: `ENGINE_4:${candleEpoch}:CALL`,
-      reason: "ยืนยัน CALL · EMA5/20 ไปทางเดียวกัน · โครงสร้างขาขึ้นชัด · มี Pullback/Breakout และแท่งยืนยันแรงซื้อ" };
-  }
-  if (scoreDown >= 75 && scoreDown - scoreUp >= 18 && downAligned &&
-      (fallingStructure || downBreak) && (downPullback || downBreak) && downMomentum) {
-    return { ...base, signal: "PUT", candidateSignal: "PUT", score: scoreDown,
-      status: "STRICT_DOWNTREND_CONFIRMED",
-      alertId: `ENGINE_4:${candleEpoch}:PUT`,
-      reason: "ยืนยัน PUT · EMA5/20 ไปทางเดียวกัน · โครงสร้างขาลงชัด · มี Pullback/Breakdown และแท่งยืนยันแรงขาย" };
-  }
-
-  return { ...base, status: score >= 55 ? "STRICT_TREND_WATCH" : "STRICT_SCORE_BLOCK",
-    reason: score >= 55
-      ? "เริ่มมีแนวโน้ม แต่คะแนน/โครงสร้าง/แรงแท่งยังไม่ครบเกณฑ์เข้มงวด"
-      : `คะแนนทิศทาง ${score}/100 ยังต่ำกว่าเกณฑ์ 75/100` };
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const elapsed = now-live.epoch*1000;
+  if (elapsed < 0 || elapsed >= 30000) return {ready:true,signal:null,candidateSignal:null,
+    score:0,status:"ENTRY_WINDOW_CLOSED",candleEpoch:live.epoch,
+    elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)),
+    strategy:"ENGINE_4_EARLY_PRESSURE_REJECTION_STRUCTURE_0_30S",
+    reason:"Engine 4 เปิดจังหวะเข้าเฉพาะ 30 วินาทีแรกของแท่ง M1"};
+  const history=closed.slice(-50), prev=history.at(-1), volatility=atr(history);
+  if (!(volatility>0)) return {ready:true,signal:null,candidateSignal:null,score:0,
+    status:"VOLATILITY_NOT_READY",candleEpoch:live.epoch,
+    strategy:"ENGINE_4_EARLY_PRESSURE_REJECTION_STRUCTURE_0_30S",
+    reason:"ข้อมูล ATR ยังไม่พร้อมสำหรับประเมินแรงราคา"};
+  const range=Math.max(live.high-live.low,Number.EPSILON), body=live.close-live.open;
+  const bodyRatio=Math.abs(body)/range, closePos=(live.close-live.low)/range;
+  const upper=(live.high-Math.max(live.open,live.close))/range;
+  const lower=(Math.min(live.open,live.close)-live.low)/range;
+  const displacement=Math.abs(body)/volatility, recent=history.slice(-6);
+  const priorHigh=Math.max(...recent.map(c=>c.high)), priorLow=Math.min(...recent.map(c=>c.low));
+  const breakUp=live.close>priorHigh, breakDown=live.close<priorLow;
+  const buyPressure=body>0&&bodyRatio>=.35&&closePos>=.68;
+  const sellPressure=body<0&&bodyRatio>=.35&&closePos<=.32;
+  const buyReject=lower>=.38&&closePos>=.58, sellReject=upper>=.38&&closePos<=.42;
+  const buyMomentum=live.close>prev.close&&live.close>=live.open&&(live.close-prev.close)/volatility>=.08;
+  const sellMomentum=live.close<prev.close&&live.close<=live.open&&(prev.close-live.close)/volatility>=.08;
+  const upContext=history.slice(-5).filter((c,i,a)=>i>0&&c.close>=a[i-1].close).length>=2;
+  const downContext=history.slice(-5).filter((c,i,a)=>i>0&&c.close<=a[i-1].close).length>=2;
+  const up=Math.round(30*Number(buyPressure||buyReject)+25*Number(buyMomentum)+
+    20*Number(buyReject)+15*Number(breakUp||(live.low<=priorLow&&closePos>=.7))+10*Number(upContext));
+  const down=Math.round(30*Number(sellPressure||sellReject)+25*Number(sellMomentum)+
+    20*Number(sellReject)+15*Number(breakDown||(live.high>=priorHigh&&closePos<=.3))+10*Number(downContext));
+  const abnormal=range>volatility*2.2, stretched=displacement>.9, quiet=range<volatility*.06;
+  const score=Math.max(up,down);
+  const base={ready:true,signal:null,candidateSignal:null,score,scoreUp:up,scoreDown:down,
+    candleEpoch:live.epoch,elapsedSeconds:Math.floor(elapsed/1000),
+    targetCandleAt:new Date(live.epoch*1000).toISOString(),
+    strategy:"ENGINE_4_EARLY_PRESSURE_REJECTION_STRUCTURE_0_30S",
+    regime:buyMomentum?"EARLY_BUY_PRESSURE":sellMomentum?"EARLY_SELL_PRESSURE":"UNCLEAR",
+    metrics:{atr:volatility,rangeAtr:+(range/volatility).toFixed(3),bodyRatio:+bodyRatio.toFixed(3),
+      closeLocation:+closePos.toFixed(3),upperWickRatio:+upper.toFixed(3),lowerWickRatio:+lower.toFixed(3),
+      displacementAtr:+displacement.toFixed(3),priorHigh,priorLow},
+    evidence:[buyPressure||sellPressure?"พบแรงซื้อ/แรงขายจากลำตัวและตำแหน่งปิดแท่ง":"แรงจากลำตัวแท่งยังไม่ชัด",
+      buyReject||sellReject?"พบไส้เทียนปฏิเสธราคา":"ยังไม่พบไส้เทียนปฏิเสธราคาที่ชัด",
+      breakUp||breakDown?"ราคาทะลุกรอบ high/low ระยะสั้น":"ยังไม่ยืนยันการทะลุกรอบระยะสั้น",
+      abnormal?"งดสัญญาณ: ช่วงราคาเกิน 2.2 ATR":stretched?"งดสัญญาณ: ราคาเคลื่อนจากจุดเปิดเกิน 0.9 ATR":quiet?"งดสัญญาณ: ช่วงราคาแคบเกินไป":"ผ่านตัวกรองความผันผวน"]};
+  if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดเข้า"};
+  if(stretched)return {...base,status:"LATE_MOVE_BLOCK",reason:"ราคาเคลื่อนจากจุดเปิดไกลเกินไป · ไม่ไล่ตามราคา"};
+  if(quiet)return {...base,status:"LOW_ACTIVITY_BLOCK",reason:"แรงเคลื่อนไหวยังน้อยเกินไป · รอข้อมูลเพิ่ม"};
+  if(up>=70&&up-down>=12&&(buyPressure||buyReject)&&(buyMomentum||breakUp))
+    return {...base,signal:"CALL",candidateSignal:"CALL",score:up,status:"EARLY_BUY_PRESSURE_CONFIRMED",
+      alertId:`ENGINE_4:${live.epoch}:CALL:EARLY`,
+      reason:"CALL ระยะแรก · แรงซื้อ/การปฏิเสธราคาสอดคล้องกับโมเมนตัมและโครงสร้างระยะสั้น"};
+  if(down>=70&&down-up>=12&&(sellPressure||sellReject)&&(sellMomentum||breakDown))
+    return {...base,signal:"PUT",candidateSignal:"PUT",score:down,status:"EARLY_SELL_PRESSURE_CONFIRMED",
+      alertId:`ENGINE_4:${live.epoch}:PUT:EARLY`,
+      reason:"PUT ระยะแรก · แรงขาย/การปฏิเสธราคาสอดคล้องกับโมเมนตัมและโครงสร้างระยะสั้น"};
+  return {...base,status:score>=50?"EARLY_ENTRY_WATCH":"EARLY_ENTRY_STANDBY",
+    reason:score>=50?"เริ่มเห็นแรงราคา แต่หลักฐานยังไม่ครบเกณฑ์เข้า":`คะแนนแรงซื้อ/ขาย ${score}/100 ยังไม่ถึง 70`};
 }
