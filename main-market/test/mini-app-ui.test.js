@@ -6,6 +6,7 @@ import { Script } from "node:vm";
 const html = readFileSync(new URL("../public/signal.html", import.meta.url), "utf8");
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
+const configJs = readFileSync(new URL("../src/config.js", import.meta.url), "utf8");
 
 test("Mini App is restricted to EUR/USD and keeps API details inside a collapsible menu", () => {
   assert.match(html, /EUR \/ USD/);
@@ -163,7 +164,7 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
 });
 
 test("all four analyzers are scheduled every two seconds without increasing Twelve Data REST cadence", () => {
-  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS = 2/);
+  assert.match(configJs, /LIVE_ANALYSIS_INTERVAL_SECONDS = 2/);
   assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS \* 1000/);
   assert.match(serverJs, /REST_SYNC_SECONDS \* 1000/);
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
