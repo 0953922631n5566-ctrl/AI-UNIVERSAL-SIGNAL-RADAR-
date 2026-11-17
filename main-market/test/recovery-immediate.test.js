@@ -29,3 +29,7 @@ test("recovery win resets the recovering engine; other engines retain independen
   assert.match(server, /feed\.engineRecoveryStates\[engine\] =\s*armRecoveryAfterLoss/);
   assert.match(server, /engineRecoveryStates: \{ V1: createRecoveryState\(\), BB: createRecoveryState\(\), TREND_RIDER: createRecoveryState\(\), ENGINE_4: createRecoveryState\(\) \}/);
 });
+
+test("an immediate recovery signal targeting the current M1 candle is exposed as active", () => {
+  assert.match(server, /active\.targetCandleEpoch === sourceCandleEpoch \|\| active\.targetCandleEpoch === targetCandleEpoch/);
+});

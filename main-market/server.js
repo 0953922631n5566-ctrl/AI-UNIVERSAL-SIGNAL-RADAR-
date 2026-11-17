@@ -384,7 +384,7 @@ async function evaluate(feed) {
        expiresAt: new Date(active.expiresAt).toISOString()
      });
    }
-   const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
+   const currentActive = activeForCurrentOrNext || Boolean(active && (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
      ? `${active.mode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · " : ""}ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
