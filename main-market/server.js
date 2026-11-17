@@ -1156,15 +1156,10 @@ app.get("/health", (_req, res) => {
       priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
     },
     recovery: {
-      enabled: true, mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN", status: "LIVE_PER_ENGINE",
-      resultBasis: "RECOVERY_ALERT_ENTRY_PRICE_TO_TARGET_M1_CLOSE", expiryMinutes: null,
-      minimumSignalScore: null, maxAttemptsPerLoss: null, maxWaitCandles: null,
-      strategy: "ANY_ENABLED_ANALYZER_DIRECTIONAL_CALL_PUT", recoveryTiming: "IMMEDIATELY_ON_NEXT_M1_OPEN",
-      waitsWhenNoCandidate: true, resetsToOriginalAnalyzerAfterWin: true,
-      martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ",
-      emitsAdditionalSignals: false, usesExistingSignalPipeline: true,
-      independentEngines: ENGINE_KEYS,
-      stateStorage: "IN_MEMORY_PER_PAIR_RESETS_ON_PROCESS_RESTART"
+      enabled: false, mode: "DISABLED", status: "ORIGINAL_INDEPENDENT_ANALYZERS",
+      strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER",
+      altersMiniApp: false, badgeText: null, martingale: false,
+      independentEngines: ENGINE_KEYS
     },
     configuration: {
       telegramMiniAppAuthConfigured: false,
