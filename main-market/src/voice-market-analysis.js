@@ -56,7 +56,11 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
   const currentPrice = Number.isFinite(livePrice) ? livePrice : current.close;
   const candleTime = Number.isFinite(current.epoch) ? new Date(current.epoch*1000).toISOString() : null;
   const summary = [candleText,trendText,momentumText,wickText,directionText].join(" ");
-  const spokenText = "วิเคราะห์ยูโรดอลลาร์ กรอบเวลาหนึ่งนาที ราคา "+price(currentPrice)+". "+summary+
+  const spokenText = "วิเคราะห์ยูโรดอลลาร์ กรอบเวลาหนึ่งนาที ราคา "+price(currentPrice)+". "+
+    "แท่งล่าสุด ราคาเปิด "+price(current.open)+" สูงสุด "+price(current.high)+" ต่ำสุด "+price(current.low)+" ปิด "+price(current.close)+". "+
+    "ขนาดเนื้อแท่ง "+Math.round(bodyPct)+" เปอร์เซ็นต์ ไส้บน "+Math.round(upperPct)+" เปอร์เซ็นต์ ไส้ล่าง "+Math.round(lowerPct)+" เปอร์เซ็นต์. "+
+    "ค่าอีเอ็มเอห้า "+price(ema5)+" ค่าอีเอ็มเอยี่สิบ "+price(ema20)+". "+
+    "ห้าแท่งล่าสุด ขึ้น "+upCount+" แท่ง ลง "+downCount+" แท่ง. "+summary+
     " แนวต้านระยะใกล้จากสิบแท่งล่าสุด "+price(recentHigh)+
     " แนวรับระยะใกล้ "+price(recentLow)+
     " ค่าเฉลี่ยช่วงแกว่งสิบห้าแท่ง "+price(atr)+
