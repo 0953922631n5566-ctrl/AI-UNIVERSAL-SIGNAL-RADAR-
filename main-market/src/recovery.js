@@ -2,7 +2,8 @@ const MAX_WAIT_CANDLES = 3;
 
 export function createRecoveryState() {
   return { status: "IDLE", armedByAlertId: null, armedAtCandleEpoch: null,
-    expiresAtCandleEpoch: null, attemptAlertId: null, lastOutcome: null, lastAttemptAt: null };
+    expiresAtCandleEpoch: null, attemptAlertId: null, lastOutcome: null,
+    lastAttemptAt: null, attempts: 0 };
 }
 
 export function evaluateM1Outcome(signal, candle) {
@@ -27,21 +28,17 @@ export function evaluateM1Outcome(signal, candle) {
 
 export function armRecoveryAfterLoss(state, record) {
   const current = state || createRecoveryState();
-  if (record?.mode === "RECOVERY_ACTIVE" || record?.outcome !== "LOSS" ||
-      !Number.isFinite(record.targetCandleEpoch)) return current;
-  return { status: "ARMED", armedByAlertId: record.alertId || null,
+  if (record?.outcome !== "LOSS" || !Number.isFinite(record.targetCandleEpoch)) return current;
+  return { ...current, status: "ARMED", armedByAlertId: record.alertId || null,
     armedAtCandleEpoch: record.targetCandleEpoch,
-    expiresAtCandleEpoch: record.targetCandleEpoch + MAX_WAIT_CANDLES * 60,
-    attemptAlertId: null, lastOutcome: "LOSS", lastAttemptAt: null };
+    // Kept for diagnostics only. Recovery no longer expires after a fixed number of candles.
+    expiresAtCandleEpoch: null, attemptAlertId: null, lastOutcome: "LOSS", lastAttemptAt: null };
 }
 
 export function inspectRecoveryWindow(state, sourceCandleEpoch) {
   const current = state || createRecoveryState();
   if (current.status !== "ARMED" || !Number.isFinite(sourceCandleEpoch)) {
     return { state: current, mode: "NORMAL" };
-  }
-  if (sourceCandleEpoch > current.expiresAtCandleEpoch) {
-    return { state: { ...createRecoveryState(), lastOutcome: "EXPIRED" }, mode: "NORMAL" };
   }
   return { state: current, mode: "RECOVERY_ACTIVE" };
 }
@@ -50,18 +47,25 @@ export function markRecoveryAttempt(state, record) {
   const current = state || createRecoveryState();
   if (current.status !== "ARMED" || !record?.alertId) return current;
   return { ...current, status: "ATTEMPT_PENDING", attemptAlertId: record.alertId,
-    lastAttemptAt: record.signalAt || null };
+    lastAttemptAt: record.signalAt || null, attempts: (current.attempts || 0) + 1 };
 }
 
 export function settleRecoveryAttempt(state, record) {
   const current = state || createRecoveryState();
   if (current.status !== "ATTEMPT_PENDING" ||
       (current.attemptAlertId && current.attemptAlertId !== record?.alertId)) return current;
-  return { ...createRecoveryState(), lastOutcome: record?.outcome || "UNKNOWN",
-    lastAttemptAt: current.lastAttemptAt };
+  const outcome = record?.outcome || "UNKNOWN";
+  if (outcome === "WIN") {
+    return { ...createRecoveryState(), lastOutcome: "WIN", lastAttemptAt: current.lastAttemptAt };
+  }
+  // A loss, flat candle, or unknown result keeps recovery armed for a fresh
+  // analysis on the next M1 candle. It never flips the previous direction.
+  return { ...current, status: "ARMED", attemptAlertId: null, lastOutcome: outcome,
+    armedByAlertId: record?.alertId || current.armedByAlertId };
 }
 
 export const RECOVERY_POLICY = Object.freeze({
-  mode: "ACTIVE", expiryMinutes: 1, maxAttemptsPerLoss: 1,
-  maxWaitCandles: MAX_WAIT_CANDLES, martingale: false, minimumScore: 65
+  mode: "ACTIVE", expiryMinutes: null, maxAttemptsPerLoss: null,
+  maxWaitCandles: null, martingale: false, minimumScore: null,
+  strategy: "REANALYZE_WITH_ORIGINAL_ENGINE_EACH_NEXT_M1"
 });
