@@ -17,7 +17,7 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
   const rows = (Array.isArray(candles) ? candles : []).filter(validCandle)
     .sort((a,b)=>(a.epoch||0)-(b.epoch||0)).slice(-60);
   if (rows.length < 20) return {
-    ok:false, status:"WAITING_FOR_DATA", message:"ข้อมูลแท่งเทียนยังไม่เพียงพอ ต้องมีอย่างน้อย 20 แท่ง M1 ที่ถูกต้อง":"ขณะนี้ข้อมูลแท่งเทียนยังไม่เพียงพอ ระบบจะรอข้อมูลราคา M1 ที่ถูกต้องก่อนเริ่มวิเคราะห์"
+    ok:false, status:"WAITING_FOR_DATA", message:"ข้อมูลแท่งเทียนยังไม่เพียงพอ ต้องมีอย่างน้อย 20 แท่ง M1 ที่ถูกต้อง"
   };
   const current = rows.at(-1);
   const closes = rows.map(c=>c.close);
@@ -65,7 +65,7 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
     levels:{recentResistance:recentHigh,recentSupport:recentLow,averageRange15:atr},
     outlook:directionView,details:{candle:candleText,trend:trendText,momentum:momentumText,
       wick:wickText,structure:"กรอบสูงสุดและต่ำสุดของสิบแท่งล่าสุดใช้เป็นแนวต้านและแนวรับระยะใกล้"},
-    summarysource:"Twelve Data M1 OHLC + verified live-price preview",
+    source:"Twelve Data M1 OHLC + verified live-price preview",
     disclaimer:"เป็นการอ่านเชิงข้อมูล ไม่ใช่คำแนะนำลงทุนหรือการรับประกันทิศทางราคา"
   };
 }
