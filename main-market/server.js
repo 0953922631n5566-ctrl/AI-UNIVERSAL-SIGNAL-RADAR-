@@ -1157,9 +1157,9 @@ app.get("/health", (_req, res) => {
     },
     recovery: {
       enabled: true, mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN", status: "LIVE_PER_ENGINE",
-      resultBasis: "TARGET_M1_CANDLE_OPEN_TO_CLOSE", expiryMinutes: null,
-      minimumSignalScore: 60, maxAttemptsPerLoss: null, maxWaitCandles: null,
-      strategy: "HIGHEST_SCORE_ENABLED_ANALYZER_CALL_PUT",
+      resultBasis: "RECOVERY_ALERT_ENTRY_PRICE_TO_TARGET_M1_CLOSE", expiryMinutes: null,
+      minimumSignalScore: null, maxAttemptsPerLoss: null, maxWaitCandles: null,
+      strategy: "ANY_ENABLED_ANALYZER_DIRECTIONAL_CALL_PUT", recoveryTiming: "IMMEDIATELY_ON_NEXT_M1_OPEN",
       waitsWhenNoCandidate: true, resetsToOriginalAnalyzerAfterWin: true,
       martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ",
       emitsAdditionalSignals: false, usesExistingSignalPipeline: true,
