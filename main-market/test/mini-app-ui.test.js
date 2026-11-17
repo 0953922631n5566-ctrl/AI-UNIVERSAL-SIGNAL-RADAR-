@@ -104,7 +104,7 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
 
 test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
-  assert.match(serverJs, /!activeForCurrentOrNext && selectedFinalSignal && \(canFinalizeRecoveryNow \|\| canFinalizeNormalNow\)/);
+  assert.match(serverJs, /if \(!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
