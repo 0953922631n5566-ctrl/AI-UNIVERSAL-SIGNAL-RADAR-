@@ -65,7 +65,7 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
     levels:{recentResistance:recentHigh,recentSupport:recentLow,averageRange15:atr},
     outlook:directionView,details:{candle:candleText,trend:trendText,momentum:momentumText,
       wick:wickText,structure:"กรอบสูงสุดและต่ำสุดของสิบแท่งล่าสุดใช้เป็นแนวต้านและแนวรับระยะใกล้"},
-    summarysource:"Twelve Data M1 OHLC + verified live-price preview",
+    source:"Twelve Data M1 OHLC + verified live-price preview",
     disclaimer:"เป็นการอ่านเชิงข้อมูล ไม่ใช่คำแนะนำลงทุนหรือการรับประกันทิศทางราคา"
   };
 }
