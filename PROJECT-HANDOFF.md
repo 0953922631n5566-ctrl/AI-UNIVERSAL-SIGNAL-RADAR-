@@ -2050,3 +2050,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - BB, shared source quality, T-10/T-5 timing, 30-second hold, alerts, sound/vibration and Mini App UI remain unchanged.
 - Added unit tests and health metadata version 2026-11-16-v1-bb-independent-v5-strong-pressure.
 - Pending CI, PR review/merge, Render deployment, live endpoint and Telegram Mini App verification. This change has not demonstrated better win rate; use demo/paper testing.
+
+
+## 2026-11-17 — Two-second live M1 candle reassessment (validation pending)
+
+- User confirmed the desired behavior: the four Main Market analyzers should reassess the live EUR/USD M1 direction every two seconds while the current candle is forming.
+- Isolated implementation branch: `feature/live-m1-2s-reassessment-20261117`, based on production `main-market` commit `1a6e5733eda88d1467534078880d4f79c7e9b0d0`. Production branch and Render service remain unchanged.
+- Root cause: Twelve Data price Streaming already updates the in-memory forming M1 OHLC on every tick, and the old local timer ran every 250ms; however V1, BB, Trend Rider and Engine 4 were all passed closed candles only. Repeating the same closed-candle calculation faster did not let the engines react to intrabar price movement.
+- New design: each fresh WebSocket tick updates the in-memory candle; a local two-second timer creates a validated, non-mutating provisional snapshot of the current M1 candle and supplies the same 54 closed candles plus that preview to all four analyzers. Stale, malformed, or wrong-minute previews are rejected.
+- No Twelve Data REST polling increase: `REST_SYNC_SECONDS=180` remains unchanged; WebSocket remains event-driven; the five-second live-price watchdog and ten-second WebSocket heartbeat remain unchanged. No new external AI/Gemini API calls are introduced; the four engines remain local deterministic analyzers.
+- Existing T-10 PREPARE, T-5 finalization, fresh-tick guard, per-candle dedupe, manual-only behavior, and 30-second hold are intended to remain unchanged. Engine 4 UI dedupe/hold handling was adjusted so intrabar direction changes cannot cause repeated alerts and its hold survives the target-candle boundary.
+- Added tests for live preview freshness/OHLC validation, V1 preview gating, BB/Trend Rider preview input, and Engine 4 target timing. Render CI/build, PR review, live endpoint verification, and Telegram Android device testing are still pending.
+- Do not merge or deploy until CI passes and the resulting preview/T-5 behavior is reviewed. Do not claim improved win rate or predictive accuracy without chronological paper-trading/out-of-sample evidence.
