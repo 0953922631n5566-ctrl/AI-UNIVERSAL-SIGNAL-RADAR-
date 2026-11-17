@@ -23,7 +23,7 @@ function atr(candles, period = 14) {
   return mean(ranges.slice(-period));
 }
 
-/** Independent M1 trend-continuation engine; closed OHLC candles only. */
+/** Independent M1 trend-continuation engine; closed history plus optional provisional current-candle OHLC. */
 export function analyzeTrendRider(candles, options = {}) {
   const minimum = Number.isInteger(options.minimumCandles) ? options.minimumCandles : 30;
   if (!Array.isArray(candles) || candles.length < minimum ||
