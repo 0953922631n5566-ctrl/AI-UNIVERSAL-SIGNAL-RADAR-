@@ -17,8 +17,7 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
   const rows = (Array.isArray(candles) ? candles : []).filter(validCandle)
     .sort((a,b)=>(a.epoch||0)-(b.epoch||0)).slice(-60);
   if (rows.length < 20) return {
-    ok:false, status:"WAITING_FOR_DATA", message:"ข้อมูลแท่งเทียนยังไม่เพียงพอ ต้องมีอย่างน้อย 20 แท่ง M1 ที่ถูกต้อง",
-    spokenText:"ขณะนี้ข้อมูลแท่งเทียนยังไม่เพียงพอ ระบบจะรอข้อมูลราคา M1 ที่ถูกต้องก่อนเริ่มวิเคราะห์"
+    ok:false, status:"WAITING_FOR_DATA", message:"ข้อมูลแท่งเทียนยังไม่เพียงพอ ต้องมีอย่างน้อย 20 แท่ง M1 ที่ถูกต้อง":"ขณะนี้ข้อมูลแท่งเทียนยังไม่เพียงพอ ระบบจะรอข้อมูลราคา M1 ที่ถูกต้องก่อนเริ่มวิเคราะห์"
   };
   const current = rows.at(-1);
   const closes = rows.map(c=>c.close);
@@ -56,15 +55,6 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
   const currentPrice = Number.isFinite(livePrice) ? livePrice : current.close;
   const candleTime = Number.isFinite(current.epoch) ? new Date(current.epoch*1000).toISOString() : null;
   const summary = [candleText,trendText,momentumText,wickText,directionText].join(" ");
-  const spokenText = "วิเคราะห์ยูโรดอลลาร์ กรอบเวลาหนึ่งนาที ราคา "+price(currentPrice)+". "+
-    "แท่งล่าสุด ราคาเปิด "+price(current.open)+" สูงสุด "+price(current.high)+" ต่ำสุด "+price(current.low)+" ปิด "+price(current.close)+". "+
-    "ขนาดเนื้อแท่ง "+Math.round(bodyPct)+" เปอร์เซ็นต์ ไส้บน "+Math.round(upperPct)+" เปอร์เซ็นต์ ไส้ล่าง "+Math.round(lowerPct)+" เปอร์เซ็นต์. "+
-    "ค่าอีเอ็มเอห้า "+price(ema5)+" ค่าอีเอ็มเอยี่สิบ "+price(ema20)+". "+
-    "ห้าแท่งล่าสุด ขึ้น "+upCount+" แท่ง ลง "+downCount+" แท่ง. "+summary+
-    " แนวต้านระยะใกล้จากสิบแท่งล่าสุด "+price(recentHigh)+
-    " แนวรับระยะใกล้ "+price(recentLow)+
-    " ค่าเฉลี่ยช่วงแกว่งสิบห้าแท่ง "+price(atr)+
-    " การประเมินนี้เป็นการอ่านข้อมูลแท่งเทียน ไม่ใช่คำสั่งซื้อขาย";
   return {
     ok:true,status:"READY",symbol:"EUR/USD",interval:"1min",analyzedAt:new Date(now).toISOString(),
     candle:{time:candleTime,open:current.open,high:current.high,low:current.low,close:current.close,
@@ -75,7 +65,7 @@ export function analyzeM1Voice(candles, { now = Date.now(), price: livePrice = n
     levels:{recentResistance:recentHigh,recentSupport:recentLow,averageRange15:atr},
     outlook:directionView,details:{candle:candleText,trend:trendText,momentum:momentumText,
       wick:wickText,structure:"กรอบสูงสุดและต่ำสุดของสิบแท่งล่าสุดใช้เป็นแนวต้านและแนวรับระยะใกล้"},
-    summary,spokenText,source:"Twelve Data M1 OHLC + verified live-price preview",
+    summarysource:"Twelve Data M1 OHLC + verified live-price preview",
     disclaimer:"เป็นการอ่านเชิงข้อมูล ไม่ใช่คำแนะนำลงทุนหรือการรับประกันทิศทางราคา"
   };
 }
