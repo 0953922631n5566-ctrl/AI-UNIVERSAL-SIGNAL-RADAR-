@@ -458,7 +458,8 @@ let reason;
    reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
  }
  const primary = activeSignals.length
-   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB : engineResults.TREND_RIDER)
+   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB :
+     engineResults.TREND_RIDER.active ? engineResults.TREND_RIDER : engineResults.ENGINE_4)
    : v1Result;
  feed.analysis = {
    ...v1Result,
