@@ -338,12 +338,25 @@ async function evaluate(feed) {
      };
      continue;
    }
-   // Only a finalized CALL/PUT from the engine may be released at T-5.
-   // V1 PREPARE remains a watch candidate unless its guarded strong-pressure fast lane explicitly returns CALL/PUT.
+   // Normal mode uses this engine's original analyzer. During recovery, select the
+   // clearest available CALL/PUT candidate from the independent analyzer pool.
    const finalSignal = ["CALL", "PUT"].includes(candidate.signal) ? candidate.signal : null;
    const candidateSignal = finalSignal ||
      (engine === "V1" && candidate.signal === "PREPARE" &&
        ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
+   const recoveryPool = Object.entries(candidates)
+     .filter(([sourceKey, source]) => engineEnabled[sourceKey] &&
+       ["CALL", "PUT"].includes(source.signal) &&
+       Number.isFinite(Number(source.score)) &&
+       Number(source.score) >= 60)
+     .sort((a, b) => Number(b[1].score) - Number(a[1].score));
+   const recoveryCandidate = recoveryPool[0] || null;
+   const selectedCandidate = recoveryMode === "RECOVERY_ACTIVE" && recoveryCandidate
+     ? { ...recoveryCandidate[1], recoverySourceEngine: recoveryCandidate[0] }
+     : candidate;
+   const selectedFinalSignal = recoveryMode === "RECOVERY_ACTIVE"
+     ? (recoveryCandidate ? recoveryCandidate[1].signal : null)
+     : finalSignal;
    let active = feed.engineActive[engine];
    if (active && now >= active.expiresAt) {
      active = null;
@@ -351,42 +364,42 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   if (!activeForCurrentOrNext && finalizeWindow && finalSignal &&
+   if (!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal &&
        canFinalizeSignal({
          candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
        })) {
      active = {
-       engine, signal: finalSignal, sourceCandleEpoch, targetCandleEpoch,
+       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
-       score: candidate.score ?? 0, sourceReason: candidate.reason || null, mode: recoveryMode,
+       score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.recoverySourceEngine || engine, mode: recoveryMode,
        alertId: `${engine}:${targetCandleEpoch}:${finalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
-       engine, symbol: feed.symbol, signal: finalSignal,
-       sourceCandleEpoch, targetCandleEpoch, score: candidate.score ?? null,
+       engine, symbol: feed.symbol, signal: selectedFinalSignal,
+       sourceCandleEpoch, targetCandleEpoch, score: selectedCandidate.score ?? null,
        expiresAt: new Date(active.expiresAt).toISOString()
      });
    }
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `${active.mode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · " : ""}ACTIVE ${active.signal} · hold 30s · ${candidateSignal && candidateSignal !== active.signal ? `latest scan sees ${candidateSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
-     : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : candidate.reason;
+     ? `${active.mode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · " : ""}ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
+     : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    engineResults[engine] = {
-     ...candidate,
+     ...selectedCandidate,
      engine,
      analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
      candidateSignal,
-     candidateScore: candidate.score ?? 0,
-     candidateReason: candidate.reason || null,
-     direction: isActive ? active.signal : (candidate.direction || candidateSignal || null),
-     score: isActive ? active.score : (candidate.score ?? 0),
-     confidence: isActive ? active.score : (candidate.confidence ?? candidate.score ?? 0),
+     candidateScore: selectedCandidate.score ?? 0,
+     candidateReason: selectedCandidate.reason || null,
+     direction: isActive ? active.signal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null),
+     score: isActive ? active.score : (selectedCandidate.score ?? 0),
+     confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
      reason: activeReason,
      signal: isActive ? active.signal : "STANDBY",
-     status: isActive ? "SIGNAL" : candidateSignal ? "WATCH" : "STANDBY",
+     status: isActive ? "SIGNAL" : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal) ? "WATCH" : "STANDBY",
      active: isActive,
      activeSignalScore: isActive ? active.score : null,
      alertId: isActive ? active.alertId : null,
