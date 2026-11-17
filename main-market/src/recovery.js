@@ -64,6 +64,17 @@ export function settleRecoveryAttempt(state, record) {
     armedByAlertId: record?.alertId || current.armedByAlertId };
 }
 
+export function selectRecoveryCandidate(candidates, engine, mode, enabledEngines = Object.keys(candidates || {}), minimumScore = 60) {
+  if (mode !== "RECOVERY_ACTIVE") return candidates?.[engine] || null;
+  return Object.entries(candidates || {})
+    .filter(([key, candidate]) => enabledEngines.includes(key) &&
+      ["CALL", "PUT"].includes(candidate?.signal) &&
+      Number.isFinite(Number(candidate?.score)) &&
+      Number(candidate.score) >= minimumScore)
+    .sort((a, b) => Number(b[1].score) - Number(a[1].score))
+    .map(([sourceEngine, candidate]) => ({ ...candidate, sourceEngine }))[0] || null;
+}
+
 export const RECOVERY_POLICY = Object.freeze({
   mode: "ACTIVE", expiryMinutes: null, maxAttemptsPerLoss: null,
   maxWaitCandles: null, martingale: false, minimumScore: null,
