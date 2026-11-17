@@ -44,7 +44,7 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
   const priorBodyContracted = earlierBodyMean > 0 && priorBodies.at(-1) <= earlierBodyMean * 0.78;
   const priorMomentumFaded = Math.abs(p.close - p2.close) <= Math.abs(p2.close - candles[n - 4].close) * 0.72;
   const fadingEvidence = priorBodyContracted || priorOpposingWick >= 0.30 || priorMomentumFaded;
-  const lastBodyRatio = Math.abs(c.close - c.open) / range;
+  const lastBodyRatio = Math.abs(c.close - c.open) / Math.max(c.high - c.low, 1e-12);
   const reversalCandle = Math.sign(c.close - c.open) === (exhaustionDirection === "CALL" ? 1 : -1);
   const priorMidpoint = (p.open + p.close) / 2;
   const reversalCloseConfirmed = exhaustionDirection === "CALL"
