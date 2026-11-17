@@ -139,9 +139,21 @@ export async function analyzeMarket(candles, options = {}) {
       strategy:"SOURCE_QUALITY_GUARD", provider:"SYSTEM_GUARD", evidence:[], riskFlags:[gate.reason], ...base };
   }
   const closedCandles=gate.closed.slice(-MIN_CLOSED_CANDLES);
-  const scored=scoreMarket(closedCandles);
+  const liveCandle = options.liveCandle;
+  const liveMinute = Math.floor((Number.isFinite(options.now) ? options.now : Date.now()) / 60000) * 60;
+  const livePreviewReady = liveCandle?.provisional === true && liveCandle.live === false &&
+    liveCandle.epoch === liveMinute && Number.isFinite(options.tickAgeSeconds) &&
+    options.tickAgeSeconds >= 0 && options.tickAgeSeconds <= MAX_STREAM_AGE_SECONDS &&
+    [liveCandle.open, liveCandle.high, liveCandle.low, liveCandle.close].every(Number.isFinite) &&
+    liveCandle.low > 0 && liveCandle.high >= Math.max(liveCandle.open, liveCandle.close) &&
+    liveCandle.low <= Math.min(liveCandle.open, liveCandle.close) && liveCandle.high >= liveCandle.low;
+  const analysisCandles = livePreviewReady ? [...closedCandles, liveCandle] : closedCandles;
+  const scored=scoreMarket(analysisCandles);
   return {
     ...scored, ...base,
+    analysisMode: livePreviewReady ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
+    analysisCandleEpoch: livePreviewReady ? liveCandle.epoch : gate.lastCandleEpoch,
+    livePreviewIncluded: livePreviewReady,
     prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
