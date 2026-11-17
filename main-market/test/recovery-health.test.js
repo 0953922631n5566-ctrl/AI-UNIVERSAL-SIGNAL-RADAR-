@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 
 const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
-test("health metadata reports unlimited independent next-M1 recovery until win", () => {
-  assert.match(server, /mode: "INDEPENDENT_NEXT_M1_UNTIL_WIN"/);
-  assert.match(server, /minimumSignalScore: null, maxAttemptsPerLoss: null, maxWaitCandles: null/);
-  assert.match(server, /recoveryTiming: "IMMEDIATELY_ON_NEXT_M1_OPEN"/);
-  assert.match(server, /martingale: false, altersMiniApp: true, badgeText: "กำลังแก้มือ"/);
+test("health metadata confirms recovery is disabled and original analyzers remain independent", () => {
+  assert.match(server, /enabled: false, mode: "DISABLED"/);
+  assert.match(server, /strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER"/);
+  assert.match(server, /status: "ORIGINAL_INDEPENDENT_ANALYZERS"/);
+  assert.match(server, /altersMiniApp: false, badgeText: null, martingale: false/);
   assert.match(server, /independentEngines: ENGINE_KEYS/);
 });
 
