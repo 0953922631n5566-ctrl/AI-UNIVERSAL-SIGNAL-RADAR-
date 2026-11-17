@@ -6,7 +6,7 @@ export function createRecoveryState() {
     lastAttemptAt: null, attempts: 0 };
 }
 
-export function evaluateM1Outcome(signal, candle) {
+export function evaluateM1Outcome(signal, candle, entryPrice = candle?.open) {
   const validSignal = signal === "CALL" || signal === "PUT";
   const validCandle = candle &&
     [candle.open, candle.high, candle.low, candle.close].every(Number.isFinite) &&
@@ -18,11 +18,13 @@ export function evaluateM1Outcome(signal, candle) {
     exitPrice: Number.isFinite(candle?.close) ? candle.close : null,
     reason: !validSignal ? "INVALID_SIGNAL" : "INCOMPLETE_OR_INVALID_M1_OHLC"
   };
-  if (candle.close === candle.open) return {
-    outcome: "FLAT", entryPrice: candle.open, exitPrice: candle.close, reason: "OPEN_EQUALS_CLOSE"
+  const validEntryPrice = Number.isFinite(entryPrice) && entryPrice >= candle.low && entryPrice <= candle.high;
+  const entry = validEntryPrice ? entryPrice : candle.open;
+  if (candle.close === entry) return {
+    outcome: "FLAT", entryPrice: entry, exitPrice: candle.close, reason: "ENTRY_EQUALS_CLOSE"
   };
-  const won = signal === "CALL" ? candle.close > candle.open : candle.close < candle.open;
-  return { outcome: won ? "WIN" : "LOSS", entryPrice: candle.open, exitPrice: candle.close,
+  const won = signal === "CALL" ? candle.close > entry : candle.close < entry;
+  return { outcome: won ? "WIN" : "LOSS", entryPrice: entry, exitPrice: candle.close,
     reason: signal === "CALL" ? "CALL_OPEN_TO_CLOSE" : "PUT_OPEN_TO_CLOSE" };
 }
 
@@ -69,9 +71,9 @@ export function selectRecoveryCandidate(candidates, engine, mode, enabledEngines
   return Object.entries(candidates || {})
     .filter(([key, candidate]) => enabledEngines.includes(key) &&
       ["CALL", "PUT"].includes(candidate?.signal) &&
-      Number.isFinite(Number(candidate?.score)) &&
-      Number(candidate.score) >= minimumScore)
-    .sort((a, b) => Number(b[1].score) - Number(a[1].score))
+      Number.isFinite(Number(candidate?.score ?? candidate?.confidence ?? 0)) &&
+      (minimumScore === null || minimumScore === undefined || Number(candidate.score) >= minimumScore))
+    .sort((a, b) => Number(b[1].score ?? b[1].confidence ?? 0) - Number(a[1].score ?? a[1].confidence ?? 0))
     .map(([sourceEngine, candidate]) => ({ ...candidate, sourceEngine }))[0] || null;
 }
 
