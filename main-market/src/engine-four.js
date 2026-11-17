@@ -15,7 +15,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const minimum = Number.isInteger(options.minimumClosedCandles) ? options.minimumClosedCandles : 35;
   const rows = Array.isArray(candles) ? candles.slice(-55) : [];
   const live = rows.at(-1), closed = rows.slice(0,-1);
-  if (options.livePreview !== true || !live || live.live !== true || !valid(live) ||
+  if (options.livePreview !== true || !live || (live.live !== true && live.provisional !== true) || !valid(live) ||
       closed.length < minimum || !closed.every(c=>c.live!==true && valid(c))) {
     return {ready:false,signal:null,candidateSignal:null,score:0,status:"NOT_READY",
       reason:`Engine 4 ต้องมีแท่งปิดอย่างน้อย ${minimum} แท่งและแท่ง M1 ปัจจุบันที่กำลังก่อตัว`,
