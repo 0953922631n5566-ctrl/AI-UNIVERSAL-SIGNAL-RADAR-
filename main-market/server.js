@@ -1106,7 +1106,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: "TREND_RIDER_AI", strategy: "STRICT_EMA5_20_STRUCTURE_PULLBACK_CONTINUATION", cadence: "T5_FINALIZE_ON_CONFIRMED_M1_SIGNAL", minimumClosedCandles: 35, minimumSignalScore: 75, minimumDirectionalMargin: 18, guards: ["SIDEWAYS_GAP_0_18_ATR", "LATE_EXTENSION_1_25_ATR", "ABNORMAL_RANGE_2_3_ATR"], participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: "TREND_RIDER_AI", strategy: "STRICT_EMA5_20_STRUCTURE_PULLBACK_CONTINUATION", cadence: "T5_FINALIZE_ON_CONFIRMED_M1_SIGNAL", minimumClosedCandles: 35, minimumSignalScore: 75, minimumDirectionalMargin: 18, guards: ["SIDEWAYS_GAP_0_18_ATR", "LATE_EXTENSION_1_25_ATR", "ABNORMAL_RANGE_2_3_ATR"], participatesInAggregate: false, sound: false, vibration: false, colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_STRICT_TREND_RIDER_COPY_WITH_SHARED_T5_TIMING"
     },
