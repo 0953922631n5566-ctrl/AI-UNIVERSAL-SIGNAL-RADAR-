@@ -138,6 +138,22 @@ function paintEngineCards(m,usable){
   tag.textContent=active&&recovering?"กำลังแก้มือ · "+engine.signal:active?"กำลังส่งสัญญาณ · "+engine.signal:recovering?(state.status==="ATTEMPT_PENDING"?"กำลังประเมินผลแท่งแก้มือ":"รอจังหวะแก้มือ · วิเคราะห์ใหม่ทุกแท่ง"):state.lastOutcome==="WIN"?"แก้มือสำเร็จ · กลับโหมดปกติ":"โหมดวิเคราะห์ปกติ";
   $(reasonId).textContent=ready?(engine.reason||engine.status||"รอข้อมูลตลาด"):"รอแท่งปิด "+required+" แท่ง";
  }
+ if(engineEnabled.ENGINE_4){
+  const fourth=m.engine4||engines.ENGINE_4||{};
+  const fourthReady=usable&&fourth.ready!==false&&["CALL","PUT"].includes(fourth.signal);
+  const remainingMs=timeMs(m.nextCandleAt)-Date.now();
+  const remainingSeconds=Number.isFinite(remainingMs)?Math.ceil(remainingMs/1000):NaN;
+  const windowKey=String(fourth.candleEpoch||"")+":"+String(m.nextCandleAt||"");
+  const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5;
+  if(engine4LastFinalKey&&engine4LastFinalKey!==windowKey){engine4FlashUntil=0;engine4LastFinalKey="";}
+  if(engine4HeldSignal&&Date.now()>=engine4HoldUntil)engine4HeldSignal=null;
+  if(finalize&&windowKey!==engine4LastFinalKey){
+   engine4LastFinalKey=windowKey;triggerEngine4SoundAndVibration(fourth.signal);
+   engine4HeldSignal=fourth.signal;engine4HoldUntil=Date.now()+30000;engine4FlashUntil=Date.now()+4200;
+  }
+  const held=Boolean(engine4HeldSignal&&Date.now()<engine4HoldUntil);
+  if(held){$("engine4Signal").textContent=engine4HeldSignal;$("engine4Reason").textContent=fourth.reason||"ยืนยัน T-5 · คงสัญญาณ 30 วินาที";}
+ }else{engine4HeldSignal=null;engine4HoldUntil=0;engine4FlashUntil=0;engine4LastFinalKey="";}
  paintEngineLightSettings();
 }
 const panelNames={market:"ราคา/ตลาด",sound:"เสียงและการแจ้งเตือน",access:"สถานะการเชื่อมต่อ",signal:"สัญญาณหลัก",engines:"การ์ดเครื่องยนต์",metrics:"ข้อมูลตัวชี้วัด",details:"เหตุผลและหลักฐาน",api:"สถานะ API"};
