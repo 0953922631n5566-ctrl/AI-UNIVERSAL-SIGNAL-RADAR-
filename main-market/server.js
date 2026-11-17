@@ -370,7 +370,7 @@ async function evaluate(feed) {
    if (!activeForCurrentOrNext && selectedFinalSignal && (canFinalizeRecoveryNow || canFinalizeNormalNow)) {
      active = {
        engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: signalHoldExpiresAt(signalTargetEpoch),
+       triggeredAt: now, expiresAt: recoveryStartWindow ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
        score: selectedCandidate.score ?? selectedCandidate.confidence ?? 0,
        sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.sourceEngine || engine, mode: recoveryMode,
        entryPrice: recoveryStartWindow && Number.isFinite(feed.lastTick) ? feed.lastTick : null,
