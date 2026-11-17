@@ -132,10 +132,11 @@ function paintEngineCards(m,usable){
   const ready=usable&&Number(m.closedCandleCount||0)>=required,active=ready&&engine.active&&["CALL","PUT"].includes(engine.signal);
   const candidate=ready&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
   const recovering=state.mode==="RECOVERY_ACTIVE"||state.status==="ARMED"||state.status==="ATTEMPT_PENDING";
-  $(signalId).textContent=active?engine.signal:candidate?"WATCH · "+candidate:recovering?"กำลังแก้มือ":"STANDBY";
+  $(signalId).textContent=active?engine.signal:candidate?"WATCH · "+candidate:"STANDBY";
   card.className="engine-card engine-enabled "+(active?engine.signal.toLowerCase():recovering?"recovering":candidate?"watch":"");
   let tag=card.querySelector(".engine-state");if(!tag){tag=document.createElement("span");tag.className="engine-state";card.append(tag);}
-  tag.textContent=active&&recovering?"กำลังแก้มือ · "+engine.signal:active?"กำลังส่งสัญญาณ · "+engine.signal:recovering?(state.status==="ATTEMPT_PENDING"?"กำลังประเมินผลแท่งแก้มือ":"รอจังหวะแก้มือ · วิเคราะห์ใหม่ทุกแท่ง"):state.lastOutcome==="WIN"?"แก้มือสำเร็จ · กลับโหมดปกติ":"โหมดวิเคราะห์ปกติ";
+  tag.textContent="กำลังแก้มือ";
+  tag.hidden=!recovering;
   $(reasonId).textContent=ready?(engine.reason||engine.status||"รอข้อมูลตลาด"):"รอแท่งปิด "+required+" แท่ง";
  }
  if(engineEnabled.ENGINE_4){
