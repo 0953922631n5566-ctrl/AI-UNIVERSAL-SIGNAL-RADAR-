@@ -16,7 +16,7 @@ import { analyzeTrendRider } from "./src/trend-rider.js";
 import { analyzeStrictTrendRider } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
-import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome } from "./src/recovery.js";
+import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
@@ -52,9 +52,12 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    engineActive: { V1: null, BB: null, TREND_RIDER: null },
-    engineLastDispatchedCandle: { V1: null, BB: null, TREND_RIDER: null },
-    engineLastDispatchedAlertId: { V1: null, BB: null, TREND_RIDER: null },
+    enginePendingForecasts: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
+    engineForecastHistory: { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] },
+    engineRecoveryStates: { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() },
+    engineActive: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
+    engineLastDispatchedCandle: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
+    engineLastDispatchedAlertId: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -150,11 +153,11 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     forecastStats: forecastStats(feed),
-    recovery: {
-      mode: feed.pendingForecast?.mode === "RECOVERY_ACTIVE" ? "RECOVERY_ACTIVE"
-        : feed.recoveryState.status === "ARMED" ? "ARMED" : feed.recoveryState.status,
-      lastOutcome: feed.recoveryState.lastOutcome,
-      maxAttemptsPerLoss: 1, martingale: false
+    recovery: { mode: Object.values(feed.engineRecoveryStates || {}).some(x => x.status === "ARMED" || x.status === "ATTEMPT_PENDING") ? "RECOVERY_ACTIVE" : "NORMAL",
+      engines: Object.fromEntries(ENGINE_KEYS.map(engine => { const state = feed.engineRecoveryStates?.[engine] || createRecoveryState();
+        return [engine, { status: state.status, mode: state.status === "ARMED" || state.status === "ATTEMPT_PENDING" ? "RECOVERY_ACTIVE" : "NORMAL",
+          lastOutcome: state.lastOutcome, attempts: state.attempts || 0, pending: Boolean(feed.enginePendingForecasts?.[engine]) }]; })),
+      martingale: false
     },
     preAlertSignal: feed.preAlertSignal,
     source: "Twelve Data REST + live-price Streaming"
@@ -213,9 +216,9 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
-  feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null };
-  feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
   feed.activeUntil = 0;
   feed.signalCandle = null;
   feed.signalSourceCandle = null;
@@ -230,7 +233,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
   feed.activeUntil = 0;
   feed.analysis = standby(reason);
   feed.streamMessage = reason;
@@ -250,8 +253,7 @@ async function evaluate(feed) {
  const currentCandle = feed.candles.at(-1);
  const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
  const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
- const recoveryWindow = inspectRecoveryWindow(feed.recoveryState, sourceCandleEpoch);
- feed.recoveryState = recoveryWindow.state;
+
  const restFallback = feed.restStatus === "READY" &&
    (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
  const closedCandles = feed.candles.filter(c => c && c.live !== true &&
@@ -307,18 +309,25 @@ async function evaluate(feed) {
  const candidates = {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
-   TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" }
+   TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
+   ENGINE_4: { ...engine4Raw, provider: "LOCAL_STRICT_TREND_RIDER", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
  const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
- if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
- if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null };
- if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null };
+ if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+ if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+ if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+ if (!feed.engineRecoveryStates) feed.engineRecoveryStates = { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() };
+ if (!feed.enginePendingForecasts) feed.enginePendingForecasts = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+ if (!feed.engineForecastHistory) feed.engineForecastHistory = { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] };
 
  const engineResults = {};
- for (const engine of ["V1", "BB", "TREND_RIDER"]) {
+ for (const engine of ENGINE_KEYS) {
    const candidate = candidates[engine];
+   const recoveryWindow = inspectRecoveryWindow(feed.engineRecoveryStates[engine], sourceCandleEpoch);
+   feed.engineRecoveryStates[engine] = recoveryWindow.state;
+   const recoveryMode = recoveryWindow.mode;
    if (!engineEnabled[engine]) {
      feed.engineActive[engine] = null;
      engineResults[engine] = {
@@ -329,12 +338,20 @@ async function evaluate(feed) {
      };
      continue;
    }
-   // Only a finalized CALL/PUT from the engine may be released at T-5.
-   // V1 PREPARE remains a watch candidate unless its guarded strong-pressure fast lane explicitly returns CALL/PUT.
+   // Normal mode uses this engine's original analyzer. During recovery, select the
+   // clearest available CALL/PUT candidate from the independent analyzer pool.
    const finalSignal = ["CALL", "PUT"].includes(candidate.signal) ? candidate.signal : null;
    const candidateSignal = finalSignal ||
      (engine === "V1" && candidate.signal === "PREPARE" &&
        ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
+   const recoveryCandidate = selectRecoveryCandidate(
+     candidates, engine, recoveryMode,
+     ENGINE_KEYS.filter(key => engineEnabled[key]), 60
+   );
+   const selectedCandidate = recoveryCandidate || candidate;
+   const selectedFinalSignal = recoveryMode === "RECOVERY_ACTIVE"
+     ? (recoveryCandidate?.signal || null)
+     : finalSignal;
    let active = feed.engineActive[engine];
    if (active && now >= active.expiresAt) {
      active = null;
@@ -342,42 +359,42 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   if (!activeForCurrentOrNext && finalizeWindow && finalSignal &&
+   if (!activeForCurrentOrNext && finalizeWindow && selectedFinalSignal &&
        canFinalizeSignal({
          candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine]
        })) {
      active = {
-       engine, signal: finalSignal, sourceCandleEpoch, targetCandleEpoch,
+       engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(targetCandleEpoch),
-       score: candidate.score ?? 0, sourceReason: candidate.reason || null,
-       alertId: `${engine}:${targetCandleEpoch}:${finalSignal}`
+       score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null, sourceEngine: selectedCandidate.sourceEngine || engine, mode: recoveryMode,
+       alertId: `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:${recoveryMode === "RECOVERY_ACTIVE" ? "RECOVERY" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
-       engine, symbol: feed.symbol, signal: finalSignal,
-       sourceCandleEpoch, targetCandleEpoch, score: candidate.score ?? null,
+       engine, symbol: feed.symbol, signal: selectedFinalSignal,
+       sourceCandleEpoch, targetCandleEpoch, score: selectedCandidate.score ?? null,
        expiresAt: new Date(active.expiresAt).toISOString()
      });
    }
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${candidateSignal && candidateSignal !== active.signal ? `latest scan sees ${candidateSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
-     : candidate.reason;
+     ? `${active.mode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · " : ""}ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
+     : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    engineResults[engine] = {
-     ...candidate,
+     ...selectedCandidate,
      engine,
      analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
      candidateSignal,
-     candidateScore: candidate.score ?? 0,
-     candidateReason: candidate.reason || null,
-     direction: isActive ? active.signal : (candidate.direction || candidateSignal || null),
-     score: isActive ? active.score : (candidate.score ?? 0),
-     confidence: isActive ? active.score : (candidate.confidence ?? candidate.score ?? 0),
+     candidateScore: selectedCandidate.score ?? 0,
+     candidateReason: selectedCandidate.reason || null,
+     direction: isActive ? active.signal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null),
+     score: isActive ? active.score : (selectedCandidate.score ?? 0),
+     confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
      reason: activeReason,
      signal: isActive ? active.signal : "STANDBY",
-     status: isActive ? "SIGNAL" : candidateSignal ? "WATCH" : "STANDBY",
+     status: isActive ? "SIGNAL" : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal) ? "WATCH" : "STANDBY",
      active: isActive,
      activeSignalScore: isActive ? active.score : null,
      alertId: isActive ? active.alertId : null,
@@ -391,7 +408,8 @@ async function evaluate(feed) {
    .map(engine => ({
      engine: engine.engine, signal: engine.signal, score: engine.activeSignalScore,
      reason: engine.reason, alertId: engine.alertId,
-     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt
+     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt,
+     targetCandleEpoch: feed.engineActive[engine.engine]?.targetCandleEpoch
    }));
  const activeDirections = [...new Set(activeSignals.map(item => item.signal))];
  const aggregateSignal = activeDirections.length === 1 ? activeDirections[0] : "STANDBY";
@@ -400,8 +418,9 @@ async function evaluate(feed) {
  const v1Candidate = engineResults.V1.candidateSignal;
  const bbCandidate = engineResults.BB.candidateSignal;
  const trendCandidate = engineResults.TREND_RIDER.candidateSignal;
+ const engine4Candidate = engineResults.ENGINE_4.candidateSignal;
  feed.preAlertStatus = !activeSignals.length && prepareWindow &&
-   Boolean(v1Candidate || bbCandidate || trendCandidate) ? "PREPARE_ALERT" : null;
+   Boolean(v1Candidate || bbCandidate || trendCandidate || engine4Candidate) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
  feed.preAlertSignal = null;
 
@@ -410,7 +429,7 @@ async function evaluate(feed) {
    feed.lastPrepareLoggedCandle = sourceCandleEpoch;
    console.info("[timing] T-10 independent engine watch window entered", {
      symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     v1Candidate, bbCandidate, trendCandidate
+     v1Candidate, bbCandidate, trendCandidate, engine4Candidate
    });
  }
 
@@ -426,19 +445,18 @@ async function evaluate(feed) {
  feed.alertId = activeSignals.length === 1 ? activeSignals[0].alertId
    : activeSignals.length ? activeSignals.map(x => x.alertId).join("|") : null;
 
- if (feed.activeSignal && feed.signalCandle && feed.pendingForecast?.targetCandleEpoch !== feed.signalCandle) {
-   feed.pendingForecast = {
-     alertId: feed.alertId, symbol: feed.symbol, signal: feed.activeSignal,
-     targetCandleEpoch: feed.signalCandle, signalAt: now, entryAt: null, entryPrice: null,
-     mode: recoveryWindow.mode, entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
-     engines: activeEngineNames
-   };
-   if (recoveryWindow.mode === "RECOVERY_ACTIVE") {
-     feed.recoveryState = markRecoveryAttempt(feed.recoveryState, feed.pendingForecast);
-   }
- }
+ for (const item of activeSignals) {
+    const engine = item.engine, existing = feed.enginePendingForecasts[engine];
+    if (existing?.targetCandleEpoch === item.targetCandleEpoch) continue;
+    const pending = { engine, alertId: item.alertId, symbol: feed.symbol, signal: item.signal,
+      targetCandleEpoch: item.targetCandleEpoch, signalAt: now, entryAt: null, entryPrice: null,
+      mode: feed.engineActive[engine]?.mode || "NORMAL", entryPriceBasis: "TARGET_M1_CANDLE_OPEN" };
+    feed.enginePendingForecasts[engine] = pending;
+    if (pending.mode === "RECOVERY_ACTIVE") feed.engineRecoveryStates[engine] =
+      markRecoveryAttempt(feed.engineRecoveryStates[engine], pending);
+  }
 
- let reason;
+let reason;
  if (conflicting) {
    reason = "V1 และ BB ออกสัญญาณคนละทิศทาง · แสดงผลแยกแต่ไม่รวมเป็นคำสั่งเดียว";
  } else if (activeSignals.length) {
@@ -449,7 +467,8 @@ async function evaluate(feed) {
    reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
  }
  const primary = activeSignals.length
-   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB : engineResults.TREND_RIDER)
+   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB :
+     engineResults.TREND_RIDER.active ? engineResults.TREND_RIDER : engineResults.ENGINE_4)
    : v1Result;
  feed.analysis = {
    ...v1Result,
@@ -465,7 +484,7 @@ async function evaluate(feed) {
    activeSignals,
    bbPureScalper: bbRaw,
    trendRider: trendRaw,
-   engine4: engine4Result,
+   engine4: engineResults.ENGINE_4,
    preAlertStatus: feed.preAlertStatus,
    preAlertCandle: feed.preAlertCandle,
    preAlertSignal: null,
@@ -485,7 +504,7 @@ async function evaluate(feed) {
 
 function dispatchSignalIfReady(feed) {
  const now = Date.now();
- for (const engine of ["V1", "BB", "TREND_RIDER"]) {
+ for (const engine of ENGINE_KEYS) {
    if (!engineEnabled[engine]) continue;
    const active = feed.engineActive?.[engine];
    if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
@@ -513,41 +532,27 @@ function applyTick(feed, price, epoch) {
   if (!current || current.epoch < minute) {
     if (current) {
       current.live = false;
-      const pending = feed.pendingForecast;
-      if (pending && pending.targetCandleEpoch === current.epoch) {
+      for (const engine of ENGINE_KEYS) {
+        const pending = feed.enginePendingForecasts?.[engine];
+        if (!pending || pending.targetCandleEpoch !== current.epoch) continue;
         const evaluated = evaluateM1Outcome(pending.signal, current);
-        const record = {
-          ...pending,
-          entryAt: current.epoch * 1000,
-          entryPrice: evaluated.entryPrice,
-          exitAt: Date.now(),
-          exitPrice: evaluated.exitPrice,
-          outcome: evaluated.outcome,
-          outcomeReason: evaluated.reason,
-          entryPriceBasis: "TWELVE_DATA_STREAM_M1_OPEN",
+        const record = { ...pending, entryAt: current.epoch * 1000, entryPrice: evaluated.entryPrice,
+          exitAt: Date.now(), exitPrice: evaluated.exitPrice, outcome: evaluated.outcome,
+          outcomeReason: evaluated.reason, entryPriceBasis: "TWELVE_DATA_STREAM_M1_OPEN",
           exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
           priceChange: Number.isFinite(evaluated.entryPrice) && Number.isFinite(evaluated.exitPrice)
-            ? evaluated.exitPrice - evaluated.entryPrice : null
-        };
-        feed.forecastHistory.push(record);
-        feed.forecastHistory = feed.forecastHistory.slice(-100);
-        feed.pendingForecast = null;
-        if (pending.mode === "RECOVERY_ACTIVE") {
-          feed.recoveryState = settleRecoveryAttempt(feed.recoveryState, record);
-          console.info("[recovery] active_result", {
-            symbol: feed.symbol, alertId: pending.alertId, outcome: record.outcome,
-            recoveryState: feed.recoveryState.status,
-            note: "ACTIVE_NO_MARTINGALE_NO_EXTRA_SIGNAL"
-          });
-        } else if (record.outcome === "LOSS") {
-          feed.recoveryState = armRecoveryAfterLoss(feed.recoveryState, record);
-          console.info("[recovery] armed", {
-            symbol: feed.symbol, lossAlertId: pending.alertId,
-            armedUntilCandleEpoch: feed.recoveryState.expiresAtCandleEpoch,
-            maxAttempts: 1
-          });
-        }
-        console.info("[forecast] next-M1 open-to-close result", record);
+            ? evaluated.exitPrice - evaluated.entryPrice : null };
+        feed.forecastHistory.push(record); feed.forecastHistory = feed.forecastHistory.slice(-100);
+        feed.engineForecastHistory[engine].push(record);
+        feed.engineForecastHistory[engine] = feed.engineForecastHistory[engine].slice(-100);
+        feed.enginePendingForecasts[engine] = null;
+        if (pending.mode === "RECOVERY_ACTIVE") feed.engineRecoveryStates[engine] =
+          settleRecoveryAttempt(feed.engineRecoveryStates[engine], record);
+        else if (record.outcome === "LOSS") feed.engineRecoveryStates[engine] =
+          armRecoveryAfterLoss(feed.engineRecoveryStates[engine], record);
+        console.info("[recovery] independent engine outcome", { engine, symbol: feed.symbol,
+          outcome: record.outcome, mode: pending.mode, state: feed.engineRecoveryStates[engine].status,
+          next: feed.engineRecoveryStates[engine].status === "ARMED" ? "REANALYZE_NEXT_M1" : "NORMAL_MODE" });
       }
     }
     feed.candles.push({
