@@ -4,7 +4,7 @@ import { analyzeEarlyEntryEngine4 } from "../src/engine-four.js";
 
 function history(direction="UP") {
  return Array.from({length:40},(_,i)=>{
-  const base=1.1+i*.00002,open=base,close=direction==="UP"?base+.00001:base-.00001;
+  const base=direction==="UP"?1.1+i*.00002:1.1-i*.00002,open=base,close=direction==="UP"?base+.00001:base-.00001;
   return {epoch:1_800_000_000+i*60,open,high:Math.max(open,close)+.00008,
     low:Math.min(open,close)-.00008,close,live:false};
  });
