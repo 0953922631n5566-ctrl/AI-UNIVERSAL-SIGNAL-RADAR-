@@ -134,11 +134,11 @@ export function scoreMarket(candles, options = {}) {
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
     :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${tuning.v1SignalThreshold}`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์เฝ้าระวัง ${tuning.v1PrepareThreshold} · รอประเมินซ้ำที่ T-5`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 40 หรือทิศทางยังไม่ชัด`;
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${tuning.v1PrepareThreshold} หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_55_EARLY_ENTRY_PRICE_ACTION_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_ADAPTIVE_SHARED_THRESHOLD_PRICE_ACTION_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
