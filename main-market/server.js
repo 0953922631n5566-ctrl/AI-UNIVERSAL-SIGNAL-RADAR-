@@ -35,7 +35,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-18-global-analyzer-score-control-v1";
+const VERSION = "2026-11-18-live-analysis-1s-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -593,7 +593,7 @@ function applyTick(feed, price, epoch) {
   feed.dataLocked = false;
   globalLockMessage = null;
   // Tick events update the in-memory M1 OHLC immediately. The analyzer consumes
-  // the latest snapshot on the two-second local timer; no REST request is made here.
+  // the latest snapshot on the one-second local timer; no REST request is made here.
 }
 
 async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
@@ -657,8 +657,8 @@ function startRestTimer() {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Re-evaluate the latest forming M1 candle every two seconds using local WebSocket data.
-  // T-10/T-5 release gates and the 30-second signal hold remain unchanged.
+  // Re-evaluate the latest forming M1 candle every second using the existing local WebSocket data.
+  // This timer never calls Twelve Data REST; T-10/T-5 gates and the 30-second signal hold remain unchanged.
   let evaluationBusy = false;
   signalTimer = setInterval(async () => {
     if (!monitoring || evaluationBusy) return;
@@ -1166,7 +1166,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_PULLBACK_BOUNCE_SPIKE_REJECTION_0_30S", cadence: "LIVE_M1_PREVIEW_EVERY_2S_FIRST_30_SECONDS", minimumClosedCandles: 35, minimumSignalScore: 40, minimumDirectionalMargin: 10, guards: ["TREND_GAP_ATR_0_05", "PULLBACK_OR_SPIKE_0_04_TO_2_2_ATR", "CLOSE_LOCATION_0_52_0_48", "MINIMUM_SIGNAL_SCORE_40", "DIRECTIONAL_MARGIN_10", "LIVE_CONTINUATION_CONFIRMATION", "ABNORMAL_RANGE_2_5_ATR"], entryWindowSeconds: [0, 30], target: "CURRENT_FORMING_M1_CANDLE", direction: { UPTREND_PULLBACK: "CALL", DOWNTREND_SPIKE_REJECTION: "PUT" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_PULLBACK_BOUNCE_SPIKE_REJECTION_0_30S", cadence: "LIVE_M1_PREVIEW_EVERY_1S_FIRST_30_SECONDS", minimumClosedCandles: 35, minimumSignalScore: 40, minimumDirectionalMargin: 10, guards: ["TREND_GAP_ATR_0_05", "PULLBACK_OR_SPIKE_0_04_TO_2_2_ATR", "CLOSE_LOCATION_0_52_0_48", "MINIMUM_SIGNAL_SCORE_40", "DIRECTIONAL_MARGIN_10", "LIVE_CONTINUATION_CONFIRMATION", "ABNORMAL_RANGE_2_5_ATR"], entryWindowSeconds: [0, 30], target: "CURRENT_FORMING_M1_CANDLE", direction: { UPTREND_PULLBACK: "CALL", DOWNTREND_SPIKE_REJECTION: "PUT" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_INDEPENDENT_FIRST_30S_ENTRY"
     },
