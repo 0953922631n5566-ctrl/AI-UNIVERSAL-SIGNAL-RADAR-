@@ -17,7 +17,7 @@ export function getAnalyzerTuning(value) {
       bbRequiredCues: 1, bbWickThreshold: 0.18,
       trendSignalThreshold: 65, trendDirectionalMargin: 12,
       trendSidewaysGapAtr: 0.12, trendLateExtensionAtr: 1.5,
-      engine4SignalThreshold: 40, engine4DirectionalMargin: 10,
+      engine4SignalThreshold: 40, engine4DirectionalMargin: 10, engine4TrendGapAtr: 0.05,
       engine4MinPullbackAtr: 0.04, engine4MaxPullbackAtr: 2.2,
       engine4CloseLocation: 0.52, engine4WickThreshold: 0.08
     };
@@ -37,6 +37,7 @@ export function getAnalyzerTuning(value) {
     trendLateExtensionAtr: 2.2 - strictness * 0.7,
     engine4SignalThreshold: control.minScore,
     engine4DirectionalMargin: Math.max(2, Math.round(2 + strictness * 8)),
+    engine4TrendGapAtr: 0.02 + strictness * 0.06,
     engine4MinPullbackAtr: 0.02 + strictness * 0.08,
     engine4MaxPullbackAtr: 2.6 - strictness * 0.4,
     engine4CloseLocation: 0.50 + strictness * 0.12,
