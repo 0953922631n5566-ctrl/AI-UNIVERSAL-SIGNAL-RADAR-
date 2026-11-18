@@ -2071,3 +2071,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Latest successful CI before this documentation checkpoint: commit `07e5600d874dca7d6f04a4a7b90da44407461d59`; Main Market Node Tests passed 174 tests (170 passed, 0 failed, 4 skipped); Main Market Checks passed; Telegram Mini App Checks and syntax checks passed.
 - PR remains open and unmerged. Production `main-market` still points to base commit `1a6e5733eda88d1467534078880d4f79c7e9b0d0`; no Render deployment has been triggered.
 - Next: rerun checks against the final PR head, then request/confirm production merge and deploy. After deployment, verify `/health` reports a two-second live analysis interval, `/api/public/signal` reports `LIVE_M1_PREVIEW` when fresh ticks arrive, and perform Telegram Android T-10/T-5/sound/vibration tests.
+
+
+
+## 2026-11-18 — Global Analyzer Score Control (implementation branch)
+
+- User authorized a single shared score control for the four Main Market Telegram Mini App analyzers: V1, BB Pure Scalper, Trend Rider, and Engine 4.
+- Implementation branch: `feature/global-analyzer-score-control-20261118`, created from the current `main-market` production branch after PR #152 merged.
+- Mini App adds one shared 5–100 score slider and one **คืนค่าต้นฉบับ** control. The default/reset mode is ORIGINAL, preserving each engine's distinct prior settings (V1 55/40, BB one-soft-cue at 0.18 wick ratio, Trend Rider 65/12 with 0.12 ATR sideways guard and 1.5 ATR late-entry guard, Engine 4 40/10 with its original 0.05 trend gap and pullback/rejection conditions).
+- CUSTOM mode changes real analyzer behavior, not display only: V1 score/prepare threshold, directional margin and choppy gap; BB evidence score, wick sensitivity and required cue count; Trend Rider score/margin, sideways and late-extension thresholds; Engine 4 score/margin, trend-gap, pullback range, close-location and wick thresholds.
+- Server endpoint `POST /api/telegram/analyzer-control` applies the shared setting and immediately clears previously held signals without resetting per-candle dispatch deduplication. Mini App stores the selected setting in localStorage and reapplies it after a session is created, so it survives Mini App restarts on the same device. Server memory resets to ORIGINAL after a process restart until the Mini App re-sends the saved preference.
+- Shared source-quality, T-10/T-5 and Engine 4 first-30-second timing, 30-second signal hold, sound/vibration, Twelve Data REST/WebSocket cadence, independent engine cards and manual-only execution remain unchanged.
+- Added unit coverage for original defaults, 5–100 validation, and monotonic relaxation/tightening across all four analyzers.
+- Pending: run CI/build, inspect exact PR diff, merge only after checks pass, select the Render workspace before querying/deploying, verify Render health and live analyzer-control API, then verify slider/reset behavior in Telegram Mini App on the user's device.
+- This is a configurability feature, not evidence of improved predictive accuracy or profitability. Use demo/paper testing before relying on custom levels.

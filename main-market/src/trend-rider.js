@@ -1,3 +1,4 @@
+import { getAnalyzerTuning } from "./analyzer-control.js";
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
@@ -25,6 +26,7 @@ function atr(candles, period = 14) {
 
 /** Independent M1 trend-continuation engine; closed history plus optional provisional current-candle OHLC. */
 export function analyzeTrendRider(candles, options = {}) {
+  const tuning = getAnalyzerTuning(options.control);
   const minimum = Number.isInteger(options.minimumCandles) ? options.minimumCandles : 30;
   if (!Array.isArray(candles) || candles.length < minimum ||
       !candles.every(c => c && [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
@@ -62,21 +64,21 @@ export function analyzeTrendRider(candles, options = {}) {
     20 * Number(risingStructure) + 15 * Number(upPullback || upBreak) + 15 * Number(upMomentum));
   const scoreDown = Math.round(30 * Number(downAligned) + 20 * clamp(gapAtr / 0.55) +
     20 * Number(fallingStructure) + 15 * Number(downPullback || downBreak) + 15 * Number(downMomentum));
-  const sideways = gapAtr < 0.12, late = extensionAtr > 1.5;
+  const sideways = gapAtr < tuning.trendSidewaysGapAtr, late = extensionAtr > tuning.trendLateExtensionAtr;
   const volatilitySpike = volatility > 0 && range > volatility * 2.8;
   let signal = null, score = Math.max(scoreUp, scoreDown);
   let status = "TREND_NOT_CONFIRMED";
   let reason = "แนวโน้ม EMA5/20 และโครงสร้างราคาไม่สอดคล้องพอ";
   if (sideways) { status = "SIDEWAYS_BLOCK"; reason = "EMA5/20 พันกัน · งดไล่สัญญาณในตลาดออกข้าง"; }
-  else if (late) { status = "LATE_ENTRY_BLOCK"; reason = "ราคาออกห่าง EMA5 เกิน 1.5 ATR · ไม่ไล่ตามเทรนด์ที่ยืดตัวแล้ว"; }
+  else if (late) { status = "LATE_ENTRY_BLOCK"; reason = `ราคาออกห่าง EMA5 เกิน ${tuning.trendLateExtensionAtr.toFixed(2)} ATR · ไม่ไล่ตามเทรนด์ที่ยืดตัวแล้ว`; }
   else if (volatilitySpike) { status = "VOLATILITY_BLOCK"; reason = "แท่งล่าสุดมีช่วงกว้างผิดปกติเมื่อเทียบกับ ATR"; }
-  else if (scoreUp >= 65 && scoreUp - scoreDown >= 12 && upAligned && (risingStructure || upBreak)) {
+  else if (scoreUp >= tuning.trendSignalThreshold && scoreUp - scoreDown >= tuning.trendDirectionalMargin && upAligned && (risingStructure || upBreak)) {
     signal = "CALL"; score = scoreUp; status = "UPTREND_CONTINUATION";
     reason = "EMA5 อยู่เหนือ EMA20 · โครงสร้างขาขึ้นยังอยู่ · มีแรงต่อเนื่องหรือย่อแล้วกลับขึ้น";
-  } else if (scoreDown >= 65 && scoreDown - scoreUp >= 12 && downAligned && (fallingStructure || downBreak)) {
+  } else if (scoreDown >= tuning.trendSignalThreshold && scoreDown - scoreUp >= tuning.trendDirectionalMargin && downAligned && (fallingStructure || downBreak)) {
     signal = "PUT"; score = scoreDown; status = "DOWNTREND_CONTINUATION";
     reason = "EMA5 อยู่ใต้ EMA20 · โครงสร้างขาลงยังอยู่ · มีแรงต่อเนื่องหรือย่อแล้วกลับลง";
-  } else if (score >= 45) { status = "TREND_WATCH"; reason = "เริ่มเห็นแนวโน้ม แต่หลักฐานต่อเนื่องยังไม่ครบ · เฝ้าดู"; }
+  } else if (score >= Math.max(5, tuning.trendSignalThreshold - 20)) { status = "TREND_WATCH"; reason = "เริ่มเห็นแนวโน้ม แต่หลักฐานต่อเนื่องยังไม่ครบ · เฝ้าดู"; }
   return {
     ready: true, signal, direction: signal, score, scoreUp, scoreDown, status, reason,
     strategy: "EMA5_20_STRUCTURE_PULLBACK_CONTINUATION",
