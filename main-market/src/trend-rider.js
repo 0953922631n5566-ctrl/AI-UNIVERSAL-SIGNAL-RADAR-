@@ -70,7 +70,7 @@ export function analyzeTrendRider(candles, options = {}) {
   let status = "TREND_NOT_CONFIRMED";
   let reason = "แนวโน้ม EMA5/20 และโครงสร้างราคาไม่สอดคล้องพอ";
   if (sideways) { status = "SIDEWAYS_BLOCK"; reason = "EMA5/20 พันกัน · งดไล่สัญญาณในตลาดออกข้าง"; }
-  else if (late) { status = "LATE_ENTRY_BLOCK"; reason = "ราคาออกห่าง EMA5 เกิน 1.5 ATR · ไม่ไล่ตามเทรนด์ที่ยืดตัวแล้ว"; }
+  else if (late) { status = "LATE_ENTRY_BLOCK"; reason = `ราคาออกห่าง EMA5 เกิน ${tuning.trendLateExtensionAtr.toFixed(2)} ATR · ไม่ไล่ตามเทรนด์ที่ยืดตัวแล้ว`; }
   else if (volatilitySpike) { status = "VOLATILITY_BLOCK"; reason = "แท่งล่าสุดมีช่วงกว้างผิดปกติเมื่อเทียบกับ ATR"; }
   else if (scoreUp >= tuning.trendSignalThreshold && scoreUp - scoreDown >= tuning.trendDirectionalMargin && upAligned && (risingStructure || upBreak)) {
     signal = "CALL"; score = scoreUp; status = "UPTREND_CONTINUATION";
