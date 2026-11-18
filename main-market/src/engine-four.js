@@ -44,8 +44,8 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   const closes=history.map(c=>c.close);
   const fast=ema(closes.slice(-20),5), slow=ema(closes.slice(-30),20);
   const trendGap=(fast-slow)/volatility;
-  const trendUp=trendGap>=.08 && fast>slow && history.at(-1).close>=history.at(-4).close;
-  const trendDown=trendGap<=-.08 && fast<slow && history.at(-1).close<=history.at(-4).close;
+  const trendUp=trendGap>=.05 && fast>slow && history.at(-1).close>=history.at(-4).close;
+  const trendDown=trendGap<=-.05 && fast<slow && history.at(-1).close<=history.at(-4).close;
   const range=Math.max(live.high-live.low,Number.EPSILON);
   const body=live.close-live.open, closePos=(live.close-live.low)/range;
   const upper=(live.high-Math.max(live.open,live.close))/range;
@@ -55,18 +55,18 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   const swingLow=Math.min(...recent.map(c=>c.low));
   const dipFromHigh=(swingHigh-live.low)/volatility;
   const popFromLow=(live.high-swingLow)/volatility;
-  const pullbackCall=trendUp && dipFromHigh>=.08 && dipFromHigh<=.85 &&
-    live.close>live.open && closePos>=.58 && (lower>=.12 || live.close>prev.close);
-  const pullbackPut=trendDown && popFromLow>=.08 && popFromLow<=.85 &&
-    live.close<live.open && closePos<=.42 && (upper>=.12 || live.close<prev.close);
-  const continuationCall=trendUp && live.close>prev.close && closePos>=.72 &&
-    live.close>live.open && (lower>=.16 || live.close>prev.high);
-  const continuationPut=trendDown && live.close<prev.close && closePos<=.28 &&
-    live.close<live.open && (upper>=.16 || live.close<prev.low);
-  const callScore=Math.min(100,Math.round(35*Number(trendUp)+35*Number(pullbackCall)+
-    20*Number(continuationCall)+10*Number(lower>=.12)));
-  const putScore=Math.min(100,Math.round(35*Number(trendDown)+35*Number(pullbackPut)+
-    20*Number(continuationPut)+10*Number(upper>=.12)));
+  const pullbackCall=trendUp && dipFromHigh>=.04 && dipFromHigh<=1.5 &&
+    live.close>live.open && closePos>=.52 && (lower>=.08 || live.close>prev.close);
+  const pullbackPut=trendDown && popFromLow>=.04 && popFromLow<=1.5 &&
+    live.close<live.open && closePos<=.48 && (upper>=.08 || live.close<prev.close);
+  const continuationCall=trendUp && live.close>prev.close && closePos>=.65 &&
+    live.close>live.open && (lower>=.10 || live.close>prev.high);
+  const continuationPut=trendDown && live.close<prev.close && closePos<=.35 &&
+    live.close<live.open && (upper>=.10 || live.close<prev.low);
+  const callScore=Math.min(100,Math.round(30*Number(trendUp)+30*Number(pullbackCall)+
+    25*Number(continuationCall)+15*Number(lower>=.08)));
+  const putScore=Math.min(100,Math.round(30*Number(trendDown)+30*Number(pullbackPut)+
+    25*Number(continuationPut)+15*Number(upper>=.08)));
   const score=Math.max(callScore,putScore);
   const abnormal=range>volatility*2.5;
   const base={ready:true,signal:null,candidateSignal:null,score,scoreUp:callScore,scoreDown:putScore,
@@ -84,11 +84,11 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
       abnormal?"งดสัญญาณ: ช่วงราคาเกิน 2.5 ATR":"ผ่านตัวกรองช่วงราคา"
     ]};
   if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดเข้า"};
-  if((pullbackCall||continuationCall)&&callScore>=70&&callScore-putScore>=15)
+  if((pullbackCall||continuationCall)&&callScore>=60&&callScore-putScore>=10)
     return {...base,signal:"CALL",candidateSignal:"CALL",score:callScore,status:pullbackCall?"PULLBACK_BOUNCE_CALL":"TREND_CONTINUATION_CALL",
       alertId:`ENGINE_4:${live.epoch}:CALL:PULLBACK`,
       reason:pullbackCall?"CALL · แนวโน้มขึ้น ย่อตัวแล้วมีแรงซื้อกลับ":"CALL · แนวโน้มขึ้นและแรงซื้อกลับมาต่อเนื่อง"};
-  if((pullbackPut||continuationPut)&&putScore>=70&&putScore-callScore>=15)
+  if((pullbackPut||continuationPut)&&putScore>=60&&putScore-callScore>=10)
     return {...base,signal:"PUT",candidateSignal:"PUT",score:putScore,status:pullbackPut?"SPIKE_REJECTION_PUT":"TREND_CONTINUATION_PUT",
       alertId:`ENGINE_4:${live.epoch}:PUT:PULLBACK`,
       reason:pullbackPut?"PUT · แนวโน้มลง ดีดตัวขึ้นแล้วมีแรงขายกลับ":"PUT · แนวโน้มลงและแรงขายกลับมาต่อเนื่อง"};
