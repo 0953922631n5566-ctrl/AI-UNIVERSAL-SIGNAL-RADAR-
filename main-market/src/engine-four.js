@@ -84,11 +84,11 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
       abnormal?"งดสัญญาณ: ช่วงราคาเกิน 2.5 ATR":"ผ่านตัวกรองช่วงราคา"
     ]};
   if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดเข้า"};
-  if((pullbackCall||continuationCall)&&callScore>=60&&callScore-putScore>=10)
+  if((pullbackCall||continuationCall)&&callScore>=40&&callScore-putScore>=10)
     return {...base,signal:"CALL",candidateSignal:"CALL",score:callScore,status:pullbackCall?"PULLBACK_BOUNCE_CALL":"TREND_CONTINUATION_CALL",
       alertId:`ENGINE_4:${live.epoch}:CALL:PULLBACK`,
       reason:pullbackCall?"CALL · แนวโน้มขึ้น ย่อตัวแล้วมีแรงซื้อกลับ":"CALL · แนวโน้มขึ้นและแรงซื้อกลับมาต่อเนื่อง"};
-  if((pullbackPut||continuationPut)&&putScore>=60&&putScore-callScore>=10)
+  if((pullbackPut||continuationPut)&&putScore>=40&&putScore-callScore>=10)
     return {...base,signal:"PUT",candidateSignal:"PUT",score:putScore,status:pullbackPut?"SPIKE_REJECTION_PUT":"TREND_CONTINUATION_PUT",
       alertId:`ENGINE_4:${live.epoch}:PUT:PULLBACK`,
       reason:pullbackPut?"PUT · แนวโน้มลง ดีดตัวขึ้นแล้วมีแรงขายกลับ":"PUT · แนวโน้มลงและแรงขายกลับมาต่อเนื่อง"};
