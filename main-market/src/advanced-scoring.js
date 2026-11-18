@@ -1,7 +1,6 @@
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 import { analyzePriceAction } from "./price-action-confirmation.js";
-import { getAnalyzerTuning } from "./analyzer-control.js";
 function emaSeries(values, period) {
   const k=2/(period+1); let v=values[0]; const out=[v];
   for(let i=1;i<values.length;i++){v=values[i]*k+v*(1-k);out.push(v);}
@@ -98,8 +97,7 @@ function componentScore(candles, direction, ema5, ema20, atr, priceAction) {
     details:{slopeNorm,prevNorm,sweepDistance,wickRatio,nearEma5:distance<=0.35,ema5,ema20,
       candleConfirmation,freshness,marketStructure,exhaustionEntryConfirmed,exhaustionEntryStrength,priorRun,priorBodyContracted,priorOpposingWick}};
 }
-export function scoreMarket(candles, options = {}) {
-  const tuning = getAnalyzerTuning(options.control);
+export function scoreMarket(candles) {
   if(!Array.isArray(candles)||candles.length<30||!candles.every(c=>c&&[c.open,c.high,c.low,c.close].every(Number.isFinite)))
     return {signal:"STANDBY",score:0,reason:"ข้อมูล OHLC ไม่เพียงพอ",riskFlags:["INSUFFICIENT_DATA"],scores:{CALL:0,PUT:0}};
   const closes=candles.map(c=>c.close), e5=emaSeries(closes,5), e20=emaSeries(closes,20), i=candles.length-1;
@@ -107,7 +105,7 @@ export function scoreMarket(candles, options = {}) {
   const priorAtrSamples=Array.from({length:Math.max(0,candles.length-28)},(_,k)=>atrAt(candles,14+k));
   const baselineAtr=median(priorAtrSamples.slice(-20));
   const slope5=e5[i]-e5[i-1], slope20=e20[i]-e20[i-1];
-  const tangled=Math.abs(e5[i]-e20[i])<=Math.max(atr*tuning.v1ChoppyGapAtr,1e-10);
+  const tangled=Math.abs(e5[i]-e20[i])<=Math.max(atr*0.12,1e-10);
   const flat=Math.abs(slope5)<=Math.max(atr*0.025,1e-10)&&Math.abs(slope20)<=Math.max(atr*0.025,1e-10);
   const choppy=tangled&&flat;
   const currentRange=candles[i].high-candles[i].low;
@@ -126,19 +124,19 @@ export function scoreMarket(candles, options = {}) {
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
   let signal="STANDBY",status="STANDBY";
   if(!choppy&&!atrSpike&&direction){
-    if(top>=tuning.v1SignalThreshold&&gap>=tuning.v1DirectionalMargin){signal=direction;status="SIGNAL";}
-    else if(top>=tuning.v1PrepareThreshold){signal="PREPARE";status="PREPARE";}
+    if(top>=55){signal=direction;status="SIGNAL";}
+    else if(top>=40){signal="PREPARE";status="PREPARE";}
   }
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${tuning.v1SignalThreshold}`
-    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · เกณฑ์เฝ้าระวัง ${tuning.v1PrepareThreshold} · รอประเมินซ้ำที่ T-5`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE ${tuning.v1PrepareThreshold} หรือทิศทางยังไม่ชัด`;
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 55`
+    :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 40 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"PARTIAL_SCORING_ADAPTIVE_SHARED_THRESHOLD_PRICE_ACTION_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
+    strategy:"PARTIAL_SCORING_55_EARLY_ENTRY_PRICE_ACTION_CONFIRMATION",provider:"LOCAL_PARTIAL_SCORING",riskFlags,
     evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
@@ -154,6 +152,6 @@ export function scoreMarket(candles, options = {}) {
       candleBodyRatio:priceAction.candle.bodyRatio,momentumExhaustion:priceAction.exhaustion.level,
       momentumExtensionAtr:priceAction.exhaustion.extensionAtr},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
-    thresholds:{signal:tuning.v1SignalThreshold,prepare:tuning.v1PrepareThreshold,standbyBelow:tuning.v1PrepareThreshold,mode:tuning.mode,minScore:tuning.minScore}
+    thresholds:{signal:55,prepare:40,standbyBelow:40}
   };
 }
