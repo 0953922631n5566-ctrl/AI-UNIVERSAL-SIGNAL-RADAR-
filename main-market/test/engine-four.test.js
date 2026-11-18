@@ -21,7 +21,7 @@ test("Engine 4 confirms PUT after sweeping a prior high and rejecting it",()=>{
 test("Engine 4 confirms CALL after sweeping a prior low and rejecting it",()=>{
  const h=history("DOWN"),prev=h.at(-1),epoch=prev.epoch+60;
  const live={epoch,open:prev.close,high:prev.close+.00002,low:prev.low-.00015,
-  close:prev.low+.00002,live:false,provisional:true};
+  close:prev.close+.00002,live:false,provisional:true};
  const out=analyzeEarlyEntryEngine4([...h,live],{livePreview:true,now:epoch*1000+12000});
  assert.equal(out.signal,"CALL");
  assert.equal(out.status,"BOTTOM_REVERSAL_CONFIRMED");
