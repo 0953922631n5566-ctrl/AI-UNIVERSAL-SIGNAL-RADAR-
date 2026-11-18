@@ -1,4 +1,3 @@
-import { getAnalyzerTuning } from "./analyzer-control.js";
 const clamp = (value, low = 0, high = 1) => Math.max(low, Math.min(high, value));
 const mean = values => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 
@@ -36,29 +35,21 @@ export function analyzeBBPureScalper(candles, options = {}) {
   const bearishMomentum = candle.close < candle.open || candle.close < previous.close;
   const bullishMomentum = candle.close > candle.open || candle.close > previous.close;
 
-  const tuning = getAnalyzerTuning(options.control);
-  let putValid, callValid, putScore, callScore;
-  if (tuning.mode === "ORIGINAL") {
-    // Preserve the exact original BB one-soft-cue rule for a true reset.
-    const putCue = upperReclaimed || upperWickRatio >= 0.18 || bearishMomentum;
-    const callCue = lowerReclaimed || lowerWickRatio >= 0.18 || bullishMomentum;
-    putValid = upperTouch && putCue;
-    callValid = lowerTouch && callCue;
-    putScore = putValid ? Math.round(45 + (upperReclaimed ? 25 : 0) +
-      20 * clamp(upperWickRatio / 0.40) + (bearishMomentum ? 10 : 0)) : 0;
-    callScore = callValid ? Math.round(45 + (lowerReclaimed ? 25 : 0) +
-      20 * clamp(lowerWickRatio / 0.40) + (bullishMomentum ? 10 : 0)) : 0;
-  } else {
-    // Custom mode recalculates evidence and the required confirmation count.
-    const putCues = Number(upperReclaimed) + Number(upperWickRatio >= tuning.bbWickThreshold) + Number(bearishMomentum);
-    const callCues = Number(lowerReclaimed) + Number(lowerWickRatio >= tuning.bbWickThreshold) + Number(bullishMomentum);
-    putScore = upperTouch ? Math.round(35 * Number(upperReclaimed) +
-      35 * clamp(upperWickRatio / 0.40) + 30 * Number(bearishMomentum)) : 0;
-    callScore = lowerTouch ? Math.round(35 * Number(lowerReclaimed) +
-      35 * clamp(lowerWickRatio / 0.40) + 30 * Number(bullishMomentum)) : 0;
-    putValid = upperTouch && putScore >= tuning.minScore && putCues >= tuning.bbRequiredCues;
-    callValid = lowerTouch && callScore >= tuning.minScore && callCues >= tuning.bbRequiredCues;
-  }
+  // Relaxed entry: band touch + ANY one of reclaim, a modest rejection wick,
+  // or a first directional momentum turn. A large 35% wick is no longer mandatory.
+  const putCue = upperReclaimed || upperWickRatio >= 0.18 || bearishMomentum;
+  const callCue = lowerReclaimed || lowerWickRatio >= 0.18 || bullishMomentum;
+  const putValid = upperTouch && putCue;
+  const callValid = lowerTouch && callCue;
+
+  const putScore = putValid ? Math.round(
+    45 + (upperReclaimed ? 25 : 0) +
+    20 * clamp(upperWickRatio / 0.40) + (bearishMomentum ? 10 : 0)
+  ) : 0;
+  const callScore = callValid ? Math.round(
+    45 + (lowerReclaimed ? 25 : 0) +
+    20 * clamp(lowerWickRatio / 0.40) + (bullishMomentum ? 10 : 0)
+  ) : 0;
 
   let signal = null;
   let status = "NO_BAND_TOUCH";
@@ -89,7 +80,7 @@ export function analyzeBBPureScalper(candles, options = {}) {
   return {
     ready: true, signal, score, callScore, putScore, status, reason,
     strategy: "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL",
-    parameters: { period, deviation, wickThreshold: tuning.bbWickThreshold, requiredCues: tuning.bbRequiredCues, minScore: tuning.minScore, controlMode: tuning.mode },
+    parameters: { period, deviation, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
     bands: { middle, upper, lower, standardDeviation,
       bandwidthPercent: middle !== 0 ? ((upper - lower) / Math.abs(middle)) * 100 : 0 },
     candle: { upperTouch, lowerTouch, upperReclaimed, lowerReclaimed,

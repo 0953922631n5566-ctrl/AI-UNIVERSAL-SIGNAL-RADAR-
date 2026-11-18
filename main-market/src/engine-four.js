@@ -1,4 +1,3 @@
-import { getAnalyzerTuning } from "./analyzer-control.js";
 const mean = values => values.length ? values.reduce((a,b)=>a+b,0)/values.length : 0;
 function valid(c) {
   return c && [c.epoch,c.open,c.high,c.low,c.close].every(Number.isFinite) &&
@@ -23,7 +22,6 @@ function ema(values, period) {
  * Uses the live forming candle; no candle-close confirmation is required.
  */
 export function analyzeEarlyEntryEngine4(candles, options={}) {
-  const tuning=getAnalyzerTuning(options.control);
   const minimum=Number.isInteger(options.minimumClosedCandles)?options.minimumClosedCandles:35;
   const rows=Array.isArray(candles)?candles.slice(-55):[];
   const live=rows.at(-1), closed=rows.slice(0,-1);
@@ -46,8 +44,8 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   const closes=history.map(c=>c.close);
   const fast=ema(closes.slice(-20),5), slow=ema(closes.slice(-30),20);
   const trendGap=(fast-slow)/volatility;
-  const trendUp=trendGap>=tuning.engine4TrendGapAtr && fast>slow && history.at(-1).close>=history.at(-4).close;
-  const trendDown=trendGap<=-tuning.engine4TrendGapAtr && fast<slow && history.at(-1).close<=history.at(-4).close;
+  const trendUp=trendGap>=.05 && fast>slow && history.at(-1).close>=history.at(-4).close;
+  const trendDown=trendGap<=-.05 && fast<slow && history.at(-1).close<=history.at(-4).close;
   const range=Math.max(live.high-live.low,Number.EPSILON);
   const body=live.close-live.open, closePos=(live.close-live.low)/range;
   const upper=(live.high-Math.max(live.open,live.close))/range;
@@ -57,14 +55,14 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   const swingLow=Math.min(...recent.map(c=>c.low));
   const dipFromHigh=(swingHigh-live.low)/volatility;
   const popFromLow=(live.high-swingLow)/volatility;
-  const pullbackCall=trendUp && dipFromHigh>=tuning.engine4MinPullbackAtr && dipFromHigh<=tuning.engine4MaxPullbackAtr &&
-    live.close>live.open && closePos>=tuning.engine4CloseLocation && (lower>=tuning.engine4WickThreshold || live.close>prev.close);
-  const pullbackPut=trendDown && popFromLow>=tuning.engine4MinPullbackAtr && popFromLow<=tuning.engine4MaxPullbackAtr &&
-    live.close<live.open && closePos<=1-tuning.engine4CloseLocation && (upper>=tuning.engine4WickThreshold || live.close<prev.close);
-  const continuationCall=trendUp && live.close>prev.close && closePos>=Math.min(.78,tuning.engine4CloseLocation+.13) &&
-    live.close>live.open && (lower>=tuning.engine4WickThreshold+.02 || live.close>prev.high);
-  const continuationPut=trendDown && live.close<prev.close && closePos<=1-Math.min(.78,tuning.engine4CloseLocation+.13) &&
-    live.close<live.open && (upper>=tuning.engine4WickThreshold+.02 || live.close<prev.low);
+  const pullbackCall=trendUp && dipFromHigh>=.04 && dipFromHigh<=2.2 &&
+    live.close>live.open && closePos>=.52 && (lower>=.08 || live.close>prev.close);
+  const pullbackPut=trendDown && popFromLow>=.04 && popFromLow<=2.2 &&
+    live.close<live.open && closePos<=.48 && (upper>=.08 || live.close<prev.close);
+  const continuationCall=trendUp && live.close>prev.close && closePos>=.65 &&
+    live.close>live.open && (lower>=.10 || live.close>prev.high);
+  const continuationPut=trendDown && live.close<prev.close && closePos<=.35 &&
+    live.close<live.open && (upper>=.10 || live.close<prev.low);
   const callScore=Math.min(100,Math.round(30*Number(trendUp)+30*Number(pullbackCall)+
     25*Number(continuationCall)+15*Number(lower>=.08)));
   const putScore=Math.min(100,Math.round(30*Number(trendDown)+30*Number(pullbackPut)+
@@ -86,14 +84,14 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
       abnormal?"งดสัญญาณ: ช่วงราคาเกิน 2.5 ATR":"ผ่านตัวกรองช่วงราคา"
     ]};
   if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดเข้า"};
-  if((pullbackCall||continuationCall)&&callScore>=tuning.engine4SignalThreshold&&callScore-putScore>=tuning.engine4DirectionalMargin)
+  if((pullbackCall||continuationCall)&&callScore>=40&&callScore-putScore>=10)
     return {...base,signal:"CALL",candidateSignal:"CALL",score:callScore,status:pullbackCall?"PULLBACK_BOUNCE_CALL":"TREND_CONTINUATION_CALL",
       alertId:`ENGINE_4:${live.epoch}:CALL:PULLBACK`,
       reason:pullbackCall?"CALL · แนวโน้มขึ้น ย่อตัวแล้วมีแรงซื้อกลับ":"CALL · แนวโน้มขึ้นและแรงซื้อกลับมาต่อเนื่อง"};
-  if((pullbackPut||continuationPut)&&putScore>=tuning.engine4SignalThreshold&&putScore-callScore>=tuning.engine4DirectionalMargin)
+  if((pullbackPut||continuationPut)&&putScore>=40&&putScore-callScore>=10)
     return {...base,signal:"PUT",candidateSignal:"PUT",score:putScore,status:pullbackPut?"SPIKE_REJECTION_PUT":"TREND_CONTINUATION_PUT",
       alertId:`ENGINE_4:${live.epoch}:PUT:PULLBACK`,
       reason:pullbackPut?"PUT · แนวโน้มลง ดีดตัวขึ้นแล้วมีแรงขายกลับ":"PUT · แนวโน้มลงและแรงขายกลับมาต่อเนื่อง"};
-  return {...base,status:score>=Math.max(5,tuning.engine4SignalThreshold-10)?"PULLBACK_WAIT_CONFIRMATION":"PULLBACK_STANDBY",
+  return {...base,status:score>=50?"PULLBACK_WAIT_CONFIRMATION":"PULLBACK_STANDBY",
     reason:score>=50?"พบจังหวะย่อ/ดีด แต่ยังรอแรงกลับเข้าตามแนวโน้ม":"ยังไม่พบจังหวะย่อ/ดีดและแรงยืนยันที่ชัดเจน"};
 }

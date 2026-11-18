@@ -149,7 +149,7 @@ export async function analyzeMarket(candles, options = {}) {
     liveCandle.low > 0 && liveCandle.high >= Math.max(liveCandle.open, liveCandle.close) &&
     liveCandle.low <= Math.min(liveCandle.open, liveCandle.close) && liveCandle.high >= liveCandle.low;
   const analysisCandles = livePreviewReady ? [...closedCandles, liveCandle] : closedCandles;
-  const scored=scoreMarket(analysisCandles,{control:options.control});
+  const scored=scoreMarket(analysisCandles);
   return {
     ...scored, ...base,
     analysisMode: livePreviewReady ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
