@@ -55,9 +55,9 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   const swingLow=Math.min(...recent.map(c=>c.low));
   const dipFromHigh=(swingHigh-live.low)/volatility;
   const popFromLow=(live.high-swingLow)/volatility;
-  const pullbackCall=trendUp && dipFromHigh>=.04 && dipFromHigh<=1.5 &&
+  const pullbackCall=trendUp && dipFromHigh>=.04 && dipFromHigh<=2.2 &&
     live.close>live.open && closePos>=.52 && (lower>=.08 || live.close>prev.close);
-  const pullbackPut=trendDown && popFromLow>=.04 && popFromLow<=1.5 &&
+  const pullbackPut=trendDown && popFromLow>=.04 && popFromLow<=2.2 &&
     live.close<live.open && closePos<=.48 && (upper>=.08 || live.close<prev.close);
   const continuationCall=trendUp && live.close>prev.close && closePos>=.65 &&
     live.close>live.open && (lower>=.10 || live.close>prev.high);
