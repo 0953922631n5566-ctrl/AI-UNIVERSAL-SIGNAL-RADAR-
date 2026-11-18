@@ -56,7 +56,7 @@ test("V1 uses the faster 55/40 partial-scoring path without later entry guards",
   const result = await analyzeMarket(history(54, 1), {
     now: Date.now(), tickAgeSeconds: 0
   });
-  assert.equal(result.strategy, "PARTIAL_SCORING_ADAPTIVE_SHARED_THRESHOLD_PRICE_ACTION_CONFIRMATION");
+  assert.equal(result.strategy, "PARTIAL_SCORING_55_EARLY_ENTRY_PRICE_ACTION_CONFIRMATION");
   assert.equal(result.thresholds.signal, 55);
   assert.equal(result.thresholds.prepare, 40);
   assert.match(result.signalValidationNote, /V1 Partial Scoring 55\/40/);
@@ -533,7 +533,7 @@ test("abnormal single-candle range activates High ATR Spike kill switch",()=>{
 });
 test("Partial Scoring exposes faster 55/40 entry thresholds",()=>{
  const result=scoreMarket(reversalTestCandles(1));
- assert.deepEqual(result.thresholds,{signal:55,prepare:40,standbyBelow:40,mode:"ORIGINAL",minScore:25});
+ assert.deepEqual(result.thresholds,{signal:55,prepare:40,standbyBelow:40});
 });
 
 function moderateFakeoutCandles(count = 54) {
