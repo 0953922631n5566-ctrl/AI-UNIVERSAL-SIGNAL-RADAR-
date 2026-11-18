@@ -161,12 +161,12 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.match(configJs, /LIVE_ANALYSIS_INTERVAL_SECONDS = 1/);
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
-  assert.match(serverJs, /LIVE_ANALYSIS_INTERVAL_SECONDS \\* 1000/);
-  assert.match(serverJs, /REST_SYNC_SECONDS \\* 1000/);
+  assert.ok(serverJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS * 1000"));
+  assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
   assert.match(serverJs, /LIVE_M1_PREVIEW_EVERY_1S_FIRST_30_SECONDS/);
-  assert.match(serverJs, /analysisMode: livePreview \\? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
+  assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });
