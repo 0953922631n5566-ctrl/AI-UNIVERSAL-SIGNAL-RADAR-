@@ -34,7 +34,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-18-engine4-early-entry-0-30s-v1";
+const VERSION = "2026-11-18-engine4-early-entry-lower-threshold-v2";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1144,7 +1144,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_PULLBACK_BOUNCE_SPIKE_REJECTION_0_30S", cadence: "LIVE_M1_PREVIEW_EVERY_2S_FIRST_30_SECONDS", minimumClosedCandles: 35, minimumSignalScore: 70, minimumDirectionalMargin: 15, guards: ["TREND_DIRECTION_REQUIRED", "PULLBACK_OR_SPIKE_REQUIRED", "LIVE_CONTINUATION_CONFIRMATION", "ABNORMAL_RANGE_2_5_ATR"], entryWindowSeconds: [0, 30], target: "CURRENT_FORMING_M1_CANDLE", direction: { UPTREND_PULLBACK: "CALL", DOWNTREND_SPIKE_REJECTION: "PUT" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_PULLBACK_BOUNCE_SPIKE_REJECTION_0_30S", cadence: "LIVE_M1_PREVIEW_EVERY_2S_FIRST_30_SECONDS", minimumClosedCandles: 35, minimumSignalScore: 60, minimumDirectionalMargin: 10, guards: ["TREND_GAP_ATR_0_05", "PULLBACK_OR_SPIKE_0_04_TO_1_5_ATR", "CLOSE_LOCATION_0_52_0_48", "MINIMUM_SIGNAL_SCORE_60", "DIRECTIONAL_MARGIN_10", "LIVE_CONTINUATION_CONFIRMATION", "ABNORMAL_RANGE_2_5_ATR"], entryWindowSeconds: [0, 30], target: "CURRENT_FORMING_M1_CANDLE", direction: { UPTREND_PULLBACK: "CALL", DOWNTREND_SPIKE_REJECTION: "PUT" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_INDEPENDENT_FIRST_30S_ENTRY"
     },
