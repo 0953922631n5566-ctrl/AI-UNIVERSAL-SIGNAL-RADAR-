@@ -9,17 +9,23 @@ function atr(rows, period=14) {
     Math.abs(c.high-rows[i].close),Math.abs(c.low-rows[i].close)));
   return mean(tr.slice(-period));
 }
+function ema(values, period) {
+  if (!values.length) return 0;
+  const k=2/(period+1);
+  return values.slice(1).reduce((v,x)=>x*k+v*(1-k),values[0]);
+}
 
 /**
- * Engine 4: extreme sweep + rejection reversal.
- * A top reversal produces PUT; a bottom reversal produces CALL.
- * It only evaluates the validated, forming M1 candle in seconds 0-29.
+ * Engine 4: first-30-second M1 pullback/bounce and spike/rejection continuation.
+ * Trend up: detect a dip followed by a bullish turn => CALL.
+ * Trend down: detect a pop followed by a bearish turn => PUT.
+ * Uses the live forming candle; no candle-close confirmation is required.
  */
 export function analyzeEarlyEntryEngine4(candles, options={}) {
   const minimum=Number.isInteger(options.minimumClosedCandles)?options.minimumClosedCandles:35;
   const rows=Array.isArray(candles)?candles.slice(-55):[];
   const live=rows.at(-1), closed=rows.slice(0,-1);
-  const strategy="ENGINE_4_EXTREME_SWEEP_REJECTION_REVERSAL_0_30S";
+  const strategy="ENGINE_4_M1_PULLBACK_BOUNCE_SPIKE_REJECTION_0_30S";
   if(options.livePreview!==true || !live || (live.live!==true&&live.provisional!==true) ||
       !valid(live) || closed.length<minimum || !closed.every(c=>c.live!==true&&valid(c))) {
     return {ready:false,signal:null,candidateSignal:null,score:0,status:"NOT_READY",
@@ -30,60 +36,62 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
   if(elapsed<0 || elapsed>=30000) return {ready:true,signal:null,candidateSignal:null,
     score:0,status:"ENTRY_WINDOW_CLOSED",candleEpoch:live.epoch,
     elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)),strategy,
-    reason:"Engine 4 เปิดจังหวะสวนเฉพาะ 30 วินาทีแรกของแท่ง M1"};
+    reason:"Engine 4 ค้นหาจังหวะย่อ/ดีดเฉพาะ 30 วินาทีแรกของแท่ง M1"};
   const history=closed.slice(-50), prev=history.at(-1), volatility=atr(history);
   if(!(volatility>0)) return {ready:true,signal:null,candidateSignal:null,score:0,
     status:"VOLATILITY_NOT_READY",candleEpoch:live.epoch,strategy,
-    reason:"ข้อมูล ATR ยังไม่พร้อมสำหรับประเมินจุดกลับตัว"};
+    reason:"ข้อมูล ATR ยังไม่พร้อมสำหรับประเมินการย่อตัว"};
+  const closes=history.map(c=>c.close);
+  const fast=ema(closes.slice(-20),5), slow=ema(closes.slice(-30),20);
+  const trendGap=(fast-slow)/volatility;
+  const trendUp=trendGap>=.08 && fast>slow && history.at(-1).close>=history.at(-4).close;
+  const trendDown=trendGap<=-.08 && fast<slow && history.at(-1).close<=history.at(-4).close;
   const range=Math.max(live.high-live.low,Number.EPSILON);
-  const body=live.close-live.open, bodyRatio=Math.abs(body)/range;
-  const closePos=(live.close-live.low)/range;
+  const body=live.close-live.open, closePos=(live.close-live.low)/range;
   const upper=(live.high-Math.max(live.open,live.close))/range;
   const lower=(Math.min(live.open,live.close)-live.low)/range;
   const recent=history.slice(-6);
-  const priorHigh=Math.max(...recent.map(c=>c.high));
-  const priorLow=Math.min(...recent.map(c=>c.low));
-  const sweepBuffer=volatility*.025;
-  const sweptHigh=live.high>=priorHigh+sweepBuffer;
-  const sweptLow=live.low<=priorLow-sweepBuffer;
-  const topRejection=upper>=.30 && closePos<=.42 && live.close<priorHigh;
-  const bottomRejection=lower>=.30 && closePos>=.58 && live.close>priorLow;
-  const bearishTurn=body<0 || live.close<prev.close;
-  const bullishTurn=body>0 || live.close>prev.close;
-  const priorUp=history.slice(-5).filter((c,i,a)=>i>0&&c.close>a[i-1].close).length>=3;
-  const priorDown=history.slice(-5).filter((c,i,a)=>i>0&&c.close<a[i-1].close).length>=3;
-  const topContext=priorUp || history.slice(-5).at(-1).close>=history.slice(-5)[0].close;
-  const bottomContext=priorDown || history.slice(-5).at(-1).close<=history.slice(-5)[0].close;
-  const putScore=Math.round(30*Number(sweptHigh)+30*Number(topRejection)+
-    20*Number(bearishTurn)+10*Number(topContext)+10*Number(closePos<=.30));
-  const callScore=Math.round(30*Number(sweptLow)+30*Number(bottomRejection)+
-    20*Number(bullishTurn)+10*Number(bottomContext)+10*Number(closePos>=.70));
-  const score=Math.max(putScore,callScore);
+  const swingHigh=Math.max(...recent.map(c=>c.high));
+  const swingLow=Math.min(...recent.map(c=>c.low));
+  const dipFromHigh=(swingHigh-live.low)/volatility;
+  const popFromLow=(live.high-swingLow)/volatility;
+  const pullbackCall=trendUp && dipFromHigh>=.08 && dipFromHigh<=.85 &&
+    live.close>live.open && closePos>=.58 && (lower>=.12 || live.close>prev.close);
+  const pullbackPut=trendDown && popFromLow>=.08 && popFromLow<=.85 &&
+    live.close<live.open && closePos<=.42 && (upper>=.12 || live.close<prev.close);
+  const continuationCall=trendUp && live.close>prev.close && closePos>=.72 &&
+    live.close>live.open && (lower>=.16 || live.close>prev.high);
+  const continuationPut=trendDown && live.close<prev.close && closePos<=.28 &&
+    live.close<live.open && (upper>=.16 || live.close<prev.low);
+  const callScore=Math.min(100,Math.round(35*Number(trendUp)+35*Number(pullbackCall)+
+    20*Number(continuationCall)+10*Number(lower>=.12)));
+  const putScore=Math.min(100,Math.round(35*Number(trendDown)+35*Number(pullbackPut)+
+    20*Number(continuationPut)+10*Number(upper>=.12)));
+  const score=Math.max(callScore,putScore);
   const abnormal=range>volatility*2.5;
   const base={ready:true,signal:null,candidateSignal:null,score,scoreUp:callScore,scoreDown:putScore,
     candleEpoch:live.epoch,elapsedSeconds:Math.floor(elapsed/1000),
     targetCandleAt:new Date(live.epoch*1000).toISOString(),strategy,
-    regime:putScore>callScore?"TOP_REVERSAL_WATCH":callScore>putScore?"BOTTOM_REVERSAL_WATCH":"NO_CLEAR_EXTREME",
-    metrics:{atr:volatility,rangeAtr:+(range/volatility).toFixed(3),
-      bodyRatio:+bodyRatio.toFixed(3),closeLocation:+closePos.toFixed(3),
-      upperWickRatio:+upper.toFixed(3),lowerWickRatio:+lower.toFixed(3),
-      priorHigh,priorLow,sweptHigh,sweptLow,topRejection,bottomRejection},
+    regime:trendUp?"UPTREND_PULLBACK":trendDown?"DOWNTREND_BOUNCE":"NO_CLEAR_TREND",
+    metrics:{atr:volatility,rangeAtr:+(range/volatility).toFixed(3),trendGapAtr:+trendGap.toFixed(3),
+      closeLocation:+closePos.toFixed(3),upperWickRatio:+upper.toFixed(3),lowerWickRatio:+lower.toFixed(3),
+      dipFromRecentHighAtr:+dipFromHigh.toFixed(3),popFromRecentLowAtr:+popFromLow.toFixed(3),
+      trendUp,trendDown,pullbackCall,pullbackPut,continuationCall,continuationPut},
     evidence:[
-      sweptHigh?"กวาดเหนือยอดเดิมแล้ว":"ยังไม่กวาดเหนือยอดเดิม",
-      sweptLow?"กวาดใต้ฐานเดิมแล้ว":"ยังไม่กวาดใต้ฐานเดิม",
-      topRejection?"มีไส้บนและปิดกลับใต้แนวต้าน":"ยังไม่ยืนยันแรงปฏิเสธที่ยอด",
-      bottomRejection?"มีไส้ล่างและปิดกลับเหนือแนวรับ":"ยังไม่ยืนยันแรงปฏิเสธที่ฐาน",
+      trendUp?"แนวโน้มหลักเป็นขาขึ้น":trendDown?"แนวโน้มหลักเป็นขาลง":"แนวโน้มหลักยังไม่ชัด",
+      pullbackCall?"ย่อลงแล้วมีแรงซื้อกลับ":"ยังไม่ยืนยันจังหวะย่อลงแล้วเด้ง",
+      pullbackPut?"ดีดขึ้นแล้วมีแรงขายกลับ":"ยังไม่ยืนยันจังหวะดีดขึ้นแล้วลง",
       abnormal?"งดสัญญาณ: ช่วงราคาเกิน 2.5 ATR":"ผ่านตัวกรองช่วงราคา"
     ]};
-  if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดสวน"};
-  if(sweptHigh&&topRejection&&bearishTurn&&putScore>=70&&putScore-callScore>=15)
-    return {...base,signal:"PUT",candidateSignal:"PUT",score:putScore,status:"TOP_REVERSAL_CONFIRMED",
-      alertId:`ENGINE_4:${live.epoch}:PUT:TOP_REVERSAL`,
-      reason:"PUT สวนจากยอด · กวาดยอดเดิม มีไส้บนปฏิเสธราคาและแรงขายเริ่มกลับมา"};
-  if(sweptLow&&bottomRejection&&bullishTurn&&callScore>=70&&callScore-putScore>=15)
-    return {...base,signal:"CALL",candidateSignal:"CALL",score:callScore,status:"BOTTOM_REVERSAL_CONFIRMED",
-      alertId:`ENGINE_4:${live.epoch}:CALL:BOTTOM_REVERSAL`,
-      reason:"CALL สวนจากฐาน · กวาดฐานเดิม มีไส้ล่างปฏิเสธราคาและแรงซื้อเริ่มกลับมา"};
-  return {...base,status:score>=50?"EXTREME_REVERSAL_WATCH":"EXTREME_REVERSAL_STANDBY",
-    reason:score>=50?"พบสัญญาณเฝ้าระวังจุดกลับตัว แต่รอการยืนยันแรงสวน":"ยังไม่มีหลักฐานยืนยันยอด/ฐานและแรงกลับตัวครบเงื่อนไข"};
+  if(abnormal)return {...base,status:"ABNORMAL_RANGE_BLOCK",reason:"แท่ง M1 ผันผวนผิดปกติ · งดเข้า"};
+  if((pullbackCall||continuationCall)&&callScore>=70&&callScore-putScore>=15)
+    return {...base,signal:"CALL",candidateSignal:"CALL",score:callScore,status:pullbackCall?"PULLBACK_BOUNCE_CALL":"TREND_CONTINUATION_CALL",
+      alertId:`ENGINE_4:${live.epoch}:CALL:PULLBACK`,
+      reason:pullbackCall?"CALL · แนวโน้มขึ้น ย่อตัวแล้วมีแรงซื้อกลับ":"CALL · แนวโน้มขึ้นและแรงซื้อกลับมาต่อเนื่อง"};
+  if((pullbackPut||continuationPut)&&putScore>=70&&putScore-callScore>=15)
+    return {...base,signal:"PUT",candidateSignal:"PUT",score:putScore,status:pullbackPut?"SPIKE_REJECTION_PUT":"TREND_CONTINUATION_PUT",
+      alertId:`ENGINE_4:${live.epoch}:PUT:PULLBACK`,
+      reason:pullbackPut?"PUT · แนวโน้มลง ดีดตัวขึ้นแล้วมีแรงขายกลับ":"PUT · แนวโน้มลงและแรงขายกลับมาต่อเนื่อง"};
+  return {...base,status:score>=50?"PULLBACK_WAIT_CONFIRMATION":"PULLBACK_STANDBY",
+    reason:score>=50?"พบจังหวะย่อ/ดีด แต่ยังรอแรงกลับเข้าตามแนวโน้ม":"ยังไม่พบจังหวะย่อ/ดีดและแรงยืนยันที่ชัดเจน"};
 }
