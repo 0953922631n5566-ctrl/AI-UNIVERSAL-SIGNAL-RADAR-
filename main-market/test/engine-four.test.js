@@ -12,7 +12,7 @@ function history(direction="UP") {
 test("Engine 4 confirms PUT after sweeping a prior high and rejecting it",()=>{
  const h=history("UP"),prev=h.at(-1),epoch=prev.epoch+60;
  const live={epoch,open:prev.close,high:prev.high+.00015,low:prev.close-.00002,
-  close:prev.high-.00002,live:false,provisional:true};
+  close:prev.close-.00002,live:false,provisional:true};
  const out=analyzeEarlyEntryEngine4([...h,live],{livePreview:true,now:epoch*1000+12000});
  assert.equal(out.signal,"PUT");
  assert.equal(out.status,"TOP_REVERSAL_CONFIRMED");
