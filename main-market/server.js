@@ -514,7 +514,7 @@ let reason;
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 จับการย่อตัวในขาขึ้นเพื่อ CALL และการดีดตัวในขาลงแล้วถูกขายกลับเพื่อ PUT เฉพาะ 30 วินาทีแรกของแท่ง M1 ปัจจุบัน · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบแจ้งเตือนเดิม · ยังไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: `Analyzer Control ${analyzerControl.mode === "ORIGINAL" ? "ORIGINAL" : analyzerControl.minScore + "/100"} · V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 จับจังหวะใน 30 วินาทีแรก · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบเดิม · ยังไม่มีผลประเมิน out-of-sample`
  };
 }
 
