@@ -14,6 +14,7 @@ import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
 import { analyzeEarlyEntryEngine4 } from "./src/engine-four.js";
+import { DEFAULT_ANALYZER_CONTROL, normalizeAnalyzerControl, getAnalyzerTuning } from "./src/analyzer-control.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canDispatchEngine4Signal, canFinalizeSignal, isEngine4EntryWindow, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
@@ -34,7 +35,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-18-engine4-early-entry-lower-threshold-v2";
+const VERSION = "2026-11-18-global-analyzer-score-control-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -75,6 +76,7 @@ let globalLockMessage = null;
 const controlRequests = new Map();
 const engineEnabled = { V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true };
 const ENGINE_KEYS = Object.keys(engineEnabled);
+let analyzerControl = { ...DEFAULT_ANALYZER_CONTROL };
 
 function standby(reason, extra = {}) {
   return {
@@ -188,6 +190,7 @@ function snapshot() {
     signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
     engineEnabled: { ...engineEnabled },
+    analyzerControl: { ...analyzerControl, tuning: getAnalyzerTuning(analyzerControl) },
   };
 }
 
@@ -267,7 +270,7 @@ async function evaluate(feed) {
  // closed history plus the same validated provisional M1 candle (when available).
  const v1Raw = engineEnabled.V1 ? await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
-   liveCandle: livePreview
+   liveCandle: livePreview, control: analyzerControl
  }) : standby("V1 ปิดการทำงานจาก Mini App");
  const v1Result = applySignalReleaseGate(v1Raw);
  const latestClosed = closedCandles.at(-1);
@@ -281,7 +284,7 @@ async function evaluate(feed) {
  const bbRaw = !engineEnabled.BB
    ? { ready: false, signal: null, score: 0, status: "DISABLED", reason: "BB ปิดการทำงานจาก Mini App" }
    : bbSourceReady
-     ? analyzeBBPureScalper(analysisCandles)
+     ? analyzeBBPureScalper(analysisCandles, { control: analyzerControl })
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "BB ต้องมีแท่ง M1 ปิดอย่างน้อย 21 แท่งและข้อมูลราคาต้องสด" };
  const trendSourceReady = closedCandles.length >= 30 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
@@ -289,7 +292,7 @@ async function evaluate(feed) {
  const trendRaw = !engineEnabled.TREND_RIDER
    ? { ready: false, signal: null, score: 0, status: "DISABLED", reason: "Trend Rider ปิดการทำงานจาก Mini App" }
    : trendSourceReady
-     ? analyzeTrendRider(analysisCandles)
+     ? analyzeTrendRider(analysisCandles, { control: analyzerControl })
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
  const engine4SourceReady = closedCandles.length >= 35 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
@@ -297,7 +300,7 @@ async function evaluate(feed) {
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
-     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now })
+     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, control: analyzerControl })
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Engine 4 ต้องมีแท่ง M1 ปิดอย่างน้อย 35 แท่งและ Streaming สดพร้อมแท่งปัจจุบัน" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
@@ -1066,6 +1069,7 @@ app.get("/api/public/signal", (_req, res) => {
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
+      analyzerControl: state.analyzerControl || null,
       recovery: state.recovery || null,
       engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
@@ -1125,6 +1129,24 @@ app.post("/api/telegram/engines", requireTelegramSession, rateLimitControl, asyn
   noCache(res);
   res.json({ ok: true, engineEnabled: { ...engineEnabled }, market: snapshot() });
 });
+app.post("/api/telegram/analyzer-control", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const requested = req.body;
+  const validMode = requested?.mode === "ORIGINAL" || requested?.mode === "CUSTOM";
+  const score = Number(requested?.minScore);
+  if (!validMode || !Number.isInteger(score) || score < 5 || score > 100) {
+    return res.status(400).json({ ok: false, error: "เลือกระดับคะแนนตั้งแต่ 5 ถึง 100 หรือคืนค่าต้นฉบับ" });
+  }
+  analyzerControl = normalizeAnalyzerControl({ mode: requested.mode, minScore: score });
+  // Clear held signals from the prior threshold without clearing per-candle dispatch dedupe.
+  for (const feed of feeds.values()) {
+    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  }
+  const feed = feeds.get(selectedSymbol);
+  if (feed && monitoring) await evaluate(feed);
+  publish();
+  noCache(res);
+  res.json({ ok: true, analyzerControl: { ...analyzerControl, tuning: getAnalyzerTuning(analyzerControl) }, market: snapshot() });
+});
 app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
@@ -1148,6 +1170,7 @@ app.get("/health", (_req, res) => {
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_INDEPENDENT_FIRST_30S_ENTRY"
     },
+    analyzerControl: { ...analyzerControl, tuning: getAnalyzerTuning(analyzerControl), supportedRange: [5, 100], resetMode: "ORIGINAL" },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
       role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
