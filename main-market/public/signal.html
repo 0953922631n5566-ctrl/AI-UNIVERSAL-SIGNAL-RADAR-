@@ -26,13 +26,26 @@
 <div id="trendCard" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="03 · TREND RIDER AI เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">03 · TREND RIDER AI</div><button class="light-toggle" type="button" data-light-toggle="TREND_RIDER" aria-pressed="false" aria-label="สลับสีไฟ 03 · TREND RIDER AI">ไฟ: ปกติ</button></div><b id="trendSignal" class="engine-value">STANDBY</b><p id="trendReason" class="engine-reason">รอผลวิเคราะห์ Trend Rider</p></div>
 <div id="engine4Card" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="04 · EARLY ENTRY AI · 0–30s เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">04 · EARLY ENTRY AI · 0–30s</div><button class="light-toggle" type="button" data-light-toggle="ENGINE_4" aria-pressed="false" aria-label="สลับสีไฟ 04 · EARLY ENTRY AI · 0–30s">ไฟ: ปกติ</button></div><b id="engine4Signal" class="engine-value">STANDBY</b><p id="engine4Reason" class="engine-reason">รอข้อมูลแท่ง M1 ที่ถูกต้อง</p></div>
 </section>
+<section class="card" data-panel="analyzer-control">
+ <div class="eyebrow">GLOBAL ANALYZER SCORE · ตัววิเคราะห์ทั้ง 4 ตัว</div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0">
+  <strong>คะแนนขั้นต่ำร่วม</strong><b id="analyzerScoreValue" style="font-size:20px;color:#8ef0b2">ต้นฉบับ</b>
+ </div>
+ <input id="analyzerScoreRange" type="range" min="5" max="100" step="5" value="25" aria-label="ปรับคะแนนขั้นต่ำตัววิเคราะห์ทั้งสี่ตัว" style="width:100%;accent-color:#62e79a">
+ <div style="display:flex;justify-content:space-between;font-size:10px;color:#91a6c4"><span>5 · ผ่อนปรน</span><span>100 · เข้มงวด</span></div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
+  <button id="resetAnalyzerScore" class="sound-button" type="button">คืนค่าต้นฉบับ</button>
+  <span id="analyzerControlStatus" class="sound-status">ใช้สูตรและเกณฑ์เดิมของทั้ง 4 ตัว</span>
+ </div>
+ <div class="note" style="margin-top:8px">การปรับคะแนนจะเปลี่ยนเกณฑ์คะแนนและหลักฐาน/ตัวกรองภายในของ V1, BB, Trend Rider และ Engine 4 จริง · ไม่ใช่เปลี่ยนเฉพาะตัวเลขแสดงผล</div>
+</section>
 <section class="grid" data-panel="metrics"><div class="metric"><span>MARKET REGIME</span><b id="regime">—</b></div><div class="metric"><span>CLOSED CANDLES</span><b id="candles">—</b></div></section>
 <section class="card" data-panel="details"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">V1, BB และ Trend Rider วิเคราะห์แยกอิสระ · Manual only</div></section>
 <details class="api-drawer" data-panel="api"><summary><span>ศูนย์ API · สถานะคีย์</span><b id="apiSummary" class="api-summary">กำลังโหลด</b><span>⌄</span></summary><div id="apiKeys" class="api-grid"></div><div class="note api-note">เขียว = พร้อมใช้ · แดง = พัก/โควตา · เทา = ยังไม่ได้ตั้งค่า</div></details>
 <div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
 <footer class="footer">V1 + BB + TREND RIDER AI + ENGINE 4 EARLY ENTRY · วิเคราะห์แยกอิสระ · EUR/USD ONLY · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
 </main><script>
-const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKeys=new Set(),lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;let engine4LastFinalKey="",engine4HeldSignal=null,engine4HoldUntil=0,engine4FlashUntil=0;let engineEnabled={V1:true,BB:true,TREND_RIDER:true,ENGINE_4:true};let engineLightInverted={V1:false,BB:false,TREND_RIDER:false,ENGINE_4:false};const engineCardMap={V1:"v1Card",BB:"bbCard",TREND_RIDER:"trendCard",ENGINE_4:"engine4Card"};const engineLabelMap={V1:"V1",BB:"BB",TREND_RIDER:"Trend Rider",ENGINE_4:"Engine 4 Early Entry"};try{const saved=JSON.parse(localStorage.getItem("signalRadarEngineEnabled")||"null");if(saved&&typeof saved==="object")for(const key of Object.keys(engineEnabled))if(typeof saved[key]==="boolean")engineEnabled[key]=saved[key];}catch{}try{const savedLights=JSON.parse(localStorage.getItem("signalRadarEngineLightInverted")||"null");if(savedLights&&typeof savedLights==="object")for(const key of Object.keys(engineLightInverted))if(typeof savedLights[key]==="boolean")engineLightInverted[key]=savedLights[key];}catch{}const engineTogglePending=new Set();const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
+const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKeys=new Set(),lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;let engine4LastFinalKey="",engine4HeldSignal=null,engine4HoldUntil=0,engine4FlashUntil=0;let analyzerControl={mode:"ORIGINAL",minScore:25},analyzerControlPending=false;try{const savedControl=JSON.parse(localStorage.getItem("signalRadarAnalyzerControl")||"null");if(savedControl&&["ORIGINAL","CUSTOM"].includes(savedControl.mode)&&Number.isInteger(savedControl.minScore)&&savedControl.minScore>=5&&savedControl.minScore<=100)analyzerControl=savedControl;}catch{}let engineEnabled={V1:true,BB:true,TREND_RIDER:true,ENGINE_4:true};let engineLightInverted={V1:false,BB:false,TREND_RIDER:false,ENGINE_4:false};const engineCardMap={V1:"v1Card",BB:"bbCard",TREND_RIDER:"trendCard",ENGINE_4:"engine4Card"};const engineLabelMap={V1:"V1",BB:"BB",TREND_RIDER:"Trend Rider",ENGINE_4:"Engine 4 Early Entry"};try{const saved=JSON.parse(localStorage.getItem("signalRadarEngineEnabled")||"null");if(saved&&typeof saved==="object")for(const key of Object.keys(engineEnabled))if(typeof saved[key]==="boolean")engineEnabled[key]=saved[key];}catch{}try{const savedLights=JSON.parse(localStorage.getItem("signalRadarEngineLightInverted")||"null");if(savedLights&&typeof savedLights==="object")for(const key of Object.keys(engineLightInverted))if(typeof savedLights[key]==="boolean")engineLightInverted[key]=savedLights[key];}catch{}const engineTogglePending=new Set();const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 const tg=window.Telegram?.WebApp||null;
 function playSequence(frequencies,duration=0.15,gap=0.11){if(!soundEnabled||!audioContext||audioContext.state!=="running")return;const start=audioContext.currentTime+0.025;frequencies.forEach((frequency,index)=>{const at=start+index*(duration+gap),osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.type="triangle";osc.frequency.setValueAtTime(frequency,at);gain.gain.setValueAtTime(0.0001,at);gain.gain.exponentialRampToValueAtTime(0.16,at+0.018);gain.gain.exponentialRampToValueAtTime(0.0001,at+duration);osc.connect(gain);gain.connect(audioContext.destination);osc.start(at);osc.stop(at+duration+0.03);});}
 async function enableSound(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw new Error("เบราว์เซอร์นี้ไม่รองรับ Web Audio");if(!audioContext)audioContext=new Audio();await audioContext.resume();soundEnabled=audioContext.state==="running";if(!soundEnabled)throw new Error("ยังเปิดเสียงไม่ได้ กรุณาแตะปุ่มอีกครั้ง");$("soundEnable").textContent="ทดสอบเสียงอีกครั้ง";$("soundStatus").textContent="เปิดเสียงแล้ว · พร้อมแจ้งเตือนขณะเปิด Mini App";playSequence([740,988],0.13,0.1);}catch(error){soundEnabled=false;$("soundStatus").textContent=error.message||"เปิดเสียงไม่สำเร็จ";}}
@@ -66,9 +79,45 @@ function triggerSignalAlert(signal,key,engine){
 }
 function regime(v){return({UPTREND:"TRENDING · ขาขึ้น",DOWNTREND:"TRENDING · ขาลง",SIDEWAY:"SIDEWAY · ออกข้าง",HIGH_VOLATILITY:"HIGH VOLATILITY",REVERSAL:"REVERSAL",UNCLEAR:"UNCLEAR"})[v]||v||"—"}
 function accessMessage(message,kind="off"){$("access").hidden=false;$("accessText").textContent=message;$("api").className="pill "+kind;$("api").textContent=kind==="live"?"SESSION READY":"CONNECTING";}
-async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const response=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.sessionToken){const retrySeconds=Math.max(5,Number(response.headers.get("Retry-After")||15));authRetryAt=Date.now()+retrySeconds*1000;throw new Error(body.error||"Session creation failed");}authRetryAt=0;sessionToken=body.sessionToken;await syncEngineSettings();$("access").hidden=true;$("api").className="pill live";$("api").textContent="SESSION READY";}
+async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const response=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.sessionToken){const retrySeconds=Math.max(5,Number(response.headers.get("Retry-After")||15));authRetryAt=Date.now()+retrySeconds*1000;throw new Error(body.error||"Session creation failed");}authRetryAt=0;sessionToken=body.sessionToken;await syncEngineSettings();await syncAnalyzerControl();$("access").hidden=true;$("api").className="pill live";$("api").textContent="SESSION READY";}
 function ensureAuth(){if(!authPromise)authPromise=authenticate().finally(()=>{authPromise=null;});return authPromise;}
 function saveEngineSettings(){try{localStorage.setItem("signalRadarEngineEnabled",JSON.stringify(engineEnabled));}catch{}}
+function saveAnalyzerControl(){try{localStorage.setItem("signalRadarAnalyzerControl",JSON.stringify(analyzerControl));}catch{}}
+function paintAnalyzerControl(serverValue=null){
+ if(serverValue&&!analyzerControlPending&&["ORIGINAL","CUSTOM"].includes(serverValue.mode)&&Number.isInteger(serverValue.minScore)){
+  analyzerControl={mode:serverValue.mode,minScore:serverValue.minScore};saveAnalyzerControl();
+ }
+ $("analyzerScoreRange").value=String(analyzerControl.minScore);
+ $("analyzerScoreValue").textContent=analyzerControl.mode==="ORIGINAL"?"ต้นฉบับ":analyzerControl.minScore+" คะแนน";
+ $("analyzerControlStatus").textContent=analyzerControl.mode==="ORIGINAL"?"คืนค่าเกณฑ์เดิมของแต่ละสูตรแล้ว":"กำลังใช้คะแนนร่วมกับตัววิเคราะห์ทั้ง 4 ตัว";
+}
+async function syncAnalyzerControl(){
+ const response=await fetch("/api/telegram/analyzer-control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sessionToken},cache:"no-store",body:JSON.stringify(analyzerControl)});
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok)throw new Error(body.error||"บันทึกคะแนนวิเคราะห์ไม่สำเร็จ");
+ if(body.analyzerControl)analyzerControl={mode:body.analyzerControl.mode,minScore:body.analyzerControl.minScore};
+ saveAnalyzerControl();paintAnalyzerControl();
+}
+async function updateAnalyzerControl(mode,minScore){
+ const previous={...analyzerControl};
+ analyzerControl={mode,minScore};analyzerControlPending=true;paintAnalyzerControl();saveAnalyzerControl();
+ try{
+  if(!sessionToken)await ensureAuth();
+  const response=await fetch("/api/telegram/analyzer-control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sessionToken},cache:"no-store",body:JSON.stringify(analyzerControl)});
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body.error||"เปลี่ยนระดับคะแนนไม่สำเร็จ");
+  if(body.analyzerControl)analyzerControl={mode:body.analyzerControl.mode,minScore:body.analyzerControl.minScore};
+  $("analyzerControlStatus").textContent=mode==="ORIGINAL"?"คืนค่าต้นฉบับทั้ง 4 ตัวเรียบร้อย":"ปรับเกณฑ์จริงของทั้ง 4 ตัวแล้ว";
+ }catch(error){
+  analyzerControl=previous;saveAnalyzerControl();$("analyzerControlStatus").textContent="บันทึกไม่สำเร็จ · "+(error.message||"ลองอีกครั้ง");
+ }finally{analyzerControlPending=false;paintAnalyzerControl();}
+}
+$("analyzerScoreRange").addEventListener("input",event=>{
+ analyzerControl={mode:"CUSTOM",minScore:Number(event.target.value)};paintAnalyzerControl();saveAnalyzerControl();
+});
+$("analyzerScoreRange").addEventListener("change",()=>updateAnalyzerControl("CUSTOM",Number($("analyzerScoreRange").value)));
+$("resetAnalyzerScore").addEventListener("click",()=>updateAnalyzerControl("ORIGINAL",25));
+paintAnalyzerControl();
 function saveEngineLightSettings(){try{localStorage.setItem("signalRadarEngineLightInverted",JSON.stringify(engineLightInverted));}catch{}}
 function paintEngineLightSettings(){
  for(const [key,id] of Object.entries(engineCardMap)){
@@ -150,6 +199,7 @@ function paintEngineCards(m,usable){
 }
 function paint(m){
  latest=m||{};
+ if(!analyzerControlPending)paintAnalyzerControl(m.analyzerControl||null);
  const api=m.apiStatus||"OFFLINE",support=m.supportStatus||"";
  paintApiPool(m.apiPool||{});
  const required=Number(m.requiredCandles||54);
