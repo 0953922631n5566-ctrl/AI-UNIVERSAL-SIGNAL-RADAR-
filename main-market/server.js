@@ -34,7 +34,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-19-engine4-ema5-13-quick-pullback-v4";
+const VERSION = "2026-11-19-engine4-ema5-13-touch-only-v5";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -1168,7 +1168,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_QUICK_PULLBACK_EMA5_EMA13_INTRABAR", minimumClosedCandles: 13, cadence: "EVALUATE_LIVE_M1_TICK_AND_DISPATCH_IMMEDIATELY_ON_VALID_PULLBACK", input: "TWELVE_DATA_CLOSED_M1_HISTORY_PLUS_LIVE_M1_OHLC", countWindow: "[0,23)", decisionRule: "CALL_EMA5_GT_EMA13_LOW_TOUCHES_EMA5_AND_LIVE_CLOSE_GT_OPEN; PUT_EMA5_LT_EMA13_HIGH_TOUCHES_EMA5_AND_LIVE_CLOSE_LT_OPEN", previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE", dispatchDeadlineSecondsExclusive: 23, historicalCandlesRequired: true, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_QUICK_PULLBACK_EMA5_EMA13_INTRABAR", minimumClosedCandles: 13, cadence: "EVALUATE_LIVE_M1_TICK_AND_DISPATCH_IMMEDIATELY_ON_VALID_PULLBACK", input: "TWELVE_DATA_CLOSED_M1_HISTORY_PLUS_LIVE_M1_OHLC", countWindow: "[0,23)", decisionRule: "CALL_EMA5_GT_EMA13_LOW_TOUCHES_EMA5_NO_CANDLE_CONFIRMATION; PUT_EMA5_LT_EMA13_HIGH_TOUCHES_EMA5_NO_CANDLE_CONFIRMATION", previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE", dispatchDeadlineSecondsExclusive: 23, historicalCandlesRequired: true, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_SINGLE_CANDLE_ANALYSIS"
     },
