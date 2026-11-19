@@ -59,8 +59,10 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const ema13 = ema13Series.at(-1);
   const uptrend = ema5 > ema13;
   const downtrend = ema5 < ema13;
-  const pullbackCall = uptrend && live.low <= ema5 && live.close > live.open;
-  const pullbackPut = downtrend && live.high >= ema5 && live.close < live.open;
+  // Touch-only entry: do not wait for a bullish/bearish candle-body confirmation.
+  // The live candle low/high records the intrabar pullback/retest of EMA 5.
+  const pullbackCall = uptrend && live.low <= ema5;
+  const pullbackPut = downtrend && live.high >= ema5;
   const direction = pullbackCall ? "CALL" : pullbackPut ? "PUT" : null;
   const currentPrice = Number.isFinite(options.currentPrice) ? options.currentPrice : live.close;
   const trendGapPct = ema13 !== 0 ? Math.abs((ema5 - ema13) / ema13) * 100 : 0;
@@ -95,9 +97,9 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     decisionStrength:score >= 65 ? "STRONG" : "MODERATE",
     metrics,
     evidenceSummary:direction === "CALL"
-      ? "EMA 5 อยู่เหนือ EMA 13 · ราคาย่อลงแตะ EMA 5 · แท่งปัจจุบันเริ่มปิดเขียว"
-      : "EMA 5 อยู่ใต้ EMA 13 · ราคาดีดขึ้นแตะ EMA 5 · แท่งปัจจุบันเริ่มปิดแดง",
+      ? "EMA 5 อยู่เหนือ EMA 13 · ราคาย่อลงแตะ EMA 5 · ส่งสัญญาณทันทีโดยไม่รอสีแท่ง"
+      : "EMA 5 อยู่ใต้ EMA 13 · ราคาดีดขึ้นแตะ EMA 5 · ส่งสัญญาณทันทีโดยไม่รอสีแท่ง",
     alertId:`ENGINE_4:${live.epoch}:${direction}:EMA5_13_PULLBACK`,
-    reason:`${direction} · ${direction === "CALL" ? "ขาขึ้น + ย่อลงแตะ EMA 5 + เริ่มดีดขึ้น" : "ขาลง + ดีดขึ้นแตะ EMA 5 + เริ่มกดลง"} · พบที่วินาที ${(elapsed / 1000).toFixed(1)} ของแท่ง M1`
+    reason:`${direction} · ${direction === "CALL" ? "ขาขึ้น + ราคาย่อลงแตะ EMA 5" : "ขาลง + ราคาดีดขึ้นแตะ EMA 5"} · พบที่วินาที ${(elapsed / 1000).toFixed(1)} ของแท่ง M1`
   };
 }
