@@ -34,7 +34,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-19-engine4-pure-price-action-pullback-v6";
+const VERSION = "2026-11-19-engine4-ema2-3-quick-pullback-v7";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -510,15 +510,15 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "PURE_PRICE_ACTION_CURRENT_M1_TICK_REVERSAL_IMMEDIATE",
-    engine4UsesOlderHistoricalCandles: false,
-    engine4UsesPreviousClosedCandleContext: false,
+   engine4DecisionMode: "EMA2_3_QUICK_PULLBACK_INTRABAR_IMMEDIATE",
+    engine4UsesOlderHistoricalCandles: true,
+    engine4UsesPreviousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE",
     engine4PreviousCandleContextWeightPct: 0,
-    engine4DirectionSource: "CURRENT_M1_FIRST_PRICE_MOVE_THEN_FIRST_OPPOSITE_TICK",
+    engine4DirectionSource: "EMA2_ABOVE_BELOW_EMA3_PLUS_CURRENT_M1_EMA2_PULLBACK",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 อ่านเฉพาะลำดับราคา Streaming ของแท่ง M1 ปัจจุบันตั้งแต่วินาทีแรก · หากราคาเริ่มขยับขึ้นแล้วเกิด Tick ลงครั้งแรกจะส่ง CALL ทันที · หากราคาเริ่มขยับลงแล้วเกิด Tick ขึ้นครั้งแรกจะส่ง PUT ทันที · ไม่ใช้ EMA, RSI, อินดิเคเตอร์ หรือแท่งก่อนหน้า · ตรวจจับภายในช่วง [0,23) วินาที · หนึ่งสัญญาณต่อแท่งและคงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ EMA 2 และ EMA 3 คำนวณจากแท่ง M1 ที่ปิดแล้วอย่างน้อย 3 แท่ง และใช้แท่ง M1 ปัจจุบันที่กำลังวิ่งตรวจจับ Pullback · CALL เมื่อ EMA 2 > EMA 3 ราคาต่ำสุดแตะ EMA 2 และราคาปัจจุบันสูงกว่าราคาเปิด · PUT เมื่อ EMA 2 < EMA 3 ราคาสูงสุดแตะ EMA 2 และราคาปัจจุบันต่ำกว่าราคาเปิด · ส่งสัญญาณทันทีเมื่อเงื่อนไขครบภายในช่วง [0,23) วินาที · หนึ่งสัญญาณต่อแท่งและคงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1190,7 +1190,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_PURE_PRICE_ACTION_INTRABAR_PULLBACK", minimumClosedCandles: 0, cadence: "EVALUATE_CURRENT_M1_TICK_SEQUENCE_AND_DISPATCH_ON_FIRST_OPPOSITE_TICK", input: "TWELVE_DATA_LIVE_M1_TICK_SEQUENCE_ONLY", countWindow: "[0,23)", decisionRule: "UP_MOVE_THEN_FIRST_DOWN_TICK_CALL; DOWN_MOVE_THEN_FIRST_UP_TICK_PUT", previousClosedCandleContext: "NOT_USED", dispatchDeadlineSecondsExclusive: 23, historicalCandlesRequired: false, indicatorsUsed: [], target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_QUICK_PULLBACK_EMA2_EMA3_INTRABAR", minimumClosedCandles: 3, cadence: "EVALUATE_LIVE_M1_PULLBACK_AND_DISPATCH_ON_FIRST_MATCH", input: "TWELVE_DATA_CLOSED_M1_HISTORY_PLUS_LIVE_FORMING_M1", countWindow: "[0,23)", decisionRule: "CALL_EMA2_GT_EMA3_LOW_TOUCHES_EMA2_AND_CLOSE_ABOVE_OPEN; PUT_EMA2_LT_EMA3_HIGH_TOUCHES_EMA2_AND_CLOSE_BELOW_OPEN", previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE", dispatchDeadlineSecondsExclusive: 23, historicalCandlesRequired: true, indicatorsUsed: ["EMA_2", "EMA_3"], target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_SINGLE_CANDLE_ANALYSIS"
     },

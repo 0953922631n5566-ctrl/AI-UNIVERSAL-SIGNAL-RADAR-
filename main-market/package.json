@@ -18,7 +18,7 @@
   },
   "radarArchitecture": {
     "name": "V1 + BB + Trend Rider AI + Independent Engine 4",
-    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Pure Price Action Engine 4",
+    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + EMA 2/3 Quick Pullback Engine 4",
     "engineCount": 4,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
