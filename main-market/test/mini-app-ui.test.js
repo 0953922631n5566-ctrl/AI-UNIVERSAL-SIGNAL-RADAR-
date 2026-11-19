@@ -157,7 +157,7 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: "M1_QUICK_PULLBACK_EMA5_EMA13_INTRABAR"/);
   assert.match(serverJs, /countWindow: "\[0,23\)"/);
-  assert.match(serverJs, /decisionRule: "CALL_EMA5_GT_EMA13_LOW_TOUCHES_EMA5_AND_LIVE_CLOSE_GT_OPEN; PUT_EMA5_LT_EMA13_HIGH_TOUCHES_EMA5_AND_LIVE_CLOSE_LT_OPEN"/);
+  assert.match(serverJs, /decisionRule: "CALL_EMA5_GT_EMA13_LOW_TOUCHES_EMA5_NO_CANDLE_CONFIRMATION; PUT_EMA5_LT_EMA13_HIGH_TOUCHES_EMA5_NO_CANDLE_CONFIRMATION"/);
   assert.match(serverJs, /previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE"/);
   assert.match(serverJs, /previousClosedCandle: closedCandles\.at\(-1\)/);
   assert.match(serverJs, /historicalCandlesRequired: true/);
