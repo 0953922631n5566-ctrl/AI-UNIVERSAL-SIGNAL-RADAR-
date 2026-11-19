@@ -511,7 +511,7 @@ let reason;
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
    engine4DecisionMode: "COLLECT_FIRST_23_SECONDS_THEN_DIRECTIONAL_EVIDENCE_DECISION_BEFORE_SECOND_30_EVERY_M1_CANDLE",
-    engine4UsesHistoricalCandles: false,
+    engine4UsesOlderHistoricalCandles: false,
     engine4UsesPreviousClosedCandleContext: true,
     engine4PreviousCandleContextWeightPct: 10,
     engine4DirectionSource: "CURRENT_M1_FIRST_23_SECONDS_ONLY",
