@@ -4,75 +4,60 @@ import { analyzeEarlyEntryEngine4, ENGINE4_ENTRY_WINDOW_MS } from "../src/engine
 import { isEngine4EntryWindow, canDispatchEngine4Signal } from "../src/signal-timing.js";
 
 const epoch = 1_800_000_060;
-function candle(offset, open, close, high, low) {
-  return { epoch: epoch + offset * 60, open, close, high, low, live: false };
+const live = { epoch, open:1.1, high:1.1002, low:1.0998, close:1.1, live:false, provisional:true };
+function stats(overrides = {}) {
+  return { candleEpoch:epoch, firstPrice:1.1, previousPrice:1.1002,
+    initialDirection:"UP", extremePrice:1.1002, reversalSignal:null, reversalPrice:null,
+    upTicks:1, downTicks:0, totalTicks:2, ...overrides };
 }
-function fixture({ direction = "up", elapsed = 5, confirm = true } = {}) {
-  const history = Array.from({length:20}, (_, i) => {
-    const close = direction === "up" ? 1.1000 + i * 0.0001 : 1.1020 - i * 0.0001;
-    return candle(i - 20, close - (direction === "up" ? 0.00005 : -0.00005), close,
-      close + 0.0001, close - 0.0001);
+function analyze(tickStats = stats(), elapsed = 5) {
+  return analyzeEarlyEntryEngine4([live], {
+    livePreview:true, now:epoch*1000+elapsed*1000,
+    tickStats, currentPrice:tickStats.previousPrice
   });
-  const fast = direction === "up" ? 1.1016 : 1.1004;
-  const bullish = direction === "up" ? confirm : !confirm;
-  const live = { epoch,
-    open: bullish ? fast - 0.00005 : fast + 0.00005,
-    close: bullish ? fast + 0.00005 : fast - 0.00005,
-    high: fast + 0.0002, low: fast - 0.0002,
-    live: false, provisional: true };
-  if (direction === "down") {
-    live.high = fast + 0.0002;
-    live.low = fast - 0.0002;
-  }
-  return { history, live, now: epoch * 1000 + elapsed * 1000 };
 }
-test("Engine 4 emits CALL immediately on an uptrend EMA5 pullback and bullish turn", () => {
-  const f = fixture();
-  const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now, currentPrice:f.live.close });
-  assert.equal(out.signal, "CALL");
-  assert.equal(out.status, "EMA5_13_PULLBACK_CALL");
-  assert.equal(out.metrics.uptrend, true);
-  assert.ok(out.elapsedSeconds < 23);
+test("Engine 4 emits CALL on the first downward tick after an upward price move", () => {
+  const out=analyze(stats({reversalSignal:"CALL",reversalPrice:1.1001,previousPrice:1.1001}));
+  assert.equal(out.signal,"CALL");
+  assert.equal(out.status,"PRICE_ACTION_PULLBACK_CALL");
+  assert.equal(out.metrics.priceOnly,true);
+  assert.deepEqual(out.metrics.indicatorsUsed,[]);
+  assert.equal(out.metrics.previousCandleUsed,false);
 });
-test("Engine 4 emits PUT immediately on a downtrend EMA5 pullback and bearish turn", () => {
-  const f = fixture({direction:"down"});
-  const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now });
-  assert.equal(out.signal, "PUT");
-  assert.equal(out.status, "EMA5_13_PULLBACK_PUT");
+test("Engine 4 emits PUT on the first upward tick after a downward price move", () => {
+  const out=analyze(stats({initialDirection:"DOWN",extremePrice:1.0998,reversalSignal:"PUT",
+    reversalPrice:1.0999,previousPrice:1.0999,upTicks:1,downTicks:1}));
+  assert.equal(out.signal,"PUT");
+  assert.equal(out.status,"PRICE_ACTION_PULLBACK_PUT");
 });
-test("Engine 4 signals on EMA5 touch even when candle body has not confirmed the trend", () => {
-  const f = fixture({confirm:false});
-  const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now });
-  assert.equal(out.signal, "CALL");
-  assert.equal(out.status, "EMA5_13_PULLBACK_CALL");
-  assert.equal(out.metrics.pullbackCall, true);
+test("Engine 4 waits while price has not reversed", () => {
+  const out=analyze(stats());
+  assert.equal(out.signal,null);
+  assert.equal(out.status,"WAITING_FOR_PRICE_REVERSAL");
+});
+test("Engine 4 waits for first live ticks and does not require closed candle history", () => {
+  const out=analyze({candleEpoch:epoch,firstPrice:null,previousPrice:null});
+  assert.equal(out.ready,true);
+  assert.equal(out.status,"WAITING_FOR_PRICE_TICKS");
 });
 test("Engine 4 does not signal after the first 23 seconds", () => {
-  const f = fixture({elapsed:23});
-  const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now });
-  assert.equal(out.signal, null);
-  assert.equal(out.status, "PULLBACK_WINDOW_CLOSED");
-});
-test("Engine 4 requires at least 13 closed candles for EMA13", () => {
-  const f = fixture();
-  const out = analyzeEarlyEntryEngine4([f.live], { livePreview:true, now:f.now });
-  assert.equal(out.ready, false);
-  assert.equal(out.status, "INSUFFICIENT_EMA_HISTORY");
+  const out=analyze(stats({reversalSignal:"CALL"}),23);
+  assert.equal(out.signal,null);
+  assert.equal(out.status,"PULLBACK_WINDOW_CLOSED");
 });
 test("Engine 4 requires a fresh forming candle preview", () => {
-  const f = fixture();
-  const out = analyzeEarlyEntryEngine4([...f.history, {...f.live, provisional:false}], { livePreview:false, now:f.now });
-  assert.equal(out.ready, false);
-  assert.equal(out.status, "NOT_READY");
+  const out=analyzeEarlyEntryEngine4([{...live,provisional:false}],{livePreview:false,now:epoch*1000+5000});
+  assert.equal(out.ready,false);
+  assert.equal(out.status,"NOT_READY");
 });
 test("Engine 4 timing opens immediately and closes at 23 seconds", () => {
-  assert.equal(ENGINE4_ENTRY_WINDOW_MS, 23_000);
-  assert.equal(isEngine4EntryWindow(epoch, epoch * 1000), true);
-  assert.equal(isEngine4EntryWindow(epoch, epoch * 1000 + 22_999), true);
-  assert.equal(isEngine4EntryWindow(epoch, epoch * 1000 + 23_000), false);
+  assert.equal(ENGINE4_ENTRY_WINDOW_MS,23_000);
+  assert.equal(isEngine4EntryWindow(epoch,epoch*1000),true);
+  assert.equal(isEngine4EntryWindow(epoch,epoch*1000+22_999),true);
+  assert.equal(isEngine4EntryWindow(epoch,epoch*1000+23_000),false);
 });
 test("Engine 4 dispatch requires fresh streaming tick and one dispatch per candle", () => {
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000}), true);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000,lastDispatchedCandle:epoch}), false);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000-6000,now:epoch*1000+1000}), false);
+  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000}),true);
+  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000,lastDispatchedCandle:epoch}),false);
+  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000-6000,now:epoch*1000+1000}),false);
 });
