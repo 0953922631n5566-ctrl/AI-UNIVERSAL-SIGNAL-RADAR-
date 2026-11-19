@@ -36,7 +36,7 @@ test("Engine 4 emits PUT on EMA2<EMA3 pullback to EMA2 with live price below ope
   assert.ok(out.metrics.ema2 < out.metrics.ema3);
 });
 test("Engine 4 waits when EMA pullback conditions are not met", () => {
-  const noTouch={...liveCall,low:1.1021,high:1.1022};
+  const noTouch={...liveCall,close:1.1017,low:1.1016};
   const out=analyze(noTouch);
   assert.equal(out.signal,null);
   assert.equal(out.status,"WAITING_FOR_PULLBACK");
