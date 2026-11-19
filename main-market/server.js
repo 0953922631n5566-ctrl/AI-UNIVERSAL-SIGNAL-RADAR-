@@ -512,7 +512,7 @@ let reason;
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 จับการย่อตัวในขาขึ้นเพื่อ CALL และการดีดตัวในขาลงแล้วถูกขายกลับเพื่อ PUT เฉพาะ 25 วินาทีแรกของแท่ง M1 ปัจจุบัน · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบแจ้งเตือนเดิม · ยังไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 นับ Tick ราคาขึ้น/ลงเทียบกับ Tick ก่อนหน้าใน 25 วินาทีแรกของแท่ง M1 · ขึ้นมากกว่าเป็น CALL ลงมากกว่าเป็น PUT เท่ากันให้รอ · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบแจ้งเตือนเดิม · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
@@ -1164,7 +1164,7 @@ app.get("/health", (_req, res) => {
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine4: { independent: true, copiedFrom: null, strategy: "M1_TICK_DIRECTION_MAJORITY", minimumClosedCandles: 1, cadence: "COUNT_UP_DOWN_TICKS_FIRST_25_SECONDS_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK", equalPriceTicks: "IGNORED", decisionRule: "UP_TICKS_GT_DOWN_TICKS_CALL; DOWN_TICKS_GT_UP_TICKS_PUT; EQUAL_WAIT", entryWindowSeconds: [0, 25], target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_ADAPTIVE_TWO_CANDLE_CURRENT_M1_ENTRY"
+      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_M1_TICK_DIRECTION_MAJORITY"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
