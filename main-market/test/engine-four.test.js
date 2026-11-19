@@ -4,49 +4,55 @@ import { analyzeEarlyEntryEngine4, ENGINE4_ENTRY_WINDOW_MS } from "../src/engine
 import { isEngine4EntryWindow, canDispatchEngine4Signal } from "../src/signal-timing.js";
 
 const epoch = 1_800_000_060;
-const live = { epoch, open:1.1, high:1.1002, low:1.0998, close:1.1, live:false, provisional:true };
-function stats(overrides = {}) {
-  return { candleEpoch:epoch, firstPrice:1.1, previousPrice:1.1002,
-    initialDirection:"UP", extremePrice:1.1002, reversalSignal:null, reversalPrice:null,
-    upTicks:1, downTicks:0, totalTicks:2, ...overrides };
-}
-function analyze(tickStats = stats(), elapsed = 5) {
-  return analyzeEarlyEntryEngine4([live], {
-    livePreview:true, now:epoch*1000+elapsed*1000,
-    tickStats, currentPrice:tickStats.previousPrice
+const history = Array.from({length:20}, (_, i) => {
+  const close = 1.1000 + i * 0.0001;
+  return { epoch:epoch - (20-i)*60, open:close-0.00005, close,
+    high:close+0.0001, low:close-0.0001, live:false, provisional:false };
+});
+const liveCall = { epoch, open:1.1018, close:1.1019, high:1.1020, low:1.1017, live:false, provisional:true };
+const livePut = { epoch, open:1.1019, close:1.1018, high:1.1020, low:1.1017, live:false, provisional:true };
+function analyze(live = liveCall, elapsed = 5, candles = history) {
+  return analyzeEarlyEntryEngine4([...candles, live], {
+    livePreview:true, now:epoch*1000+elapsed*1000, currentPrice:live.close
   });
 }
-test("Engine 4 emits CALL on the first downward tick after an upward price move", () => {
-  const out=analyze(stats({reversalSignal:"CALL",reversalPrice:1.1001,previousPrice:1.1001}));
+test("Engine 4 emits CALL on EMA2>EMA3 pullback to EMA2 with live price above open", () => {
+  const out=analyze(liveCall);
   assert.equal(out.signal,"CALL");
-  assert.equal(out.status,"PRICE_ACTION_PULLBACK_CALL");
-  assert.equal(out.metrics.priceOnly,true);
-  assert.deepEqual(out.metrics.indicatorsUsed,[]);
-  assert.equal(out.metrics.previousCandleUsed,false);
+  assert.equal(out.status,"EMA2_3_PULLBACK_CALL");
+  assert.ok(out.metrics.ema2 > out.metrics.ema3);
+  assert.equal(out.metrics.emaFastPeriod,2);
+  assert.equal(out.metrics.emaSlowPeriod,3);
 });
-test("Engine 4 emits PUT on the first upward tick after a downward price move", () => {
-  const out=analyze(stats({initialDirection:"DOWN",extremePrice:1.0998,reversalSignal:"PUT",
-    reversalPrice:1.0999,previousPrice:1.0999,upTicks:1,downTicks:1}));
+test("Engine 4 emits PUT on EMA2<EMA3 pullback to EMA2 with live price below open", () => {
+  const falling = Array.from({length:20}, (_, i) => {
+    const close = 1.1020 - i * 0.0001;
+    return { epoch:epoch - (20-i)*60, open:close+0.00005, close,
+      high:close+0.0001, low:close-0.0001, live:false, provisional:false };
+  });
+  const out=analyze(livePut,5,falling);
   assert.equal(out.signal,"PUT");
-  assert.equal(out.status,"PRICE_ACTION_PULLBACK_PUT");
+  assert.equal(out.status,"EMA2_3_PULLBACK_PUT");
+  assert.ok(out.metrics.ema2 < out.metrics.ema3);
 });
-test("Engine 4 waits while price has not reversed", () => {
-  const out=analyze(stats());
+test("Engine 4 waits when EMA pullback conditions are not met", () => {
+  const noTouch={...liveCall,low:1.1021,high:1.1022};
+  const out=analyze(noTouch);
   assert.equal(out.signal,null);
-  assert.equal(out.status,"WAITING_FOR_PRICE_REVERSAL");
+  assert.equal(out.status,"WAITING_FOR_PULLBACK");
 });
-test("Engine 4 waits for first live ticks and does not require closed candle history", () => {
-  const out=analyze({candleEpoch:epoch,firstPrice:null,previousPrice:null});
-  assert.equal(out.ready,true);
-  assert.equal(out.status,"WAITING_FOR_PRICE_TICKS");
+test("Engine 4 requires at least three valid closed candles for EMA history", () => {
+  const out=analyze(liveCall,5,history.slice(0,2));
+  assert.equal(out.ready,false);
+  assert.equal(out.status,"INSUFFICIENT_EMA_HISTORY");
 });
 test("Engine 4 does not signal after the first 23 seconds", () => {
-  const out=analyze(stats({reversalSignal:"CALL"}),23);
+  const out=analyze(liveCall,23);
   assert.equal(out.signal,null);
   assert.equal(out.status,"PULLBACK_WINDOW_CLOSED");
 });
 test("Engine 4 requires a fresh forming candle preview", () => {
-  const out=analyzeEarlyEntryEngine4([{...live,provisional:false}],{livePreview:false,now:epoch*1000+5000});
+  const out=analyzeEarlyEntryEngine4([...history,{...liveCall,provisional:false}],{livePreview:false,now:epoch*1000+5000});
   assert.equal(out.ready,false);
   assert.equal(out.status,"NOT_READY");
 });
