@@ -44,12 +44,13 @@ test("signal expires exactly 30 seconds after the target candle opens", () => {
   assert.equal(signalHoldExpiresAt(candle + 60), openAt + 90_000);
 });
 
-test("Engine 4 entry is limited to the first 25 seconds and requires fresh data", () => {
-  const now = openAt + 12_000;
+test("Engine 4 dispatches only at or after second 25 and before candle close", () => {
+  const before = openAt + 24_999;
+  const now = openAt + 25_000;
+  assert.equal(isEngine4EntryWindow(candle, before), false);
   assert.equal(isEngine4EntryWindow(candle, now), true);
-  assert.equal(isEngine4EntryWindow(candle, openAt + 24_999), true);
-  assert.equal(isEngine4EntryWindow(candle, openAt + 25_000), false);
-  assert.equal(isEngine4EntryWindow(candle, openAt + 30_000), false);
+  assert.equal(isEngine4EntryWindow(candle, openAt + 59_999), true);
+  assert.equal(isEngine4EntryWindow(candle, openAt + 60_000), false);
   assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 1_000, now }), true);
   assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 6_000, now }), false);
   assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: now - 1_000, now, lastDispatchedCandle: candle }), false);
