@@ -34,7 +34,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-19-engine4-first23s-evidence-only-v2";
+const VERSION = "2026-11-19-engine4-first23s-plus-previous-m1-context-v3";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -297,7 +297,7 @@ async function evaluate(feed) {
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
-     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, symbol: feed.symbol, currentPrice: feed.lastTick })
+     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, symbol: feed.symbol, currentPrice: feed.lastTick, previousClosedCandle: closedCandles.at(-1) })
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Engine 4 ต้องมีแท่ง M1 ปัจจุบันที่กำลังวิ่งและ Streaming สด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
@@ -511,11 +511,14 @@ let reason;
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
    engine4DecisionMode: "COLLECT_FIRST_23_SECONDS_THEN_DIRECTIONAL_EVIDENCE_DECISION_BEFORE_SECOND_30_EVERY_M1_CANDLE",
-    engine4UsesHistoricalCandles: false,
+    engine4UsesOlderHistoricalCandles: false,
+    engine4UsesPreviousClosedCandleContext: true,
+    engine4PreviousCandleContextWeightPct: 10,
+    engine4DirectionSource: "CURRENT_M1_FIRST_23_SECONDS_ONLY",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 เก็บราคา OHLC และ Tick จาก Streaming ใน 23 วินาทีแรกหลังเปิดแท่ง M1 แล้วตัดสินใจจากราคาเคลื่อน 40%, Tick imbalance 35%, body 15%, close location 10% เมื่อครบวินาทีที่ 23 · ต้องส่งสัญญาณก่อนวินาทีที่ 30 · หากหลักฐานไม่ชี้ทิศทางอย่างมีนัย จะไม่สุ่มสร้าง CALL/PUT และอาจเป็น STANDBY · ไม่ใช้แท่งก่อนหน้าหรือเลขนาทีเป็นตัวสุ่มทิศทาง · ใช้ราคาล่าสุดเป็นราคาเข้า · หนึ่งสัญญาณต่อแท่ง · เสียง/สั่นใช้ระบบเดิม · คะแนนเป็นความแรงของหลักฐาน ไม่ใช่ความน่าจะเป็นที่ผ่านการสอบเทียบ · ยังไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 เก็บราคา OHLC และ Tick จาก Streaming ใน 23 วินาทีแรกหลังเปิดแท่ง M1 แล้วตัดสินทิศทางจากแท่งปัจจุบันเท่านั้นด้วยราคาเคลื่อน 40%, Tick imbalance 35%, body 15%, close location 10% เมื่อครบวินาทีที่ 23; ใช้แท่ง M1 ที่เพิ่งปิดและต่อเนื่องกันเป็นบริบทประกอบคะแนนความแรง 10% โดยไม่มีสิทธิ์เปลี่ยนทิศทางหรือสร้างสัญญาณเมื่อแท่งปัจจุบันไม่มี edge · ต้องส่งสัญญาณก่อนวินาทีที่ 30 · หากหลักฐานไม่ชี้ทิศทางอย่างมีนัย จะไม่สุ่มสร้าง CALL/PUT และอาจเป็น STANDBY · ไม่ใช้แท่งก่อนหน้าหรือเลขนาทีเป็นตัวสุ่มทิศทาง · ใช้ราคาล่าสุดเป็นราคาเข้า · หนึ่งสัญญาณต่อแท่ง · เสียง/สั่นใช้ระบบเดิม · คะแนนเป็นความแรงของหลักฐาน ไม่ใช่ความน่าจะเป็นที่ผ่านการสอบเทียบ · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
@@ -1165,7 +1168,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "FIRST_23S_WEIGHTED_INTRABAR_DIRECTION_NO_SYNTHETIC_FALLBACK", minimumClosedCandles: 0, cadence: "COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S_IF_DIRECTIONAL_EVIDENCE_EXISTS", input: "TWELVE_DATA_LIVE_M1_OHLC_AND_DIRECTIONAL_TICKS", countRule: "COUNT_STREAMING_PRICE_CHANGES_DURING_FIRST_23_SECONDS_AFTER_CANDLE_OPEN", decisionRule: "WEIGHT_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_NO_SYNTHETIC_TIE_BREAK", countWindow: "[0,23)", decisionAtSeconds: 23, dispatchDeadlineSecondsExclusive: 30, historicalCandlesRequired: false, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "FIRST_23S_WEIGHTED_INTRABAR_DIRECTION_NO_SYNTHETIC_FALLBACK", minimumClosedCandles: 0, cadence: "COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S_IF_DIRECTIONAL_EVIDENCE_EXISTS", input: "TWELVE_DATA_LIVE_M1_OHLC_AND_DIRECTIONAL_TICKS", countRule: "COUNT_STREAMING_PRICE_CHANGES_DURING_FIRST_23_SECONDS_AFTER_CANDLE_OPEN", decisionRule: "CURRENT_CANDLE_ONLY_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_NO_SYNTHETIC_TIE_BREAK", previousClosedCandleContext: "ADJACENT_CLOSED_M1_CONTEXT_ONLY_SCORE_ADJUSTMENT_10_DIRECTION_CANNOT_OVERRIDE", countWindow: "[0,23)", decisionAtSeconds: 23, dispatchDeadlineSecondsExclusive: 30, historicalCandlesRequired: false, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_SINGLE_CANDLE_ANALYSIS"
     },

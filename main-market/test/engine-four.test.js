@@ -71,3 +71,45 @@ test("collection and dispatch windows are fixed to 23 seconds and the 30-second 
   assert.equal(ENGINE4_COLLECTION_WINDOW_MS,23_000);
   assert.equal(ENGINE4_DISPATCH_DEADLINE_MS,30_000);
 });
+
+
+test("the immediately previous closed M1 candle supports but never determines the live direction",()=>{
+  const live=candle(1_800_000_060,1.1,1.1005,true);
+  const previousBull=candle(live.epoch-60,1.0995,1.1000,false);
+  const previousBear=candle(live.epoch-60,1.1000,1.0995,false);
+  const base=analyzeEarlyEntryEngine4([live],{livePreview:true,now:live.epoch*1000+23_000,
+    symbol:"EUR/USD",tickStats:{candleEpoch:live.epoch,upTicks:8,downTicks:1,totalTicks:10}});
+  const supported=analyzeEarlyEntryEngine4([live],{livePreview:true,now:live.epoch*1000+23_000,
+    symbol:"EUR/USD",tickStats:{candleEpoch:live.epoch,upTicks:8,downTicks:1,totalTicks:10},
+    previousClosedCandle:previousBull});
+  const opposed=analyzeEarlyEntryEngine4([live],{livePreview:true,now:live.epoch*1000+23_000,
+    symbol:"EUR/USD",tickStats:{candleEpoch:live.epoch,upTicks:8,downTicks:1,totalTicks:10},
+    previousClosedCandle:previousBear});
+  assert.equal(base.signal,"CALL");
+  assert.equal(supported.signal,"CALL");
+  assert.equal(opposed.signal,"CALL");
+  assert.ok(supported.score>base.score);
+  assert.ok(opposed.score<base.score);
+  assert.equal(supported.metrics.previousCandleEpoch,previousBull.epoch);
+  assert.equal(opposed.metrics.previousCandleContextLabel,"แท่งก่อนหน้าขัดแย้งกับทิศทาง");
+});
+
+test("a previous closed candle cannot create a signal when the current M1 has no directional edge",()=>{
+  const live=candle(1_800_000_060,1.1,1.1,true,1.1,1.1);
+  const previous=candle(live.epoch-60,1.0990,1.1010,false,1.1010,1.0990);
+  const out=analyzeEarlyEntryEngine4([live],{livePreview:true,now:live.epoch*1000+23_000,
+    symbol:"EUR/USD",tickStats:{candleEpoch:live.epoch,upTicks:3,downTicks:3,totalTicks:7},
+    previousClosedCandle:previous});
+  assert.equal(out.signal,null);
+  assert.equal(out.status,"NO_DIRECTIONAL_EDGE");
+});
+
+test("Engine 4 ignores a stale, non-adjacent or still-forming previous candle",()=>{
+  const live=candle(1_800_000_060,1.1,1.1005,true);
+  const stale=candle(live.epoch-120,1.0995,1.1000,false);
+  const out=analyzeEarlyEntryEngine4([live],{livePreview:true,now:live.epoch*1000+23_000,
+    symbol:"EUR/USD",tickStats:{candleEpoch:live.epoch,upTicks:8,downTicks:1,totalTicks:10},
+    previousClosedCandle:stale});
+  assert.equal(out.metrics.previousCandleEpoch,null);
+  assert.equal(out.score,Math.round(Math.abs(out.metrics.compositeScore)*100));
+});

@@ -2085,3 +2085,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No broker order is executed; Mini App displays manual-entry signals only.
 - V1, BB, Trend Rider, sound/vibration, and existing UI behavior were not intentionally changed.
 - Remaining validation: observe multiple consecutive M1 candles and record entry-to-close outcomes before drawing conclusions about accuracy or reliability.
+
+
+## 2026-11-19 — Engine 4 previous closed M1 context addition
+
+- User approved adding the immediately preceding closed EUR/USD M1 candle as supporting context for Engine 4.
+- Implementation scope: production `main-market` branch only; no edits to V1, BB, Trend Rider, Mini App UI, alerts, sound/vibration, signal hold, Twelve Data cadence, other projects, or broker execution.
+- Engine 4 continues to derive CALL/PUT direction exclusively from the current forming M1 candle's first-23-second evidence (price displacement 40%, tick imbalance 35%, body 15%, close location 10%).
+- The immediately previous fully closed and adjacent M1 candle is used only to adjust heuristic evidence strength by up to ±10 points: alignment adds support; conflict reduces strength. It cannot change the direction or create a CALL/PUT when the current candle has no directional edge.
+- Stale, malformed, non-adjacent or still-forming prior candles are ignored. No older candle history is used for this contextual feature.
+- Implementation branch: `feature/engine4-previous-closed-m1-context-20261119`. Validation and Render deployment status must be appended only after verified.
