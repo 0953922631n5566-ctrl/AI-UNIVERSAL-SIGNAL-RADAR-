@@ -156,8 +156,8 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: "LIVE_FIRST_23_SECONDS_M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY"/);
-  assert.match(serverJs, /countRule: "COUNT_UP_AND_DOWN_PRICE_CHANGES_FOR_FULL_CURRENT_M1_CANDLE"/);
-  assert.match(serverJs, /decisionRule: "CONTINUOUSLY_REQUIRE_CURRENT_PRICE_DIRECTION_AND_TICK_MAJORITY_TO_AGREE"/);
+  assert.match(serverJs, /countRule: "COUNT_UP_AND_DOWN_PRICE_CHANGES_ONLY_DURING_FIRST_23_SECONDS_OF_CURRENT_M1_CANDLE"/);
+  assert.match(serverJs, /decisionRule: "EMIT_IMMEDIATELY_WHEN_CURRENT_PRICE_DIRECTION_AND_TICK_MAJORITY_AGREE_WITHIN_FIRST_23_SECONDS"/);
   assert.match(serverJs, /historicalCandlesRequired: false/);
   assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 \}/);
   assert.match(serverJs, /Math\.floor\(Date\.now\(\) \/ 1000\) - minute/);
