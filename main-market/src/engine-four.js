@@ -12,7 +12,7 @@ const signDirection = value => value > 0 ? "CALL" : value < 0 ? "PUT" : null;
 
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const strategy = "ENGINE_4_COLLECT_0_23S_FORCE_DIRECTION_BEFORE_30S";
+  const strategy = "ENGINE_4_FIRST_23S_WEIGHTED_DIRECTION_NO_SYNTHETIC_FALLBACK";
   const invalid = !options.livePreview || !live ||
     live.live !== true && live.provisional !== true ||
     !Number.isFinite(live.epoch) || live.epoch < 0 ||
@@ -65,22 +65,30 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   // Weight the complete candle-to-now displacement and tick pressure most heavily.
   const composite = (0.40 * displacement) + (0.35 * tickImbalance) +
     (0.15 * bodyStrength) + (0.10 * closeLocation);
-  const fallbackDirection = ["CALL", "PUT"].includes(options.fallbackDirection)
-    ? options.fallbackDirection : null;
   const direction = composite > 0 ? "CALL" : composite < 0 ? "PUT" :
-    signDirection(priceDelta) || (upTicks !== downTicks ? (upTicks > downTicks ? "CALL" : "PUT") : fallbackDirection) ||
-    (Math.floor(live.epoch / 60) % 2 === 0 ? "CALL" : "PUT");
+    signDirection(priceDelta) || (upTicks !== downTicks ? (upTicks > downTicks ? "CALL" : "PUT") : null);
+  if (!direction) return {
+    ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
+    candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
+    entryPrice:currentPrice, openPrice:live.open,
+    status:"NO_DIRECTIONAL_EDGE", decisionStrength:"NONE",
+    metrics:{ upTicks, downTicks, directionalTicks, totalTicks, netTicks:upTicks-downTicks,
+      compositeScore:+composite.toFixed(4), openPrice:live.open, currentPrice, priceDelta,
+      priceMovePips:+priceMovePips.toFixed(2), rangeHigh:live.high, rangeLow:live.low, pipSize },
+    evidenceSummary:`เก็บข้อมูล 23 วินาทีแล้ว แต่ราคาและ Tick ยังไม่มีทิศทางที่แยกได้`,
+    reason:"หลักฐานในแท่งปัจจุบันไม่ชี้ขึ้นหรือลงอย่างมีทิศทาง · ไม่สุ่มสร้าง CALL/PUT"
+  };
 
   const directionalConfidence = Math.round(Math.abs(composite) * 100);
   const tickShare = directionalTicks ? Math.max(upTicks, downTicks) / directionalTicks : 0;
-  const evidenceSummary = `เก็บข้อมูล 0–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks}`;
+  const evidenceSummary = `เก็บข้อมูล 1–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks}`;
   const weakEvidence = directionalTicks === 0 || Math.abs(composite) < 0.15;
   return {
     ready:true, signal:direction, candidateSignal:direction, score:directionalConfidence,
     confidence:directionalConfidence, candleEpoch:live.epoch,
     elapsedSeconds:Math.floor(elapsed/1000), strategy,
     entryPrice:currentPrice, openPrice:live.open, evidenceSummary,
-    status:direction === "CALL" ? "M1_23S_FORCED_CALL" : "M1_23S_FORCED_PUT",
+    status:direction === "CALL" ? "M1_23S_CALL" : "M1_23S_PUT",
     decisionStrength:weakEvidence ? "LOW" : directionalConfidence >= 55 ? "STRONG" : "MODERATE",
     metrics:{
       upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
@@ -92,7 +100,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
       rangeHigh:live.high,rangeLow:live.low,rangePosition:range ? +((live.close-live.low)/range).toFixed(4) : null,
       pipSize
     },
-    alertId:`ENGINE_4:${live.epoch}:${direction}:COLLECT_23_SECONDS`,
-    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานอ่อน ใช้ทิศทางที่มีน้ำหนักมากกว่าเป็นตัวตัดสินบังคับ" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
+    alertId:`ENGINE_4:${live.epoch}:${direction}:FIRST_23_SECONDS`,
+    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานมีน้ำหนักต่ำ แต่ทิศทางที่ตรวจพบยังเอนเอียง" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
   };
 }
