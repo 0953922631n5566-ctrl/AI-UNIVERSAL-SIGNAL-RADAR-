@@ -40,11 +40,12 @@ test("Engine 4 emits PUT immediately on a downtrend EMA5 pullback and bearish tu
   assert.equal(out.signal, "PUT");
   assert.equal(out.status, "EMA5_13_PULLBACK_PUT");
 });
-test("Engine 4 waits when candle confirmation opposes the EMA trend", () => {
+test("Engine 4 signals on EMA5 touch even when candle body has not confirmed the trend", () => {
   const f = fixture({confirm:false});
   const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now });
-  assert.equal(out.signal, null);
-  assert.equal(out.status, "WAITING_FOR_PULLBACK");
+  assert.equal(out.signal, "CALL");
+  assert.equal(out.status, "EMA5_13_PULLBACK_CALL");
+  assert.equal(out.metrics.pullbackCall, true);
 });
 test("Engine 4 does not signal after the first 23 seconds", () => {
   const f = fixture({elapsed:23});
