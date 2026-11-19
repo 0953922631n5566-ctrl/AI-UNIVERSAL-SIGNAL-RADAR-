@@ -2071,3 +2071,17 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Latest successful CI before this documentation checkpoint: commit `07e5600d874dca7d6f04a4a7b90da44407461d59`; Main Market Node Tests passed 174 tests (170 passed, 0 failed, 4 skipped); Main Market Checks passed; Telegram Mini App Checks and syntax checks passed.
 - PR remains open and unmerged. Production `main-market` still points to base commit `1a6e5733eda88d1467534078880d4f79c7e9b0d0`; no Render deployment has been triggered.
 - Next: rerun checks against the final PR head, then request/confirm production merge and deploy. After deployment, verify `/health` reports a two-second live analysis interval, `/api/public/signal` reports `LIVE_M1_PREVIEW` when fresh ticks arrive, and perform Telegram Android T-10/T-5/sound/vibration tests.
+
+
+## 2026-11-19 — Engine 4 first-23-second evidence-only live verification
+
+- PR #181 merged to `main-market`; production commit: `dff5f134e3622aaeef7218c865a9871b4ba90e51`.
+- PR #182 merged to `main-market` to align the architecture test assertions; current deployed commit: `0cefa7f694d0ea1a80ec9f331e23590c40577678`.
+- Render service `ai-signal-radar-main-market` deployment `dep-dbvas3ui0phs73cg6n5g` reached `live`.
+- Render build ran the complete Node test suite: 196 tests, 192 passed, 0 failed (4 skipped); build successful.
+- Live `/health` returned version `2026-11-19-engine4-first23s-evidence-only-v2`; Engine 4 metadata confirms a first-23-second collection window `[0,23)`, decision at 23s, and dispatch cutoff before 30s.
+- Live `/api/public/signal` returned a current Engine 4 PUT sample. Render logs recorded Engine 4 candidate finalization at `2026-11-19T08:07:23.204Z` and Mini App polling availability at `08:07:23.205Z`, about 23.2 seconds after the candle opened. This verifies one live example, not every candle or predictive accuracy.
+- The sampled signal had low heuristic evidence strength (score 10); do not interpret score as a win probability.
+- No broker order is executed; Mini App displays manual-entry signals only.
+- V1, BB, Trend Rider, sound/vibration, and existing UI behavior were not intentionally changed.
+- Remaining validation: observe multiple consecutive M1 candles and record entry-to-close outcomes before drawing conclusions about accuracy or reliability.
