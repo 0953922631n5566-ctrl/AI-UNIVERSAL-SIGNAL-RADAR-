@@ -10,7 +10,7 @@ const history = Array.from({length:20}, (_, i) => {
     high:close+0.0001, low:close-0.0001, live:false, provisional:false };
 });
 const liveCall = { epoch, open:1.1018, close:1.1019, high:1.1020, low:1.1017, live:false, provisional:true };
-const livePut = { epoch, open:1.1019, close:1.1018, high:1.1020, low:1.1017, live:false, provisional:true };
+const livePut = { epoch, open:1.1001, close:1.1000, high:1.1002, low:1.0999, live:false, provisional:true };
 function analyze(live = liveCall, elapsed = 5, candles = history) {
   return analyzeEarlyEntryEngine4([...candles, live], {
     livePreview:true, now:epoch*1000+elapsed*1000, currentPrice:live.close
@@ -36,7 +36,7 @@ test("Engine 4 emits PUT on EMA2<EMA3 pullback to EMA2 with live price below ope
   assert.ok(out.metrics.ema2 < out.metrics.ema3);
 });
 test("Engine 4 waits when EMA pullback conditions are not met", () => {
-  const noTouch={...liveCall,close:1.1017,low:1.1016};
+  const noTouch={...liveCall,open:1.1017,close:1.1016,high:1.10175,low:1.1015};
   const out=analyze(noTouch);
   assert.equal(out.signal,null);
   assert.equal(out.status,"WAITING_FOR_PULLBACK");
