@@ -7,19 +7,21 @@ const epoch = 1_800_000_060;
 function candle(offset, open, close, high, low) {
   return { epoch: epoch + offset * 60, open, close, high, low, live: false };
 }
-function fixture({ direction = "up", elapsed = 5, touch = true, confirm = true } = {}) {
+function fixture({ direction = "up", elapsed = 5, confirm = true } = {}) {
   const history = Array.from({length:20}, (_, i) => {
     const close = direction === "up" ? 1.1000 + i * 0.0001 : 1.1020 - i * 0.0001;
     return candle(i - 20, close - (direction === "up" ? 0.00005 : -0.00005), close,
       close + 0.0001, close - 0.0001);
   });
   const fast = direction === "up" ? 1.1016 : 1.1004;
-  const live = { epoch, open: confirm ? fast - (direction === "up" ? 0.00005 : -0.00005) : fast,
-    close: confirm ? fast + (direction === "up" ? 0.00005 : -0.00005) : fast,
-    high: fast + 0.0002, low: touch ? fast - 0.0002 : fast + 0.00005,
+  const bullish = direction === "up" ? confirm : !confirm;
+  const live = { epoch,
+    open: bullish ? fast - 0.00005 : fast + 0.00005,
+    close: bullish ? fast + 0.00005 : fast - 0.00005,
+    high: fast + 0.0002, low: fast - 0.0002,
     live: false, provisional: true };
   if (direction === "down") {
-    live.high = touch ? fast + 0.0002 : fast - 0.00005;
+    live.high = fast + 0.0002;
     live.low = fast - 0.0002;
   }
   return { history, live, now: epoch * 1000 + elapsed * 1000 };
@@ -38,8 +40,8 @@ test("Engine 4 emits PUT immediately on a downtrend EMA5 pullback and bearish tu
   assert.equal(out.signal, "PUT");
   assert.equal(out.status, "EMA5_13_PULLBACK_PUT");
 });
-test("Engine 4 waits if trend direction and pullback confirmation do not align", () => {
-  const f = fixture({touch:false});
+test("Engine 4 waits when candle confirmation opposes the EMA trend", () => {
+  const f = fixture({confirm:false});
   const out = analyzeEarlyEntryEngine4([...f.history, f.live], { livePreview:true, now:f.now });
   assert.equal(out.signal, null);
   assert.equal(out.status, "WAITING_FOR_PULLBACK");
