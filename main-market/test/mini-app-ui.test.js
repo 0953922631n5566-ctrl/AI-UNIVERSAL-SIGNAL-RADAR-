@@ -153,7 +153,9 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /minimumSignalScore: 40/);
+  assert.match(serverJs, /candlesUsed: 2/);
+  assert.match(serverJs, /minimumClosedCandles: 1/);
+  assert.match(serverJs, /scoreThresholds: \{ reversal: 55, continuation: 60, unclearOrChoppy: 70 \}/);
   assert.match(serverJs, /copiedFrom: null/);
 });
 
