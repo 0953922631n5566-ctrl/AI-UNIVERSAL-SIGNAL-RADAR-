@@ -159,7 +159,7 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /countWindow: "\[0,23\)"/);
   assert.match(serverJs, /decisionRule: "UP_MOVE_THEN_FIRST_DOWN_TICK_CALL; DOWN_MOVE_THEN_FIRST_UP_TICK_PUT"/);
   assert.match(serverJs, /previousClosedCandleContext: "NOT_USED"/);
-  assert.match(serverJs, /previousClosedCandleContext: "NOT_USED"/);
+  assert.doesNotMatch(serverJs, /previousClosedCandle: closedCandles/);
   assert.match(serverJs, /historicalCandlesRequired: false/);
   assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, firstPrice: null, previousPrice: null/);
   assert.match(serverJs, /epoch - minute/);
