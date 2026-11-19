@@ -1,13 +1,17 @@
 /**
  * Engine 4 collects live EUR/USD tick direction from M1 open through second 24.
- * It makes exactly one decision at second 25 (35 seconds remaining).
+ * At second 25 it confirms the tick majority with the candle's open-to-current
+ * price displacement. Both sources must point in the same direction.
  */
+export const ENGINE4_MIN_PRICE_MOVE = 0.00001; // 0.1 pip on EUR/USD (five-decimal quote)
+
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const strategy = "ENGINE_4_M1_TICK_DIRECTION_MAJORITY_AT_25S";
+  const strategy = "ENGINE_4_M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY_AT_25S";
   const invalid = !options.livePreview || !live ||
     live.live !== true && live.provisional !== true ||
-    !Number.isFinite(live.epoch) || live.epoch < 0;
+    !Number.isFinite(live.epoch) || live.epoch < 0 ||
+    !Number.isFinite(live.open) || !Number.isFinite(live.close);
   if (invalid) return { ready:false, signal:null, candidateSignal:null, score:0, status:"NOT_READY",
     reason:"Engine 4 ต้องใช้แท่ง M1 ปัจจุบันและราคา Streaming สด", strategy };
 
@@ -26,24 +30,36 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const downTicks = validStats ? Math.max(0, Math.floor(stats.downTicks)) : 0;
   const directionalTicks = upTicks + downTicks;
   const totalTicks = validStats ? Math.max(directionalTicks, Math.floor(stats.totalTicks || 0)) : 0;
+  const priceDelta = live.close - live.open;
+  const priceMovePips = priceDelta / 0.0001;
+  const priceDirection = Math.abs(priceDelta) >= ENGINE4_MIN_PRICE_MOVE
+    ? priceDelta > 0 ? "CALL" : "PUT" : null;
+  const tickDirection = upTicks === downTicks ? null : upTicks > downTicks ? "CALL" : "PUT";
   const base = { ready:true, signal:null, candidateSignal:null, score:0,
     candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
+    entryPrice:live.close, openPrice:live.open,
     metrics:{upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
       upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
-      downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null} };
+      downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
+      openPrice:live.open,currentPrice:live.close,priceDelta,
+      priceMovePips:+priceMovePips.toFixed(2),priceDirection,tickDirection} };
 
   if (elapsed < 25_000) return {...base,status:"COLLECTING_FIRST_25_SECONDS",
-    reason:"กำลังเก็บ Tick ตั้งแต่ต้นแท่ง M1 · จะตัดสินใจเมื่อครบ 25 วินาที"};
-  if (!validStats || upTicks === downTicks) return {...base,status:"TICK_COUNT_TIED",
-    reason:directionalTicks ? "ครบ 25 วินาทีแล้ว · จำนวน Tick ขึ้นและลงเท่ากัน · ไม่ส่งสัญญาณ"
-      : "ครบ 25 วินาทีแล้ว · ไม่มี Tick ที่แสดงทิศทาง · ไม่ส่งสัญญาณ"};
+    reason:"กำลังเก็บระยะราคาเปิดถึงราคาปัจจุบันและจำนวน Tick · ตัดสินใจเมื่อครบ 25 วินาที"};
+  if (!validStats || !directionalTicks || !tickDirection) return {...base,status:"TICK_COUNT_TIED",
+    reason:"ครบ 25 วินาทีแล้ว · Tick ขึ้น/ลงไม่แสดงฝั่งชัดเจน · ไม่ส่งสัญญาณ"};
+  if (!priceDirection) return {...base,status:"PRICE_MOVE_TOO_SMALL",
+    reason:`ครบ 25 วินาทีแล้ว · ราคาเปิด ${live.open} กับราคาปัจจุบัน ${live.close} เคลื่อนที่น้อยกว่า 0.1 pip · ไม่ส่งสัญญาณ`};
+  if (priceDirection !== tickDirection) return {...base,status:"PRICE_TICK_CONFLICT",
+    reason:`ครบ 25 วินาทีแล้ว · ราคาเคลื่อนทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection} · ไม่ส่งสัญญาณ`};
 
-  const signal = upTicks > downTicks ? "CALL" : "PUT";
+  const signal = priceDirection;
   const majority = Math.max(upTicks,downTicks);
-  const score = directionalTicks ? Math.round(majority/directionalTicks*100) : 0;
+  const score = Math.round(majority/directionalTicks*100);
   return {...base,signal,candidateSignal:signal,score,
-    status:signal === "CALL" ? "TICK_MAJORITY_CALL" : "TICK_MAJORITY_PUT",
-    alertId:`ENGINE_4:${live.epoch}:${signal}:TICK_MAJORITY_AT_25S`,
-    reason:signal === "CALL" ? `ครบ 25 วินาที · Tick ขึ้น ${upTicks} ครั้ง มากกว่า Tick ลง ${downTicks} ครั้ง`
-      : `ครบ 25 วินาที · Tick ลง ${downTicks} ครั้ง มากกว่า Tick ขึ้น ${upTicks} ครั้ง`};
+    status:signal === "CALL" ? "PRICE_AND_TICKS_CALL" : "PRICE_AND_TICKS_PUT",
+    alertId:`ENGINE_4:${live.epoch}:${signal}:PRICE_AND_TICKS_AT_25S`,
+    reason:signal === "CALL"
+      ? `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${live.close} (+${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks} มากกว่า Tick ลง ${downTicks} · CALL`
+      : `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${live.close} (${priceMovePips.toFixed(2)} pip) · Tick ลง ${downTicks} มากกว่า Tick ขึ้น ${upTicks} · PUT`};
 }
