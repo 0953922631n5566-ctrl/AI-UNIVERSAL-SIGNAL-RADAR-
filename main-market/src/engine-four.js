@@ -25,10 +25,10 @@ export function analyzeEarlyEntryEngine4(candles, options={}) {
 
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const elapsed = now - live.epoch * 1000;
-  if (elapsed < 0 || elapsed >= 30000) {
+  if (elapsed < 0 || elapsed >= 25000) {
     return {ready:true,signal:null,candidateSignal:null,score:0,status:"ENTRY_WINDOW_CLOSED",
       candleEpoch:live.epoch,elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)),strategy,
-      reason:"หมดช่วงเข้าออเดอร์ 30 วินาทีแรกของแท่ง M1 ปัจจุบัน"};
+      reason:"หมดช่วงเข้าออเดอร์ 25 วินาทีแรกของแท่ง M1 ปัจจุบัน"};
   }
 
   const previousRange = Math.max(previous.high-previous.low, Number.EPSILON);

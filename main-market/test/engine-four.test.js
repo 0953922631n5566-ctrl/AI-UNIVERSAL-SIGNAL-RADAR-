@@ -31,10 +31,10 @@ test("Engine 4 detects a two-candle false breakdown and returns CALL",()=>{
   assert.equal(out.status,"TWO_CANDLE_FALSE_BREAKDOWN_CALL");
 });
 
-test("Engine 4 blocks entry from second 30 onward",()=>{
+test("Engine 4 blocks entry at second 25 and later",()=>{
   const previous=candle(1_800_000_000,1.1000,1.1010,1.0990,1.1002);
   const live=candle(1_800_000_060,1.1002,1.1008,1.0989,1.1007,true);
-  const out=analyzeEarlyEntryEngine4([previous,live],{livePreview:true,now:1_800_000_090_000});
+  const out=analyzeEarlyEntryEngine4([previous,live],{livePreview:true,now:1_800_000_085_000});
   assert.equal(out.signal,null);
   assert.equal(out.status,"ENTRY_WINDOW_CLOSED");
 });
