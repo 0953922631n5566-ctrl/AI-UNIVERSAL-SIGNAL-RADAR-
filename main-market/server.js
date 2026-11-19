@@ -371,7 +371,7 @@ async function evaluate(feed) {
      const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
      active = {
        engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: signalHoldExpiresAt(signalTargetEpoch),
+       triggeredAt: now, expiresAt: engine4Entry ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
        score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: engine4Entry && Number.isFinite(feed.lastTick) ? feed.lastTick : null,
@@ -507,11 +507,11 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4EntryWindowSeconds: [0, 30],
+   engine4EntryWindowSeconds: [0, 25],
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 จับการย่อตัวในขาขึ้นเพื่อ CALL และการดีดตัวในขาลงแล้วถูกขายกลับเพื่อ PUT เฉพาะ 30 วินาทีแรกของแท่ง M1 ปัจจุบัน · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบแจ้งเตือนเดิม · ยังไม่มีผลประเมิน out-of-sample"
+   signalValidationNote: "V1, BB และ Trend Rider ใช้ T-5 ตามเดิม · Engine 4 จับการย่อตัวในขาขึ้นเพื่อ CALL และการดีดตัวในขาลงแล้วถูกขายกลับเพื่อ PUT เฉพาะ 25 วินาทีแรกของแท่ง M1 ปัจจุบัน · Streaming สดจำเป็น · เสียง/สั่นใช้ระบบแจ้งเตือนเดิม · ยังไม่มีผลประเมิน out-of-sample"
  };
 }
 
@@ -1144,7 +1144,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "ADAPTIVE_TWO_CANDLE_LIVE_ENTRY", cadence: "LIVE_M1_PREVIEW_EVERY_1S_FIRST_30_SECONDS", candlesUsed: 2, minimumClosedCandles: 1, currentFormingCandles: 1, scoreThresholds: { reversal: 55, continuation: 60, unclearOrChoppy: 70 }, minimumDirectionalMargin: 8, guards: ["TWO_CANDLE_STRUCTURE", "PREVIOUS_HIGH_LOW_REJECTION", "LIVE_MOMENTUM", "CANDLE_BODY_WICK_CONFIRMATION", "RELATIVE_RANGE_0_12_TO_2_5", "LIQUIDITY_SWEEP_FALSE_BREAKOUT", "ADAPTIVE_TWO_CANDLE_REGIME"], entryWindowSeconds: [0, 30], target: "CURRENT_FORMING_M1_CANDLE", direction: { SUPPORT_BOUNCE_OR_FALSE_BREAKDOWN: "CALL", RESISTANCE_REJECTION_OR_FALSE_BREAKUP: "PUT", MICRO_TREND_CONTINUATION: "MATCHED_DIRECTION" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "ADAPTIVE_TWO_CANDLE_LIVE_ENTRY", cadence: "LIVE_M1_PREVIEW_EVERY_1S_FIRST_25_SECONDS", candlesUsed: 2, minimumClosedCandles: 1, currentFormingCandles: 1, scoreThresholds: { reversal: 55, continuation: 60, unclearOrChoppy: 70 }, minimumDirectionalMargin: 8, guards: ["TWO_CANDLE_STRUCTURE", "PREVIOUS_HIGH_LOW_REJECTION", "LIVE_MOMENTUM", "CANDLE_BODY_WICK_CONFIRMATION", "RELATIVE_RANGE_0_12_TO_2_5", "LIQUIDITY_SWEEP_FALSE_BREAKOUT", "ADAPTIVE_TWO_CANDLE_REGIME"], entryWindowSeconds: [0, 25], target: "CURRENT_FORMING_M1_CANDLE", direction: { SUPPORT_BOUNCE_OR_FALSE_BREAKDOWN: "CALL", RESISTANCE_REJECTION_OR_FALSE_BREAKUP: "PUT", MICRO_TREND_CONTINUATION: "MATCHED_DIRECTION" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_ADAPTIVE_TWO_CANDLE_CURRENT_M1_ENTRY"
     },
