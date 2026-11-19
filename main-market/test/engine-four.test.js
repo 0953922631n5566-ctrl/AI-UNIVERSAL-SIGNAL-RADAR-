@@ -19,14 +19,14 @@ test("Engine 4 waits for the full first 23 seconds before deciding",()=>{
 test("Engine 4 emits CALL at the 23-second decision point when evidence is bullish",()=>{
   const out=run(8,1,23_000,1.1,1.1005);
   assert.equal(out.signal,"CALL");
-  assert.equal(out.status,"M1_23S_FORCED_CALL");
+  assert.equal(out.status,"M1_23S_CALL");
   assert.equal(out.entryPrice,1.1005);
-  assert.equal(out.alertId,"ENGINE_4:1800000060:CALL:COLLECT_23_SECONDS");
+  assert.equal(out.alertId,"ENGINE_4:1800000060:CALL:FIRST_23_SECONDS");
 });
 test("Engine 4 emits PUT at the 23-second decision point when evidence is bearish",()=>{
   const out=run(1,8,23_000,1.1,1.0995);
   assert.equal(out.signal,"PUT");
-  assert.equal(out.status,"M1_23S_FORCED_PUT");
+  assert.equal(out.status,"M1_23S_PUT");
 });
 test("Engine 4 emits a forced direction when tick pressure is tied but price moved",()=>{
   const out=run(4,4,23_000,1.1,1.1002);
