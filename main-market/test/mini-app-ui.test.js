@@ -155,9 +155,9 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "LIVE_FIRST_23_SECONDS_M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY"/);
+  assert.match(serverJs, /strategy: "COLLECT_0_23S_WEIGHTED_INTRABAR_DIRECTION_FORCE_BEFORE_30S"/);
   assert.match(serverJs, /countRule: "COUNT_UP_AND_DOWN_PRICE_CHANGES_ONLY_DURING_FIRST_23_SECONDS_OF_CURRENT_M1_CANDLE"/);
-  assert.match(serverJs, /decisionRule: "EMIT_IMMEDIATELY_WHEN_CURRENT_PRICE_DIRECTION_AND_TICK_MAJORITY_AGREE_WITHIN_FIRST_23_SECONDS"/);
+  assert.match(serverJs, /decisionRule: "WEIGHT_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_THEN_FORCE_CALL_OR_PUT"/);
   assert.match(serverJs, /historicalCandlesRequired: false/);
   assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 \}/);
   assert.match(serverJs, /Math\.floor\(Date\.now\(\) \/ 1000\) - minute/);
@@ -173,7 +173,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /ANALYZE_EVERY_M1_CANDLE_FROM_OPEN_CONTINUOUSLY_EVERY_1S/);
+  assert.match(serverJs, /COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
