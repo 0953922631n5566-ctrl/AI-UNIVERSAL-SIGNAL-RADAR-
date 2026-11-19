@@ -2095,3 +2095,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The immediately previous fully closed and adjacent M1 candle is used only to adjust heuristic evidence strength by up to ±10 points: alignment adds support; conflict reduces strength. It cannot change the direction or create a CALL/PUT when the current candle has no directional edge.
 - Stale, malformed, non-adjacent or still-forming prior candles are ignored. No older candle history is used for this contextual feature.
 - Implementation branch: `feature/engine4-previous-closed-m1-context-20261119`. Validation and Render deployment status must be appended only after verified.
+
+
+### Validation and deployment — PR #184
+
+- PR #184 merged to `main-market`; runtime commit: `6ed7da5cbbf3916f728eaf0625209812ae4a1d58`.
+- GitHub Actions checks passed: Main Market Checks, Main Market Node Tests, Main Market Recovery Tests, and Telegram Mini App Checks.
+- Render deploy `dep-dbvbigivcj2c73cbomf0` reached `live`; build log reports 199 tests, 195 passed, 0 failed, 4 skipped; build successful.
+- Live `/health` returned version `2026-11-19-engine4-first23s-plus-previous-m1-context-v3` and the new adjacent closed-M1 context metadata.
+- Live `/api/public/signal` later showed Engine 4 at elapsed second 24 with CALL, the prior closed candle marked as opposing context, and a context adjustment of -10 points. The live direction remained CALL, confirming the previous candle adjusted evidence strength without reversing the current-candle direction in this sample.
+- This is a deployment/integration smoke test only, not proof of improved predictive accuracy. Continue paper/demo observation over consecutive M1 candles and compare entry-to-close outcomes.
