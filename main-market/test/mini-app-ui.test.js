@@ -155,7 +155,7 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "LIVE_SINGLE_M1_CANDLE_PRICE_DISPLACEMENT_AND_TICK_MAJORITY"/);
+  assert.match(serverJs, /strategy: "LIVE_FIRST_23_SECONDS_M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY"/);
   assert.match(serverJs, /countRule: "COUNT_UP_AND_DOWN_PRICE_CHANGES_FOR_FULL_CURRENT_M1_CANDLE"/);
   assert.match(serverJs, /decisionRule: "CONTINUOUSLY_REQUIRE_CURRENT_PRICE_DIRECTION_AND_TICK_MAJORITY_TO_AGREE"/);
   assert.match(serverJs, /historicalCandlesRequired: false/);
@@ -173,7 +173,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /ANALYZE_CURRENT_M1_CANDLE_CONTINUOUSLY_EVERY_1S/);
+  assert.match(serverJs, /ANALYZE_EVERY_M1_CANDLE_FROM_OPEN_CONTINUOUSLY_EVERY_1S/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
