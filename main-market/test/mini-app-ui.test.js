@@ -158,8 +158,9 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /strategy: "M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY_AT_25S"/);
   assert.match(serverJs, /countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK_DURING_SECONDS_0_TO_24"/);
   assert.match(serverJs, /decisionRule: "AT_SECOND_25_REQUIRE_PRICE_DIRECTION_AND_TICK_MAJORITY_TO_AGREE"/);
-  assert.match(serverJs, /decisionPriceSnapshot: "FIRST_STREAM_TICK_AT_OR_AFTER_SECOND_25"/);
+  assert.match(serverJs, /decisionPriceSnapshot: "FIRST_STREAM_TICK_BY_SERVER_CLOCK_AT_OR_AFTER_SECOND_25"/);
   assert.match(serverJs, /tickStats\.decisionPrice === null/);
+  assert.match(serverJs, /Math\.floor\(Date\.now\(\) \/ 1000\) - minute/);
   assert.match(serverJs, /minimumClosedCandles: 1/);
   assert.match(serverJs, /copiedFrom: null/);
 });
