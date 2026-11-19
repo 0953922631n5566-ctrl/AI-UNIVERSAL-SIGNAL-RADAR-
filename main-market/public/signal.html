@@ -24,7 +24,7 @@
 <div id="v1Card" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="01 · V1 ORIGINAL เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">01 · V1 ORIGINAL</div><button class="light-toggle" type="button" data-light-toggle="V1" aria-pressed="false" aria-label="สลับสีไฟ 01 · V1 ORIGINAL">ไฟ: ปกติ</button></div><b id="v1Signal" class="engine-value">STANDBY</b><p id="v1Reason" class="engine-reason">รอผลวิเคราะห์ V1</p></div>
 <div id="bbCard" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="02 · BB PURE SCALPER เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">02 · BB PURE SCALPER</div><button class="light-toggle" type="button" data-light-toggle="BB" aria-pressed="false" aria-label="สลับสีไฟ 02 · BB PURE SCALPER">ไฟ: ปกติ</button></div><b id="bbSignal" class="engine-value">STANDBY</b><p id="bbReason" class="engine-reason">รอผลวิเคราะห์ BB</p></div>
 <div id="trendCard" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="03 · TREND RIDER AI เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">03 · TREND RIDER AI</div><button class="light-toggle" type="button" data-light-toggle="TREND_RIDER" aria-pressed="false" aria-label="สลับสีไฟ 03 · TREND RIDER AI">ไฟ: ปกติ</button></div><b id="trendSignal" class="engine-value">STANDBY</b><p id="trendReason" class="engine-reason">รอผลวิเคราะห์ Trend Rider</p></div>
-<div id="engine4Card" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="04 · EARLY ENTRY AI · 0–30s เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">04 · EARLY ENTRY AI · 0–30s</div><button class="light-toggle" type="button" data-light-toggle="ENGINE_4" aria-pressed="false" aria-label="สลับสีไฟ 04 · EARLY ENTRY AI · 0–30s">ไฟ: ปกติ</button></div><b id="engine4Signal" class="engine-value">STANDBY</b><p id="engine4Reason" class="engine-reason">รอข้อมูลแท่ง M1 ที่ถูกต้อง</p></div>
+<div id="engine4Card" class="engine-card engine-enabled" role="button" tabindex="0" aria-pressed="true" aria-label="04 · EARLY ENTRY AI · 0–25s เปิดอยู่ แตะเพื่อปิด"><div class="engine-head"><div class="engine-title">04 · EARLY ENTRY AI · 0–25s</div><button class="light-toggle" type="button" data-light-toggle="ENGINE_4" aria-pressed="false" aria-label="สลับสีไฟ 04 · EARLY ENTRY AI · 0–25s">ไฟ: ปกติ</button></div><b id="engine4Signal" class="engine-value">STANDBY</b><p id="engine4Reason" class="engine-reason">รอข้อมูลแท่ง M1 ที่ถูกต้อง</p></div>
 </section>
 <section class="grid" data-panel="metrics"><div class="metric"><span>MARKET REGIME</span><b id="regime">—</b></div><div class="metric"><span>CLOSED CANDLES</span><b id="candles">—</b></div></section>
 <section class="card" data-panel="details"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">V1, BB และ Trend Rider วิเคราะห์แยกอิสระ · Manual only</div></section>
@@ -51,7 +51,7 @@ function triggerSignalAlert(signal,key,engine){
  const expiresAt=timeMs(latest?.signalExpiresAt);
  const holdMs=Number.isFinite(expiresAt)?Math.max(0,expiresAt-Date.now()):0;
  showAlertToast(isCall?"real-call":"real-put",(engine||"SIGNAL")+" · "+signal,
-   (engine==="ENGINE_4"?"จังหวะเข้าใน 30 วินาทีแรกของแท่ง M1 ปัจจุบัน":"สัญญาณสำหรับแท่ง M1 ถัดไป")+" · "+(latest?.symbol||""),holdMs);
+   (engine==="ENGINE_4"?"จังหวะเข้าใน 25 วินาทีแรกของแท่ง M1 ปัจจุบัน":"สัญญาณสำหรับแท่ง M1 ถัดไป")+" · "+(latest?.symbol||""),holdMs);
  if(signalClearTimer)clearTimeout(signalClearTimer);
  if(holdMs>0){
    const activeAlertId=latest?.alertId;
@@ -132,19 +132,20 @@ function paintEngineCards(m,usable){
  }
  if(engineEnabled.ENGINE_4){
   const fourth=m.engine4||engines.ENGINE_4||{};
-  const fourthReady=usable&&fourth.ready!==false&&["CALL","PUT"].includes(fourth.signal);
-  const remainingMs=timeMs(m.nextCandleAt)-Date.now();
-  const remainingSeconds=Number.isFinite(remainingMs)?Math.ceil(remainingMs/1000):NaN;
-  const windowKey=String(fourth.candleEpoch||"")+":"+String(m.nextCandleAt||"");
-  const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5;
+  const fourthActive=usable&&fourth.active===true&&["CALL","PUT"].includes(fourth.signal);
+  const fourthCandidate=usable&&fourth.ready!==false&&["CALL","PUT"].includes(fourth.candidateSignal)?fourth.candidateSignal:null;
+  const windowKey=String(fourth.candleEpoch||"");
   if(engine4LastFinalKey&&engine4LastFinalKey!==windowKey){engine4FlashUntil=0;engine4LastFinalKey="";}
   if(engine4HeldSignal&&Date.now()>=engine4HoldUntil)engine4HeldSignal=null;
-  if(finalize&&windowKey!==engine4LastFinalKey){
+  if(fourthActive&&windowKey!==engine4LastFinalKey){
    engine4LastFinalKey=windowKey;
    engine4HeldSignal=fourth.signal;engine4HoldUntil=Date.now()+30000;engine4FlashUntil=Date.now()+4200;
   }
   const held=Boolean(engine4HeldSignal&&Date.now()<engine4HoldUntil);
-  if(held){$("engine4Signal").textContent=engine4HeldSignal;$("engine4Reason").textContent=fourth.reason||"ยืนยัน T-5 · คงสัญญาณ 30 วินาที";}
+  const displaySignal=fourthActive?fourth.signal:held?engine4HeldSignal:fourthCandidate?"WATCH · "+fourthCandidate:"STANDBY";
+  $("engine4Signal").textContent=displaySignal;
+  $("engine4Card").className="engine-card engine-enabled "+(displaySignal==="CALL"?"call":displaySignal==="PUT"?"put":fourthCandidate?"watch":"");
+  $("engine4Reason").textContent=fourthActive?(fourth.reason||"สัญญาณทันที · ช่วง 25 วินาทีแรก · แสดง 30 วินาที"):held?(fourth.reason||"คงสัญญาณ 30 วินาที"):fourth.reason||fourth.status||"รอข้อมูลแท่ง M1";
  }else{engine4HeldSignal=null;engine4HoldUntil=0;engine4FlashUntil=0;engine4LastFinalKey="";}
  paintEngineLightSettings();
 }
@@ -168,7 +169,7 @@ function paint(m){
  const signal=direction||(preparing?"PREPARE":"STANDBY");
  $("panel").className="signal "+(signal==="PREPARE"?"prepare":signal.toLowerCase());
  $("signal").textContent=signal==="PREPARE"?"PREPARE / เฝ้าระวัง":signal;
- $("hint").textContent=signal==="CALL"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · แรงซื้อช่วง 30 วินาทีแรก":"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป"):signal==="PUT"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · แรงขายช่วง 30 วินาทีแรก":"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป"):signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB/Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
+ $("hint").textContent=signal==="CALL"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · แรงซื้อช่วง 25 วินาทีแรก":"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป"):signal==="PUT"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · แรงขายช่วง 25 วินาทีแรก":"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป"):signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB/Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
  $("action").textContent=signal==="CALL"?"พิจารณา CALL ด้วยตนเอง":signal==="PUT"?"พิจารณา PUT ด้วยตนเอง":signal==="PREPARE"?"เฝ้าระวัง · ยังไม่มี CALL/PUT":"ยังไม่เข้าออเดอร์";
  $("api").className="pill "+(api!=="ONLINE"?"off":support==="REST_ONLY"?"rest":"live");
  $("api").textContent=api!=="ONLINE"?"API "+api:support==="REST_ONLY"?"REST DATA":"STREAM LIVE";
