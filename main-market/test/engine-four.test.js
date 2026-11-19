@@ -12,7 +12,7 @@ test("Engine 4 uses only one closed candle and the current live candle for CALL 
   const out=analyzeEarlyEntryEngine4([previous,live],{livePreview:true,now:1_800_000_072_000});
   assert.equal(out.signal,"CALL");
   assert.equal(out.metrics.candlesUsed,2);
-  assert.equal(out.status,"TWO_CANDLE_SUPPORT_BOUNCE_CALL");
+  assert.equal(out.status,"TWO_CANDLE_FALSE_BREAKDOWN_CALL");
 });
 
 test("Engine 4 detects a two-candle false breakout and returns PUT",()=>{
