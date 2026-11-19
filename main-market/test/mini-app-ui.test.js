@@ -42,7 +42,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="engine4Card"/);
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
-  assert.match(html, /<div class="engine-title">04 · EARLY ENTRY AI · 0–30s<\/div>/);
+  assert.match(html, /<div class="engine-title">04 · EARLY ENTRY AI · 0–25s<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -123,12 +123,14 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 uses the shared T-10/T-5 alert pipeline and holds its card for 30 seconds", () => {
+test("Engine 4 alerts immediately in its first 25 seconds and holds its card for 30 seconds", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
   assert.match(html, /navigator\.vibrate\(\[100,60,100\]\)/);
-  assert.match(html, /const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
+  assert.match(html, /const fourthActive=usable&&fourth.active===true/);
+  assert.match(html, /if\\(fourthActive&&windowKey!==engine4LastFinalKey\\)/);
+  assert.doesNotMatch(html, /const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
   assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
   assert.match(html, /engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil/);
   assert.match(html, /triggerSignalAlert\(item\.signal,alertKey,item\.engine\)/);
@@ -167,7 +169,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /LIVE_M1_PREVIEW_EVERY_1S_FIRST_30_SECONDS/);
+  assert.match(serverJs, /LIVE_M1_PREVIEW_EVERY_1S_FIRST_25_SECONDS/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
