@@ -30,28 +30,31 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const downTicks = validStats ? Math.max(0, Math.floor(stats.downTicks)) : 0;
   const directionalTicks = upTicks + downTicks;
   const totalTicks = validStats ? Math.max(directionalTicks, Math.floor(stats.totalTicks || 0)) : 0;
-  const priceDelta = live.close - live.open;
-  const priceMovePips = priceDelta / 0.0001;
-  const priceDirection = Math.abs(priceDelta) >= ENGINE4_MIN_PRICE_MOVE
+  const decisionPrice = validStats && Number.isFinite(stats.decisionPrice) ? stats.decisionPrice : null;
+  const priceDelta = decisionPrice === null ? null : decisionPrice - live.open;
+  const priceMovePips = priceDelta === null ? null : priceDelta / 0.0001;
+  const priceDirection = priceDelta !== null && Math.abs(priceDelta) >= ENGINE4_MIN_PRICE_MOVE
     ? priceDelta > 0 ? "CALL" : "PUT" : null;
   const tickDirection = upTicks === downTicks ? null : upTicks > downTicks ? "CALL" : "PUT";
   const base = { ready:true, signal:null, candidateSignal:null, score:0,
     candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
-    entryPrice:live.close, openPrice:live.open,
+    entryPrice:decisionPrice, openPrice:live.open,
     metrics:{upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
       upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
       downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
-      openPrice:live.open,currentPrice:live.close,priceDelta,
-      priceMovePips:+priceMovePips.toFixed(2),priceDirection,tickDirection} };
+      openPrice:live.open,currentPrice:decisionPrice,priceDelta,
+      priceMovePips:priceMovePips === null ? null : +priceMovePips.toFixed(2),priceDirection,tickDirection,
+      decisionElapsedSeconds:validStats && Number.isFinite(stats.decisionElapsedSeconds) ? stats.decisionElapsedSeconds : null} };
 
   if (elapsed < 25_000) return {...base,status:"COLLECTING_FIRST_25_SECONDS",
     reason:"กำลังเก็บระยะราคาเปิดถึงราคาปัจจุบันและจำนวน Tick · ตัดสินใจเมื่อครบ 25 วินาที"};
+  if (decisionPrice === null) return {...base,status:"WAITING_FOR_DECISION_PRICE",reason:"ครบวินาทีที่ 25 แล้ว · รอ Tick แรกเพื่อบันทึกราคาเข้า ณ จุดตัดสินใจ"};
   if (!validStats || !directionalTicks || !tickDirection) return {...base,status:"TICK_COUNT_TIED",
     reason:"ครบ 25 วินาทีแล้ว · Tick ขึ้น/ลงไม่แสดงฝั่งชัดเจน · ไม่ส่งสัญญาณ"};
   if (!priceDirection) return {...base,status:"PRICE_MOVE_TOO_SMALL",
-    reason:`ครบ 25 วินาทีแล้ว · ราคาเปิด ${live.open} กับราคาปัจจุบัน ${live.close} เคลื่อนที่น้อยกว่า 0.1 pip · ไม่ส่งสัญญาณ`};
+    reason:`ครบ 25 วินาทีแล้ว · ราคาเปิด ${live.open} กับราคาตัดสินใจ ${decisionPrice} เคลื่อนที่น้อยกว่า 0.1 pip · ไม่ส่งสัญญาณ`};
   if (priceDirection !== tickDirection) return {...base,status:"PRICE_TICK_CONFLICT",
-    reason:`ครบ 25 วินาทีแล้ว · ราคาเคลื่อนทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection} · ไม่ส่งสัญญาณ`};
+    reason:`ครบ 25 วินาทีแล้ว · ราคา ณ จุดตัดสินใจเคลื่อนทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection} · ไม่ส่งสัญญาณ`};
 
   const signal = priceDirection;
   const majority = Math.max(upTicks,downTicks);
@@ -60,6 +63,6 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     status:signal === "CALL" ? "PRICE_AND_TICKS_CALL" : "PRICE_AND_TICKS_PUT",
     alertId:`ENGINE_4:${live.epoch}:${signal}:PRICE_AND_TICKS_AT_25S`,
     reason:signal === "CALL"
-      ? `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${live.close} (+${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks} มากกว่า Tick ลง ${downTicks} · CALL`
-      : `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${live.close} (${priceMovePips.toFixed(2)} pip) · Tick ลง ${downTicks} มากกว่า Tick ขึ้น ${upTicks} · PUT`};
+      ? `ราคาเปิด ${live.open} → ราคาเข้า ${decisionPrice} (+${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks} มากกว่า Tick ลง ${downTicks} · CALL`
+      : `ราคาเปิด ${live.open} → ราคาเข้า ${decisionPrice} (${priceMovePips.toFixed(2)} pip) · Tick ลง ${downTicks} มากกว่า Tick ขึ้น ${upTicks} · PUT`};
 }
