@@ -42,7 +42,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="engine4Card"/);
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
-  assert.match(html, /<div class="engine-title">04 · M1 PRICE MOVE \\+ TICK CONFIRM · 25s<\/div>/);
+  assert.match(html, /<div class="engine-title">04 · M1 PRICE MOVE \+ TICK CONFIRM · 25s<\/div>/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
