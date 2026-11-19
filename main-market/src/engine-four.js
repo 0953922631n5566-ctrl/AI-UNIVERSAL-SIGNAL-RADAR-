@@ -62,9 +62,16 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const bodyStrength = range > 0 ? clamp((live.close - live.open) / range) : Math.sign(priceDelta);
   const closeLocation = range > 0 ? clamp(((live.close - live.low) / range) * 2 - 1) : Math.sign(priceDelta);
 
-  // Weight the complete candle-to-now displacement and tick pressure most heavily.
-  const composite = (0.40 * displacement) + (0.35 * tickImbalance) +
-    (0.15 * bodyStrength) + (0.10 * closeLocation);
+  // Previous closed M1 is context only; it cannot vote on or override live direction.
+  const previous = options.previousClosedCandle;
+  const previousRange = previous && Number.isFinite(previous.high) && Number.isFinite(previous.low) ? previous.high - previous.low : 0;
+  const previousIsValid = Boolean(previous && previous.live !== true && Number.isFinite(previous.epoch) && previous.epoch + 60 === live.epoch && Number.isFinite(previous.open) && Number.isFinite(previous.close) && Number.isFinite(previous.high) && Number.isFinite(previous.low) && previous.high >= Math.max(previous.open, previous.close) && previous.low <= Math.min(previous.open, previous.close) && previous.high >= previous.low);
+  const previousBody = previousIsValid && previousRange > 0 ? clamp((previous.close - previous.open) / previousRange) : 0;
+  const previousCloseLocation = previousIsValid && previousRange > 0 ? clamp(((previous.close - previous.low) / previousRange) * 2 - 1) : 0;
+  const previousContextScore = previousIsValid ? clamp((0.70 * previousBody) + (0.30 * previousCloseLocation)) : null;
+
+  // Live M1 evidence alone determines direction. Historical context is excluded from this composite.
+  const composite = (0.40 * displacement) + (0.35 * tickImbalance) + (0.15 * bodyStrength) + (0.10 * closeLocation);
   const direction = composite > 0 ? "CALL" : composite < 0 ? "PUT" :
     signDirection(priceDelta) || (upTicks !== downTicks ? (upTicks > downTicks ? "CALL" : "PUT") : null);
   if (!direction) return {
@@ -79,9 +86,13 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     reason:"หลักฐานในแท่งปัจจุบันไม่ชี้ขึ้นหรือลงอย่างมีทิศทาง · ไม่สุ่มสร้าง CALL/PUT"
   };
 
-  const directionalConfidence = Math.round(Math.abs(composite) * 100);
+  const liveEvidenceStrength = Math.round(Math.abs(composite) * 100);
+  const contextAlignment = previousContextScore === null ? 0 : (direction === "CALL" ? previousContextScore : -previousContextScore);
+  const contextAdjustment = previousContextScore === null ? 0 : Math.round(contextAlignment * 10);
+  const directionalConfidence = clamp(liveEvidenceStrength + contextAdjustment, 0, 100);
   const tickShare = directionalTicks ? Math.max(upTicks, downTicks) / directionalTicks : 0;
-  const evidenceSummary = `เก็บข้อมูล 1–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks}`;
+  const previousContextLabel = previousContextScore === null ? "ไม่มีแท่งก่อนหน้าที่ต่อเนื่อง" : contextAlignment > 0.10 ? "แท่งก่อนหน้าสนับสนุนทิศทาง" : contextAlignment < -0.10 ? "แท่งก่อนหน้าขัดแย้งกับทิศทาง" : "แท่งก่อนหน้าเป็นกลาง";
+  const evidenceSummary = `เก็บข้อมูล 1–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks} · บริบท M1 ก่อนหน้า: ${previousContextLabel}`;
   const weakEvidence = directionalTicks === 0 || Math.abs(composite) < 0.15;
   return {
     ready:true, signal:direction, candidateSignal:direction, score:directionalConfidence,
@@ -95,9 +106,15 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
       upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
       downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
       directionalConfidencePct:directionalTicks ? +(tickShare*100).toFixed(1) : null,
-      compositeScore:+composite.toFixed(4), directionalConfidencePctComposite:directionalConfidence,
+      compositeScore:+composite.toFixed(4), liveEvidenceStrengthPct:liveEvidenceStrength,
+      previousCandleContextScore:previousContextScore === null ? null : +previousContextScore.toFixed(4),
+      previousCandleContextAdjustment:contextAdjustment, previousCandleContextLabel:previousContextLabel,
+      directionalConfidencePctComposite:directionalConfidence,
       openPrice:live.open,currentPrice,priceDelta,priceMovePips:+priceMovePips.toFixed(2),
       rangeHigh:live.high,rangeLow:live.low,rangePosition:range ? +((live.close-live.low)/range).toFixed(4) : null,
+      previousCandleEpoch:previousIsValid ? previous.epoch : null,
+      previousCandleOpen:previousIsValid ? previous.open : null,
+      previousCandleClose:previousIsValid ? previous.close : null,
       pipSize
     },
     alertId:`ENGINE_4:${live.epoch}:${direction}:FIRST_23_SECONDS`,
