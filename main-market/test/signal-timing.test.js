@@ -39,20 +39,22 @@ test("Streaming tick freshness is limited to five seconds", () => {
 test("signal expires exactly 30 seconds after the target candle opens", () => {
   assert.equal(signalHoldExpiresAt(candle + 60), openAt + 90_000);
 });
-test("Engine 4 collects for 23 seconds and dispatches only before the 30-second cutoff", () => {
+test("Engine 4 dispatches during seconds 0 through 22.999 and closes at 23 seconds", () => {
   const early = openAt + 2_000;
-  const decision = openAt + 23_000;
+  const lastMoment = openAt + 22_999;
+  const cutoff = openAt + 23_000;
   assert.equal(isEngine4EntryWindow(candle, openAt - 1), false);
-  assert.equal(isEngine4EntryWindow(candle, openAt), false);
-  assert.equal(isEngine4EntryWindow(candle, early), false);
-  assert.equal(isEngine4EntryWindow(candle, openAt + 22_999), false);
-  assert.equal(isEngine4EntryWindow(candle, decision), true);
-  assert.equal(isEngine4EntryWindow(candle, openAt + 29_999), true);
+  assert.equal(isEngine4EntryWindow(candle, openAt), true);
+  assert.equal(isEngine4EntryWindow(candle, early), true);
+  assert.equal(isEngine4EntryWindow(candle, lastMoment), true);
+  assert.equal(isEngine4EntryWindow(candle, cutoff), false);
+  assert.equal(isEngine4EntryWindow(candle, openAt + 29_999), false);
   assert.equal(isEngine4EntryWindow(candle, openAt + 30_000), false);
   assert.equal(isEngine4EntryWindow(candle, openAt + 59_999), false);
   assert.equal(isEngine4EntryWindow(candle, openAt + 60_000), false);
-  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: decision - 1_000, now: decision }), true);
-  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: decision - 6_000, now: decision }), false);
-  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: decision - 1_000, now: decision, lastDispatchedCandle: candle }), false);
-  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: openAt + 22_000, now: openAt + 23_000 }), true);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: early - 1_000, now: early }), true);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: early - 6_000, now: early }), false);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: early - 1_000, now: early, lastDispatchedCandle: candle }), false);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: lastMoment - 1_000, now: lastMoment }), true);
+  assert.equal(canDispatchEngine4Signal({ candleEpoch: candle, tickAt: cutoff - 1_000, now: cutoff }), false);
 });

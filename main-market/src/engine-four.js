@@ -1,123 +1,103 @@
 /**
- * Engine 4 collects the complete first 23 seconds of the current M1 candle,
- * then emits exactly one directional signal before the 30-second entry cutoff.
- * The direction is a weighted intrabar estimate, not a calibrated probability.
+ * Engine 4 — M1 Quick Pullback Helper (EMA 5 / EMA 13).
+ * Detects a live pullback/rejection as soon as it forms during seconds [0,23)
+ * of the current M1 candle. This is a manual-entry signal, never a broker order.
  */
 export const ENGINE4_COLLECTION_WINDOW_MS = 23_000;
-export const ENGINE4_DISPATCH_DEADLINE_MS = 30_000;
-export const ENGINE4_ENTRY_WINDOW_MS = ENGINE4_DISPATCH_DEADLINE_MS;
+export const ENGINE4_DISPATCH_DEADLINE_MS = 23_000;
+export const ENGINE4_ENTRY_WINDOW_MS = 23_000;
 
-const clamp = (value, min = -1, max = 1) => Math.max(min, Math.min(max, value));
-const signDirection = value => value > 0 ? "CALL" : value < 0 ? "PUT" : null;
+function emaSeries(values, period) {
+  const multiplier = 2 / (period + 1);
+  let current = values[0];
+  const output = [current];
+  for (let i = 1; i < values.length; i++) {
+    current = values[i] * multiplier + current * (1 - multiplier);
+    output.push(current);
+  }
+  return output;
+}
+
+function validCandle(candle) {
+  return candle && [candle.open, candle.high, candle.low, candle.close].every(Number.isFinite) &&
+    candle.low > 0 && candle.high >= Math.max(candle.open, candle.close) &&
+    candle.low <= Math.min(candle.open, candle.close) && candle.high >= candle.low;
+}
 
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const strategy = "ENGINE_4_FIRST_23S_WEIGHTED_DIRECTION_NO_SYNTHETIC_FALLBACK";
+  const strategy = "M1_QUICK_PULLBACK_EMA5_EMA13_INTRABAR";
   const invalid = !options.livePreview || !live ||
     live.live !== true && live.provisional !== true ||
-    !Number.isFinite(live.epoch) || live.epoch < 0 ||
-    !Number.isFinite(live.open) || !Number.isFinite(live.close) ||
-    !Number.isFinite(live.high) || !Number.isFinite(live.low) ||
-    live.high < Math.max(live.open, live.close) ||
-    live.low > Math.min(live.open, live.close) || live.high < live.low;
+    !Number.isFinite(live.epoch) || live.epoch < 0 || !validCandle(live);
   if (invalid) return { ready:false, signal:null, candidateSignal:null, score:0, confidence:0,
     status:"NOT_READY", reason:"Engine 4 ต้องใช้แท่ง M1 ปัจจุบันและราคา Streaming สด", strategy };
 
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const elapsed = now - live.epoch * 1000;
-  if (elapsed < ENGINE4_COLLECTION_WINDOW_MS) return {
+  if (elapsed < 0) return { ready:false, signal:null, candidateSignal:null, score:0,
+    status:"INVALID_CANDLE_TIME", reason:"เวลาแท่ง M1 ไม่ถูกต้อง", strategy };
+  if (elapsed >= ENGINE4_ENTRY_WINDOW_MS) return {
     ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
-    status:"COLLECTING_FIRST_23_SECONDS", candleEpoch:live.epoch,
-    elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)), strategy,
-    reason:"กำลังเก็บราคาและแรง Tick ตั้งแต่ต้นแท่ง M1 · จะตัดสินใจเมื่อครบ 23 วินาที"
-  };
-  if (elapsed >= ENGINE4_DISPATCH_DEADLINE_MS) return {
-    ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
-    status:"ENTRY_DEADLINE_MISSED", candleEpoch:live.epoch,
-    elapsedSeconds:Math.floor(elapsed/1000), strategy,
-    reason:"พ้นเส้นตายส่งสัญญาณ 30 วินาทีของแท่งนี้แล้ว · รอแท่งถัดไป"
+    status:"PULLBACK_WINDOW_CLOSED", candleEpoch:live.epoch,
+    elapsedSeconds:Math.floor(elapsed / 1000), strategy,
+    reason:"พ้นช่วงตรวจจับ 23 วินาทีแรกแล้ว · รอแท่ง M1 ถัดไป"
   };
 
-  const stats = options.tickStats;
-  const validStats = stats && stats.candleEpoch === live.epoch &&
-    Number.isFinite(stats.upTicks) && Number.isFinite(stats.downTicks);
-  if (!validStats) return {
+  const history = candles.filter(c => c && c.provisional !== true && c.live !== true);
+  if (history.length < 13 || !history.every(validCandle)) return {
     ready:false, signal:null, candidateSignal:null, score:0, confidence:0,
-    status:"TICK_STATS_UNAVAILABLE", candleEpoch:live.epoch, strategy,
-    reason:"ไม่มีสถิติ Tick ของแท่ง M1 นี้ · ไม่สร้างสัญญาณจากข้อมูลที่ไม่ครบ"
+    status:"INSUFFICIENT_EMA_HISTORY", candleEpoch:live.epoch, strategy,
+    reason:"ต้องมีแท่ง M1 ปิดที่ถูกต้องอย่างน้อย 13 แท่งเพื่อคำนวณ EMA 13"
   };
 
-  const upTicks = Math.max(0, Math.floor(stats.upTicks));
-  const downTicks = Math.max(0, Math.floor(stats.downTicks));
-  const directionalTicks = upTicks + downTicks;
-  const totalTicks = Math.max(directionalTicks, Math.floor(stats.totalTicks || 0));
+  // Calculate EMA values from closed history plus the current forming candle.
+  const closes = [...history.map(c => c.close), live.close];
+  const ema5Series = emaSeries(closes, 5);
+  const ema13Series = emaSeries(closes, 13);
+  const ema5 = ema5Series.at(-1);
+  const ema13 = ema13Series.at(-1);
+  const uptrend = ema5 > ema13;
+  const downtrend = ema5 < ema13;
+  const pullbackCall = uptrend && live.low <= ema5 && live.close > live.open;
+  const pullbackPut = downtrend && live.high >= ema5 && live.close < live.open;
+  const direction = pullbackCall ? "CALL" : pullbackPut ? "PUT" : null;
   const currentPrice = Number.isFinite(options.currentPrice) ? options.currentPrice : live.close;
-  const symbol = String(options.symbol || "").toUpperCase();
-  const pipSize = symbol.includes("JPY") ? 0.01 : 0.0001;
+  const trendGapPct = ema13 !== 0 ? Math.abs((ema5 - ema13) / ema13) * 100 : 0;
+  const body = Math.abs(live.close - live.open);
   const range = Math.max(0, live.high - live.low);
-  const priceDelta = currentPrice - live.open;
-  const priceMovePips = priceDelta / pipSize;
-  const tickImbalance = directionalTicks ? (upTicks - downTicks) / directionalTicks : 0;
-  const displacement = range > 0 ? clamp(priceDelta / range) : Math.sign(priceDelta);
-  const bodyStrength = range > 0 ? clamp((live.close - live.open) / range) : Math.sign(priceDelta);
-  const closeLocation = range > 0 ? clamp(((live.close - live.low) / range) * 2 - 1) : Math.sign(priceDelta);
-
-  // Previous closed M1 is context only; it cannot vote on or override live direction.
-  const previous = options.previousClosedCandle;
-  const previousRange = previous && Number.isFinite(previous.high) && Number.isFinite(previous.low) ? previous.high - previous.low : 0;
-  const previousIsValid = Boolean(previous && previous.live !== true && Number.isFinite(previous.epoch) && previous.epoch + 60 === live.epoch && Number.isFinite(previous.open) && Number.isFinite(previous.close) && Number.isFinite(previous.high) && Number.isFinite(previous.low) && previous.high >= Math.max(previous.open, previous.close) && previous.low <= Math.min(previous.open, previous.close) && previous.high >= previous.low);
-  const previousBody = previousIsValid && previousRange > 0 ? clamp((previous.close - previous.open) / previousRange) : 0;
-  const previousCloseLocation = previousIsValid && previousRange > 0 ? clamp(((previous.close - previous.low) / previousRange) * 2 - 1) : 0;
-  const previousContextScore = previousIsValid ? clamp((0.70 * previousBody) + (0.30 * previousCloseLocation)) : null;
-
-  // Live M1 evidence alone determines direction. Historical context is excluded from this composite.
-  const composite = (0.40 * displacement) + (0.35 * tickImbalance) + (0.15 * bodyStrength) + (0.10 * closeLocation);
-  const direction = composite > 0 ? "CALL" : composite < 0 ? "PUT" :
-    signDirection(priceDelta) || (upTicks !== downTicks ? (upTicks > downTicks ? "CALL" : "PUT") : null);
-  if (!direction) return {
-    ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
-    candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
-    entryPrice:currentPrice, openPrice:live.open,
-    status:"NO_DIRECTIONAL_EDGE", decisionStrength:"NONE",
-    metrics:{ upTicks, downTicks, directionalTicks, totalTicks, netTicks:upTicks-downTicks,
-      compositeScore:+composite.toFixed(4), openPrice:live.open, currentPrice, priceDelta,
-      priceMovePips:+priceMovePips.toFixed(2), rangeHigh:live.high, rangeLow:live.low, pipSize },
-    evidenceSummary:`เก็บข้อมูล 23 วินาทีแล้ว แต่ราคาและ Tick ยังไม่มีทิศทางที่แยกได้`,
-    reason:"หลักฐานในแท่งปัจจุบันไม่ชี้ขึ้นหรือลงอย่างมีทิศทาง · ไม่สุ่มสร้าง CALL/PUT"
+  const bodyRatio = range > 0 ? body / range : 0;
+  const score = Math.max(1, Math.min(100, Math.round(50 + trendGapPct * 1000 + bodyRatio * 20)));
+  const metrics = {
+    ema5, ema13, uptrend, downtrend, pullbackCall, pullbackPut,
+    touchedEma5: live.low <= ema5 && live.high >= ema5,
+    currentPrice, openPrice: live.open, high: live.high, low: live.low,
+    bodyRatio: +bodyRatio.toFixed(3), elapsedSeconds: +(elapsed / 1000).toFixed(2),
+    emaHistoryCandles: history.length
   };
+  if (!direction) {
+    const reason = !uptrend && !downtrend
+      ? "EMA 5 และ EMA 13 ยังทับกัน · ยังไม่มีแนวโน้มชัดเจน"
+      : uptrend
+        ? "แนวโน้มขึ้น แต่ยังไม่พบราคาย่อลงแตะ EMA 5 พร้อมแท่งเริ่มดีดขึ้น"
+        : "แนวโน้มลง แต่ยังไม่พบราคาดีดขึ้นแตะ EMA 5 พร้อมแท่งเริ่มกดลง";
+    return { ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
+      candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed / 1000),
+      status:"WAITING_FOR_PULLBACK", decisionStrength:"NONE", strategy, metrics,
+      reason };
+  }
 
-  const liveEvidenceStrength = Math.round(Math.abs(composite) * 100);
-  const contextAlignment = previousContextScore === null ? 0 : (direction === "CALL" ? previousContextScore : -previousContextScore);
-  const contextAdjustment = previousContextScore === null ? 0 : Math.round(contextAlignment * 10);
-  const directionalConfidence = clamp(liveEvidenceStrength + contextAdjustment, 0, 100);
-  const tickShare = directionalTicks ? Math.max(upTicks, downTicks) / directionalTicks : 0;
-  const previousContextLabel = previousContextScore === null ? "ไม่มีแท่งก่อนหน้าที่ต่อเนื่อง" : contextAlignment > 0.10 ? "แท่งก่อนหน้าสนับสนุนทิศทาง" : contextAlignment < -0.10 ? "แท่งก่อนหน้าขัดแย้งกับทิศทาง" : "แท่งก่อนหน้าเป็นกลาง";
-  const evidenceSummary = `เก็บข้อมูล 1–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks} · บริบท M1 ก่อนหน้า: ${previousContextLabel}`;
-  const weakEvidence = directionalTicks === 0 || Math.abs(composite) < 0.15;
   return {
-    ready:true, signal:direction, candidateSignal:direction, score:directionalConfidence,
-    confidence:directionalConfidence, candleEpoch:live.epoch,
-    elapsedSeconds:Math.floor(elapsed/1000), strategy,
-    entryPrice:currentPrice, openPrice:live.open, evidenceSummary,
-    status:direction === "CALL" ? "M1_23S_CALL" : "M1_23S_PUT",
-    decisionStrength:weakEvidence ? "LOW" : directionalConfidence >= 55 ? "STRONG" : "MODERATE",
-    metrics:{
-      upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
-      upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
-      downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
-      directionalConfidencePct:directionalTicks ? +(tickShare*100).toFixed(1) : null,
-      compositeScore:+composite.toFixed(4), liveEvidenceStrengthPct:liveEvidenceStrength,
-      previousCandleContextScore:previousContextScore === null ? null : +previousContextScore.toFixed(4),
-      previousCandleContextAdjustment:contextAdjustment, previousCandleContextLabel:previousContextLabel,
-      directionalConfidencePctComposite:directionalConfidence,
-      openPrice:live.open,currentPrice,priceDelta,priceMovePips:+priceMovePips.toFixed(2),
-      rangeHigh:live.high,rangeLow:live.low,rangePosition:range ? +((live.close-live.low)/range).toFixed(4) : null,
-      previousCandleEpoch:previousIsValid ? previous.epoch : null,
-      previousCandleOpen:previousIsValid ? previous.open : null,
-      previousCandleClose:previousIsValid ? previous.close : null,
-      pipSize
-    },
-    alertId:`ENGINE_4:${live.epoch}:${direction}:FIRST_23_SECONDS`,
-    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานมีน้ำหนักต่ำ แต่ทิศทางที่ตรวจพบยังเอนเอียง" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
+    ready:true, signal:direction, candidateSignal:direction, score, confidence:score,
+    candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed / 1000),
+    strategy, entryPrice:currentPrice, openPrice:live.open,
+    status:direction === "CALL" ? "EMA5_13_PULLBACK_CALL" : "EMA5_13_PULLBACK_PUT",
+    decisionStrength:score >= 65 ? "STRONG" : "MODERATE",
+    metrics,
+    evidenceSummary:direction === "CALL"
+      ? "EMA 5 อยู่เหนือ EMA 13 · ราคาย่อลงแตะ EMA 5 · แท่งปัจจุบันเริ่มปิดเขียว"
+      : "EMA 5 อยู่ใต้ EMA 13 · ราคาดีดขึ้นแตะ EMA 5 · แท่งปัจจุบันเริ่มปิดแดง",
+    alertId:`ENGINE_4:${live.epoch}:${direction}:EMA5_13_PULLBACK`,
+    reason:`${direction} · ${direction === "CALL" ? "ขาขึ้น + ย่อลงแตะ EMA 5 + เริ่มดีดขึ้น" : "ขาลง + ดีดขึ้นแตะ EMA 5 + เริ่มกดลง"} · พบที่วินาที ${(elapsed / 1000).toFixed(1)} ของแท่ง M1`
   };
 }
