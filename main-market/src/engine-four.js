@@ -88,7 +88,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     confidence:directionalConfidence, candleEpoch:live.epoch,
     elapsedSeconds:Math.floor(elapsed/1000), strategy,
     entryPrice:currentPrice, openPrice:live.open, evidenceSummary,
-    status:direction === "CALL" ? "M1_23S_FORCED_CALL" : "M1_23S_FORCED_PUT",
+    status:direction === "CALL" ? "M1_23S_CALL" : "M1_23S_PUT",
     decisionStrength:weakEvidence ? "LOW" : directionalConfidence >= 55 ? "STRONG" : "MODERATE",
     metrics:{
       upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
@@ -100,7 +100,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
       rangeHigh:live.high,rangeLow:live.low,rangePosition:range ? +((live.close-live.low)/range).toFixed(4) : null,
       pipSize
     },
-    alertId:`ENGINE_4:${live.epoch}:${direction}:COLLECT_23_SECONDS`,
-    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานอ่อน ใช้ทิศทางที่มีน้ำหนักมากกว่าเป็นตัวตัดสินบังคับ" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
+    alertId:`ENGINE_4:${live.epoch}:${direction}:FIRST_23_SECONDS`,
+    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานมีน้ำหนักต่ำ แต่ทิศทางที่ตรวจพบยังเอนเอียง" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
   };
 }
