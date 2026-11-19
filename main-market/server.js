@@ -314,7 +314,7 @@ async function evaluate(feed) {
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
- const engine4DecisionWindow = sourceCandleEpoch !== null && isEngine4EntryWindow(sourceCandleEpoch, now);
+ const engine4EntryWindow = sourceCandleEpoch !== null && isEngine4EntryWindow(sourceCandleEpoch, now);
  const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
  if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
  if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -360,7 +360,7 @@ async function evaluate(feed) {
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
-   const engineWindow = engine === "ENGINE_4" ? engine4DecisionWindow : finalizeWindow;
+   const engineWindow = engine === "ENGINE_4" ? engine4EntryWindow : finalizeWindow;
    const timingReady = engine === "ENGINE_4"
      ? canDispatchEngine4Signal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] })
@@ -1163,7 +1163,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_TICK_DIRECTION_MAJORITY", minimumClosedCandles: 1, cadence: "COLLECT_TICKS_SECONDS_0_TO_24_DECIDE_AT_SECOND_25_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK", equalPriceTicks: "IGNORED", decisionRule: "UP_TICKS_GT_DOWN_TICKS_CALL; DOWN_TICKS_GT_UP_TICKS_PUT; EQUAL_WAIT", countWindowSeconds: [0, 25], decisionAtSecond: 25, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_TICK_DIRECTION_MAJORITY_AT_25S", minimumClosedCandles: 1, cadence: "COLLECT_TICKS_SECONDS_0_TO_24_DECIDE_AT_SECOND_25_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK_DURING_SECONDS_0_TO_24", equalPriceTicks: "IGNORED", decisionRule: "COLLECT_SECONDS_0_TO_24; DECIDE_AT_SECOND_25; UP_GT_DOWN_CALL; DOWN_GT_UP_PUT; EQUAL_NO_SIGNAL", countWindowSeconds: [0, 25], decisionAtSecond: 25, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_M1_TICK_MAJORITY_DECISION_AT_25S"
     },
