@@ -169,7 +169,7 @@ function paint(m){
  const signal=direction||(preparing?"PREPARE":"STANDBY");
  $("panel").className="signal "+(signal==="PREPARE"?"prepare":signal.toLowerCase());
  $("signal").textContent=signal==="PREPARE"?"PREPARE / เฝ้าระวัง":signal;
- $("hint").textContent=signal==="CALL"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · Price Action CALL":"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป"):signal==="PUT"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · Price Action PUT":"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป"):signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB/Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
+ $("hint").textContent=signal==="CALL"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · EMA 2/3 Pullback CALL":"สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป"):signal==="PUT"?(activeSignals.some(x=>x.engine==="ENGINE_4")?"Engine 4 · EMA 2/3 Pullback PUT":"สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป"):signal==="PREPARE"?"PREPARE · เฝ้าระวัง V1/BB/Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
  $("action").textContent=signal==="CALL"?"พิจารณา CALL ด้วยตนเอง":signal==="PUT"?"พิจารณา PUT ด้วยตนเอง":signal==="PREPARE"?"เฝ้าระวัง · ยังไม่มี CALL/PUT":"ยังไม่เข้าออเดอร์";
  $("api").className="pill "+(api!=="ONLINE"?"off":support==="REST_ONLY"?"rest":"live");
  $("api").textContent=api!=="ONLINE"?"API "+api:support==="REST_ONLY"?"REST DATA":"STREAM LIVE";
