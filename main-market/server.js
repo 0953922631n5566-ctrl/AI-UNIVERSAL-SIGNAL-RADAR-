@@ -41,7 +41,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0, engine4TickStats: { candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 }, streamApiKey: null, subscribeAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, engine4TickStats: { candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0, decisionPrice: null, decisionElapsedSeconds: null }, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -592,7 +592,7 @@ function applyTick(feed, price, epoch) {
   const elapsedInMinute = epoch - minute;
   let tickStats = feed.engine4TickStats;
   if (!tickStats || tickStats.candleEpoch !== minute) {
-    tickStats = { candleEpoch: minute, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 };
+    tickStats = { candleEpoch: minute, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0, decisionPrice: null, decisionElapsedSeconds: null };
     feed.engine4TickStats = tickStats;
   }
   if (elapsedInMinute >= 0 && elapsedInMinute < 25) {
@@ -602,6 +602,10 @@ function applyTick(feed, price, epoch) {
     }
     tickStats.previousPrice = price;
     tickStats.totalTicks += 1;
+  } else if (elapsedInMinute >= 25 && tickStats.decisionPrice === null) {
+    // Freeze the first live tick at/after second 25; later candle movement cannot revise this candle's decision.
+    tickStats.decisionPrice = price;
+    tickStats.decisionElapsedSeconds = elapsedInMinute;
   }
 
   feed.lastTick = price;
@@ -1165,7 +1169,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY_AT_25S", minimumClosedCandles: 1, cadence: "COLLECT_PRICE_MOVE_AND_TICKS_SECONDS_0_TO_24_DECIDE_AT_SECOND_25_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK_DURING_SECONDS_0_TO_24", equalPriceTicks: "IGNORED", decisionRule: "AT_SECOND_25_REQUIRE_PRICE_DIRECTION_AND_TICK_MAJORITY_TO_AGREE", countWindowSeconds: [0, 25], decisionAtSecond: 25, priceConfirmation: "M1_OPEN_TO_CURRENT_PRICE_MOVE_MIN_0_1_PIP", target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_PRICE_DISPLACEMENT_AND_TICK_MAJORITY_AT_25S", minimumClosedCandles: 1, cadence: "COLLECT_PRICE_MOVE_AND_TICKS_SECONDS_0_TO_24_DECIDE_AT_SECOND_25_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK_DURING_SECONDS_0_TO_24", equalPriceTicks: "IGNORED", decisionRule: "AT_SECOND_25_REQUIRE_PRICE_DIRECTION_AND_TICK_MAJORITY_TO_AGREE", countWindowSeconds: [0, 25], decisionAtSecond: 25, priceConfirmation: "M1_OPEN_TO_FROZEN_DECISION_TICK_MOVE_MIN_0_1_PIP", decisionPriceSnapshot: "FIRST_STREAM_TICK_AT_OR_AFTER_SECOND_25", target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_PRICE_DISPLACEMENT_AND_TICK_CONFIRM_AT_25S"
     },
