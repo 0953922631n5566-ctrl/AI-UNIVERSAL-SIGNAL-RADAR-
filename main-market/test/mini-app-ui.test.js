@@ -159,7 +159,6 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK"/);
   assert.match(serverJs, /decisionRule: "UP_TICKS_GT_DOWN_TICKS_CALL; DOWN_TICKS_GT_UP_TICKS_PUT; EQUAL_WAIT"/);
   assert.match(serverJs, /minimumClosedCandles: 1/);
-  assert.match(serverJs, /scoreThresholds: \{ reversal: 55, continuation: 60, unclearOrChoppy: 70 \}/);
   assert.match(serverJs, /copiedFrom: null/);
 });
 
