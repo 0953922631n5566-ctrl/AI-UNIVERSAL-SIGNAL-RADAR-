@@ -371,13 +371,14 @@ async function evaluate(feed) {
      const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
      active = {
        engine, signal: selectedFinalSignal, sourceCandleEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: engine4Entry ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
+       triggeredAt: now, expiresAt: signalHoldExpiresAt(signalTargetEpoch),
        score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: engine4Entry && Number.isFinite(feed.lastTick) ? feed.lastTick : null,
        entryPriceBasis: engine4Entry ? "LIVE_M1_ENTRY_PRICE" : "TARGET_M1_CANDLE_OPEN",
        alertId: engine4Entry ? `${engine}:${sourceCandleEpoch}:${selectedFinalSignal}:EARLY` : `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:NORMAL`
      };
+     if (engine4Entry) active.expiresAt = now + SIGNAL_HOLD_SECONDS * 1000;
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
        engine, symbol: feed.symbol, signal: selectedFinalSignal,
