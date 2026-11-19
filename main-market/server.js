@@ -292,14 +292,14 @@ async function evaluate(feed) {
      ? analyzeTrendRider(analysisCandles)
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
- const engine4SourceReady = closedCandles.length >= 35 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
+ const engine4SourceReady = closedCandles.length >= 1 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
    Boolean(livePreview) && Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS;
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
      ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now })
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
-         reason: "Engine 4 ต้องมีแท่ง M1 ปิดอย่างน้อย 35 แท่งและ Streaming สดพร้อมแท่งปัจจุบัน" };
+         reason: "Engine 4 ต้องมีแท่ง M1 ปิด 1 แท่ง แท่งปัจจุบันที่กำลังวิ่ง และ Streaming สด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
        analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
