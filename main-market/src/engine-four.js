@@ -48,6 +48,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
 
   if (elapsed < 25_000) return {...base,status:"COLLECTING_FIRST_25_SECONDS",
     reason:"กำลังเก็บระยะราคาเปิดถึงราคาปัจจุบันและจำนวน Tick · ตัดสินใจเมื่อครบ 25 วินาที"};
+  if (!validStats) return {...base,status:"TICK_STATS_UNAVAILABLE",reason:"ไม่มีข้อมูล Tick ของแท่ง M1 ปัจจุบัน · ไม่ส่งสัญญาณ"};
   if (decisionPrice === null) return {...base,status:"WAITING_FOR_DECISION_PRICE",reason:"ครบวินาทีที่ 25 แล้ว · รอ Tick แรกเพื่อบันทึกราคาเข้า ณ จุดตัดสินใจ"};
   if (!validStats || !directionalTicks || !tickDirection) return {...base,status:"TICK_COUNT_TIED",
     reason:"ครบ 25 วินาทีแล้ว · Tick ขึ้น/ลงไม่แสดงฝั่งชัดเจน · ไม่ส่งสัญญาณ"};
