@@ -1,77 +1,98 @@
 /**
- * Engine 4 analyzes only the latest forming M1 candle in real time.
- * It compares current-price displacement from the candle open with live-tick
- * direction and dominance collected inside this same candle.
+ * Engine 4 collects the complete first 23 seconds of the current M1 candle,
+ * then emits exactly one directional signal before the 30-second entry cutoff.
+ * The direction is a weighted intrabar estimate, not a calibrated probability.
  */
-export const ENGINE4_MIN_PRICE_MOVE = 0.00001; // 0.1 pip on EUR/USD
-export const ENGINE4_ENTRY_WINDOW_MS = 23_000;
-export const ENGINE4_MIN_DIRECTIONAL_TICKS = 3;
-export const ENGINE4_MIN_TICK_SHARE = 0.60;
+export const ENGINE4_COLLECTION_WINDOW_MS = 23_000;
+export const ENGINE4_DISPATCH_DEADLINE_MS = 30_000;
+export const ENGINE4_ENTRY_WINDOW_MS = ENGINE4_DISPATCH_DEADLINE_MS;
+
+const clamp = (value, min = -1, max = 1) => Math.max(min, Math.min(max, value));
+const signDirection = value => value > 0 ? "CALL" : value < 0 ? "PUT" : null;
 
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const strategy = "ENGINE_4_FIRST_23_SECONDS_M1_PRICE_TICK";
+  const strategy = "ENGINE_4_COLLECT_0_23S_FORCE_DIRECTION_BEFORE_30S";
   const invalid = !options.livePreview || !live ||
     live.live !== true && live.provisional !== true ||
     !Number.isFinite(live.epoch) || live.epoch < 0 ||
-    !Number.isFinite(live.open) || !Number.isFinite(live.close);
-  if (invalid) return { ready:false, signal:null, candidateSignal:null, score:0, status:"NOT_READY",
-    reason:"Engine 4 ต้องใช้แท่ง M1 ล่าสุดที่กำลังวิ่งและราคา Streaming สด", strategy };
+    !Number.isFinite(live.open) || !Number.isFinite(live.close) ||
+    !Number.isFinite(live.high) || !Number.isFinite(live.low) ||
+    live.high < Math.max(live.open, live.close) ||
+    live.low > Math.min(live.open, live.close) || live.high < live.low;
+  if (invalid) return { ready:false, signal:null, candidateSignal:null, score:0, confidence:0,
+    status:"NOT_READY", reason:"Engine 4 ต้องใช้แท่ง M1 ปัจจุบันและราคา Streaming สด", strategy };
 
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const elapsed = now - live.epoch * 1000;
-  if (elapsed < 0 || elapsed >= ENGINE4_ENTRY_WINDOW_MS) return {
-    ready:true, signal:null, candidateSignal:null, score:0, status:"ENTRY_WINDOW_CLOSED",
-    candleEpoch:live.epoch, elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)), strategy,
-    reason:"พ้นช่วงประเมิน 23 วินาทีแรกของแท่ง M1 แล้ว · รอแท่งถัดไป"
+  if (elapsed < ENGINE4_COLLECTION_WINDOW_MS) return {
+    ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
+    status:"COLLECTING_FIRST_23_SECONDS", candleEpoch:live.epoch,
+    elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)), strategy,
+    reason:"กำลังเก็บราคาและแรง Tick ตั้งแต่ต้นแท่ง M1 · จะตัดสินใจเมื่อครบ 23 วินาที"
+  };
+  if (elapsed >= ENGINE4_DISPATCH_DEADLINE_MS) return {
+    ready:true, signal:null, candidateSignal:null, score:0, confidence:0,
+    status:"ENTRY_DEADLINE_MISSED", candleEpoch:live.epoch,
+    elapsedSeconds:Math.floor(elapsed/1000), strategy,
+    reason:"พ้นเส้นตายส่งสัญญาณ 30 วินาทีของแท่งนี้แล้ว · รอแท่งถัดไป"
   };
 
   const stats = options.tickStats;
   const validStats = stats && stats.candleEpoch === live.epoch &&
     Number.isFinite(stats.upTicks) && Number.isFinite(stats.downTicks);
-  const upTicks = validStats ? Math.max(0, Math.floor(stats.upTicks)) : 0;
-  const downTicks = validStats ? Math.max(0, Math.floor(stats.downTicks)) : 0;
+  if (!validStats) return {
+    ready:false, signal:null, candidateSignal:null, score:0, confidence:0,
+    status:"TICK_STATS_UNAVAILABLE", candleEpoch:live.epoch, strategy,
+    reason:"ไม่มีสถิติ Tick ของแท่ง M1 นี้ · ไม่สร้างสัญญาณจากข้อมูลที่ไม่ครบ"
+  };
+
+  const upTicks = Math.max(0, Math.floor(stats.upTicks));
+  const downTicks = Math.max(0, Math.floor(stats.downTicks));
   const directionalTicks = upTicks + downTicks;
-  const totalTicks = validStats ? Math.max(directionalTicks, Math.floor(stats.totalTicks || 0)) : 0;
+  const totalTicks = Math.max(directionalTicks, Math.floor(stats.totalTicks || 0));
   const currentPrice = Number.isFinite(options.currentPrice) ? options.currentPrice : live.close;
+  const symbol = String(options.symbol || "").toUpperCase();
+  const pipSize = symbol.includes("JPY") ? 0.01 : 0.0001;
+  const range = Math.max(0, live.high - live.low);
   const priceDelta = currentPrice - live.open;
-  const priceMovePips = priceDelta / 0.0001;
-  const priceDirection = Math.abs(priceDelta) >= ENGINE4_MIN_PRICE_MOVE
-    ? priceDelta > 0 ? "CALL" : "PUT" : null;
-  const tickDirection = upTicks === downTicks ? null : upTicks > downTicks ? "CALL" : "PUT";
+  const priceMovePips = priceDelta / pipSize;
+  const tickImbalance = directionalTicks ? (upTicks - downTicks) / directionalTicks : 0;
+  const displacement = range > 0 ? clamp(priceDelta / range) : Math.sign(priceDelta);
+  const bodyStrength = range > 0 ? clamp((live.close - live.open) / range) : Math.sign(priceDelta);
+  const closeLocation = range > 0 ? clamp(((live.close - live.low) / range) * 2 - 1) : Math.sign(priceDelta);
+
+  // Weight the complete candle-to-now displacement and tick pressure most heavily.
+  const composite = (0.40 * displacement) + (0.35 * tickImbalance) +
+    (0.15 * bodyStrength) + (0.10 * closeLocation);
+  const fallbackDirection = ["CALL", "PUT"].includes(options.fallbackDirection)
+    ? options.fallbackDirection : null;
+  const direction = composite > 0 ? "CALL" : composite < 0 ? "PUT" :
+    signDirection(priceDelta) || (upTicks !== downTicks ? (upTicks > downTicks ? "CALL" : "PUT") : fallbackDirection) ||
+    (Math.floor(live.epoch / 60) % 2 === 0 ? "CALL" : "PUT");
+
+  const directionalConfidence = Math.round(Math.abs(composite) * 100);
   const tickShare = directionalTicks ? Math.max(upTicks, downTicks) / directionalTicks : 0;
-  const score = Math.round(tickShare * 100);
-  const evidenceSummary = `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks} / ลง ${downTicks} · ความเอนเอียงของ Tick ${score}%`;
-  const base = { ready:true, signal:null, candidateSignal:null, score:validStats ? score : 0,
-    confidence:validStats ? score : 0, candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
+  const evidenceSummary = `เก็บข้อมูล 0–23 วินาที · เปิด ${live.open} → ล่าสุด ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · ช่วงราคา ${live.low}–${live.high} · Tick ขึ้น ${upTicks}/ลง ${downTicks}`;
+  const weakEvidence = directionalTicks === 0 || Math.abs(composite) < 0.15;
+  return {
+    ready:true, signal:direction, candidateSignal:direction, score:directionalConfidence,
+    confidence:directionalConfidence, candleEpoch:live.epoch,
+    elapsedSeconds:Math.floor(elapsed/1000), strategy,
     entryPrice:currentPrice, openPrice:live.open, evidenceSummary,
-    metrics:{upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
+    status:direction === "CALL" ? "M1_23S_FORCED_CALL" : "M1_23S_FORCED_PUT",
+    decisionStrength:weakEvidence ? "LOW" : directionalConfidence >= 55 ? "STRONG" : "MODERATE",
+    metrics:{
+      upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
       upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
       downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
       directionalConfidencePct:directionalTicks ? +(tickShare*100).toFixed(1) : null,
-      minimumDirectionalTicks:ENGINE4_MIN_DIRECTIONAL_TICKS,
-      minimumTickSharePct:ENGINE4_MIN_TICK_SHARE*100,
-      openPrice:live.open,currentPrice,priceDelta,
-      priceMovePips:+priceMovePips.toFixed(2),priceDirection,tickDirection} };
-
-  if (!validStats) return {...base,status:"TICK_STATS_UNAVAILABLE",
-    reason:`${evidenceSummary} · ยังไม่มีข้อมูล Tick ของแท่ง M1 ล่าสุด`};
-  if (directionalTicks < ENGINE4_MIN_DIRECTIONAL_TICKS) return {...base,status:"COLLECTING_LIVE_TICKS",
-    reason:`${evidenceSummary} · กำลังประเมินแท่งปัจจุบัน · Tick ที่มีทิศทาง ${directionalTicks}/${ENGINE4_MIN_DIRECTIONAL_TICKS}`};
-  if (!tickDirection) return {...base,status:"TICK_COUNT_TIED",
-    reason:`${evidenceSummary} · Tick ขึ้นและลงเท่ากัน · ยังไม่เห็นทิศทางที่ได้เปรียบ`};
-  if (!priceDirection) return {...base,status:"PRICE_MOVE_TOO_SMALL",
-    reason:`${evidenceSummary} · ราคาเคลื่อนที่น้อยกว่า 0.1 pip`};
-  if (tickShare < ENGINE4_MIN_TICK_SHARE) return {...base,status:"TICK_MAJORITY_TOO_WEAK",
-    reason:`${evidenceSummary} · Tick ฝั่งที่มากกว่าต้องมีอย่างน้อย ${ENGINE4_MIN_TICK_SHARE*100}%`};
-  if (priceDirection !== tickDirection) return {...base,status:"PRICE_TICK_CONFLICT",
-    reason:`${evidenceSummary} · ราคาปัจจุบันชี้ไปทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection}`};
-
-  const signal = priceDirection;
-  return {...base,signal,candidateSignal:signal,score,confidence:score,
-    status:signal === "CALL" ? "LIVE_PRICE_AND_TICKS_CALL" : "LIVE_PRICE_AND_TICKS_PUT",
-    alertId:`ENGINE_4:${live.epoch}:${signal}:FIRST_23_SECONDS`,
-    reason:signal === "CALL"
-      ? `${evidenceSummary} · CALL`
-      : `${evidenceSummary} · PUT`};
+      compositeScore:+composite.toFixed(4), directionalConfidencePctComposite:directionalConfidence,
+      openPrice:live.open,currentPrice,priceDelta,priceMovePips:+priceMovePips.toFixed(2),
+      rangeHigh:live.high,rangeLow:live.low,rangePosition:range ? +((live.close-live.low)/range).toFixed(4) : null,
+      pipSize
+    },
+    alertId:`ENGINE_4:${live.epoch}:${direction}:COLLECT_23_SECONDS`,
+    reason:`${evidenceSummary} · ${direction} · ${weakEvidence ? "หลักฐานอ่อน ใช้ทิศทางที่มีน้ำหนักมากกว่าเป็นตัวตัดสินบังคับ" : "ตัดสินจากคะแนนถ่วงน้ำหนัก"} · ส่งสัญญาณที่วินาที 23 ก่อนเส้นตาย 30 วินาที`
+  };
 }
