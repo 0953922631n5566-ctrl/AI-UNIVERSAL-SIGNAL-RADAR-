@@ -5,7 +5,7 @@ function candle(epoch, open=1.1, close=1.1005, live=true) { return {epoch,open,h
 function run(upTicks,downTicks,nowOffset=25000,open=1.1,close=1.1005) {
  const live=candle(1_800_000_060,open,close);
  return analyzeEarlyEntryEngine4([live],{livePreview:true,now:1_800_000_060_000+nowOffset,
- tickStats:{candleEpoch:live.epoch,upTicks,downTicks,totalTicks:upTicks+downTicks+1}});
+ tickStats:{candleEpoch:live.epoch,upTicks,downTicks,totalTicks:upTicks+downTicks+1,decisionPrice:close,decisionElapsedSeconds:25}});
 }
 test("Engine 4 collects without signaling before second 25",()=>{const out=run(7,3,24999);assert.equal(out.signal,null);assert.equal(out.status,"COLLECTING_FIRST_25_SECONDS");});
 test("Engine 4 decides CALL only when price displacement and tick majority both rise",()=>{const out=run(7,3);assert.equal(out.signal,"CALL");assert.equal(out.status,"PRICE_AND_TICKS_CALL");assert.equal(out.metrics.upTicks,7);assert.equal(out.metrics.downTicks,3);assert.equal(out.metrics.priceMovePips,5);assert.equal(out.entryPrice,1.1005);});
