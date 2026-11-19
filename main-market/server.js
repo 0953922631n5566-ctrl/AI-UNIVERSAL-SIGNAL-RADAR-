@@ -34,14 +34,14 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-19-engine4-adaptive-two-candle-live-v1";
+const VERSION = "2026-11-19-engine4-m1-tick-majority-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0, streamApiKey: null, subscribeAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, engine4TickStats: { candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 }, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -297,7 +297,7 @@ async function evaluate(feed) {
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
-     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now })
+     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats })
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Engine 4 ต้องมีแท่ง M1 ปิด 1 แท่ง แท่งปัจจุบันที่กำลังวิ่ง และ Streaming สด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
@@ -345,7 +345,7 @@ async function evaluate(feed) {
    const candidateSignal = finalSignal ||
      (engine === "V1" && candidate.signal === "PREPARE" &&
        ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
-   const recoveryCandidate = selectRecoveryCandidate(
+   const recoveryCandidate = engine === "ENGINE_4" ? null : selectRecoveryCandidate(
      candidates, engine, recoveryMode,
      ENGINE_KEYS.filter(key => engineEnabled[key]), null
    );
@@ -582,6 +582,23 @@ function applyTick(feed, price, epoch) {
     current.close = price;
   } else {
     return;
+  }
+
+  // Engine 4 counts each live price change against the preceding tick, only
+  // during the first 25 seconds of this M1 candle. Flat ticks are ignored.
+  const elapsedInMinute = epoch - minute;
+  let tickStats = feed.engine4TickStats;
+  if (!tickStats || tickStats.candleEpoch !== minute) {
+    tickStats = { candleEpoch: minute, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 };
+    feed.engine4TickStats = tickStats;
+  }
+  if (elapsedInMinute >= 0 && elapsedInMinute < 25) {
+    if (Number.isFinite(tickStats.previousPrice)) {
+      if (price > tickStats.previousPrice) tickStats.upTicks += 1;
+      else if (price < tickStats.previousPrice) tickStats.downTicks += 1;
+    }
+    tickStats.previousPrice = price;
+    tickStats.totalTicks += 1;
   }
 
   feed.lastTick = price;
@@ -1145,7 +1162,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "ADAPTIVE_TWO_CANDLE_LIVE_ENTRY", cadence: "LIVE_M1_PREVIEW_EVERY_1S_FIRST_25_SECONDS", candlesUsed: 2, minimumClosedCandles: 1, currentFormingCandles: 1, scoreThresholds: { reversal: 55, continuation: 60, unclearOrChoppy: 70 }, minimumDirectionalMargin: 8, guards: ["TWO_CANDLE_STRUCTURE", "PREVIOUS_HIGH_LOW_REJECTION", "LIVE_MOMENTUM", "CANDLE_BODY_WICK_CONFIRMATION", "RELATIVE_RANGE_0_12_TO_2_5", "LIQUIDITY_SWEEP_FALSE_BREAKOUT", "ADAPTIVE_TWO_CANDLE_REGIME"], entryWindowSeconds: [0, 25], target: "CURRENT_FORMING_M1_CANDLE", direction: { SUPPORT_BOUNCE_OR_FALSE_BREAKDOWN: "CALL", RESISTANCE_REJECTION_OR_FALSE_BREAKUP: "PUT", MICRO_TREND_CONTINUATION: "MATCHED_DIRECTION" }, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "M1_TICK_DIRECTION_MAJORITY", minimumClosedCandles: 1, cadence: "COUNT_UP_DOWN_TICKS_FIRST_25_SECONDS_EVERY_1S", input: "TWELVE_DATA_LIVE_PRICE_TICKS", countRule: "PRICE_INCREASE_VS_PREVIOUS_TICK_AND_PRICE_DECREASE_VS_PREVIOUS_TICK", equalPriceTicks: "IGNORED", decisionRule: "UP_TICKS_GT_DOWN_TICKS_CALL; DOWN_TICKS_GT_UP_TICKS_PUT; EQUAL_WAIT", entryWindowSeconds: [0, 25], target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_ADAPTIVE_TWO_CANDLE_CURRENT_M1_ENTRY"
     },
