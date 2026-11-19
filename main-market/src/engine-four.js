@@ -4,12 +4,13 @@
  * direction and dominance collected inside this same candle.
  */
 export const ENGINE4_MIN_PRICE_MOVE = 0.00001; // 0.1 pip on EUR/USD
+export const ENGINE4_ENTRY_WINDOW_MS = 23_000;
 export const ENGINE4_MIN_DIRECTIONAL_TICKS = 3;
 export const ENGINE4_MIN_TICK_SHARE = 0.60;
 
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const live = Array.isArray(candles) ? candles.at(-1) : null;
-  const strategy = "ENGINE_4_LIVE_SINGLE_CANDLE_PRICE_TICK_PROBABILITY";
+  const strategy = "ENGINE_4_FIRST_23_SECONDS_M1_PRICE_TICK";
   const invalid = !options.livePreview || !live ||
     live.live !== true && live.provisional !== true ||
     !Number.isFinite(live.epoch) || live.epoch < 0 ||
@@ -19,10 +20,10 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
 
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const elapsed = now - live.epoch * 1000;
-  if (elapsed < 0 || elapsed >= 60_000) return {
-    ready:true, signal:null, candidateSignal:null, score:0, status:"CANDLE_WINDOW_CLOSED",
+  if (elapsed < 0 || elapsed >= ENGINE4_ENTRY_WINDOW_MS) return {
+    ready:true, signal:null, candidateSignal:null, score:0, status:"ENTRY_WINDOW_CLOSED",
     candleEpoch:live.epoch, elapsedSeconds:Math.max(0,Math.floor(elapsed/1000)), strategy,
-    reason:"แท่ง M1 ปัจจุบันหมดเวลาแล้ว"
+    reason:"พ้นช่วงประเมิน 23 วินาทีแรกของแท่ง M1 แล้ว · รอแท่งถัดไป"
   };
 
   const stats = options.tickStats;
@@ -69,7 +70,7 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const signal = priceDirection;
   return {...base,signal,candidateSignal:signal,score,confidence:score,
     status:signal === "CALL" ? "LIVE_PRICE_AND_TICKS_CALL" : "LIVE_PRICE_AND_TICKS_PUT",
-    alertId:`ENGINE_4:${live.epoch}:${signal}:LIVE_SINGLE_CANDLE`,
+    alertId:`ENGINE_4:${live.epoch}:${signal}:FIRST_23_SECONDS`,
     reason:signal === "CALL"
       ? `${evidenceSummary} · CALL`
       : `${evidenceSummary} · PUT`};
