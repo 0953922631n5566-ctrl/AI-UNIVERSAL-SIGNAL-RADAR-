@@ -155,15 +155,15 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "FIRST_23S_WEIGHTED_INTRABAR_DIRECTION_NO_SYNTHETIC_FALLBACK"/);
-  assert.match(serverJs, /countRule: "COUNT_STREAMING_PRICE_CHANGES_DURING_FIRST_23_SECONDS_AFTER_CANDLE_OPEN"/);
-  assert.match(serverJs, /decisionRule: "CURRENT_CANDLE_ONLY_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_NO_SYNTHETIC_TIE_BREAK"/);
-  assert.match(serverJs, /previousClosedCandleContext: "ADJACENT_CLOSED_M1_CONTEXT_ONLY_SCORE_ADJUSTMENT_10_DIRECTION_CANNOT_OVERRIDE"/);
+  assert.match(serverJs, /strategy: "M1_QUICK_PULLBACK_EMA5_EMA13_INTRABAR"/);
+  assert.match(serverJs, /countWindow: "\[0,23\)"/);
+  assert.match(serverJs, /decisionRule: "CALL_EMA5_GT_EMA13_LOW_TOUCHES_EMA5_AND_LIVE_CLOSE_GT_OPEN; PUT_EMA5_LT_EMA13_HIGH_TOUCHES_EMA5_AND_LIVE_CLOSE_LT_OPEN"/);
+  assert.match(serverJs, /previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE"/);
   assert.match(serverJs, /previousClosedCandle: closedCandles\.at\(-1\)/);
-  assert.match(serverJs, /historicalCandlesRequired: false/);
+  assert.match(serverJs, /historicalCandlesRequired: true/);
   assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, previousPrice: null, upTicks: 0, downTicks: 0, totalTicks: 0 \}/);
   assert.match(serverJs, /epoch - minute/);
-  assert.match(serverJs, /minimumClosedCandles: 0/);
+  assert.match(serverJs, /minimumClosedCandles: 13/);
   assert.match(serverJs, /copiedFrom: null/);
 });
 
@@ -175,7 +175,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S/);
+  assert.match(serverJs, /EMA5_13_QUICK_PULLBACK_INTRABAR_IMMEDIATE/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
