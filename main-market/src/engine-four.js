@@ -40,9 +40,10 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const tickDirection = upTicks === downTicks ? null : upTicks > downTicks ? "CALL" : "PUT";
   const tickShare = directionalTicks ? Math.max(upTicks, downTicks) / directionalTicks : 0;
   const score = Math.round(tickShare * 100);
-  const base = { ready:true, signal:null, candidateSignal:null, score:0,
-    candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
-    entryPrice:currentPrice, openPrice:live.open,
+  const evidenceSummary = `ราคาเปิด ${live.open} → ราคาปัจจุบัน ${currentPrice} (${priceMovePips >= 0 ? "+" : ""}${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks} / ลง ${downTicks} · ความเอนเอียงของ Tick ${score}%`;
+  const base = { ready:true, signal:null, candidateSignal:null, score:validStats ? score : 0,
+    confidence:validStats ? score : 0, candleEpoch:live.epoch, elapsedSeconds:Math.floor(elapsed/1000), strategy,
+    entryPrice:currentPrice, openPrice:live.open, evidenceSummary,
     metrics:{upTicks,downTicks,directionalTicks,totalTicks,netTicks:upTicks-downTicks,
       upShare:directionalTicks ? +(upTicks/directionalTicks*100).toFixed(1) : null,
       downShare:directionalTicks ? +(downTicks/directionalTicks*100).toFixed(1) : null,
@@ -53,23 +54,23 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
       priceMovePips:+priceMovePips.toFixed(2),priceDirection,tickDirection} };
 
   if (!validStats) return {...base,status:"TICK_STATS_UNAVAILABLE",
-    reason:"ยังไม่มีข้อมูล Tick ของแท่ง M1 ล่าสุด"};
+    reason:`${evidenceSummary} · ยังไม่มีข้อมูล Tick ของแท่ง M1 ล่าสุด`};
   if (directionalTicks < ENGINE4_MIN_DIRECTIONAL_TICKS) return {...base,status:"COLLECTING_LIVE_TICKS",
-    reason:`กำลังประเมินแท่ง M1 ปัจจุบัน · Tick ที่มีทิศทาง ${directionalTicks}/${ENGINE4_MIN_DIRECTIONAL_TICKS} · ไม่รอแท่งย้อนหลัง`};
+    reason:`${evidenceSummary} · กำลังประเมินแท่งปัจจุบัน · Tick ที่มีทิศทาง ${directionalTicks}/${ENGINE4_MIN_DIRECTIONAL_TICKS}`};
   if (!tickDirection) return {...base,status:"TICK_COUNT_TIED",
-    reason:"Tick ขึ้นและลงเท่ากัน · ยังไม่เห็นทิศทางที่ได้เปรียบ"};
+    reason:`${evidenceSummary} · Tick ขึ้นและลงเท่ากัน · ยังไม่เห็นทิศทางที่ได้เปรียบ`};
   if (!priceDirection) return {...base,status:"PRICE_MOVE_TOO_SMALL",
-    reason:`ราคาเปิด ${live.open} → ราคาปัจจุบัน ${currentPrice} เคลื่อนที่น้อยกว่า 0.1 pip`};
+    reason:`${evidenceSummary} · ราคาเคลื่อนที่น้อยกว่า 0.1 pip`};
   if (tickShare < ENGINE4_MIN_TICK_SHARE) return {...base,status:"TICK_MAJORITY_TOO_WEAK",
-    reason:`Tick ฝั่งที่มากกว่ามีเพียง ${score}% · ต้องมีอย่างน้อย ${ENGINE4_MIN_TICK_SHARE*100}%`};
+    reason:`${evidenceSummary} · Tick ฝั่งที่มากกว่าต้องมีอย่างน้อย ${ENGINE4_MIN_TICK_SHARE*100}%`};
   if (priceDirection !== tickDirection) return {...base,status:"PRICE_TICK_CONFLICT",
-    reason:`ราคาปัจจุบันชี้ไปทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection}`};
+    reason:`${evidenceSummary} · ราคาปัจจุบันชี้ไปทาง ${priceDirection} แต่ Tick ส่วนใหญ่อยู่ทาง ${tickDirection}`};
 
   const signal = priceDirection;
   return {...base,signal,candidateSignal:signal,score,confidence:score,
     status:signal === "CALL" ? "LIVE_PRICE_AND_TICKS_CALL" : "LIVE_PRICE_AND_TICKS_PUT",
     alertId:`ENGINE_4:${live.epoch}:${signal}:LIVE_SINGLE_CANDLE`,
     reason:signal === "CALL"
-      ? `แท่งล่าสุด: ราคาเปิด ${live.open} → ราคาปัจจุบัน ${currentPrice} (+${priceMovePips.toFixed(2)} pip) · Tick ขึ้น ${upTicks}/${directionalTicks} (${score}%) มากกว่า Tick ลง ${downTicks} · CALL`
-      : `แท่งล่าสุด: ราคาเปิด ${live.open} → ราคาปัจจุบัน ${currentPrice} (${priceMovePips.toFixed(2)} pip) · Tick ลง ${downTicks}/${directionalTicks} (${score}%) มากกว่า Tick ขึ้น ${upTicks} · PUT`};
+      ? `${evidenceSummary} · CALL`
+      : `${evidenceSummary} · PUT`};
 }
