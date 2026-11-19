@@ -297,7 +297,7 @@ async function evaluate(feed) {
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
    : engine4SourceReady
-     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, symbol: feed.symbol, fallbackDirection: (() => { const prior = [...closedCandles].reverse().find(c => Number.isFinite(c.open) && Number.isFinite(c.close) && c.close !== c.open); return prior ? (prior.close > prior.open ? "CALL" : "PUT") : null; })() })
+     ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, symbol: feed.symbol, currentPrice: feed.lastTick })
      : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Engine 4 ต้องมีแท่ง M1 ปัจจุบันที่กำลังวิ่งและ Streaming สด" };
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
@@ -1165,7 +1165,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "COLLECT_0_23S_WEIGHTED_INTRABAR_DIRECTION_FORCE_BEFORE_30S", minimumClosedCandles: 0, cadence: "COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S", input: "TWELVE_DATA_LIVE_M1_OHLC_AND_DIRECTIONAL_TICKS", countRule: "COUNT_STREAMING_PRICE_CHANGES_DURING_FIRST_23_SECONDS_AFTER_CANDLE_OPEN", decisionRule: "WEIGHT_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_NO_SYNTHETIC_TIE_BREAK", countWindow: "[0,23)", decisionAtSeconds: 23, dispatchDeadlineSecondsExclusive: 30, historicalCandlesRequired: false, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "FIRST_23S_WEIGHTED_INTRABAR_DIRECTION_NO_SYNTHETIC_FALLBACK", minimumClosedCandles: 0, cadence: "COLLECT_FIRST_23S_AND_DECIDE_ONCE_AT_23S_IF_DIRECTIONAL_EVIDENCE_EXISTS", input: "TWELVE_DATA_LIVE_M1_OHLC_AND_DIRECTIONAL_TICKS", countRule: "COUNT_STREAMING_PRICE_CHANGES_DURING_FIRST_23_SECONDS_AFTER_CANDLE_OPEN", decisionRule: "WEIGHT_PRICE_DISPLACEMENT_40_TICK_IMBALANCE_35_CANDLE_BODY_15_CLOSE_LOCATION_10_NO_SYNTHETIC_TIE_BREAK", countWindow: "[0,23)", decisionAtSeconds: 23, dispatchDeadlineSecondsExclusive: 30, historicalCandlesRequired: false, target: "CURRENT_FORMING_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_SINGLE_CANDLE_ANALYSIS"
     },
