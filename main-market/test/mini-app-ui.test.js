@@ -129,7 +129,7 @@ test("Engine 4 alerts immediately in its first 25 seconds and holds its card for
   assert.match(html, /playSequence\(\[587,784\]/);
   assert.match(html, /navigator\.vibrate\(\[100,60,100\]\)/);
   assert.match(html, /const fourthActive=usable&&fourth.active===true/);
-  assert.match(html, /if\\(fourthActive&&windowKey!==engine4LastFinalKey\\)/);
+  assert.match(html, /if\(fourthActive&&windowKey!==engine4LastFinalKey\)/);
   assert.doesNotMatch(html, /const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
   assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
   assert.match(html, /engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil/);
