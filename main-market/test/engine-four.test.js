@@ -67,10 +67,16 @@ test("Engine 4 ignores tick stats from another M1 candle",()=>{
   assert.equal(out.signal,null);
   assert.equal(out.status,"TICK_STATS_UNAVAILABLE");
 });
-test("Engine 4 closes its live decision window at the end of the current M1 candle",()=>{
-  const out=run(5,1,60000);
-  assert.equal(out.signal,null);
-  assert.equal(out.status,"CANDLE_WINDOW_CLOSED");
+test("Engine 4 closes its entry window at 23 seconds even though the M1 candle continues",()=>{
+  for (const offset of [23_000, 30_000, 59_999, 60_000]) {
+    const out=run(5,1,offset);
+    assert.equal(out.signal,null);
+    assert.equal(out.status,"ENTRY_WINDOW_CLOSED");
+  }
+});
+test("Engine 4 can still signal immediately at second 22 when evidence agrees",()=>{
+  const out=run(5,0,22_999,1.1,1.1002);
+  assert.equal(out.signal,"CALL");
 });
 test("Engine 4 requires a live M1 preview",()=>{
   const closed=candle(1_800_000_060,1.1,1.1005,false);

@@ -3,6 +3,7 @@ export const PREPARE_ALERT_START_MS = 50_000;
 export const SIGNAL_FINALIZE_START_MS = 55_000;
 export const SIGNAL_HOLD_SECONDS = 30;
 export const SIGNAL_MAX_TICK_AGE_MS = 5_000;
+export const ENGINE4_ENTRY_WINDOW_MS = 23_000;
 
 export function isPrepareAlertWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
@@ -14,11 +15,11 @@ export function isSignalFinalizeWindow(candleEpoch, now = Date.now()) {
   const elapsed = now - candleEpoch * 1000;
   return elapsed >= SIGNAL_FINALIZE_START_MS && elapsed < M1_CANDLE_MS;
 }
-// Engine 4 can enter as soon as the current M1 candle has enough live evidence.
+// Engine 4 can enter immediately when evidence is sufficient, but only during the first 23 seconds of each M1 candle.
 export function isEngine4EntryWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
-  return elapsed >= 0 && elapsed < M1_CANDLE_MS;
+  return elapsed >= 0 && elapsed < ENGINE4_ENTRY_WINDOW_MS;
 }
 export function signalHoldExpiresAt(targetCandleEpoch) {
   if (!Number.isFinite(targetCandleEpoch)) return null;
