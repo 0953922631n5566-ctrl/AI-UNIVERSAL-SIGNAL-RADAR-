@@ -34,7 +34,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EARLY ENTRY";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-INDEPENDENT-ENGINE-4-EARLY-ENTRY";
-const VERSION = "2026-11-20-engine4-three-closed-live-ticks-t10-t5-v10";
+const VERSION = "2026-11-20-four-engines-live-tick-reactive-250ms-v11";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -71,6 +71,10 @@ let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
 let signalTimer = null;
+let liveAnalysisTimer = null;
+let liveAnalysisBusy = false;
+let liveAnalysisPending = false;
+let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
 const engineEnabled = { V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true };
@@ -203,6 +207,8 @@ function clearTimers() {
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
   clearInterval(signalTimer); signalTimer = null;
+  clearTimeout(liveAnalysisTimer); liveAnalysisTimer = null;
+  liveAnalysisPending = false;
   clearTimeout(retryTimer); retryTimer = null;
 }
 
@@ -629,8 +635,9 @@ function applyTick(feed, price, epoch) {
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
-  // Tick events update the in-memory M1 OHLC immediately. The analyzer consumes
-  // the latest snapshot on the one-second local timer; no REST request is made here.
+  // Re-score all four engines as soon as a fresh Streaming Tick arrives.
+  // A shared 250ms throttle coalesces bursts and never creates a REST request.
+  scheduleLiveAnalysis(feed);
 }
 
 async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
@@ -692,26 +699,46 @@ function startRestTimer() {
   }, REST_SYNC_SECONDS * 1000);
 }
 
-function startSignalTimer() {
-  if (signalTimer) clearInterval(signalTimer);
-  // Re-evaluate the latest forming M1 candle every second using the existing local WebSocket data.
-  // This timer never calls Twelve Data REST; T-10/T-5 gates and the 30-second signal hold remain unchanged.
-  let evaluationBusy = false;
-  signalTimer = setInterval(async () => {
-    if (!monitoring || evaluationBusy) return;
-    const feed = feeds.get(selectedSymbol);
-    const current = feed?.candles.at(-1);
+function scheduleLiveAnalysis(feed) {
+  if (!monitoring || !feed || selectedSymbol !== feed.symbol) return;
+  liveAnalysisPending = true;
+  if (liveAnalysisBusy || liveAnalysisTimer) return;
+  const cadenceMs = LIVE_ANALYSIS_INTERVAL_SECONDS * 1000;
+  const delayMs = Math.max(0, cadenceMs - (Date.now() - lastLiveAnalysisAt));
+  liveAnalysisTimer = setTimeout(async () => {
+    liveAnalysisTimer = null;
+    if (!monitoring || selectedSymbol !== feed.symbol) {
+      liveAnalysisPending = false;
+      return;
+    }
+    liveAnalysisPending = false;
+    const current = feed.candles.at(-1);
     if (!current?.live) return;
     const elapsedMs = Date.now() - current.epoch * 1000;
     if (elapsedMs < 0 || elapsedMs > 60000) return;
-    evaluationBusy = true;
+    liveAnalysisBusy = true;
+    lastLiveAnalysisAt = Date.now();
     try {
       await evaluate(feed);
       dispatchSignalIfReady(feed);
       publish();
     } catch (error) {
-      console.error("[radar] timed analysis failed", error.message);
-    } finally { evaluationBusy = false; }
+      console.error("[radar] live tick analysis failed", error.message);
+    } finally {
+      liveAnalysisBusy = false;
+      if (liveAnalysisPending) scheduleLiveAnalysis(feed);
+    }
+  }, delayMs);
+}
+
+function startSignalTimer() {
+  if (signalTimer) clearInterval(signalTimer);
+  // Safety cadence for T-10/T-5 boundaries; tick events also trigger immediate analysis.
+  // This is local computation over the existing WebSocket buffer, never a REST/API poll.
+  signalTimer = setInterval(() => {
+    if (!monitoring) return;
+    const feed = feeds.get(selectedSymbol);
+    if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
   }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
 }
 
@@ -1192,7 +1219,8 @@ app.get("/health", (_req, res) => {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
       role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
       closedCandlesOnly: false, liveCandlePreview: true,
-      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS, localDirectionalFallback: true,
+      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
+      liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER", localDirectionalFallback: true,
       componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
       bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },

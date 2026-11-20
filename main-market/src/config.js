@@ -11,8 +11,9 @@ export const MAX_CANDLES = HISTORY_CANDLES + 10;
 export const REST_SYNC_SECONDS = 180;
 // Check the live WebSocket feed locally; this does not create a REST/API request.
 export const LIVE_PRICE_CHECK_SECONDS = 5;
-// Re-score the latest live M1 candle locally every second from the existing WebSocket tick buffer; no REST/API request is created.
-export const LIVE_ANALYSIS_INTERVAL_SECONDS = 1;
+// Re-score on every fresh WebSocket Tick (coalesced) and keep a 250ms local safety cadence for T-10/T-5 timing.
+// This is local computation over the existing stream and does not increase Twelve Data REST/API usage.
+export const LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25;
 export const MAX_CANDLE_AGE_SECONDS = 180;
 export const MAX_STREAM_AGE_SECONDS = 25;
 // Keep the entry signal visible for exactly 30 seconds after the target M1 candle opens.
