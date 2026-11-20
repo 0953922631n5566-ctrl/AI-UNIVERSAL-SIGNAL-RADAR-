@@ -30,7 +30,7 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /alert-flash-put/);
   assert.match(html, /T-5/);
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
-  assert.match(html, /EMA 2\/3 QUICK PULLBACK/);
+  assert.match(html, /ACCUMULATED PRESSURE/);
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
   assert.match(html, /m\.engineResults/);
@@ -42,9 +42,9 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /id="engine4Card"/);
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
-  assert.match(html, /<div class="engine-title">04 · EMA 2\/3 QUICK PULLBACK<\/div>/);
-  assert.match(html, /Engine 4 · EMA 2\/3 Pullback CALL/);
-  assert.match(html, /Engine 4 · EMA 2\/3 Pullback PUT/);
+  assert.match(html, /<div class="engine-title">04 · ACCUMULATED PRESSURE<\/div>/);
+  assert.match(html, /Engine 4 · Accumulated Pressure CALL/);
+  assert.match(html, /Engine 4 · Accumulated Pressure PUT/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
   assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
@@ -126,7 +126,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 alerts immediately when current-candle price and Tick evidence agree and holds for 30 seconds", () => {
+test("Engine 4 decides at second 23 from accumulated pressure and holds for 30 seconds", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -158,15 +158,15 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "M1_QUICK_PULLBACK_EMA2_EMA3_INTRABAR"/);
+  assert.match(serverJs, /strategy: "M1_TWO_CLOSED_PLUS_LIVE_23S_ACCUMULATED_PRESSURE"/);
   assert.match(serverJs, /countWindow: "\[0,23\)"/);
-  assert.match(serverJs, /decisionRule: "CALL_EMA2_GT_EMA3_LOW_TOUCHES_EMA2_AND_CLOSE_ABOVE_OPEN; PUT_EMA2_LT_EMA3_HIGH_TOUCHES_EMA2_AND_CLOSE_BELOW_OPEN"/);
-  assert.match(serverJs, /previousClosedCandleContext: "EMA_CALCULATION_HISTORY_ONLY_NO_SEPARATE_DIRECTION_OVERRIDE"/);
+  assert.match(serverJs, /decisionRule: "CALL_WHEN_TOTAL_UPWARD_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL"/);
+  assert.match(serverJs, /previousClosedCandleContext: "LAST_TWO_CLOSED_M1_BODY_NET_MOVEMENT"/);
   assert.doesNotMatch(serverJs, /previousClosedCandle: closedCandles/);
   assert.match(serverJs, /historicalCandlesRequired: true/);
-  assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, firstPrice: null, previousPrice: null/);
+  assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, firstPrice: null, previousPrice: null, upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: \[\]/);
   assert.match(serverJs, /epoch - minute/);
-  assert.match(serverJs, /minimumClosedCandles: 3/);
+  assert.match(serverJs, /minimumClosedCandles: 2/);
   assert.match(serverJs, /copiedFrom: null/);
 });
 
@@ -178,7 +178,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /EMA2_3_QUICK_PULLBACK_INTRABAR_IMMEDIATE/);
+  assert.match(serverJs, /TWO_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_AT_23S/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
