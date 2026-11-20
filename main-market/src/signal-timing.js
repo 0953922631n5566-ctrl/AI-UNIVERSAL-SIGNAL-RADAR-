@@ -4,7 +4,8 @@ export const SIGNAL_FINALIZE_START_MS = 55_000;
 export const SIGNAL_HOLD_SECONDS = 30;
 export const SIGNAL_MAX_TICK_AGE_MS = 5_000;
 export const ENGINE4_COLLECTION_WINDOW_MS = 23_000;
-export const ENGINE4_ENTRY_WINDOW_MS = 23_000;
+export const ENGINE4_DECISION_AT_MS = 23_000;
+export const ENGINE4_ENTRY_WINDOW_MS = M1_CANDLE_MS;
 
 export function isPrepareAlertWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
@@ -16,11 +17,11 @@ export function isSignalFinalizeWindow(candleEpoch, now = Date.now()) {
   const elapsed = now - candleEpoch * 1000;
   return elapsed >= SIGNAL_FINALIZE_START_MS && elapsed < M1_CANDLE_MS;
 }
-// Engine 4 may dispatch immediately when a valid pullback appears during seconds [0,23).
+// Engine 4 decides once after collecting the first 23 seconds of the current M1 candle.
 export function isEngine4EntryWindow(candleEpoch, now = Date.now()) {
   if (!Number.isFinite(candleEpoch) || !Number.isFinite(now)) return false;
   const elapsed = now - candleEpoch * 1000;
-  return elapsed >= 0 && elapsed < ENGINE4_ENTRY_WINDOW_MS;
+  return elapsed >= ENGINE4_DECISION_AT_MS && elapsed < ENGINE4_ENTRY_WINDOW_MS;
 }
 export function signalHoldExpiresAt(targetCandleEpoch) {
   if (!Number.isFinite(targetCandleEpoch)) return null;
