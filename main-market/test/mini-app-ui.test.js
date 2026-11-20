@@ -172,13 +172,13 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
 });
 
 test("all four analyzers re-score on fresh Streaming Ticks with a 250ms local safety cadence without increasing Twelve Data REST cadence", () => {
-  assert.match(configJs, /LIVE_ANALYSIS_INTERVAL_SECONDS = 0\\.25/);
+  assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
   assert.ok(serverJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS * 1000"));
-  assert.match(serverJs, /function scheduleLiveAnalysis\\(feed\\)/);
-  assert.match(serverJs, /scheduleLiveAnalysis\\(feed\\);/);
-  assert.match(serverJs, /liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER"/);
+  assert.ok(serverJs.includes("function scheduleLiveAnalysis(feed)"));
+  assert.ok(serverJs.includes("scheduleLiveAnalysis(feed);"));
+  assert.ok(serverJs.includes('liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER"'));
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
