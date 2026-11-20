@@ -55,7 +55,7 @@ test("Engine 4 emits PUT when accumulated downward movement is greater", () => {
     { epoch: epoch - 120, open: 1.1010, close: 1.1008, high: 1.1011, low: 1.1007, live: false },
     { epoch: epoch - 60, open: 1.1008, close: 1.1006, high: 1.1009, low: 1.1005, live: false }
   ];
-  const out = analyze({ candles: falling, current: { ...live, open: 1.1006, close: 1.10055 },
+  const out = analyze({ candles: falling, current: { ...live, open: 1.1006, close: 1.10055, high: 1.1007, low: 1.1005 },
     tickStats: stats(0.00001, 0.00005, "DOWN") });
   assert.equal(out.signal, "PUT");
   assert.equal(out.status, "ACCUMULATED_PRESSURE_PUT");
