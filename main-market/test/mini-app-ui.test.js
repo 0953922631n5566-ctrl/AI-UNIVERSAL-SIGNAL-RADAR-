@@ -126,7 +126,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 decides at second 23 from accumulated pressure and holds for 30 seconds", () => {
+test("Engine 4 uses three closed candles and live tick accumulation through T-5 and holds for 30 seconds", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -158,15 +158,16 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "M1_TWO_CLOSED_PLUS_LIVE_23S_ACCUMULATED_PRESSURE"/);
-  assert.match(serverJs, /countWindow: "\[0,23\)"/);
+  assert.match(serverJs, /strategy: "M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5"/);
+  assert.match(serverJs, /countWindow: "\[0,55\)"/);
+  assert.ok(serverJs.includes('prepareAtSeconds: 50, decisionAtSeconds: 55, dispatchWindow: "[55,60)"'));
   assert.match(serverJs, /decisionRule: "CALL_WHEN_TOTAL_UPWARD_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL"/);
-  assert.match(serverJs, /previousClosedCandleContext: "LAST_TWO_CLOSED_M1_BODY_NET_MOVEMENT"/);
+  assert.match(serverJs, /previousClosedCandleContext: "LAST_THREE_CLOSED_M1_BODY_NET_MOVEMENT"/);
   assert.doesNotMatch(serverJs, /previousClosedCandle: closedCandles/);
   assert.match(serverJs, /historicalCandlesRequired: true/);
   assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, firstPrice: null, previousPrice: null, upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: \[\]/);
   assert.match(serverJs, /epoch - minute/);
-  assert.match(serverJs, /minimumClosedCandles: 2/);
+  assert.match(serverJs, /minimumClosedCandles: 3/);
   assert.match(serverJs, /copiedFrom: null/);
 });
 
@@ -178,7 +179,7 @@ test("all four analyzers re-score every second from local WebSocket data without
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /TWO_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_AT_23S/);
+  assert.match(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
 });
 
