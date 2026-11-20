@@ -602,23 +602,21 @@ function applyTick(feed, price, epoch) {
   const elapsedInMinute = epoch - minute;
   let tickStats = feed.engine4TickStats;
   if (!tickStats || tickStats.candleEpoch !== minute) {
-    tickStats = { candleEpoch: minute, firstPrice: null, previousPrice: null,
+    const currentCandle = feed.candles.at(-1);
+    const openingPrice = currentCandle?.epoch === minute && Number.isFinite(currentCandle.open)
+      ? currentCandle.open : price;
+    tickStats = { candleEpoch: minute, firstPrice: null, previousPrice: openingPrice,
       upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: [] };
     feed.engine4TickStats = tickStats;
     feed.engine4DecisionCandle = null;
   }
   if (elapsedInMinute >= 0 && elapsedInMinute < 23) {
-    if (!Number.isFinite(tickStats.firstPrice)) {
-      tickStats.firstPrice = price;
-      tickStats.previousPrice = price;
-      tickStats.totalTicks = 1;
-    } else {
-      const delta = price - tickStats.previousPrice;
-      if (delta > 0) tickStats.upMovement += delta;
-      else if (delta < 0) tickStats.downMovement += Math.abs(delta);
-      tickStats.previousPrice = price;
-      tickStats.totalTicks += 1;
-    }
+    if (!Number.isFinite(tickStats.firstPrice)) tickStats.firstPrice = price;
+    const delta = price - tickStats.previousPrice;
+    if (delta > 0) tickStats.upMovement += delta;
+    else if (delta < 0) tickStats.downMovement += Math.abs(delta);
+    tickStats.previousPrice = price;
+    tickStats.totalTicks += 1;
     const sampleAt = Date.now();
     tickStats.recentSamples.push({ at: sampleAt, price });
     tickStats.recentSamples = tickStats.recentSamples
