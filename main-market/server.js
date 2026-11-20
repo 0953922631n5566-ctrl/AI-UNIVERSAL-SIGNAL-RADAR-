@@ -297,12 +297,14 @@ async function evaluate(feed) {
    tickAge >= 0 && tickAge <= 5;
  const engine4Raw = !engineEnabled.ENGINE_4
    ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" }
-   : !engine4DecisionPending
-     ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DECISION_ALREADY_MADE", reason: "Engine 4 ตัดสินใจสำหรับแท่ง M1 นี้ไปแล้ว" }
-     : engine4SourceReady
-       ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, currentPrice: feed.lastTick })
-       : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
-           reason: "Engine 4 ต้องมีแท่ง M1 ปัจจุบันและ Streaming สดภายใน 5 วินาที" };
+   : sourceCandleEpoch === null
+     ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED", reason: "รอแท่ง M1 ปัจจุบันที่กำลังวิ่ง" }
+     : !engine4DecisionPending
+       ? { ready: false, signal: null, candidateSignal: null, score: 0, status: "DECISION_ALREADY_MADE", reason: "Engine 4 ตัดสินใจสำหรับแท่ง M1 นี้ไปแล้ว" }
+       : engine4SourceReady
+         ? analyzeEarlyEntryEngine4(analysisCandles, { livePreview: Boolean(livePreview), now, tickStats: feed.engine4TickStats, currentPrice: feed.lastTick })
+         : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
+             reason: "Engine 4 ต้องมีแท่ง M1 ปัจจุบันและ Streaming สดภายใน 5 วินาที" };
  if (engine4Raw.decisionMade === true) feed.engine4DecisionCandle = sourceCandleEpoch;
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
