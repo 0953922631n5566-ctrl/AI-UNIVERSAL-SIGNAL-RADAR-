@@ -160,6 +160,7 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: "M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5"/);
   assert.match(serverJs, /countWindow: "\[0,55\)"/);
+  assert.match(serverJs, /prepareAtSeconds: 50, decisionAtSeconds: 55, dispatchWindow: "\\[55,60\\)"/);
   assert.match(serverJs, /decisionRule: "CALL_WHEN_TOTAL_UPWARD_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL"/);
   assert.match(serverJs, /previousClosedCandleContext: "LAST_THREE_CLOSED_M1_BODY_NET_MOVEMENT"/);
   assert.doesNotMatch(serverJs, /previousClosedCandle: closedCandles/);
