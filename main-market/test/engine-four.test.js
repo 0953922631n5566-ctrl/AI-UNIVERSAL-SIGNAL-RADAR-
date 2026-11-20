@@ -1,69 +1,102 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeEarlyEntryEngine4, ENGINE4_ENTRY_WINDOW_MS } from "../src/engine-four.js";
-import { isEngine4EntryWindow, canDispatchEngine4Signal } from "../src/signal-timing.js";
+import {
+  analyzeEarlyEntryEngine4, ENGINE4_COLLECTION_WINDOW_MS,
+  ENGINE4_DECISION_AT_MS, ENGINE4_ENTRY_WINDOW_MS
+} from "../src/engine-four.js";
 
 const epoch = 1_800_000_060;
-const history = Array.from({length:20}, (_, i) => {
-  const close = 1.1000 + i * 0.0001;
-  return { epoch:epoch - (20-i)*60, open:close-0.00005, close,
-    high:close+0.0001, low:close-0.0001, live:false, provisional:false };
-});
-const liveCall = { epoch, open:1.1018, close:1.1019, high:1.1020, low:1.1017, live:false, provisional:true };
-const livePut = { epoch, open:1.1001, close:1.1000, high:1.1002, low:1.0999, live:false, provisional:true };
-function analyze(live = liveCall, elapsed = 5, candles = history) {
-  return analyzeEarlyEntryEngine4([...candles, live], {
-    livePreview:true, now:epoch*1000+elapsed*1000, currentPrice:live.close
+const closedUp = [
+  { epoch: epoch - 120, open: 1.1000, close: 1.1002, high: 1.1003, low: 1.0999, live: false },
+  { epoch: epoch - 60, open: 1.1002, close: 1.1004, high: 1.1005, low: 1.1001, live: false }
+];
+const live = {
+  epoch, open: 1.1004, close: 1.10045, high: 1.1005, low: 1.1003,
+  live: false, provisional: true
+};
+function stats(upMovement = 0.00005, downMovement = 0.00001, recentDirection = "UP") {
+  const now = epoch * 1000 + 23_000;
+  return {
+    candleEpoch: epoch, firstPrice: live.open, previousPrice: live.close,
+    upMovement, downMovement, totalTicks: 20,
+    recentSamples: [
+      { at: now - 4_000, price: 1.1005 },
+      { at: now - 1_000, price: recentDirection === "DOWN" ? 1.10045 : 1.10055 }
+    ]
+  };
+}
+function analyze({
+  candles = closedUp, current = live, tickStats = stats(),
+  elapsed = 23, currentPrice = current.close
+} = {}) {
+  return analyzeEarlyEntryEngine4([...candles, current], {
+    livePreview: true, now: epoch * 1000 + elapsed * 1000,
+    tickStats, currentPrice
   });
 }
-test("Engine 4 emits CALL on EMA2>EMA3 pullback to EMA2 with live price above open", () => {
-  const out=analyze(liveCall);
-  assert.equal(out.signal,"CALL");
-  assert.equal(out.status,"EMA2_3_PULLBACK_CALL");
-  assert.ok(out.metrics.ema2 > out.metrics.ema3);
-  assert.equal(out.metrics.emaFastPeriod,2);
-  assert.equal(out.metrics.emaSlowPeriod,3);
+
+test("Engine 4 waits until second 23 while collecting the two closed candles and live tick path", () => {
+  const out = analyze({ elapsed: 22 });
+  assert.equal(out.ready, true);
+  assert.equal(out.decisionMade, false);
+  assert.equal(out.signal, null);
+  assert.equal(out.status, "COLLECTING_PRICE_PRESSURE");
 });
-test("Engine 4 emits PUT on EMA2<EMA3 pullback to EMA2 with live price below open", () => {
-  const falling = Array.from({length:20}, (_, i) => {
-    const close = 1.1020 - i * 0.0001;
-    return { epoch:epoch - (20-i)*60, open:close+0.00005, close,
-      high:close+0.0001, low:close-0.0001, live:false, provisional:false };
-  });
-  const out=analyze(livePut,5,falling);
-  assert.equal(out.signal,"PUT");
-  assert.equal(out.status,"EMA2_3_PULLBACK_PUT");
-  assert.ok(out.metrics.ema2 < out.metrics.ema3);
+test("Engine 4 emits CALL when accumulated upward movement is greater", () => {
+  const out = analyze();
+  assert.equal(out.signal, "CALL");
+  assert.equal(out.status, "ACCUMULATED_PRESSURE_CALL");
+  assert.equal(out.decisionMade, true);
+  assert.ok(out.metrics.totalUpMovement > out.metrics.totalDownMovement);
+  assert.equal(out.metrics.closedCandlesUsed.length, 2);
 });
-test("Engine 4 waits when EMA pullback conditions are not met", () => {
-  const noTouch={...liveCall,open:1.10215,close:1.1022,high:1.1023,low:1.10215};
-  const out=analyze(noTouch);
-  assert.equal(out.signal,null);
-  assert.equal(out.status,"WAITING_FOR_PULLBACK");
+test("Engine 4 emits PUT when accumulated downward movement is greater", () => {
+  const falling = [
+    { epoch: epoch - 120, open: 1.1010, close: 1.1008, high: 1.1011, low: 1.1007, live: false },
+    { epoch: epoch - 60, open: 1.1008, close: 1.1006, high: 1.1009, low: 1.1005, live: false }
+  ];
+  const out = analyze({ candles: falling, current: { ...live, open: 1.1006, close: 1.10055 },
+    tickStats: stats(0.00001, 0.00005, "DOWN") });
+  assert.equal(out.signal, "PUT");
+  assert.equal(out.status, "ACCUMULATED_PRESSURE_PUT");
+  assert.ok(out.metrics.totalDownMovement > out.metrics.totalUpMovement);
 });
-test("Engine 4 requires at least three valid closed candles for EMA history", () => {
-  const out=analyze(liveCall,5,history.slice(0,2));
-  assert.equal(out.ready,false);
-  assert.equal(out.status,"INSUFFICIENT_EMA_HISTORY");
+test("last five seconds are continuation context only and cannot reverse the accumulated direction", () => {
+  const out = analyze({ tickStats: stats(0.00005, 0.00001, "DOWN") });
+  assert.equal(out.signal, "CALL");
+  assert.equal(out.metrics.continuationDirection, "DOWN");
+  assert.equal(out.metrics.continuationSupportsDominant, false);
+  assert.match(out.reason, /ไม่เปลี่ยนทิศทางแรงสะสมหลัก/);
 });
-test("Engine 4 does not signal after the first 23 seconds", () => {
-  const out=analyze(liveCall,23);
-  assert.equal(out.signal,null);
-  assert.equal(out.status,"PULLBACK_WINDOW_CLOSED");
+test("Engine 4 does not signal when accumulated upward and downward movement tie", () => {
+  const balanced = [
+    { epoch: epoch - 120, open: 1.1000, close: 1.1002, high: 1.1003, low: 1.0999, live: false },
+    { epoch: epoch - 60, open: 1.1002, close: 1.1000, high: 1.1003, low: 1.0999, live: false }
+  ];
+  const out = analyze({ candles: balanced, tickStats: stats(0.00002, 0.00002) });
+  assert.equal(out.signal, null);
+  assert.equal(out.decisionMade, true);
+  assert.equal(out.status, "ACCUMULATED_PRESSURE_TIE");
+});
+test("Engine 4 requires exactly two valid closed candles", () => {
+  const out = analyze({ candles: closedUp.slice(1) });
+  assert.equal(out.ready, false);
+  assert.equal(out.status, "INSUFFICIENT_CLOSED_CANDLES");
+});
+test("Engine 4 requires the live tick path for the current candle", () => {
+  const out = analyze({ tickStats: null });
+  assert.equal(out.ready, false);
+  assert.equal(out.status, "LIVE_TICK_PATH_NOT_READY");
 });
 test("Engine 4 requires a fresh forming candle preview", () => {
-  const out=analyzeEarlyEntryEngine4([...history,{...liveCall,provisional:false}],{livePreview:false,now:epoch*1000+5000});
-  assert.equal(out.ready,false);
-  assert.equal(out.status,"NOT_READY");
+  const out = analyze({ current: { ...live, provisional: false, live: false } });
+  assert.equal(out.ready, false);
+  assert.equal(out.status, "NOT_READY");
 });
-test("Engine 4 timing opens immediately and closes at 23 seconds", () => {
-  assert.equal(ENGINE4_ENTRY_WINDOW_MS,23_000);
-  assert.equal(isEngine4EntryWindow(epoch,epoch*1000),true);
-  assert.equal(isEngine4EntryWindow(epoch,epoch*1000+22_999),true);
-  assert.equal(isEngine4EntryWindow(epoch,epoch*1000+23_000),false);
-});
-test("Engine 4 dispatch requires fresh streaming tick and one dispatch per candle", () => {
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000}),true);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000+500,now:epoch*1000+1000,lastDispatchedCandle:epoch}),false);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:epoch,tickAt:epoch*1000-6000,now:epoch*1000+1000}),false);
+test("Engine 4 does not make a decision before the 23-second deadline", () => {
+  assert.equal(ENGINE4_COLLECTION_WINDOW_MS, 23_000);
+  assert.equal(ENGINE4_DECISION_AT_MS, 23_000);
+  assert.equal(ENGINE4_ENTRY_WINDOW_MS, 60_000);
+  assert.equal(analyze({ elapsed: 22.999 }).decisionMade, false);
+  assert.equal(analyze({ elapsed: 23 }).decisionMade, true);
 });
