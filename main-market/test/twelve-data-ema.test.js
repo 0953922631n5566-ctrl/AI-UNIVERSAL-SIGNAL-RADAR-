@@ -53,3 +53,16 @@ test("Engine 3 requests native ATR14 from Twelve Data without local calculation"
  assert.equal(request.searchParams.has("series_type"),false);assert.equal(result.values.length,4);
  assert.equal(result.values.at(-1).atr,.00014);
 });
+
+test("native ATR14 endpoint fails over after Twelve Data quota response",async()=>{
+ const attempts=[],failures=[],successes=[];
+ const pool={getRestCandidates:()=>["key-1","key-2"],markFailure:(key,error)=>failures.push({key,kind:error.kind}),markRestSuccess:key=>successes.push(key)};
+ const result=await fetchAtr14({keyPool:pool,now,fetchImpl:async(url,options)=>{
+  const key=options.headers.Authorization.split(" ").at(-1);attempts.push(key);
+  if(key==="key-1")return{ok:false,status:429,json:async()=>({status:"error",message:"API credits quota exceeded"})};
+  return{ok:true,status:200,json:async()=>({status:"ok",values:fourClosed.map(x=>({datetime:x.datetime,atr:x.atr}))})};
+ }});
+ assert.deepEqual(attempts,["key-1","key-2"]);
+ assert.deepEqual(failures,[{key:"key-1",kind:"RATE_LIMIT"}]);
+ assert.deepEqual(successes,["key-2"]);assert.equal(result.values.length,4);
+});
