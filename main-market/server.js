@@ -298,7 +298,7 @@ async function evaluate(feed) {
  feed.alertId=isActive?active.alertId:null;
  feed.analysis={...raw,signal,direction:isActive?signal:null,status:isActive?"SIGNAL":prepare?"PREPARE":"STANDBY",
   prepareSignal:prepare?candidate:null,reason,summary:reason,active:isActive,engine:"TREND_RIDER",
-  engineResults:{TREND_RIDER:engineResult},activeSignals,trendRider:raw,bbPureScalper:null,engine4:null,
+  engineResults:{TREND_RIDER:engineResult},activeSignals,trendRider:raw,
   preAlertStatus:feed.preAlertStatus,preAlertCandle:feed.preAlertCandle,preAlertSignal:null,
   tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,
   signalTriggeredAt:isActive?new Date(active.triggeredAt).toISOString():null,
@@ -532,7 +532,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -706,7 +706,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+    feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
       feed.streamStatus = "ERROR";
