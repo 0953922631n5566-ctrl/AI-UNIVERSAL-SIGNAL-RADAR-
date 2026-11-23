@@ -120,7 +120,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
@@ -160,10 +160,10 @@ test("four engine cards remain independently toggleable and Engine 4 uses Awesom
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
+  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1"/);
   assert.match(serverJs, /formula: "SMA5\(MEDIAN_PRICE\)-SMA34\(MEDIAN_PRICE\)"/);
-  assert.match(serverJs, /decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL"/);
-  assert.match(serverJs, /otherIndicators: "NONE"/);
+  assert.match(serverJs, /decisionRule: "AO_DIRECTION_ONLY_WHEN_SAME_SIDE_AND_EXPANDING_TWICE_AND_ABS_AO_AT_LEAST_0_12_ATR14"/);
+  assert.match(serverJs, /otherIndicators: "ATR14_USED_ONLY_AS_NORMALIZER"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
@@ -200,14 +200,8 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awe
 });
 
 
-test("Engine 4 card shows its live relative AO momentum percentage and explanatory bar", () => {
-  assert.match(html, /id="engine4Momentum"/);
-  assert.match(html, /id="engine4MomentumFill"/);
-  assert.match(html, /id="engine4MomentumNote"/);
-  assert.match(html, /const momentum=fourth\.metrics\?\.momentumPercent/);
-  assert.match(html, /momentum\+"%"/);
-  assert.match(html, /เทียบค่าสูงสุดของ AO 28 ค่าล่าสุด/);
-  assert.match(html, /รอข้อมูล M1 ให้ครบ 61 แท่ง/);
+test("Engine 4 card has no momentum percentage or gauge UI", () => {
+  assert.doesNotMatch(html, /engine4Momentum|engine-momentum|momentumPercent|แรงส่ง AO/);
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });
