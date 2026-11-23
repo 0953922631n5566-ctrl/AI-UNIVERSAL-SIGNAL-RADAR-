@@ -402,8 +402,8 @@ async function evaluate(feed) {
        ...(engine4Entry ? {} : { score: selectedCandidate.score ?? 0 }), sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: engine4Entry ? selectedCandidate.entryPrice : null,
-       entryPriceBasis: engine4Entry ? "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE" : "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "EMA5_PULLBACK_IMMEDIATE" : "NORMAL"}`
+       entryPriceBasis: engine4Entry ? "TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE" : "TARGET_M1_CANDLE_OPEN",
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "ADAPTIVE_M1_IMMEDIATE" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -415,7 +415,7 @@ async function evaluate(feed) {
    const currentActive = activeForCurrentOrNext || Boolean(active && (active.targetCandleEpoch === targetCandleEpoch || (engine4Entry && active.targetCandleEpoch === sourceCandleEpoch)));
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "Twelve Data EMA 5 pullback rebound · เข้าได้ทันที" : "T-5 confirmed"))}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "Twelve Data adaptive M1 setup · เข้าได้ทันที" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    const engineResult = {
      ...selectedCandidate,
@@ -438,7 +438,7 @@ async function evaluate(feed) {
      signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
      signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null,
       entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
-      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
+      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
    };
    if (engine === "ENGINE_4") {
      delete engineResult.candidateScore;
