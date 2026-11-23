@@ -268,9 +268,13 @@ async function evaluate(feed) {
    now, tickAt: feed.tickAt, maxAgeMs: MAX_STREAM_AGE_SECONDS * 1000
  });
  const analysisCandles = livePreview ? [...closedCandles, livePreview] : closedCandles;
+ // Engine 4 alone needs a longer rolling sample to estimate its historical MACD gap distribution.
+ const engine4ClosedCandles = feed.candles.filter(c => c && c.live !== true &&
+   Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-80);
+ const engine4AnalysisCandles = livePreview
+   ? [...engine4ClosedCandles, livePreview] : engine4ClosedCandles;
 
- // Shared source-quality gate; after it passes, all four engines receive the same
- // closed history plus the same validated provisional M1 candle (when available).
+ // Shared source-quality gate; Engines 1–3 keep their existing 54-candle input.
  const v1Raw = engineEnabled.V1 ? await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
    liveCandle: livePreview
@@ -302,7 +306,7 @@ async function evaluate(feed) {
  if (!engineEnabled.ENGINE_4) {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"DISABLED", reason:"Engine 4 ปิดการทำงานจาก Mini App" };
  } else if (livePreview && sourceCandleEpoch !== null) {
-   engine4Raw = analyzeEarlyEntryEngine4(analysisCandles, { liveCandle:livePreview });
+   engine4Raw = analyzeEarlyEntryEngine4(engine4AnalysisCandles, { liveCandle:livePreview });
  } else {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับคำนวณ MACD 12/26/9" };
  }
