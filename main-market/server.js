@@ -368,12 +368,19 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
    const recoveryMode = recoveryWindow.mode;
    if (!engineEnabled[engine]) {
      feed.engineActive[engine] = null;
-     engineResults[engine] = {
+     const disabledResult = {
        ...candidate, engine, candidateSignal: null, candidateScore: 0,
        direction: null, signal: "STANDBY", status: "DISABLED", active: false,
        reason: `${engine} ปิดการทำงานจาก Mini App`, alertId: null,
        signalExpiresAt: null, signalTargetCandleAt: null
      };
+     if (engine === "ENGINE_4") {
+       delete disabledResult.candidateScore;
+       delete disabledResult.score;
+       delete disabledResult.confidence;
+       delete disabledResult.activeSignalScore;
+     }
+     engineResults[engine] = disabledResult;
      continue;
    }
    // Normal mode uses this engine's original analyzer. During recovery, select the
@@ -430,7 +437,7 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
    const activeReason = isActive
      ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "ตรวจจับแรงราคาในแท่ง M1 ปัจจุบันเพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
-   engineResults[engine] = {
+   const engineResult = {
      ...selectedCandidate,
      engine,
      analysisMode: engine === "ENGINE_4" ? "EMA5_CLOSED_M1_TO_NEXT_M1" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
@@ -453,6 +460,13 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
       entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
       entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "FIRST_FRESH_STREAM_TICK_OF_NEXT_M1" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
    };
+   if (engine === "ENGINE_4") {
+     delete engineResult.candidateScore;
+     delete engineResult.score;
+     delete engineResult.confidence;
+     delete engineResult.activeSignalScore;
+   }
+   engineResults[engine] = engineResult;
  }
 
  const activeSignals = Object.values(engineResults)

@@ -174,6 +174,15 @@ test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 
   assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
 });
 
+test("Engine 4 API result omits score and confidence fields", () => {
+  assert.match(serverJs, /delete engineResult\.score/);
+  assert.match(serverJs, /delete engineResult\.confidence/);
+  assert.match(serverJs, /delete engineResult\.candidateScore/);
+  assert.match(serverJs, /delete engineResult\.activeSignalScore/);
+  assert.match(serverJs, /delete disabledResult\.score/);
+  assert.match(serverJs, /delete disabledResult\.confidence/);
+});
+
 test("Streaming Tick re-analysis stays local while Engine 4 calculates EMA from closed M1 candles", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
