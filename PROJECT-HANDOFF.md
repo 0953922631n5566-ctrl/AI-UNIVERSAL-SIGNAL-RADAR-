@@ -2200,9 +2200,9 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - User requested replacing Engine 4's adaptive Trend/Sideway indicators with Awesome Oscillator only, using the standard 5/34 periods, and adding the same light-color toggle button used by Engines 1–3.
 - Implementation branch: feature/engine4-awesome-oscillator-5-34-toggle-20261123, based on the verified production main-market branch after PR #213.
 - Engine 4 direction rule: AO = SMA5(median price) − SMA34(median price), where median price = (high + low) / 2. AO above zero => CALL; below zero => PUT; exactly zero => no directional signal. No EMA, MACD, RSI, Bollinger, trend/sideway regime filter, candle-pattern filter, or score is used by Engine 4.
-- Existing shared data-quality/fresh-live-price guard, T-5 finalization, next-M1 target, one-signal-per-candle dedupe, 30-second hold, sound/vibration, and manual-only/no-broker behavior are retained.
+- Existing shared data-quality/fresh-live-price guard, next-M1 target, one-signal-per-candle dedupe, 30-second hold, sound/vibration, and manual-only/no-broker behavior are retained. Engine 4 dispatches in the first 5 seconds of the target M1 candle; Engines 1–3 retain their T-5 finalization window.
 - Engine 4 card receives a functional data-light-toggle button. Its default mapping remains CALL=green / PUT=red; the button toggles the color mapping like Engines 1–3. The existing card on/off toggle remains independent.
-- Validation, CI, PR merge, Render deployment, live /health and /api/public/signal, and Telegram device verification are pending. Do not describe the change as deployed until those checks are complete.
+- Completed: PR #216 merged; all four GitHub Actions workflows passed; Node suite 193 total / 189 passed / 0 failed / 4 skipped; Render service ai-signal-radar-main-market deployed and live; /health returned ok=true with Engine 4 AO 5/34 metadata and Twelve Data pool 10/10; /api/public/signal returned streaming data and an active Engine 4 CALL with positive AO and 30-second hold. Telegram-device tap verification remains a user-side check.
 
 
 ## 2026-11-23 — Post-deploy timing metadata correction
@@ -2210,3 +2210,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Production verification confirmed the existing Engine 4 dispatch contract is the first 5 seconds of the target M1 candle (using the fresh live tick), not the shared T-5 finalization window used by Engines 1–3. This behavior was intentionally preserved; no timing behavior was changed by the AO replacement.
 - Corrected Engine 4 metadata, Mini App explanatory copy, alert ID suffix, and strategy identifier to accurately report NEXT_M1_OPEN / TARGET_M1_OPEN_TO_PLUS_5S.
 - Engine 4 computes AO from 33 closed M1 candles plus the current live M1 preview (34 median-price samples total).
+
+
+## Final production verification — 2026-11-23
+
+- Live Render commit: 97eb59fa1c8e63afccd2c88957c7f6e72cb5e040 (service: ai-signal-radar-main-market).
+- Health: ok=true; Main Market EUR/USD M1; Engine 4 Awesome Oscillator fast=5 / slow=34; 33 closed M1 candles plus the live preview; AO-only direction; score disabled; other indicators NONE; target-M1 first-5-second dispatch; 30-second hold; Twelve Data pool 10/10 available.
+- Live public signal API confirmed an active Engine 4 CALL while AO was positive; signal hold 30 seconds. No broker execution is performed.
+- Mini App route /signal serves the Engine 4 Awesome Oscillator card and the new data-light-toggle control; UI contract tests cover its behavior. User should refresh/reopen Telegram Mini App to load the deployed page.
+- Interpretation of the user's “Awesome Oscillator 34.5”: standard AO parameters fast=5, slow=34.
