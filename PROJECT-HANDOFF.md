@@ -2207,8 +2207,8 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 ## 2026-11-23 — Post-deploy timing metadata correction
 
-- Production verification confirmed the existing Engine 4 dispatch contract is the first 5 seconds of the target M1 candle (using the fresh live tick), not the shared T-5 finalization window used by Engines 1–3. This behavior was intentionally preserved; no timing behavior was changed by the AO replacement.
-- Corrected Engine 4 metadata, Mini App explanatory copy, alert ID suffix, and strategy identifier to accurately report NEXT_M1_OPEN / TARGET_M1_OPEN_TO_PLUS_5S.
+- Production logs confirmed Engine 4 uses the shared T-5 finalization window and targets the next M1 candle. This timing was intentionally preserved by the AO replacement.
+- Corrected Engine 4 metadata, Mini App explanatory copy, alert ID suffix, and strategy identifier to accurately report T-5 finalization for the next M1 candle.
 - Engine 4 computes AO from 33 closed M1 candles plus the current live M1 preview (34 median-price samples total).
 
 
