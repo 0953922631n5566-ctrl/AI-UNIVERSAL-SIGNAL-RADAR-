@@ -221,6 +221,7 @@ function closeUpstream() {
 }
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
+  feed.engine4PendingForecast = null;
   feed.activeSignal = null;
   feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
   feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -237,6 +238,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 }
 
 function lockFeed(feed, reason) {
+  feed.engine4PendingForecast = null;
   feed.dataLocked = true;
   feed.activeSignal = null;
   feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -626,7 +628,7 @@ function applyTick(feed, price, epoch) {
     return;
   }
 
-  // Engine 4 uses only completed M1 OHLC candles; no intrabar tick path is accumulated.
+  // Engine 4 reads the live M1 OHLC body and latches a qualified direction for the next M1 open.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
@@ -1209,9 +1211,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY", minimumClosedCandles: 3, lookbackClosedCandles: 3, cadence: "ANALYZE_AFTER_M1_CLOSE_AND_FORECAST_NEXT_M1", input: "THREE_LATEST_COMPLETED_M1_OHLC_BODIES_ONLY", decisionWindow: "[0,5s)", decisionRule: "CALL_WHEN_TOTAL_UPWARD_CLOSED_BODY_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_CLOSED_BODY_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL", closedCandleMovement: "BODY_CLOSE_MINUS_OPEN_NET_DIRECTION", liveCandleMovement: "NOT_USED_FOR_DIRECTION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY", minimumClosedCandles: 0, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_[0,5S)", decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_CLOSED_CANDLE_NEXT_M1_FORECAST"
+      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_M1_MOMENTUM_NEXT_M1_ENTRY"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
