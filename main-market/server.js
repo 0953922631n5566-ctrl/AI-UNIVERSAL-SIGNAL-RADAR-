@@ -507,13 +507,13 @@ async function evaluate(feed) {
 
 let reason;
  if (conflicting) {
-   reason = "V1 และ BB ออกสัญญาณคนละทิศทาง · แสดงผลแยกแต่ไม่รวมเป็นคำสั่งเดียว";
+   reason = "Engine 3 เท่านั้น · ระบบไม่รวมสัญญาณจากเครื่องยนต์อื่น";
  } else if (activeSignals.length) {
    reason = `สัญญาณ ${aggregateSignal} จาก ${activeEngineNames.join(" + ")} · แสดงผลแยกตามเครื่องยนต์`;
  } else if (feed.preAlertStatus === "PREPARE_ALERT") {
-   reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · Trend Rider: ${trendCandidate || "รอ"} · รอยืนยัน T-5`;
+   reason = `PREPARE T-10 · Trend Rider: ${trendCandidate || "รอ"} · รอยืนยัน T-5`;
  } else {
-   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
+   reason = trendRaw.reason || "Engine 3 กำลังรอข้อมูล Twelve Data";
  }
  const primary = activeSignals.length
    ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB :
@@ -1245,9 +1245,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING", indicatorEndpoints: ["EMA time_period=5", "MOM time_period=9"], derivedIndicators: [], momentumPeriod: 9, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedIndicatorCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS) * 2, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, scoring: "DISABLED", cadence: "LIVE_STREAM_TICK_ANALYSIS_WITH_ONCE_PER_MINUTE_EMA5_AND_MOM9_REFRESH", decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_MOMENTUM9"
+      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
