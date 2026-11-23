@@ -167,10 +167,7 @@ function snapshot() {
 }
 
 function publish() {
-  const message = JSON.stringify({ type: "market_state", data: snapshot() });
-  for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) client.send(message);
-  }
+  // Telegram Mini App uses authenticated HTTP polling; there is no browser WebSocket server.
 }
 
 function clearTimers() {
