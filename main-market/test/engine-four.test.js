@@ -1,101 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeEarlyEntryEngine4, ENGINE4_STRATEGY } from "../src/engine-four.js";
-
-const now = Date.parse("2026-11-23T12:02:30Z");
-const source = Math.floor(now / 60000) * 60;
-const emaUp = [{ epoch: source - 120, ema: 1.10000 }, { epoch: source - 60, ema: 1.10010 }];
-const emaDown = [{ epoch: source - 120, ema: 1.10010 }, { epoch: source - 60, ema: 1.10000 }];
-const tick = price => ({ livePrice: price, tickAt: now, now, sourceCandleEpoch: source, symbol: "EUR/USD" });
-
-test("Twelve Data EMA5 rising + pullback + rebound produces immediate CALL", () => {
-  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
-  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10010), emaValues: emaUp, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.entryPrice, 1.10013);
-  assert.equal(result.strategy, ENGINE4_STRATEGY);
-  assert.equal(result.targetCandleEpoch, source);
-  assert.equal(result.entryPriceBasis, "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE");
-  for (const key of ["score","confidence","candidateScore","momentumPercent","macdLine"]) assert.equal(key in result, false);
-});
-
-test("Twelve Data EMA5 falling + upward pullback + rejection produces immediate PUT", () => {
-  let result = analyzeEarlyEntryEngine4({ ...tick(1.09980), emaValues: emaDown });
-  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.09996), emaValues: emaDown, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10000), emaValues: emaDown, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.09997), emaValues: emaDown, state: result.nextState });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "PUT");
-});
-
-test("touching EMA5 without rebound remains STANDBY", () => {
-  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10011), emaValues: emaUp, state: result.nextState });
-  assert.equal(result.ready, false);
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-});
-
-test("flat/missing/stale EMA and stale live price fail closed", () => {
-  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [] }).status, "EMA5_API_NOT_READY");
-  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [
-    { epoch: source - 120, ema: 1.1 }, { epoch: source - 60, ema: 1.1 }
-  ] }).status, "EMA5_SLOPE_FLAT");
-  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [
-    { epoch: source - 600, ema: 1.1 }, { epoch: source - 540, ema: 1.1001 }
-  ] }).status, "EMA5_API_STALE");
-  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), tickAt: now - 6000, emaValues: emaUp }).status, "LIVE_PRICE_STALE");
-});
-
-test("only one Engine 4 signal is permitted per M1 candle", () => {
-  const state = { direction: "CALL", emaEpoch: source - 60, phase: "TRIGGERED",
-    extremePrice: 1.1, triggeredCandleEpoch: source };
-  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1002), emaValues: emaUp, state }).status,
-    "EMA5_ALREADY_TRIGGERED_THIS_CANDLE");
-});
-
-test("an armed pullback survives the next EMA5 refresh when slope direction stays the same", () => {
-  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
-  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
-  const nextMinute = source + 60;
-  const nextNow = now + 60000;
-  const refreshed = [
-    { epoch: source - 60, ema: 1.10010 },
-    { epoch: source, ema: 1.10020 }
-  ];
-  result = analyzeEarlyEntryEngine4({
-    emaValues: refreshed, livePrice: 1.10024, tickAt: nextNow, now: nextNow,
-    sourceCandleEpoch: nextMinute, symbol: "EUR/USD", state: result.nextState
-  });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "CALL");
-});
-
-test("JPY pairs use 0.01 pip sizing for pullback and rebound distances", () => {
-  const jpyEma = [{ epoch: source - 120, ema: 150.02 }, { epoch: source - 60, ema: 150.01 }];
-  let result = analyzeEarlyEntryEngine4({
-    ...tick(149.99), symbol: "USD/JPY", emaValues: jpyEma
-  });
-  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
-  result = analyzeEarlyEntryEngine4({
-    ...tick(150.006), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
-  });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({
-    ...tick(150.008), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
-  });
-  result = analyzeEarlyEntryEngine4({
-    ...tick(150.003), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
-  });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "PUT");
-});
+const now=Date.parse("2026-11-23T12:02:30Z"),source=Math.floor(now/60000)*60;
+function market(direction="up"){
+ const candles=[];let close=1.1;
+ for(let i=0;i<50;i++){let step=.00006+i*.000001;if(i>=43&&[44,46,48].includes(i))step=-.00006;if(direction==="down")step*=-1;close+=step;candles.push({epoch:source-(50-i)*60,open:close-(direction==="up"?.00004:-.00004),high:close+.00005,low:close-.00005,close,live:false});}
+ const recent=candles.at(-1),live=direction==="up"?{epoch:source,open:recent.close,high:recent.close+.00013,low:recent.close-.00014,close:recent.close+.0001,live:true}:{epoch:source,open:recent.close,high:recent.close+.00014,low:recent.close-.00013,close:recent.close-.0001,live:true};
+ candles.push(live);const emaValues=direction==="up"?[{epoch:source-120,ema:1.1020},{epoch:source-60,ema:1.1021}]:[{epoch:source-120,ema:1.0980},{epoch:source-60,ema:1.0979}];return{candles,live,emaValues};
+}
+const tick=(price,extra={})=>({livePrice:price,tickAt:now,now,sourceCandleEpoch:source,symbol:"EUR/USD",...extra});
+test("adaptive trend engine issues CALL on aligned momentum breakout",()=>{const d=market("up"),r=analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:d.emaValues});assert.equal(r.ready,true,r.reason);assert.equal(r.signal,"CALL");assert.equal(r.strategy,ENGINE4_STRATEGY);assert.equal(r.entryPrice,d.live.close);assert.equal(r.targetCandleEpoch,source);assert.equal(r.metrics.dataSource,"TWELVE_DATA_M1_OHLC_PLUS_EMA5_PLUS_STREAMING");});
+test("adaptive trend engine issues PUT on aligned momentum breakdown",()=>{const d=market("down"),r=analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:d.emaValues});assert.equal(r.ready,true,r.reason);assert.equal(r.signal,"PUT");});
+test("stale tick, stale EMA, or missing OHLC fails closed",()=>{const d=market("up");assert.equal(analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:d.emaValues,tickAt:now-6000}).status,"LIVE_PRICE_STALE");assert.equal(analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:[{epoch:source-600,ema:1.1},{epoch:source-540,ema:1.1001}]}).status,"TWELVE_DATA_EMA_STALE");assert.equal(analyzeEarlyEntryEngine4({...tick(d.live.close),candles:[],emaValues:d.emaValues}).status,"M1_OHLC_HISTORY_NOT_READY");});
+test("Engine 4 emits at most one signal per M1 candle",()=>{const d=market("up"),r=analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:d.emaValues,state:{triggeredCandleEpoch:source,direction:"CALL"}});assert.equal(r.ready,false);assert.equal(r.status,"ENGINE4_ALREADY_TRIGGERED_THIS_CANDLE");});
+test("flat market in the middle of Bollinger range does not fabricate a direction",()=>{const candles=[];for(let i=0;i<50;i++)candles.push({epoch:source-(50-i)*60,open:1.1,high:1.10003,low:1.09997,close:1.1,live:false});candles.push({epoch:source,open:1.1,high:1.10002,low:1.09998,close:1.1,live:true});const emaValues=[{epoch:source-120,ema:1.1},{epoch:source-60,ema:1.1}],r=analyzeEarlyEntryEngine4({...tick(1.1),candles,emaValues});assert.equal(r.ready,false);assert.equal(r.status,"ENGINE4_WAITING_FOR_SETUP");});
+test("abnormal live-candle expansion blocks entry",()=>{const d=market("up");d.live.high=d.live.close+.002;d.live.low=d.live.close-.002;const r=analyzeEarlyEntryEngine4({...tick(d.live.close),candles:d.candles,emaValues:d.emaValues});assert.equal(r.ready,false);assert.equal(r.status,"ABNORMAL_M1_VOLATILITY");});
