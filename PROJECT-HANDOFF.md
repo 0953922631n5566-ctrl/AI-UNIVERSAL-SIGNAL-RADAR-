@@ -2305,3 +2305,5 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App hides V1, BB, and Engine 4 cards, shows Engine 3 plus native EMA5/EMA20/ATR14 values/status, and adds a separate manual RED/GREEN lamp switch persisted on the client. Manual lamp is isolated from the real CALL/PUT signal lamp.
 - Updated Trend Rider and Twelve Data endpoint tests. Full CI/test execution, deeper dead-code pruning, PR review, Render deployment, health/API verification, and Telegram-client verification are still pending.
 - Do not merge/deploy until the tests pass and the server is verified to have no references that can re-enable the other engines. Keep production main-market branch unchanged until then.
+
+- CI: added `.github/workflows/main-market-engine3-tests.yml` to run Node 20 tests and syntax checks for the single-engine branch.
