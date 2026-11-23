@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EMA 5/20 CLOSED M1 NEXT M1";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-EMA5-20-CLOSED-M1-NEXT-M1";
-const VERSION = "2026-11-23-engine4-ema5-20-score40-next-m1-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 EMA 5 ONLY CLOSED M1 NEXT M1";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-EMA5-CLOSED-M1-NEXT-M1";
+const VERSION = "2026-11-23-engine4-ema5-only-no-score-next-m1-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -301,7 +301,7 @@ async function evaluate(feed) {
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
  const engine4Pending = feed.engine4PendingForecast;
- const engine4SourceReady = closedCandles.length >= 20 && Boolean(currentCandle?.live === true) &&
+ const engine4SourceReady = closedCandles.length >= 5 && Boolean(currentCandle?.live === true) &&
    Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= 5 &&
    isEngine4EntryWindow(currentCandle.epoch, now) &&
    latestClosed?.epoch + 60 === currentCandle.epoch;
@@ -339,7 +339,7 @@ async function evaluate(feed) {
    isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
 const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: "EMA5_20_CLOSED_M1_CONFIRMATION",
+       analysisMode: "EMA5_CLOSED_M1_CLOSE_ONLY",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -433,7 +433,7 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
    engineResults[engine] = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? "EMA5_20_CLOSED_M1_TO_NEXT_M1" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? "EMA5_CLOSED_M1_TO_NEXT_M1" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -1225,9 +1225,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "EMA5_20_CLOSED_M1_TO_NEXT_M1_ENTRY", minimumClosedCandles: 20, lookbackClosedCandles: 1, emaHistoryCandles: 20, emaFast: 5, emaSlow: 20, cadence: "CLOSED_CANDLE_CONFIRM_ON_NEXT_M1_FIRST_TICK", input: "EMA5_20_FROM_20_CLOSED_M1_CLOSES_PLUS_LATEST_CLOSED_M1_OHLC_BODY_AND_WICKS", decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumScore: 40 }, scoreWeights: { emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 }, decisionRule: "CALL_WHEN_EMA5_ABOVE_EMA20_AND_LAST_CLOSED_M1_BODY_IS_BULLISH; PUT_WHEN_EMA5_BELOW_EMA20_AND_LAST_CLOSED_M1_BODY_IS_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "BODY_DIRECTION_AND_UPPER_LOWER_WICK_CONFIRMATION", closedCandleConfirmation: "ONE_COMPLETED_CANDLE_OHLC_ONLY_WITH_20_CLOSED_CANDLES_FOR_EMA_WARMUP", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "EMA5_CLOSED_M1_TO_NEXT_M1_ENTRY", minimumClosedCandles: 5, lookbackClosedCandles: 1, emaPeriod: 5, cadence: "CLOSED_CANDLE_CONFIRM_ON_NEXT_M1_FIRST_FRESH_TICK", input: "LATEST_COMPLETED_M1_CLOSE_COMPARED_WITH_EMA5", decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_[0,5S)", scoring: "DISABLED", decisionRule: "CALL_WHEN_LAST_CLOSED_M1_CLOSE_ABOVE_EMA5; PUT_WHEN_BELOW_EMA5; EQUAL_NO_SIGNAL", closedCandleConfirmation: "CLOSE_ONLY_NO_BODY_WICK_OR_SCORE", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_CLOSED_M1_NEXT_M1_ENTRY"
+      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_EMA5_CLOSE_ONLY_NEXT_M1_ENTRY"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,

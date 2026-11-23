@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("EMA 5/20 CLOSED M1"));
+  assert.ok(html.includes("EMA 5 ONLY CLOSED M1"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,9 +37,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · EMA 5/20 CLOSED M1</div>'));
-  assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 CALL"));
-  assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 PUT"));
+  assert.ok(html.includes('<div class="engine-title">04 · EMA 5 ONLY CLOSED M1</div>'));
+  assert.ok(html.includes("Engine 4 · EMA 5 → Next M1 CALL"));
+  assert.ok(html.includes("Engine 4 · EMA 5 → Next M1 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -125,7 +125,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 latches EMA 5/20 closed-M1 signal for the next candle and holds it for 30 seconds", () => {
+test("Engine 4 latches EMA 5 closed-M1 signal for the next candle and holds it for 30 seconds", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -141,7 +141,7 @@ test("Engine 4 latches EMA 5/20 closed-M1 signal for the next candle and holds i
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 next-M1 metadata", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 only with no scoring", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
@@ -157,18 +157,18 @@ test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "EMA5_20_CLOSED_M1_TO_NEXT_M1_ENTRY"/);
-  assert.match(serverJs, /input: "EMA5_20_FROM_20_CLOSED_M1_CLOSES_PLUS_LATEST_CLOSED_M1_OHLC_BODY_AND_WICKS"/);
+  assert.match(serverJs, /strategy: "EMA5_CLOSED_M1_TO_NEXT_M1_ENTRY"/);
+  assert.match(serverJs, /input: "LATEST_COMPLETED_M1_CLOSE_COMPARED_WITH_EMA5"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_\[0,5S\)"/);
-  assert.match(serverJs, /decisionRule: "CALL_WHEN_EMA5_ABOVE_EMA20_AND_LAST_CLOSED_M1_BODY_IS_BULLISH; PUT_WHEN_EMA5_BELOW_EMA20_AND_LAST_CLOSED_M1_BODY_IS_BEARISH; OTHERWISE_NO_SIGNAL"/);
-  assert.match(serverJs, /closedCandleConfirmation: "ONE_COMPLETED_CANDLE_OHLC_ONLY_WITH_20_CLOSED_CANDLES_FOR_EMA_WARMUP"/);
+  assert.match(serverJs, /decisionRule: "CALL_WHEN_LAST_CLOSED_M1_CLOSE_ABOVE_EMA5; PUT_WHEN_BELOW_EMA5; EQUAL_NO_SIGNAL"/);
+  assert.match(serverJs, /closedCandleConfirmation: "CLOSE_ONLY_NO_BODY_WICK_OR_SCORE"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
-  assert.match(serverJs, /minimumClosedCandles: 20/);
-  assert.match(serverJs, /minimumBodyPips: 0\.4/);
-  assert.match(serverJs, /emaSlow: 20/);
-  assert.ok(serverJs.includes("scoreWeights: { emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 }"));
-  assert.match(serverJs, /minimumScore: 40/);
+  assert.match(serverJs, /minimumClosedCandles: 5/);
+  assert.match(serverJs, /scoring: "DISABLED"/);
+  assert.match(serverJs, /emaPeriod: 5/);
+  assert.ok(serverJs.includes('scoring: "DISABLED"'));
+  assert.match(serverJs, /scoring: "DISABLED"/);
   assert.match(serverJs, /emaFast: 5/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
   assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
@@ -185,7 +185,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 calculates EMA from 
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "EMA5_20_CLOSED_M1_TO_NEXT_M1"/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "EMA5_CLOSED_M1_TO_NEXT_M1"/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
 });
