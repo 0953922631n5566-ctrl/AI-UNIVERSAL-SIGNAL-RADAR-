@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
-import { fetchCandles, fetchEma5, fetchMomentum9 } from "./src/twelve-data.js";
+import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
 import { createLiveCandlePreview } from "./src/live-candle-preview.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA EMA5 MOMENTUM9";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-EMA5-MOMENTUM9";
-const VERSION = "2026-11-23-engine4-twelvedata-ema5-momentum9-v1";
+const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
+const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
+const VERSION = "2026-11-23-engine3-twelvedata-native-indicators-v1";
 const ENGINE4_EMA_REFRESH_SECONDS = 60;
 const ENGINE4_EMA_RETRY_MIN_MS = 5000;
 const app = express();
@@ -54,9 +54,8 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    engine4Ema: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA 5 จาก Twelve Data" },
-    engine4Momentum: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ Momentum 9 จาก Twelve Data" },
-    engine4EmaPromise: null, engine4PullbackState: null,
+    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
+    engine3IndicatorsPromise: null,
     enginePendingForecasts: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
     engineForecastHistory: { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] },
     engineRecoveryStates: { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() },
@@ -83,7 +82,7 @@ let liveAnalysisPending = false;
 let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
-const engineEnabled = { V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true };
+const engineEnabled = { V1: false, BB: false, TREND_RIDER: true, ENGINE_4: false };
 const ENGINE_KEYS = Object.keys(engineEnabled);
 
 function standby(reason, extra = {}) {
@@ -301,7 +300,7 @@ async function evaluate(feed) {
  const trendRaw = !engineEnabled.TREND_RIDER
    ? { ready: false, signal: null, score: 0, status: "DISABLED", reason: "Trend Rider ปิดการทำงานจาก Mini App" }
    : trendSourceReady
-     ? analyzeTrendRider(analysisCandles)
+     ? analyzeTrendRider(closedCandles, { ema5Values: feed.engine3Indicators?.ema5, ema20Values: feed.engine3Indicators?.ema20, atrValues: feed.engine3Indicators?.atr14 })
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
  let engine4Raw;
@@ -329,7 +328,7 @@ async function evaluate(feed) {
  const candidates = {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
-   TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
+   TREND_RIDER: { ...trendRaw, provider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_OHLC" },
    ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
@@ -687,23 +686,39 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
   return feed.restSyncPromise;
 }
 
-async function syncEngine4Ema(feed,{force=false}={}){
- if(!feed||!monitoring||selectedSymbol!==feed.symbol||!engineEnabled.ENGINE_4)return;if(feed.engine4EmaPromise)return feed.engine4EmaPromise;
- const now=Date.now(),minute=Math.floor(now/60000)*60;if(!force&&feed.engine4Ema?.lastFetchedMinute===minute&&feed.engine4Momentum?.lastFetchedMinute===minute)return;if(!force&&Number.isFinite(feed.engine4Ema?.nextAttemptAt)&&now<feed.engine4Ema.nextAttemptAt)return;
- feed.engine4EmaPromise=(async()=>{try{const at=Date.now(),er=await fetchEma5({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:at}),mr=await fetchMomentum9({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),key=Math.floor(at/60000)*60;
- feed.engine4Ema={...er,status:"READY",lastFetchedMinute:key,nextAttemptAt:null,lastError:null,message:"Twelve Data EMA 5 พร้อม"};feed.engine4Momentum={...mr,status:"READY",lastFetchedMinute:key,nextAttemptAt:null,lastError:null,message:"Twelve Data Momentum 9 พร้อม"};
- console.info("[engine4] Twelve Data EMA5 + MOM9 refreshed",{symbol:feed.symbol,ema:er.values,momentum:mr.values});
- }catch(error){const failed=Date.now(),insufficient=error?.kind==="INSUFFICIENT_HISTORY",retry=insufficient?Math.max(ENGINE4_EMA_RETRY_MIN_MS,Math.floor(failed/60000)*60000+ENGINE4_EMA_REFRESH_SECONDS*1000+2000-failed):Math.max(ENGINE4_EMA_RETRY_MIN_MS,twelveDataKeyPool.nextAvailableInMs()||ENGINE4_EMA_RETRY_MIN_MS);
- for(const field of ["engine4Ema","engine4Momentum"]){const prev=feed[field]||{},cached=Array.isArray(prev.values)&&prev.values.length===2;feed[field]={...prev,status:cached?"DEGRADED":"ERROR",values:prev.values||[],receivedAt:prev.receivedAt||0,nextAttemptAt:failed+retry,lastError:String(error?.message||error),message:"Twelve Data indicator error · รอลองใหม่: "+String(error?.message||error)};}
- console.error("[engine4] EMA5/MOM9 request failed",feed.symbol,{kind:error?.kind||"UNKNOWN",retryInMs:retry,message:error.message});
- }finally{feed.engine4EmaPromise=null;}await evaluate(feed);dispatchSignalIfReady(feed);publish();})();return feed.engine4EmaPromise;
+async function syncEngine3Indicators(feed,{force=false}={}) {
+ if(!feed||!monitoring||selectedSymbol!==feed.symbol||!engineEnabled.TREND_RIDER)return;
+ if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
+ const now=Date.now(),minute=Math.floor(now/60000)*60;
+ if(!force&&feed.engine3Indicators?.lastFetchedMinute===minute)return;
+ if(!force&&Number.isFinite(feed.engine3Indicators?.nextAttemptAt)&&now<feed.engine3Indicators.nextAttemptAt)return;
+ feed.engine3IndicatorsPromise=(async()=>{
+  try{
+   const [ema5,ema20,atr14]=await Promise.all([
+    fetchTrendEma5({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
+    fetchEma20({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
+    fetchAtr14({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()})
+   ]);
+   feed.engine3Indicators={status:"READY",ema5:ema5.values,ema20:ema20.values,atr14:atr14.values,
+    receivedAt:Date.now(),lastFetchedMinute:minute,nextAttemptAt:null,lastError:null,
+    sources:{ema5:ema5.source,ema20:ema20.source,atr14:atr14.source},
+    periods:{ema5:5,ema20:20,atr14:14},message:"Twelve Data EMA5 / EMA20 / ATR14 พร้อม"};
+  }catch(error){
+   const retry=error?.kind==="RATE_LIMIT"?15*60*1000:30000;
+   feed.engine3Indicators={...(feed.engine3Indicators||{}),status:"ERROR",lastError:error.message,
+    nextAttemptAt:Date.now()+retry,message:"Twelve Data Indicator ขัดข้อง: "+error.message};
+   console.error("[engine3] native indicator request failed",feed.symbol,{kind:error?.kind||"UNKNOWN",retryInMs:retry,message:error.message});
+  }finally{feed.engine3IndicatorsPromise=null;}
+  await evaluate(feed);dispatchSignalIfReady(feed);publish();
+ })();
+ return feed.engine3IndicatorsPromise;
 }
-function startEngine4EmaTimer() {
-  if (emaTimer) clearInterval(emaTimer);
-  emaTimer = setInterval(() => {
-    const feed = feeds.get(selectedSymbol);
-    if (feed) syncEngine4Ema(feed).catch(error => console.error("[engine4] EMA5 refresh loop failed", error.message));
-  }, ENGINE4_EMA_RETRY_MIN_MS);
+function startEngine3IndicatorTimer() {
+ if(emaTimer)clearInterval(emaTimer);
+ emaTimer=setInterval(()=>{
+  const feed=feeds.get(selectedSymbol);
+  if(feed)syncEngine3Indicators(feed).catch(error=>console.error("[engine3] refresh loop failed",error.message));
+ },5000);
 }
 
 function startRestTimer() {
@@ -996,12 +1011,12 @@ async function start(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
-  startEngine4EmaTimer();
+  startEngine3IndicatorTimer();
   startWatchdog();
   startSignalTimer();
   publish();
   await syncSelected({ force: true, symbol });
-  await syncEngine4Ema(feed, { force: true });
+  await syncEngine3Indicators(feed, { force: true });
   if (monitoring) startStream();
   publish();
 }
@@ -1026,7 +1041,7 @@ async function select(symbolValue) {
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
   await syncSelected({ force: true, symbol });
-  if (wasMonitoring && monitoring) await syncEngine4Ema(feed, { force: true });
+  if (wasMonitoring && monitoring) await syncEngine3Indicators(feed, { force: true });
   if (wasMonitoring && monitoring) startStream();
   return true;
 }
