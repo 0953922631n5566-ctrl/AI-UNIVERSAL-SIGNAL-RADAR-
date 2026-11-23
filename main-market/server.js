@@ -10,11 +10,8 @@ import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twel
 import { createLiveCandlePreview } from "./src/live-candle-preview.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
-import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
-import { analyzeEarlyEntryEngine4, ENGINE4_STRATEGY } from "./src/engine-four.js";
-import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
+import { SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
 import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
@@ -279,7 +276,7 @@ async function evaluate(feed) {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
    liveCandle: livePreview
  }) : standby("V1 ปิดการทำงานจาก Mini App");
- const v1Result = applySignalReleaseGate(v1Raw);
+ const v1Result = v1Raw;
  const latestClosed = closedCandles.at(-1);
  const latestClosedAge = latestClosed ? now / 1000 - (latestClosed.epoch + 60) : Infinity;
  const bbOhlcValid = closedCandles.slice(-21).length === 21 &&
