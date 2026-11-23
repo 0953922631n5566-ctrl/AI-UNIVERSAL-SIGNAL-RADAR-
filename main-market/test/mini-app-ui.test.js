@@ -29,6 +29,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
   assert.ok(html.includes("MACD 12/26/9"));
+  assert.ok(html.includes("เส้นชิดกันตามสถิติย้อนหลัง"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -170,6 +171,8 @@ test("four engine cards remain independently toggleable and Engine 4 uses MACD 1
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
+  assert.match(serverJs, /historicalProximity: \{ window: 40, percentile: 25/);
+  assert.match(serverJs, /engine4LookbackClosedCandles: 73/);
   assert.match(serverJs, /engine === "ENGINE_4" \? "TARGET_M1_CANDLE_OPEN"/);
   assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
