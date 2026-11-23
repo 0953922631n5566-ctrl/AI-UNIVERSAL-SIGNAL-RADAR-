@@ -34,7 +34,9 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA EMA5 PULLBACK";
 const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-EMA5-PULLBACK";
-const VERSION = "2026-11-23-engine4-twelvedata-ema5-pullback-v1";
+const VERSION = "2026-11-23-engine4-twelvedata-ema5-pullback-v2";
+const ENGINE4_EMA_REFRESH_SECONDS = 60;
+const ENGINE4_EMA_RETRY_MIN_MS = 5000;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -52,7 +54,7 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    engine4Ema: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, message: "รอค่า EMA 5 จาก Twelve Data" },
+    engine4Ema: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอค่า EMA 5 จาก Twelve Data" },
     engine4EmaPromise: null, engine4PullbackState: null,
     enginePendingForecasts: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
     engineForecastHistory: { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] },
@@ -689,20 +691,48 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
 async function syncEngine4Ema(feed, { force = false } = {}) {
   if (!feed || !monitoring || selectedSymbol !== feed.symbol || !engineEnabled.ENGINE_4) return;
   if (feed.engine4EmaPromise) return feed.engine4EmaPromise;
-  const minuteKey = Math.floor(Date.now() / 60000) * 60;
+  const now = Date.now();
+  const minuteKey = Math.floor(now / 60000) * 60;
   if (!force && feed.engine4Ema?.lastFetchedMinute === minuteKey) return;
+  if (!force && Number.isFinite(feed.engine4Ema?.nextAttemptAt) && now < feed.engine4Ema.nextAttemptAt) return;
   feed.engine4EmaPromise = (async () => {
     try {
-      const response = await fetchEma5({ keyPool: twelveDataKeyPool, symbol: feed.symbol, interval: INTERVAL, now: Date.now() });
-      feed.engine4Ema = { ...response, status: "READY", lastFetchedMinute: minuteKey,
-        message: "Twelve Data EMA 5 พร้อม · ใช้ค่าจาก API โดยตรง" };
+      const requestedAt = Date.now();
+      const response = await fetchEma5({ keyPool: twelveDataKeyPool, symbol: feed.symbol, interval: INTERVAL, now: requestedAt });
+      feed.engine4Ema = { ...response, status: "READY",
+        lastFetchedMinute: Math.floor(requestedAt / 60000) * 60,
+        nextAttemptAt: null, lastError: null,
+        message: "Twelve Data EMA 5 พร้อม · หมุนเวียน API Key อัตโนมัติ" };
       console.info("[engine4] Twelve Data EMA5 refreshed", { symbol: feed.symbol, values: response.values });
     } catch (error) {
-      feed.engine4Ema = { status: "ERROR", values: [], receivedAt: 0,
-        lastFetchedMinute: minuteKey, message: "EMA 5 API ใช้งานไม่ได้: " + error.message };
-      feed.engine4PullbackState = null;
-      if (feed.engineActive) feed.engineActive.ENGINE_4 = null;
-      console.error("[engine4] Twelve Data EMA5 request failed", feed.symbol, error.message);
+      const failedAt = Date.now();
+      const insufficientHistory = error?.kind === "INSUFFICIENT_HISTORY";
+      const nextMinuteRetryMs = Math.floor(failedAt / 60000) * 60000 +
+        ENGINE4_EMA_REFRESH_SECONDS * 1000 + 2000 - failedAt;
+      const poolRetryMs = Math.max(ENGINE4_EMA_RETRY_MIN_MS,
+        twelveDataKeyPool.nextAvailableInMs() || ENGINE4_EMA_RETRY_MIN_MS);
+      const retryMs = insufficientHistory
+        ? Math.max(ENGINE4_EMA_RETRY_MIN_MS, nextMinuteRetryMs)
+        : poolRetryMs;
+      const previous = feed.engine4Ema || {};
+      const hasCachedEma = Array.isArray(previous.values) && previous.values.length === 2;
+      feed.engine4Ema = {
+        ...previous,
+        status: hasCachedEma ? "DEGRADED" : "ERROR",
+        values: previous.values || [],
+        receivedAt: previous.receivedAt || 0,
+        lastFetchedMinute: insufficientHistory
+          ? previous.lastFetchedMinute
+          : (previous.lastFetchedMinute ?? null),
+        nextAttemptAt: failedAt + retryMs,
+        lastError: String(error?.message || error),
+        message: "Twelve Data EMA 5 ขัดข้องชั่วคราว · เก็บสถานะย่อเดิมและรอสลับ API Key/ลองใหม่: " +
+          String(error?.message || error)
+      };
+      // Do not clear the armed pullback or active alert on a temporary REST/key failure.
+      console.error("[engine4] Twelve Data EMA5 request failed; retry scheduled", feed.symbol, {
+        kind: error?.kind || "UNKNOWN", retryInMs: retryMs, message: error.message
+      });
     } finally {
       feed.engine4EmaPromise = null;
     }
@@ -717,7 +747,7 @@ function startEngine4EmaTimer() {
   emaTimer = setInterval(() => {
     const feed = feeds.get(selectedSymbol);
     if (feed) syncEngine4Ema(feed).catch(error => console.error("[engine4] EMA5 refresh loop failed", error.message));
-  }, 5000);
+  }, ENGINE4_EMA_RETRY_MIN_MS);
 }
 
 function startRestTimer() {
@@ -1244,7 +1274,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, indicator: "EMA", provider: "TWELVE_DATA_EMA_ENDPOINT", period: 5, interval: "1min", seriesType: "CLOSE", apiCreditsPerRequest: 1, refreshSeconds: 60, slopeSamples: 2, pullbackProximityPips: 0.5, bounceConfirmPips: 0.2, decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "EMA5_REFRESH_ONCE_PER_M1_PLUS_LIVE_STREAMING_TICK_ANALYSIS", decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, indicator: "EMA", provider: "TWELVE_DATA_EMA_ENDPOINT", period: 5, interval: "1min", seriesType: "CLOSE", apiCreditsPerRequest: 1, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS), keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, slopeSamples: 2, pullbackProximityPips: 0.5, bounceConfirmPips: 0.2, decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "EMA5_REFRESH_ONCE_PER_M1_PLUS_LIVE_STREAMING_TICK_ANALYSIS", decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_PULLBACK_IMMEDIATE"
     },
@@ -1277,6 +1307,9 @@ app.get("/health", (_req, res) => {
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
+      engine4EmaRefreshSeconds: ENGINE4_EMA_REFRESH_SECONDS,
+      estimatedEngine4EmaCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS),
+      engine4EmaKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
       entryCandles: 4,

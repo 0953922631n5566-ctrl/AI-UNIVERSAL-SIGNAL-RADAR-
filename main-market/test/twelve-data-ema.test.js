@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fetchEma5 } from "../src/twelve-data.js";
+import { TwelveDataKeyPool } from "../src/twelve-data-pool.js";
 
 const now = Date.parse("2026-11-23T12:02:30Z");
 const response = {
@@ -53,4 +54,28 @@ test("fetchEma5 rejects insufficient completed EMA values", async () => {
       status: "ok", values: [{ datetime: "2026-11-23 12:01:00", ema: "1.1" }]
     }) })
   }), /two consecutive completed M1 values/);
+});
+
+test("fetchEma5 rotates across a ten-key pool after quota exhaustion and continues round-robin", async () => {
+  const keys = Array.from({ length: 10 }, (_, index) => `ema-key-${index + 1}`);
+  const keyPool = new TwelveDataKeyPool(keys);
+  const attempted = [];
+  const fetchImpl = async (_url, options) => {
+    const key = options.headers.Authorization.replace("apikey ", "");
+    attempted.push(key);
+    if (key === "ema-key-1") {
+      return { ok: false, status: 429, json: async () => ({ status: "error", message: "rate limit exceeded" }) };
+    }
+    return { ok: true, status: 200, json: async () => response };
+  };
+  await fetchEma5({ keyPool, symbol: "EUR/USD", now, fetchImpl });
+  assert.deepEqual(attempted, ["ema-key-1", "ema-key-2"]);
+  assert.equal(keyPool.publicStatus().configuredCount, 10);
+  assert.equal(keyPool.publicStatus().keyStates[0].status, "COOLDOWN");
+  assert.equal(keyPool.publicStatus().nextRestKeyNumber, 3);
+
+  attempted.length = 0;
+  await fetchEma5({ keyPool, symbol: "EUR/USD", now: now + 60000, fetchImpl });
+  assert.deepEqual(attempted, ["ema-key-3"]);
+  assert.equal(keyPool.publicStatus().nextRestKeyNumber, 4);
 });

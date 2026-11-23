@@ -165,7 +165,14 @@ test("four engine cards remain independently toggleable and Engine 4 uses Twelve
   assert.match(serverJs, /strategy: ENGINE4_STRATEGY/);
   assert.match(serverJs, /provider: "TWELVE_DATA_EMA_ENDPOINT"/);
   assert.match(serverJs, /period: 5/);
-  assert.match(serverJs, /refreshSeconds: 60/);
+  assert.match(serverJs, /refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS/);
+  assert.match(serverJs, /estimatedCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
+  assert.match(serverJs, /estimatedEngine4EmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
+  assert.match(serverJs, /keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER"/);
+  assert.match(serverJs, /twelveDataKeyPool\.nextAvailableInMs\(\)/);
+  assert.match(serverJs, /nextAttemptAt: failedAt \+ retryMs/);
+  assert.match(serverJs, /Do not clear the armed pullback or active alert/);
+  assert.match(serverJs, /ENGINE4_EMA_RETRY_MIN_MS/);
   assert.match(serverJs, /pullbackProximityPips: 0.5/);
   assert.match(serverJs, /bounceConfirmPips: 0.2/);
   assert.match(serverJs, /decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT"/);
