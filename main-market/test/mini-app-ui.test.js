@@ -182,7 +182,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses native
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /engine4LookbackClosedCandles: 50/);
+  assert.match(serverJs, /engine4DirectionSource: "TWELVE_DATA_NATIVE_EMA5_AND_MOMENTUM9_PLUS_LIVE_STREAM"/);
   assert.match(engineFourJs, /TWELVE_DATA_STREAMING_PRICE/);
   assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
