@@ -15,7 +15,7 @@ import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
 import { analyzeEarlyEntryEngine4 } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { canDispatchEngine4Signal, canFinalizeSignal, isEngine4EntryWindow, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
+import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -41,7 +41,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0, engine4PendingForecast: null, streamApiKey: null, subscribeAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -221,7 +221,6 @@ function closeUpstream() {
 }
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
-  feed.engine4PendingForecast = null;
   feed.activeSignal = null;
   feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
   feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -532,14 +531,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "CLOSED_M1_TO_NEXT_M1_ENTRY",
-   engine4UsesClosedCandlesOnly: true,
-   engine4LookbackClosedCandles: 1,
-   engine4DirectionSource: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION",
+   engine4DecisionMode: "LIVE_M1_WICK_ONLY_T5_NEXT_M1",
+   engine4UsesClosedCandlesOnly: false,
+   engine4LookbackClosedCandles: 0,
+   engine4DirectionSource: "CURRENT_LIVE_M1_UPPER_VS_LOWER_WICK",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 วิเคราะห์ OHLC จากแท่ง M1 ที่ปิดสมบูรณ์ล่าสุดเพียง 1 แท่ง · หาก Body และตำแหน่งปิดผ่านเกณฑ์ จะส่ง CALL/PUT ในช่วง 5 วินาทีแรกของแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 เปรียบเทียบไส้บนกับไส้ล่างของแท่ง M1 ปัจจุบันเท่านั้น · ไส้ล่างยาวกว่า = CALL/เขียว, ไส้บนยาวกว่า = PUT/แดง, เท่ากัน = งดสัญญาณ · ยืนยันและแจ้งเตือนที่ T-5 พร้อม Engine 1–3 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -555,9 +554,9 @@ function dispatchSignalIfReady(feed) {
    if (feed.engineLastDispatchedAlertId?.[engine] === active.alertId) continue;
    feed.engineLastDispatchedAt = feed.engineLastDispatchedAt || {};
    feed.engineLastDispatchedAt[engine] = now;
-   feed.engineLastDispatchedCandle[engine] = engine === "ENGINE_4" ? active.targetCandleEpoch : active.sourceCandleEpoch;
+   feed.engineLastDispatchedCandle[engine] = active.sourceCandleEpoch;
    feed.engineLastDispatchedAlertId[engine] = active.alertId;
-   console.info(engine === "ENGINE_4" ? "[signal] next-M1 forecast available to Telegram Mini App polling" : "[signal] T-5 independent signal available to Telegram Mini App polling", {
+   console.info("[signal] T-5 independent signal available to Telegram Mini App polling", {
      engine, alertId: active.alertId, signal: active.signal,
      symbol: feed.symbol, sourceCandleEpoch: active.sourceCandleEpoch,
      targetCandleEpoch: active.targetCandleEpoch,
@@ -595,7 +594,7 @@ function applyTick(feed, price, epoch) {
           next: feed.engineRecoveryStates[engine].status === "ARMED" ? "REANALYZE_NEXT_M1" : "NORMAL_MODE" });
       }
     }
-    // The latched Engine 4 forecast is consumed at the next candle open; keep it across this rollover.
+    // Each engine signal targets the immediately following M1 candle.
     feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
       epoch: minute, open: price, high: price, low: price, close: price, live: true
@@ -609,7 +608,7 @@ function applyTick(feed, price, epoch) {
     return;
   }
 
-  // Engine 4 reads the live M1 OHLC body and latches a qualified direction for the next M1 open.
+  // Engine 4 compares the live M1 upper/lower wicks; all engines finalize at T-5.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
@@ -682,13 +681,10 @@ function startRestTimer() {
 
 function scheduleLiveAnalysis(feed) {
   if (!monitoring || !feed || selectedSymbol !== feed.symbol) return;
-  const now = Date.now();
-  const pendingEngine4Window = Boolean(feed.engine4PendingForecast &&
-    isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
   const current = feed.candles.at(-1);
-  if (!current?.live && !pendingEngine4Window) return;
-  const elapsedMs = current?.live ? now - current.epoch * 1000 : Infinity;
-  if (!pendingEngine4Window && (elapsedMs < 0 || elapsedMs > 60000)) return;
+  if (!current?.live) return;
+  const elapsedMs = Date.now() - current.epoch * 1000;
+  if (elapsedMs < 0 || elapsedMs > 60000) return;
   liveAnalysisPending = true;
   if (liveAnalysisBusy || liveAnalysisTimer) return;
   const cadenceMs = LIVE_ANALYSIS_INTERVAL_SECONDS * 1000;
@@ -701,10 +697,8 @@ function scheduleLiveAnalysis(feed) {
     }
     liveAnalysisPending = false;
     const latest = feed.candles.at(-1);
-    const targetWindow = Boolean(feed.engine4PendingForecast &&
-      isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, Date.now()));
     const latestElapsedMs = latest?.live ? Date.now() - latest.epoch * 1000 : Infinity;
-    if (!targetWindow && (!latest?.live || latestElapsedMs < 0 || latestElapsedMs > 60000)) return;
+    if (!latest?.live || latestElapsedMs < 0 || latestElapsedMs > 60000) return;
     liveAnalysisBusy = true;
     lastLiveAnalysisAt = Date.now();
     try {
@@ -722,15 +716,12 @@ function scheduleLiveAnalysis(feed) {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Local safety cadence also evaluates a latched Engine 4 forecast at the target M1 open.
-  // It never calls REST; a real signal still requires a fresh Streaming quote.
+  // Local safety cadence supports the same live-candle T-5 finalization for all engines.
   signalTimer = setInterval(() => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
-    const now = Date.now();
-    const pendingEngine4Window = Boolean(feed?.engine4PendingForecast &&
-      isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
-    if (feed?.candles.at(-1)?.live || pendingEngine4Window) scheduleLiveAnalysis(feed);
+    const feed = feeds.get(selectedSymbol);
+    if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
   }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
 }
 
