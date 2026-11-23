@@ -19,7 +19,7 @@ test("detects strong live bearish momentum for the next M1 candle",()=>{
  assert.ok(out.metrics.bodyMovement<0);
 });
 test("does not require or inspect historical closed candles",()=>{
- const out=analyze([bullish]);assert.equal(out.ready,true);assert.equal(out.metrics.sourceCandleEpoch,source);
+ const out=analyzeEarlyEntryEngine4([bullish],{now:source*1000+12_000});assert.equal(out.ready,true);assert.equal(out.metrics.sourceCandleEpoch,source);
 });
 test("waits briefly for live momentum to form at the start of the source candle",()=>{
  const out=analyze(bullish,ENGINE4_MIN_ELAPSED_MS-1);assert.equal(out.ready,false);
