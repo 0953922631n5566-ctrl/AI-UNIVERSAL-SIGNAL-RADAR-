@@ -37,9 +37,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.match(html, /<div class="engine-title">04 · CLOSED M1 CONFIRMATION<\/div>/);
+  assert.match(html, /<div class="engine-title">04 · EMA 5/20 CLOSED M1<\/div>/);
   assert.match(html, /Engine 4 · EMA 5/20 → Next M1 CALL/);
-  assert.match(html, /Engine 4 · Closed M1 → Next M1 PUT/);
+  assert.match(html, /Engine 4 · EMA 5/20 → Next M1 PUT/);
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
