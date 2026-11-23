@@ -18,7 +18,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App presents live-momentum next-M1 entry and preserves shared sound, vibration and 30-second alert UI", () => {
+test("Mini App presents closed-M1 next-candle entry and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -28,7 +28,7 @@ test("Mini App presents live-momentum next-M1 entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.match(html, /LIVE M1 MOMENTUM/);
+  assert.match(html, /CLOSED M1 CONFIRMATION/);
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,9 +37,9 @@ test("Mini App presents live-momentum next-M1 entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.match(html, /<div class="engine-title">04 · LIVE M1 MOMENTUM<\/div>/);
-  assert.match(html, /Engine 4 · Live Momentum → Next M1 CALL/);
-  assert.match(html, /Engine 4 · Live Momentum → Next M1 PUT/);
+  assert.match(html, /<div class="engine-title">04 · CLOSED M1 CONFIRMATION<\/div>/);
+  assert.match(html, /Engine 4 · Closed M1 → Next M1 CALL/);
+  assert.match(html, /Engine 4 · Closed M1 → Next M1 PUT/);
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -121,7 +121,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /isEngine4EntryWindow\(engine4Pending\.targetCandleEpoch, now\)/);
   assert.match(serverJs, /signalTargetEpoch = engine4Entry && Number\.isFinite\(selectedCandidate\.targetCandleEpoch\)/);
   assert.match(serverJs, /pendingEngine4Window/);
-  assert.match(serverJs, /WAITING_FOR_NEXT_M1_OPEN/);
+  assert.match(serverJs, /NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
@@ -157,14 +157,14 @@ test("four engine cards are independently toggleable and Engine 4 uses live-mome
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY"/);
-  assert.match(serverJs, /input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION"/);
-  assert.match(serverJs, /decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_\[0,5S\)"/);
-  assert.match(serverJs, /decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL"/);
-  assert.match(serverJs, /liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION"/);
+  assert.match(serverJs, /strategy: "CLOSED_M1_TO_NEXT_M1_ENTRY"/);
+  assert.match(serverJs, /input: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION"/);
+  assert.match(serverJs, /decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_\[0,5S\)"/);
+  assert.match(serverJs, /decisionRule: "CALL_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL"/);
+  assert.match(serverJs, /closedCandleConfirmation: "ONE_COMPLETED_CANDLE_OHLC_ONLY"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
-  assert.match(serverJs, /minimumClosedCandles: 0/);
+  assert.match(serverJs, /minimumClosedCandles: 1/);
   assert.match(serverJs, /minimumBodyPips: 0\.4/);
   assert.match(serverJs, /minimumBodyRangeRatio: 0\.55/);
   assert.match(serverJs, /minimumDirectionalCloseLocation: 0\.72/);
@@ -183,7 +183,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 reads the current fo
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "LIVE_M1_BODY_MOMENTUM_TO_NEXT_M1"/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "CLOSED_M1_BODY_CONFIRMATION_TO_NEXT_M1"/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
 });
