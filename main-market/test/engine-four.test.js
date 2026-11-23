@@ -28,11 +28,11 @@ test("Twelve Data EMA5 rising + pullback + rebound produces immediate CALL", () 
 test("Twelve Data EMA5 falling + upward pullback + rejection produces immediate PUT", () => {
   let result = analyzeEarlyEntryEngine4({ ...tick(1.09980), emaValues: emaDown });
   assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.09996), emaValues: emaDown, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10000), emaValues: emaDown, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
   result = analyzeEarlyEntryEngine4({ ...tick(1.09997), emaValues: emaDown, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.09990), emaValues: emaDown, state: result.nextState });
-  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
-  result = analyzeEarlyEntryEngine4({ ...tick(1.09987), emaValues: emaDown, state: result.nextState });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "PUT");
 });

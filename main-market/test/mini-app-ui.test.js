@@ -102,7 +102,7 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
 
 test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
-  assert.match(serverJs, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
+  assert.match(serverJs, /if \(!activeForCurrentOrNext && \(engine4Entry \? engine4Window : engineWindow\) && selectedFinalSignal && timingReady\)/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
@@ -145,7 +145,7 @@ test("Engine 4 immediate signal shares existing sound, vibration and 30-second h
 
 test("four engine cards remain independently toggleable and Engine 4 uses Twelve Data EMA5 only", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
-    assert.match(html, new RegExp(\`id="\${id}" class="engine-card engine-enabled" role="button"\`));
+    assert.match(html, new RegExp('id="' + id + '" class="engine-card engine-enabled" role="button"'));
   }
   for (const key of ["V1", "BB", "TREND_RIDER", "ENGINE_4"]) {
     assert.match(html, new RegExp('data-light-toggle="' + key + '"'));
