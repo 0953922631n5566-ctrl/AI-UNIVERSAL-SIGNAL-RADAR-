@@ -888,8 +888,6 @@ app.get("/api/public/signal", (_req, res) => {
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
-      recovery: state.recovery || null,
-      engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
       signalValidationNote: state.signalValidationNote,
@@ -948,7 +946,7 @@ app.get("/health", (_req, res) => {
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 65, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true },
-      independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
+      engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
@@ -961,12 +959,7 @@ app.get("/health", (_req, res) => {
       scoreThreshold: 65, minimumClosedCandles: 30,
       guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
     },
-    recovery: {
-      enabled: false, mode: "DISABLED", status: "ENGINE_3_ONLY",
-      strategy: "NO_CROSS_ENGINE_RECOVERY_OR_SIGNAL_BORROWING",
-      altersMiniApp: false, badgeText: null, martingale: false,
-      independentEngines: ["TREND_RIDER"]
-    },
+    recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
