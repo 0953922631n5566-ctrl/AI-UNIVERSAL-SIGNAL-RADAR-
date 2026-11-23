@@ -7,7 +7,6 @@ import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
-import { createLiveCandlePreview } from "./src/live-candle-preview.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
@@ -17,7 +16,7 @@ import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
-  SIGNAL_HOLD_SECONDS, resolveSymbol
+  resolveSymbol
 } from "./src/config.js";
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -73,8 +72,6 @@ let liveAnalysisPending = false;
 let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
-const engineEnabled = { TREND_RIDER: true };
-const ENGINE_KEYS = ["TREND_RIDER"];
 
 function standby(reason, extra = {}) {
   return {
@@ -183,7 +180,6 @@ function snapshot() {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
-    engineEnabled: { ...engineEnabled },
   };
 }
 
@@ -408,7 +404,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
 }
 
 async function syncEngine3Indicators(feed,{force=false}={}) {
- if(!feed||!monitoring||selectedSymbol!==feed.symbol||!engineEnabled.TREND_RIDER)return;
+ if(!feed||!monitoring||selectedSymbol!==feed.symbol)return;
  if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
  const now=Date.now(),minute=Math.floor(now/60000)*60;
  if(!force&&feed.engine3Indicators?.lastFetchedMinute===minute)return;
