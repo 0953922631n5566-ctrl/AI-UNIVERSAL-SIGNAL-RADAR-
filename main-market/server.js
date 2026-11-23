@@ -421,7 +421,7 @@ async function evaluate(feed) {
      signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
      signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null,
       entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
-      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "FIRST_FRESH_STREAM_TICK_OF_NEXT_M1" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
+      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TARGET_M1_CANDLE_OPEN" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
    };
    if (engine === "ENGINE_4") {
      delete engineResult.candidateScore;
