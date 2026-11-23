@@ -2282,3 +2282,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Both indicators refresh once per selected M1 minute (2 indicator credits/minute); streaming alignment is evaluated on live ticks. One signal per candle, 30-second hold, shared sound/vibration and manual-only/no-broker behavior retained.
 - Only Engine 4 code, UI label, metadata and tests are intended to change. Engines 1–3 remain unchanged.
 - CI, Render deployment, health, public signal endpoint and Telegram Mini App verification pending. Paper-test first; no profitability claim.
+
+
+## 2026-11-23 — Engine 3 only / Twelve Data-native indicators / manual light switch (approved scope)
+
+- User approved retaining only Engine 3 (TREND_RIDER) as the sole signal-analysis engine in Main Market. Remove V1, BB Pure Scalper, and Engine 4 from the active signal path and Mini App engine selector/cards; do not delete their historical source files until dependency and rollback review is complete.
+- Engine 3's strategy formula remains our own: EMA5/EMA20 alignment and slope, swing-structure confirmation, pullback or breakout, momentum/body confirmation, sideways guard, late-extension guard, and abnormal-volatility guard.
+- Provider rule: all market prices/candles and technical-indicator values must come directly from Twelve Data native REST endpoints/streaming. Do not locally calculate EMA, ATR, Momentum, RSI, MACD, or other technical indicators. For the current Trend Rider formula, replace local EMA5/EMA20 and ATR14 calculations with native Twelve Data EMA(5), EMA(20), and ATR(14) data. Price-action structure (swing highs/lows, candle body/range) may be derived from Twelve Data OHLC candles because those are raw market observations, not locally calculated technical indicators.
+- Use the existing 10-key Twelve Data pool with round-robin/failover; expose each indicator's source, freshness, API state, last value, and failure reason in the Mini App. Any stale, missing, conflicting, or failed indicator must fail closed to STANDBY and show the API/indicator status.
+- Mini App must show Engine 3 analysis only, including indicator values and the formula's evidence/reasons. No parallel engine aggregation, recovery borrowing from other engines, or Engine 4 EMA/MOM signal path.
+- Add a separate manual lamp switch controlled by the user: toggle RED <-> GREEN; display current manual lamp color and state. This manual lamp is strictly separate from the real Engine 3 signal lamp and must never alter, invert, or fabricate CALL/PUT signals. Real signal lamp follows Engine 3 output and its normal expiry/clear rules.
+- Keep the existing Start/Stop monitoring and manual-only/no-broker-execution policy. Preserve Main Market repository/branch/service separation; do not modify VISUAL-SIGNAL-AI, OTC/OCR, APK, or other projects.
+- Implementation status at approval: scope approved and documented; code changes, tests, deployment, live endpoint checks, and Telegram-device verification are pending. Do not claim implemented or deployed until verified.
