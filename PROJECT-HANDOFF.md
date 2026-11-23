@@ -2335,3 +2335,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Start/Stop is HTTP polling only; no old local WebSocket broadcaster, Android client API, APK build workflow, other analyzer, recovery system, or broker execution remains in the active Main Market runtime.
 - Important: signal logic is functionally smoke-tested, but profitability has not been validated out-of-sample. Keep manual execution and evaluate in demo/test mode first.
 - Device-level Telegram container behavior (in-app rendering, device sound/vibration) still needs a quick confirmation on the user's Telegram client; backend session, Start/Stop, live Streaming, and native indicators are verified.
+
+### Mini App visual refresh — 2026-11-23
+
+- PR #228 merged to `main-market` (merge commit `0f5c0562fab0f10e275f34d92f45149e30432aec`).
+- Refreshed `main-market/public/signal.html` into a compact, dark premium dashboard: the EUR/USD (NON-OTC · M1) label, live price, independent API connection badge, signal lamp/state, and candle/signal countdown remain visible immediately.
+- Moved sound permission, Start/Stop controls, session diagnostics, Engine 3 detail, indicator metrics, manual auxiliary lamp, evidence, and API key pool into a collapsed menu drawer.
+- Kept analyzer, API endpoints, signal timing, alert logic, and manual-only/no-broker-execution behavior unchanged.
+- Added a regression test verifying the main-screen elements remain outside the collapsed menu and diagnostics stay inside it.
+- GitHub Actions workflow run #1075 passed: install/tests, 50+4 Mini App wiring verification, and application syntax checks all succeeded.
+- Render service `ai-signal-radar-main-market` auto-deploy was observed starting for the merge commit; final live deploy status and actual Telegram device rendering must be checked before claiming production visual confirmation.
