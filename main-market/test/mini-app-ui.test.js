@@ -26,6 +26,13 @@ test("Mini App automatically authenticates and starts monitoring when opened",()
  assert.match(serverJs,/if \(action === "start"\)/);
 });
 
+test("Mini App reuses its session token instead of requesting a new session on every poll",()=>{
+ assert.match(html,/function ensureAuth\(\)\{if\(token\)return Promise\.resolve\(\)/);
+ assert.match(html,/authRetryAfter/);
+ assert.match(html,/r\.status===429/);
+ assert.match(html,/Retry-After/);
+});
+
 test("Manual stop and restart remain available only in the menu",()=>{
  const drawer=html.slice(html.indexOf('<aside id="drawer"'),html.indexOf('<div id="toast"'));
  assert.match(drawer,/id="monitorToggle"/);
