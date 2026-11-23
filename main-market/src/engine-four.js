@@ -1,5 +1,5 @@
 /** Engine 4: Awesome Oscillator (SMA 5 - SMA 34) only. */
-export const ENGINE4_STRATEGY = "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN";
+export const ENGINE4_STRATEGY = "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1";
 
 function validCandle(c, provisional = false) {
   return c && c.live === false && (!provisional || c.provisional === true) &&
@@ -84,6 +84,6 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     status: signal === "CALL" ? "AO_POSITIVE_CALL" : "AO_NEGATIVE_PUT",
     metrics, evidenceSummary: reason,
     alertId: `ENGINE_4:${targetCandleEpoch}:${signal}:AO_5_34`,
-    reason: `${signal} · ${reason} · ส่งสัญญาณใน 5 วินาทีแรกของแท่ง M1 ถัดไป`
+    reason: `${signal} · ${reason} · ยืนยันที่ T-5 สำหรับแท่ง M1 ถัดไป`
   };
 }
