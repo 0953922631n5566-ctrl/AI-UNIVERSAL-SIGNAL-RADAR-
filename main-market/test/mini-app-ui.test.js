@@ -28,7 +28,7 @@ test("Mini App presents live-momentum next-M1 entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.match(html, /LIVE M1 MOMENTUM/);
+  assert.match(html, /CLOSED M1 CONFIRMATION/);
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
