@@ -200,14 +200,8 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awe
 });
 
 
-test("Engine 4 card shows its live relative AO momentum percentage and explanatory bar", () => {
-  assert.match(html, /id="engine4Momentum"/);
-  assert.match(html, /id="engine4MomentumFill"/);
-  assert.match(html, /id="engine4MomentumNote"/);
-  assert.match(html, /const momentum=fourth\.metrics\?\.momentumPercent/);
-  assert.match(html, /momentum\+"%"/);
-  assert.match(html, /เทียบค่าสูงสุดของ AO 28 ค่าล่าสุด/);
-  assert.match(html, /รอข้อมูล M1 ให้ครบ 61 แท่ง/);
+test("Engine 4 card has no momentum percentage or gauge UI", () => {
+  assert.doesNotMatch(html, /engine4Momentum|engine-momentum|momentumPercent|แรงส่ง AO/);
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });
