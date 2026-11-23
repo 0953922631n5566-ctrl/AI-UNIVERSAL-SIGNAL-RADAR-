@@ -1,6 +1,6 @@
 {
   "name": "ai-universal-signal-radar-main-market",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -17,15 +17,15 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "BB Pure Scalper + Trend Rider",
-    "displayName": "Two Independent Engines: BB Pure Scalper + Trend Rider",
-    "engineCount": 2,
+    "name": "V1 + BB + Trend Rider AI + Independent Engine 4",
+    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 Live M1 Wick Only T-5",
+    "engineCount": 4,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_INDEPENDENT_ANALYZERS",
-    "decisionAuthority": "BB_AND_TREND_RIDER_INDEPENDENT_SIGNALS",
-    "directionalVoters": 2,
-    "standaloneEveryCandleEngine": null,
-    "aggregator": 0,
+    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
+    "decisionAuthority": "V1_BB_AND_TREND_RIDER_INDEPENDENT_DIRECTIONAL_ANALYSTS",
+    "directionalVoters": 3,
+    "standaloneEveryCandleEngine": "ENGINE_4",
+    "aggregator": 1,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
     "scoreWeights": {
@@ -63,10 +63,6 @@
       "wickThreshold": 0.18,
       "conflictPolicy": "SHOW_BOTH_SEPARATELY",
       "mayCreateSignalAlone": true
-    },
-    "disabledEngines": [
-      "V1",
-      "ENGINE_4"
-    ]
+    }
   }
 }
