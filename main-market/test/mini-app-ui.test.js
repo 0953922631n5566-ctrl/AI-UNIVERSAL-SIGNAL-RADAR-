@@ -177,7 +177,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses adapti
   assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
   assert.match(serverJs, /derivedIndicators: \["EMA8", "EMA21", "RSI7", "MACD_5_13_4", "ADX14", "ATR14", "BOLLINGER20_2"\]/);
   assert.match(serverJs, /trendAdxMin: 14/);
-  assert.match(serverJs, /rangeEntries: ["BOLLINGER_EDGE_REJECTION_WITH_RSI"]/);
+  assert.match(serverJs, /rangeEntries: \["BOLLINGER_EDGE_REJECTION_WITH_RSI"\]/);
   assert.match(serverJs, /decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP"/);
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
