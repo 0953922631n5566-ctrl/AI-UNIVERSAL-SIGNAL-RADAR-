@@ -47,7 +47,7 @@ test("rejects a forecast after the opening decision window",()=>{
  assert.equal(out.status,"DECISION_WINDOW_CLOSED");
 });
 test("rejects candles that are not aligned with target candle open",()=>{
- const bad=rising.map((c,i)=>({...c,epoch:c.epoch+(i===2?60:0)}));
+ const bad=rising.map(c=>({...c,epoch:c.epoch-60}));
  const out=analyze(bad);assert.equal(out.ready,false);assert.equal(out.status,"CLOSED_CANDLE_NOT_ALIGNED");
 });
 test("Engine 4 dispatch window is the first five seconds of the target candle",()=>{
