@@ -25,12 +25,12 @@
 @media(max-width:360px){.lamp{width:64px;height:64px}.value{font-size:34px}.market-head strong{font-size:21px}.market-price b{font-size:21px}}
 </style></head><body><main>
 <header class="top"><div><div class="brand">◈ SIGNAL RADAR</div><div class="sub">TELEGRAM MINI APP · MAIN MARKET · NON-OTC · M1</div></div><div id="api" class="pill off">CONNECTING</div></header>
-<details class="menu-drawer" id="settingsMenu"><summary><span class="menu-icon">☰</span><span>เมนูตั้งค่าและข้อมูลระบบ</span><span class="menu-chevron">⌄</span></summary><div class="menu-content">
 <section class="card market-head" data-panel="market"><div><div class="eyebrow">ตลาดหลัก · NON-OTC</div><strong>EUR / USD</strong><small>อัตราแลกเปลี่ยน · M1</small></div><div class="market-price"><div class="eyebrow">LIVE PRICE</div><b id="price">—</b><small id="age">รอราคา Streaming</small></div></section>
+<details class="menu-drawer" id="settingsMenu"><summary><span class="menu-icon">☰</span><span>เมนูตั้งค่าและข้อมูลระบบ</span><span class="menu-chevron">⌄</span></summary><div class="menu-content">
+
 <section class="card" data-panel="sound"><div class="eyebrow">SOUND & ALERT</div><div class="alert-controls"><button id="soundEnable" class="sound-button" type="button">เปิดเสียงแจ้งเตือน</button><span id="soundStatus" class="sound-status">แตะเพื่ออนุญาตเสียง</span></div><div class="alert-note">Engine 3 เท่านั้น · ใช้ EMA5, EMA20 และ ATR14 จาก Twelve Data โดยตรง · สูตรตัดสินใจเป็นของเรา · แจ้งเตือนสัญญาณจริงแยกจากไฟสลับด้วยมือ</div></section>
 <section class="card" data-panel="monitor-control"><div class="eyebrow">SYSTEM CONTROL · MANUAL START / STOP</div><div class="alert-controls"><button id="monitorToggle" class="sound-button" type="button">เริ่มวิเคราะห์</button><span id="monitorStatus" class="sound-status">หยุดอยู่</span></div><div class="alert-note">ระบบจะรับราคาและวิเคราะห์เมื่อกดเริ่มเท่านั้น · กดหยุดเพื่อปิดการสแกน</div></section>
 <section id="access" class="card" data-panel="access"><div class="eyebrow">MINI APP SESSION</div><p id="accessText" class="reason">กำลังยืนยันบัญชี Telegram…</p></section>
-</div></details>
 <section class="card" data-panel="signal"><div class="eyebrow">สัญญาณปัจจุบัน · EUR/USD</div><div id="panel" class="signal standby"><div class="lamp"></div><div class="words"><span id="hint" class="hint">กำลังตรวจสอบข้อมูลตลาด</span><strong id="signal" class="value">STANDBY</strong><span id="action" class="action">ยังไม่เข้าออเดอร์</span></div></div><div class="timer"><span>นับถอยหลังแท่งถัดไป <b id="candle">—</b></span><span>เวลาสัญญาณ <b id="expiry">—</b></span></div></section>
 <section class="engine-grid" data-panel="engines">
 <div id="trendCard" class="engine-card engine-enabled" aria-label="ENGINE 3 · TREND RIDER">
@@ -41,6 +41,7 @@
 <section class="card" data-panel="manual-lamp"><div class="eyebrow">MANUAL LIGHT SWITCH · แยกจากสัญญาณจริง</div><div class="alert-controls"><button id="manualLampToggle" class="sound-button" type="button">สลับไฟเป็นสีเขียว</button><span id="manualLampStatus" class="sound-status">ไฟสลับด้วยมือ: สีแดง</span></div><div class="alert-note">ไฟนี้เป็นไฟที่ผู้ใช้สั่งเอง ไม่เปลี่ยนผลวิเคราะห์ CALL/PUT และไม่ควบคุมไฟสัญญาณจริง</div></section>
 <section class="card" data-panel="details"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">Engine 3 เท่านั้น · Twelve Data Native EMA5 / EMA20 / ATR14 · สูตรตัดสินใจของเรา · Manual only</div></section>
 <details class="api-drawer" data-panel="api"><summary><span>ศูนย์ API · สถานะคีย์</span><b id="apiSummary" class="api-summary">กำลังโหลด</b><span>⌄</span></summary><div id="apiKeys" class="api-grid"></div><div class="note api-note">เขียว = พร้อมใช้ · แดง = พัก/โควตา · เทา = ยังไม่ได้ตั้งค่า</div></details>
+</div></details>
 <div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
 <footer class="footer">ENGINE 3 ONLY · TWELVE DATA NATIVE INDICATORS · EUR/USD M1 · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
 </main><script>
