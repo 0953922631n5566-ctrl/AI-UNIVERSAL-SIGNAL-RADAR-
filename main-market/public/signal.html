@@ -71,6 +71,7 @@ function ensureAuth(){if(!authPromise)authPromise=authenticate().finally(()=>{au
 function saveEngineSettings(){try{localStorage.setItem("signalRadarEngineEnabled",JSON.stringify(engineEnabled));}catch{}}
 function saveEngineLightSettings(){try{localStorage.setItem("signalRadarEngineLightInverted",JSON.stringify(engineLightInverted));}catch{}}
 function paintEngineLightSettings(){
+ engineLightInverted.ENGINE_4=false;
  for(const [key,id] of Object.entries(engineCardMap)){
   const card=$(id),button=card.querySelector("[data-light-toggle]"),inverted=engineLightInverted[key]===true;
   card.classList.toggle("light-inverted",inverted);
