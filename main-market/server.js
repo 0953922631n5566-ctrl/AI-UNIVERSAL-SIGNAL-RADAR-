@@ -35,8 +35,6 @@ const authRequests = new Map();
 const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
 const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
 const VERSION = "2026-11-23-engine3-twelvedata-native-indicators-v1";
-const ENGINE4_EMA_REFRESH_SECONDS = 60;
-const ENGINE4_EMA_RETRY_MIN_MS = 5000;
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -83,7 +81,7 @@ let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
 const engineEnabled = { V1: false, BB: false, TREND_RIDER: true, ENGINE_4: false };
-const ENGINE_KEYS = Object.keys(engineEnabled);
+const ENGINE_KEYS = ["TREND_RIDER"];
 
 function standby(reason, extra = {}) {
   return {
@@ -195,7 +193,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
     engineEnabled: { ...engineEnabled },
   };
@@ -525,7 +523,7 @@ let reason;
    signal: aggregateSignal,
    direction: aggregateSignal === "STANDBY" ? null : aggregateSignal,
    status: aggregateSignal === "STANDBY" ? (feed.preAlertStatus ? "PREPARE" : "STANDBY") : "SIGNAL",
-   prepareSignal: feed.preAlertStatus ? (v1Candidate || bbCandidate) : null,
+   prepareSignal: feed.preAlertStatus ? trendCandidate : null,
    reason,
    summary: reason,
    score: primary.score ?? v1Result.score ?? 0,
@@ -1251,22 +1249,20 @@ app.get("/health", (_req, res) => {
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
-      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC", model: null, configured: true,
-      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA", externalAiCalls: false,
-      closedCandlesOnly: false, liveCandlePreview: true,
-      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-      liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER", localDirectionalFallback: true,
-      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
-      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
-      thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
-      priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
+      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
+      model: null, configured: true,
+      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
+      externalAiCalls: false, localTechnicalIndicatorCalculations: false,
+      indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
+      priceAction: "RAW_TWELVE_DATA_OHLC_SWING_STRUCTURE_AND_CANDLE_CONFIRMATION",
+      scoreThreshold: 65, minimumClosedCandles: 30,
+      guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
     },
     recovery: {
       enabled: false, mode: "DISABLED", status: "ORIGINAL_INDEPENDENT_ANALYZERS",
       strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER",
       altersMiniApp: false, badgeText: null, martingale: false,
-      independentEngines: ENGINE_KEYS
+      independentEngines: ["TREND_RIDER"]
     },
     configuration: {
       telegramMiniAppAuthConfigured: false,
@@ -1290,7 +1286,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
+      signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
       emaTrendFlow: {
         emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
         touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
