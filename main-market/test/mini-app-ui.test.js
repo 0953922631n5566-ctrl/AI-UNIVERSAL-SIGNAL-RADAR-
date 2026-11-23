@@ -33,6 +33,6 @@ test("Mini App script only references existing DOM elements and parses",()=>{
 test("Backend contains a single Engine 3 analysis path with native indicator endpoints",()=>{
  assert.match(serverJs,/analyzeTrendRider\(closed/);assert.match(serverJs,/fetchTrendEma5/);
  assert.match(serverJs,/fetchEma20/);assert.match(serverJs,/fetchAtr14/);
- assert.match(serverJs,/const ENGINE_KEYS = \["TREND_RIDER"\]/);
+ assert.match(serverJs,/decisionEngine: "ENGINE_3_TREND_RIDER_ONLY"/);
  for(const legacy of [/analyzeMarket\(/,/analyzeBBPureScalper\(/,/analyzeEarlyEntryEngine4\(/,/ENGINE4_STRATEGY/,/selectRecoveryCandidate\(/,/evaluateM1Outcome\(/])assert.doesNotMatch(serverJs,legacy);
 });
