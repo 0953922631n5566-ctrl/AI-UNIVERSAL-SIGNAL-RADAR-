@@ -13,7 +13,7 @@ test("CALL when lower wick is longer than upper wick",()=>{
  assert.ok(o.metrics.lowerWick>o.metrics.upperWick);assert.equal("score" in o,false);assert.equal("confidence" in o,false);
 });
 test("PUT when upper wick is longer than lower wick",()=>{
- const c=preview({high:1.1008,low:1.1001}),o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
+ const c=preview({open:1.1003,close:1.1004,high:1.1008,low:1.1001}),o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
  assert.equal(o.ready,true);assert.equal(o.signal,"PUT");assert.ok(o.metrics.upperWick>o.metrics.lowerWick);
 });
 test("wick comparison is independent of candle body direction",()=>{
