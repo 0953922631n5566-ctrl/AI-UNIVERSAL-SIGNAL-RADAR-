@@ -19,7 +19,7 @@ test("Mini App is a new minimal interface with only market, price, lamp and coun
 
 test("Mini App automatically authenticates and starts monitoring when opened",()=>{
  assert.match(html,/async function autoStart\(\)/);
- assert.match(html,/autoStart\(\);setInterval\(poll,1200\)/);
+ assert.match(html,/autoStart\(\);setInterval\(\(\)=>\{if\(!bootStartCompleted\)autoStart\(\);\},5000\);setInterval\(poll,1200\)/);
  assert.match(html,/await control\("start"\)/);
  assert.match(html,/\/api\/telegram\/session/);
  assert.match(html,/\/api\/telegram\/control/);
