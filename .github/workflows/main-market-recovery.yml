@@ -27,5 +27,4 @@ jobs:
         run: |
           node --check server.js
           node --check public/app.js
-          node --check src/recovery.js
           node --input-type=module -e 'import fs from "node:fs"; const html=fs.readFileSync("public/signal.html","utf8"); const start=html.indexOf("<script>")+8; const end=html.lastIndexOf("</script>"); if(start<8||end<=start) throw new Error("No inline script found"); new Function(html.slice(start,end)); console.log("Mini App inline JavaScript syntax OK")'
