@@ -514,12 +514,9 @@ let reason;
  } else {
    reason = trendRaw.reason || "Engine 3 กำลังรอข้อมูล Twelve Data";
  }
- const primary = activeSignals.length
-   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB :
-     engineResults.TREND_RIDER.active ? engineResults.TREND_RIDER : engineResults.ENGINE_4)
-   : v1Result;
+ const primary = activeSignals.length ? engineResults.TREND_RIDER : trendRaw;
  feed.analysis = {
-   ...v1Result,
+   ...trendRaw,
    signal: aggregateSignal,
    direction: aggregateSignal === "STANDBY" ? null : aggregateSignal,
    status: aggregateSignal === "STANDBY" ? (feed.preAlertStatus ? "PREPARE" : "STANDBY") : "SIGNAL",
@@ -530,9 +527,9 @@ let reason;
    confidence: primary.confidence ?? primary.score ?? v1Result.confidence ?? 0,
    engineResults,
    activeSignals,
-   bbPureScalper: bbRaw,
+   bbPureScalper: null,
    trendRider: trendRaw,
-   engine4: engineResults.ENGINE_4,
+   engine4: null,
    preAlertStatus: feed.preAlertStatus,
    preAlertCandle: feed.preAlertCandle,
    preAlertSignal: null,
@@ -543,13 +540,11 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: ENGINE4_STRATEGY,
-   engine4UsesClosedCandlesOnly: false,
-   engine4DirectionSource: "TWELVE_DATA_NATIVE_EMA5_AND_MOMENTUM9_PLUS_LIVE_STREAM",
+   indicatorSource: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้เฉพาะ Twelve Data native EMA5 + Momentum9 และ Live Streaming · ราคาเหนือ EMA5 พร้อม MOM9 บวก = CALL; ราคาใต้ EMA5 พร้อม MOM9 ลบ = PUT · หนึ่งสัญญาณต่อแท่ง M1 · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
+   signalValidationNote: "Engine 3 เท่านั้น · EMA5 / EMA20 / ATR14 ใช้ค่าที่ Twelve Data คำนวณจาก native endpoints · สูตร Trend Rider และ price-action guards เป็นของเรา · สัญญาณจริงแยกจากไฟสลับด้วยมือ · Manual only · No broker execution"
  };
 }
 
