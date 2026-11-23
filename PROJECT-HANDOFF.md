@@ -2193,3 +2193,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/health` returned `ok:true`, Engine 4 strategy `LIVE_M1_WICK_ONLY_T5_NEXT_M1`, direction mapping lower wick longer => CALL/GREEN, upper wick longer => PUT/RED, equal => no signal, score disabled, 30-second hold, sound/vibration enabled; Twelve Data pool reported 10/10 available.
 - Live `/signal` displays the WICK ONLY · T-5 Engine 4 card and the wick-color legend. Live `/api/public/signal` showed Engine 4 using the new wick-only strategy; the sampled live candle had equal zero-length wicks, so it correctly returned no Engine 4 signal at that moment.
 - On-device Telegram sound/vibration and a full live T-5 directional dispatch still require a user-side market-cycle test. No broker execution is performed.
+
+
+## 2026-11-23 — Two-engine full-screen Telegram Mini App redesign (implementation branch)
+
+- User requested removal of Engine 1 (V1) and Engine 4 from the active Main Market interface, retaining only Engine 2 (BB Pure Scalper) and Engine 3 (Trend Rider), with two large independent signal cards and all secondary information hidden behind a menu.
+- Branch: `feature/two-engine-fullscreen-miniapp-20261123`, based on `main-market`.
+- Intended active engine set: `BB=true`, `TREND_RIDER=true`, `V1=false`, `ENGINE_4=false`. Backend defaults are changed so only BB and Trend Rider run after a fresh process start.
+- The Mini App is redesigned around two large portrait signal panels; CALL is green and PUT is red independently per engine. No aggregate/combined signal panel is displayed.
+- Secondary details (market price, countdown, candle count, regime, reasons, API pool/key status, and sound controls) are moved into a user-opened menu. Existing independent signal sound, vibration, T-10 prepare cue, T-5 engine dispatch display, 30-second hold, and manual-only/no-broker behavior are retained.
+- Validation and deployment are pending: run package tests/syntax checks, review diff, open PR, merge only after CI passes, verify Render `/health` and `/signal`, and perform a Telegram Android device alert test. Do not claim live until verified.
