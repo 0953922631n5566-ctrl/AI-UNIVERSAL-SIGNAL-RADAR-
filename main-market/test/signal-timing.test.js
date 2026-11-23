@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {canFinalizeSignal,isFreshSignalTick,isPrepareAlertWindow,isSignalFinalizeWindow,signalHoldExpiresAt} from "../src/signal-timing.js";
 const candle=1_800_000_000,openAt=candle*1000;
-test("PREPARE window is T-10 through just before T-5",()=>{
- assert.equal(isPrepareAlertWindow(candle,openAt+49999),false);
- assert.equal(isPrepareAlertWindow(candle,openAt+50000),true);
+test("PREPARE window is T-15 through just before T-5",()=>{
+ assert.equal(isPrepareAlertWindow(candle,openAt+44999),false);
+ assert.equal(isPrepareAlertWindow(candle,openAt+45000),true);
  assert.equal(isPrepareAlertWindow(candle,openAt+54999),true);
  assert.equal(isPrepareAlertWindow(candle,openAt+55000),false);
 });
