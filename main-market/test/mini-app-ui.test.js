@@ -7,6 +7,7 @@ const html = readFileSync(new URL("../public/signal.html", import.meta.url), "ut
 const dashboardJs = readFileSync(new URL("../public/app.js", import.meta.url), "utf8");
 const serverJs = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 const configJs = readFileSync(new URL("../src/config.js", import.meta.url), "utf8");
+const engineFourJs = readFileSync(new URL("../src/engine-four.js", import.meta.url), "utf8");
 
 test("Mini App is restricted to EUR/USD and keeps API details inside a collapsible menu", () => {
   assert.match(html, /EUR \/ USD/);
@@ -108,7 +109,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is exposed as an independent Twelve Data EMA5 analyzer", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /provider: "TWELVE_DATA_EMA5_ENDPOINT"/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_OHLC_EMA5_STREAM"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -143,7 +144,7 @@ test("Engine 4 immediate signal shares existing sound, vibration and 30-second h
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses Twelve Data EMA5 only", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses adaptive Twelve Data inputs", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp('id="' + id + '" class="engine-card engine-enabled" role="button"'));
   }
@@ -163,26 +164,26 @@ test("four engine cards remain independently toggleable and Engine 4 uses Twelve
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: ENGINE4_STRATEGY/);
-  assert.match(serverJs, /provider: "TWELVE_DATA_EMA_ENDPOINT"/);
-  assert.match(serverJs, /period: 5/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_M1_OHLC_EMA5_AND_STREAMING"/);
+  assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
   assert.match(serverJs, /refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS/);
-  assert.match(serverJs, /estimatedCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
+  assert.match(serverJs, /estimatedEmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
   assert.match(serverJs, /estimatedEngine4EmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
   assert.match(serverJs, /keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER"/);
   assert.match(serverJs, /twelveDataKeyPool\.nextAvailableInMs\(\)/);
   assert.match(serverJs, /nextAttemptAt: failedAt \+ retryMs/);
   assert.match(serverJs, /Do not clear the armed pullback or active alert/);
   assert.match(serverJs, /ENGINE4_EMA_RETRY_MIN_MS/);
-  assert.match(serverJs, /pullbackProximityPips: 0.5/);
-  assert.match(serverJs, /bounceConfirmPips: 0.2/);
-  assert.match(serverJs, /decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT"/);
-  assert.match(serverJs, /otherIndicators: "NONE"/);
-  assert.match(serverJs, /decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND"/);
+  assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
+  assert.match(serverJs, /derivedIndicators: \["EMA8", "EMA21", "RSI7", "MACD_5_13_4", "ADX14", "ATR14", "BOLLINGER20_2"\]/);
+  assert.match(serverJs, /trendAdxMin: 14/);
+  assert.match(serverJs, /rangeEntries: \["BOLLINGER_EDGE_REJECTION_WITH_RSI"\]/);
+  assert.match(serverJs, /decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP"/);
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /engine4LookbackClosedCandles: 2/);
-  assert.match(serverJs, /TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE/);
+  assert.match(serverJs, /engine4LookbackClosedCandles: 50/);
+  assert.match(engineFourJs, /TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE/);
   assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
 
