@@ -91,7 +91,7 @@ test("retains T-5 finalization window and fresh-tick guard", () => {
 
 test("AO momentum percentage is a 0-100 relative measure from the latest 28 AO samples", () => {
   const history = makeHistory({ count: 60, direction: 1 });
-  const live = liveCandle();
+  const live = liveCandle({ open: 1.106, high: 1.1061, low: 1.1059, close: 1.106 });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.metrics.momentumPercent, 100);
   assert.equal(result.metrics.momentumLookbackAoSamples, 28);
@@ -102,7 +102,7 @@ test("AO momentum percentage is a 0-100 relative measure from the latest 28 AO s
 
 test("AO direction remains independent of relative momentum percentage", () => {
   const history = makeHistory({ count: 60, direction: -1 });
-  const live = liveCandle({ open: 1.096, high: 1.0961, low: 1.0959, close: 1.096 });
+  const live = liveCandle({ open: 1.094, high: 1.0941, low: 1.0939, close: 1.094 });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.signal, "PUT");
   assert.equal(result.metrics.momentumDirection, "PUT");
