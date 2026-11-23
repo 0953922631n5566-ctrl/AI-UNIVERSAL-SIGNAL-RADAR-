@@ -2252,3 +2252,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - No score, confidence, percentage, AO, ATR, or additional indicators. No separate momentum/slope confirmation is added; the historical distance percentile alone defines closeness.
 - Minimum warmup is 73 closed M1 candles plus the current live preview, yielding 40 valid historical gap samples after MACD/Signal initialization. The current live preview is evaluated continuously; shared T-5 dispatch, next-M1 target, per-candle dedupe, 30-second hold, sound/vibration and manual-only behavior remain unchanged.
 - This change increases warmup compared with crossover-only mode and may create earlier but noisier signals. Run full tests/build and verify Render health + Mini App after merge before claiming live readiness.
+
+
+## 2026-11-23 — Adaptive MACD proximity deployed and verified
+
+- PR #221 merged to `main-market`; merge commit: `b7365289078a9783d980571989efdf72bf87b266`.
+- Render deployment `dep-dc212t3bc2fs73etcj6g` reached `live`; build passed with 196 tests total, 192 passed, 0 failed, 4 skipped. The follow-up validation-note correction commit `696e5a5a67b184b874ba8e6d12a99570ea66fa66` also built successfully and started the service.
+- Live `/health`: `ok=true`, version `2026-11-23-engine4-macd-historical-proximity-v1`; Engine 4 reports MACD 12/26/9, historical gap window 40, percentile 25, 40 minimum samples, 73 closed M1 context candles, no other indicators, and scoring disabled. Twelve Data pool reported 10/10 available.
+- Live `/signal` cache-busted fetch shows the updated Thai explanatory copy: MACD below Signal and historically close = CALL; MACD above Signal and historically close = PUT; no proximity = STANDBY; T-5 and 30-second hold preserved.
+- Live `/api/public/signal` returned API ONLINE / STREAMING and Engine 4 produced a CALL candidate from MACD 12/26/9 (the API snapshot was outside the T-5 dispatch window, so it correctly remained WATCH/STANDBY at aggregate level). Another snapshot after restart showed a real crossover candidate. This confirms the analyzer is receiving the live feed and exposing candidate reasons/threshold metrics.
+- Engines 1–3 retain their prior 54-candle inputs; Engine 4 receives its own isolated 80-closed-candle rolling history so the 40 historical MACD-gap samples are available. This is intentionally isolated from the other engines.
+- Not yet verified on the user's physical Telegram device, and no win-rate/backtest evidence exists. The proximity trigger is earlier and may produce more false positives; use manual/paper testing first. Broker execution remains disabled.
