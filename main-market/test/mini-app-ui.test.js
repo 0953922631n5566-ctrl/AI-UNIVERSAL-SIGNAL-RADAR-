@@ -96,5 +96,5 @@ test("Backend exposes per-engine results while disabling removed engines by defa
   assert.match(serverJs, /activeSignals/);
   assert.match(serverJs, /engineEnabled = \{ V1: false, BB: true, TREND_RIDER: true, ENGINE_4: false \}/);
   assert.match(serverJs, /BB_AND_TREND_RIDER_INDEPENDENT_SIGNALS_ONLY/);
-  assert.match(serverJs, /signalHoldSeconds: 30/);
+  assert.match(serverJs, /signalHoldExpiresAt\(signalTargetEpoch\)/);
 });
