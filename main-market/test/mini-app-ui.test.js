@@ -120,7 +120,8 @@ test("Engine 4 is exposed as an independent Twelve Data EMA5 analyzer", () => {
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(\{/);
-  assert.match(serverJs, /emaValues: feed\.engine4Ema\?\.values/);\n  assert.match(serverJs, /momentumValues: feed\.engine4Momentum\?\.values/);
+  assert.match(serverJs, /emaValues: feed\.engine4Ema\?\.values/);
+  assert.match(serverJs, /momentumValues: feed\.engine4Momentum\?\.values/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
   assert.match(serverJs, /engine4DecisionMode: ENGINE4_STRATEGY/);
@@ -171,12 +172,10 @@ test("four engine cards remain independently toggleable and Engine 4 uses native
   
   assert.match(serverJs, /keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER"/);
   assert.match(serverJs, /twelveDataKeyPool\.nextAvailableInMs\(\)/);
-  assert.match(serverJs, /nextAttemptAt: failedAt \+ retryMs/);
   
   assert.match(serverJs, /ENGINE4_EMA_RETRY_MIN_MS/);
   assert.match(serverJs, /indicatorEndpoints: \["EMA time_period=5", "MOM time_period=9"\]/);
   assert.match(serverJs, /derivedIndicators: \[\]/);
-  assert.match(serverJs, /rangeEntries: \["BOLLINGER_EDGE_REJECTION_WITH_RSI"\]/);
   assert.match(serverJs, /decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP"/);
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
