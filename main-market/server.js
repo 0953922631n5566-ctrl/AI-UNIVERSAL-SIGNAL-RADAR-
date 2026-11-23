@@ -3,9 +3,8 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import WebSocket, { WebSocketServer } from "ws";
+import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
-import { validateClientToken } from "./src/client-auth.js";
 import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
@@ -21,10 +20,8 @@ import {
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 // TELEGRAM_BOT_TOKEN is intentionally optional; open Mini App sessions do not validate Telegram initData.
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
@@ -32,7 +29,6 @@ const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
 const VERSION = "2026-11-23-engine3-twelvedata-native-indicators-v1";
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
@@ -760,24 +756,6 @@ function stop(clearSignal = true) {
 
 function finite(value) { return Number.isFinite(value); }
 
-function sessionForRequest(req) {
-  const authorization = String(req.headers.authorization || "");
-  const bearer = authorization.match(/^Bearer\\s+([a-f0-9]{64})$/i)?.[1] || "";
-  const session = bearer ? sessions.get(bearer) : null;
-  if (!session) return null;
-  if (session.expiresAt <= Date.now()) {
-    sessions.delete(bearer);
-    return null;
-  }
-  return session;
-}
-
-function requireDeviceSession(req, res, next) {
-  const session = sessionForRequest(req);
-  if (!session) return res.status(401).json({ ok: false, error: "อุปกรณ์ยังไม่ได้เชื่อมต่อหรือ Session หมดอายุ กรุณาเชื่อมต่อใหม่" });
-  req.deviceId = session.deviceId;
-  next();
-}
 
 function telegramSessionForRequest(req) {
   const authorization = String(req.headers.authorization || "");
@@ -901,12 +879,26 @@ app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
 });
+app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const action = req.body?.action;
+  try {
+    if (action === "start") {
+      if (!monitoring) await start(selectedSymbol);
+    } else if (action === "stop") {
+      if (monitoring) stop();
+    } else {
+      return res.status(400).json({ ok: false, error: "รองรับเฉพาะคำสั่ง start และ stop" });
+    }
+    noCache(res);
+    res.json({ ok: true, market: snapshot() });
+  } catch (error) {
+    console.error("[mini-app] monitoring control failed", error.message);
+    res.status(500).json({ ok: false, error: error.message || "ควบคุมระบบไม่สำเร็จ" });
+  }
+});
 
-app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
-app.get("/app.js", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "app.js")); });
-app.get("/styles.css", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "styles.css")); });
 app.get("/health", (_req, res) => {
   noCache(res);
   res.json({
@@ -938,7 +930,6 @@ app.get("/health", (_req, res) => {
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
-      androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
@@ -997,65 +988,23 @@ app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res
   }
 });
 
-server.on("upgrade", (req, socket, head) => {
-  const origin = req.headers.origin;
-  if (origin && !allowedOrigins.has(origin) && origin !== `https://${req.headers.host}`) {
-    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  const pathname = new URL(req.url || "/", "http://localhost").pathname;
-  if (pathname !== "/live") {
-    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  const session = sessionForRequest(req);
-  if (!session) {
-    socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(req, socket, head, client => {
-    wss.emit("connection", client, req);
-  });
-});
-
-wss.on("connection", socket => {
-  socket.send(JSON.stringify({ type: "market_state", data: snapshot() }));
-  socket.on("message", raw => {
-    let message;
-    try { message = JSON.parse(raw.toString()); } catch { return; }
-  });
-  socket.on("close", () => {});
-});
 
 server.listen(PORT, () => {
   console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
-  console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
-    androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
     miniAppOpenAccess: true,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
     restRefreshSeconds: REST_SYNC_SECONDS
   });
-  if (process.env.AUTO_START_MONITORING !== "false") {
-    setTimeout(() => {
-      start(DEFAULT_SYMBOL).catch(error => console.error("[radar] startup scanner failed", error.message));
-    }, 1000);
-  }
+  console.info("[radar] monitoring starts only after Telegram Mini App user action");
 });
 
 setInterval(() => {
   const now = Date.now();
-  for (const [token, session] of sessions) {
-    if (session.expiresAt <= now) sessions.delete(token);
-  }
   for (const [token, session] of telegramSessions) {
     if (session.expiresAt <= now) telegramSessions.delete(token);
   }
