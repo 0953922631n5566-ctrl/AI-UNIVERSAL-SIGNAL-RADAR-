@@ -14,7 +14,7 @@ export function analyzeEarlyEntryEngine4(candles,options={}) {
   const upperWick=candle.high-Math.max(candle.open,candle.close);
   const lowerWick=Math.min(candle.open,candle.close)-candle.low;
   const sourceCandleEpoch=candle.epoch,targetCandleEpoch=sourceCandleEpoch+60;
-  if (upperWick===lowerWick) return {
+  if (Math.abs(upperWick-lowerWick)<=1e-10) return {
     ...notReady("WICKS_EQUAL","ไส้บนและไส้ล่างยาวเท่ากัน · งดส่งสัญญาณ"),
     sourceCandleEpoch,targetCandleEpoch,
     metrics:{upperWick:+upperWick.toFixed(8),lowerWick:+lowerWick.toFixed(8)}
