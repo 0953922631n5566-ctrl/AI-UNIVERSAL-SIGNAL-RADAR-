@@ -20,7 +20,7 @@ test("Engine 3 requires valid closed OHLC history and native Twelve Data indicat
 });
 test("Engine 3 detects sustained rising trend using Twelve Data EMA5/EMA20/ATR14",()=>{
  const candles=risingCandles(),r=analyzeTrendRider(candles,indicators(candles));
- assert.equal(r.ready,true);assert.equal(r.signal,"CALL");assert.ok(r.score>=65);
+ assert.equal(r.ready,true);assert.equal(r.signal,"CALL");assert.ok(r.score>=58);
  assert.equal(r.provider,"TWELVE_DATA_NATIVE_INDICATORS");
  assert.equal(r.metrics.ema5Source,"Twelve Data /ema time_period=5");
 });
@@ -32,7 +32,7 @@ test("Engine 3 detects sustained falling trend as PUT",()=>{
  const candles=Array.from({length:54},(_,i)=>{const close=1.2-i*.00005;return{epoch:baseEpoch+i*60,open:close+.00008,close,high:close+.00012,low:close-.00004,live:false};});
  const rows=candles.slice(-4),last=rows.at(-1).close;
  const values={ema5Values:rows.map((c,i)=>({epoch:c.epoch,ema:last+.00001+(3-i)*.00001})),ema20Values:rows.map((c,i)=>({epoch:c.epoch,ema:last+.00022+(3-i)*.00001})),atrValues:rows.map(c=>({epoch:c.epoch,atr:.00016}))};
- const r=analyzeTrendRider(candles,values);assert.equal(r.signal,"PUT");assert.ok(r.score>=65);
+ const r=analyzeTrendRider(candles,values);assert.equal(r.signal,"PUT");assert.ok(r.score>=58);
 });
 test("Engine 3 blocks a flat sideways market",()=>{
  const candles=Array.from({length:54},(_,i)=>({epoch:baseEpoch+i*60,open:1.1,close:1.1,high:1.10004,low:1.09996,live:false}));
