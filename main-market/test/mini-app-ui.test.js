@@ -192,7 +192,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awe
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "AO_ZERO_LINE"\)/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "AO_STRONG_MOMENTUM"\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
