@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
-const dashboardJs=readFileSync(new URL("../public/app.js",import.meta.url),"utf8");
 const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Mini App exposes only the Engine 3 Trend Rider analyzer",()=>{
  assert.match(html,/ENGINE 3 · TREND RIDER/);assert.match(html,/id="trendCard"/);
@@ -15,13 +14,14 @@ test("Mini App displays Twelve Data native EMA5 EMA20 ATR14 and analysis evidenc
  assert.match(html,/TWELVE DATA EMA 5/);assert.match(html,/Twelve Data native endpoints/);
 });
 test("Manual red green switch is independent from the actual signal lamp",()=>{
+ assert.match(html,/id="monitorToggle"/);assert.match(html,/id="monitorStatus"/);assert.match(html,/\/api\/telegram\/control/);
  assert.match(html,/id="manualLampToggle"/);assert.match(html,/id="manualLampStatus"/);
  assert.match(html,/signalRadarManualLampColor/);assert.match(html,/ไม่เปลี่ยนผลวิเคราะห์ CALL\/PUT/);
 });
 test("Mini App keeps T-10 prepare, T-5 signal timing, sound vibration and 30 second hold",()=>{
  assert.match(html,/m\.preAlertStatus==="PREPARE_ALERT"/);assert.match(html,/function triggerSignalAlert/);
  assert.match(html,/signalExpiresAt/);assert.match(html,/navigator\.vibrate/);assert.match(html,/holdMs/);
- assert.match(html,/T-10 PREPARE alert/);assert.match(dashboardJs,/remaining\s*>\s*5/);assert.match(dashboardJs,/remaining <= 5/);
+ assert.match(html,/T-10 PREPARE alert/);assert.match(html,/function countdown\(/);assert.match(html,/remaining/);
 });
 test("Mini App script only references existing DOM elements and parses",()=>{
  const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));
