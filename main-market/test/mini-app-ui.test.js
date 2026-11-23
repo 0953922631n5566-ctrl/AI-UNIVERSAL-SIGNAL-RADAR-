@@ -38,10 +38,10 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
     assert.match(html, new RegExp('id="' + id + '"'));
   }
   assert.ok(html.includes('<div class="engine-title">04 · MACD 12/26/9</div>'));
-  assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 CALL"));
-  assert.ok(html.includes("MACD crossover"));
+  assert.ok(html.includes("Engine 4 · MACD 12/26/9 → T-5 CALL"));
+  assert.ok(html.includes("MACD 12/26/9"));
   assert.ok(html.includes(""));
-  assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 PUT"));
+  assert.ok(html.includes("Engine 4 · MACD 12/26/9 → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -143,7 +143,7 @@ test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () =
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses Awesome Oscillator 5/34 only", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses MACD 12/26/9 only", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
@@ -163,9 +163,9 @@ test("four engine cards remain independently toggleable and Engine 4 uses Awesom
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1"/);
-  assert.match(serverJs, /formula: "SMA5\(MEDIAN_PRICE\)-SMA34\(MEDIAN_PRICE\)"/);
-  assert.match(serverJs, /decisionRule: "AO_DIRECTION_ONLY_WHEN_SAME_SIDE_AND_EXPANDING_TWICE_AND_ABS_AO_AT_LEAST_0_12_ATR14"/);
-  assert.match(serverJs, /otherIndicators: "ATR14_USED_ONLY_AS_NORMALIZER"/);
+  assert.match(serverJs, /formula: "EMA12\(CLOSE\)-EMA26\(CLOSE\); SIGNAL=EMA9\(MACD\)"/);
+  assert.match(serverJs, /decisionRule: "MACD_CROSS_ABOVE_SIGNAL_CALL; MACD_CROSS_BELOW_SIGNAL_PUT"/);
+  assert.match(serverJs, /otherIndicators: "NONE"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
@@ -183,7 +183,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awesome Oscillator", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 MACD", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
