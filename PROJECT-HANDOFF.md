@@ -2105,3 +2105,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/health` returned version `2026-11-19-engine4-first23s-plus-previous-m1-context-v3` and the new adjacent closed-M1 context metadata.
 - Live `/api/public/signal` later showed Engine 4 at elapsed second 24 with CALL, the prior closed candle marked as opposing context, and a context adjustment of -10 points. The live direction remained CALL, confirming the previous candle adjusted evidence strength without reversing the current-candle direction in this sample.
 - This is a deployment/integration smoke test only, not proof of improved predictive accuracy. Continue paper/demo observation over consecutive M1 candles and compare entry-to-close outcomes.
+
+
+## 2026-11-23 — Engine 4 next-candle forecast change (PR #202)
+
+- Isolated implementation branch: `feature/engine4-next-candle-close-forecast`.
+- Engine 4 now waits for a new M1 candle to begin (confirming the prior candle has closed), then analyzes the three latest completed M1 OHLC bodies only.
+- Direction is based on aggregate upward vs downward candle-body movement. A tie, missing candle history, misaligned candles, stale stream, or a decision arriving after the first 5 seconds of the target candle produces no signal.
+- CALL/PUT is forecast for the newly opened M1 candle and held until 30 seconds after that candle's open.
+- Removed the old Engine 4 intrabar tick-path accumulation. Engine 1–3 analyzers, shared alert pipeline, sound/vibration, and manual-only/no-broker behavior are intended to remain unchanged.
+- Updated Mini App copy, health metadata, package architecture label, and Engine 4 unit tests.
+- Pull request: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/202
+- Status: PR open and not merged; no GitHub Actions workflow runs were returned for the head commit. Tests are added but not independently executed in this task. Render production service remains on its existing deployed version; no production deployment performed.
