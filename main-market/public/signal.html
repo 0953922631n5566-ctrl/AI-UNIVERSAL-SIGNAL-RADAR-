@@ -93,7 +93,7 @@ button{font:inherit}
 <script>
 const $=id=>document.getElementById(id);
 const tg=window.Telegram?.WebApp||null;
-let token="",latest={},pollBusy=false,controlBusy=false,authBusy=null,autoStartBusy=false;
+let token="",latest={},pollBusy=false,controlBusy=false,authBusy=null,autoStartBusy=false,bootStartCompleted=false;
 let audio=null,soundEnabled=false,lastAlertId="",lastPrepareId="",toastTimer=null;
 const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 function timeMs(v){if(v===null||v===undefined||v==="")return NaN;const n=typeof v==="number"?v:Number(v);if(Number.isFinite(n))return n;const p=Date.parse(v);return Number.isFinite(p)?p:NaN;}
@@ -106,7 +106,7 @@ function setApi(status,label){$("api").className="api "+(status==="ONLINE"?"live
 async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const r=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const b=await r.json().catch(()=>({}));if(!r.ok||!b.sessionToken)throw Error(b.error||"เปิด Session ไม่สำเร็จ");token=b.sessionToken;}
 function ensureAuth(){if(!authBusy)authBusy=authenticate().finally(()=>authBusy=null);return authBusy;}
 async function control(action){if(controlBusy)return;controlBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"สั่งงานไม่สำเร็จ");paint(b.market||{});return true;}catch(e){$("monitorStatus").textContent=e.message||"เชื่อมต่อไม่สำเร็จ";setApi("OFFLINE","API OFFLINE");return false;}finally{controlBusy=false;}}
-async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเริ่มอัตโนมัติ";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
+async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเริ่มอัตโนมัติ";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
 $("monitorStatus").textContent=monitoring?"กำลังทำงาน":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดการวิเคราะห์":"เริ่มวิเคราะห์";
@@ -127,7 +127,7 @@ function closeMenu(){ $("drawer").hidden=true;$("backdrop").hidden=true; }
 $("menuButton").addEventListener("click",openMenu);$("closeMenu").addEventListener("click",closeMenu);$("backdrop").addEventListener("click",closeMenu);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")poll();});
 try{tg?.ready?.();tg?.expand?.();}catch{}
-autoStart();setInterval(poll,1200);setInterval(()=>{if(latest.nextCandleAt)$("candle").textContent=countdown(latest.nextCandleAt);if(latest.signalExpiresAt)$("expiry").textContent=countdown(latest.signalExpiresAt);},250);
+autoStart();setInterval(()=>{if(!bootStartCompleted)autoStart();},5000);setInterval(poll,1200);setInterval(()=>{if(latest.nextCandleAt)$("candle").textContent=countdown(latest.nextCandleAt);if(latest.signalExpiresAt)$("expiry").textContent=countdown(latest.signalExpiresAt);},250);
 </script>
 </body>
 </html>
