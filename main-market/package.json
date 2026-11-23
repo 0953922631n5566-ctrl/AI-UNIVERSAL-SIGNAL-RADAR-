@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/analyzer.js && node --check src/reversal-detection.js && node --check original-ai/engine/multi-engine-dispatcher.js && node --check original-ai/engine/analyze-market.js && node --check original-ai/engine/decision-engine.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/advanced-scoring.js && node --check src/price-action-confirmation.js && node --check src/entry-timing.js && node --check src/strong-pressure.js && node --check src/entry-quality.js && node --check src/recovery.js && node --check src/stream-retry.js && node --check src/live-candle-preview.js && node --check src/bb-pure-scalper.js && node --check src/trend-rider.js && node --check src/engine-four.js"
+    "postinstall": "npm test && node --check server.js && node --check public/app.js && node --check src/twelve-data.js && node --check src/trend-rider.js && node --check src/client-auth.js && node --check src/telegram-auth.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/live-candle-preview.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,67 +17,54 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "V1 + BB + Trend Rider AI + Engine 4 Twelve Data EMA5 Momentum9",
-    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 EMA5 + Momentum9",
-    "engineCount": 4,
+    "name": "Engine 3 Trend Rider · Twelve Data Native Indicators",
+    "displayName": "Single Engine 3 · EMA5 / EMA20 / ATR14",
+    "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
-    "decisionAuthority": "V1_BB_AND_TREND_RIDER_INDEPENDENT_DIRECTIONAL_ANALYSTS",
-    "directionalVoters": 3,
-    "standaloneEveryCandleEngine": "ENGINE_4",
-    "engine4": {
-      "strategy": "TWELVE_DATA_EMA5_MOMENTUM9_LIVE",
-      "provider": "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_AND_STREAMING",
-      "indicatorEndpoints": ["EMA time_period=5", "MOM time_period=9"],
-      "derivedIndicators": [],
-      "decisionRule": "LIVE_PRICE_ABOVE_EMA5_AND_MOM9_POSITIVE_CALL; LIVE_PRICE_BELOW_EMA5_AND_MOM9_NEGATIVE_PUT",
-      "apiCreditsPerMinuteForEngine4Indicator": 2,
-      "estimatedIndicatorCreditsPerDay": 2880,
-      "emaRefreshSeconds": 60,
-      "decisionWindow": "IMMEDIATE_ON_CONFIRMED_LIVE_SETUP",
-      "oneSignalPerM1Candle": true,
-      "signalHoldSeconds": 30,
-      "scoring": "DISABLED",
-      "target": "CURRENT_M1_CANDLE_AT_TRIGGER"
+    "executionModel": "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
+    "decisionAuthority": "ENGINE_3_ONLY",
+    "indicators": {
+      "provider": "Twelve Data native endpoints",
+      "emaFast": {
+        "endpoint": "/ema",
+        "period": 5
+      },
+      "emaTrend": {
+        "endpoint": "/ema",
+        "period": 20
+      },
+      "atr": {
+        "endpoint": "/atr",
+        "period": 14
+      },
+      "localTechnicalIndicatorCalculations": false,
+      "refreshSeconds": 60,
+      "estimatedCreditsPerDay": 4320
     },
-    "aggregator": 1,
-    "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
-    "externalAiCalls": false,
-    "scoreWeights": {
-      "ema5SlopeReversal": 30,
-      "srFakeout": 30,
-      "proximityMomentum": 20,
-      "trendContext": 20
-    },
-    "thresholds": {
-      "callPut": 55,
-      "prepare": 40,
-      "standbyBelow": 40
-    },
-    "candles": {
-      "context": 50,
-      "entry": 4,
-      "totalClosed": 54
-    },
-    "killSwitches": [
-      "EMA5_EMA20_TANGLED_AND_BOTH_SLOPES_FLAT",
-      "ABNORMAL_ATR_SPIKE"
-    ],
-    "trendRider": {
-      "emaFast": 5,
-      "emaTrend": 20,
+    "strategy": {
+      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_PULLBACK",
       "scoreThreshold": 65,
       "minimumClosedCandles": 30,
-      "independent": true
+      "guards": [
+        "SIDEWAYS",
+        "LATE_EXTENSION_1_5_ATR",
+        "ABNORMAL_RANGE_2_8_ATR"
+      ]
     },
-    "bbPureScalper": {
-      "period": 20,
-      "standardDeviation": 2,
-      "role": "INDEPENDENT_SIGNAL_ENGINE",
-      "entryMode": "EARLY_TOUCH_ONE_SOFT_CUE",
-      "wickThreshold": 0.18,
-      "conflictPolicy": "SHOW_BOTH_SEPARATELY",
-      "mayCreateSignalAlone": true
-    }
+    "keyPool": {
+      "configuredKeys": 10,
+      "rotation": "ROUND_ROBIN_WITH_FAILOVER"
+    },
+    "manualLightSwitch": {
+      "enabled": true,
+      "colors": [
+        "RED",
+        "GREEN"
+      ],
+      "independentFromRealSignal": true
+    },
+    "signalHoldSeconds": 30,
+    "manualOnly": true,
+    "brokerExecution": false
   }
 }
