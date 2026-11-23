@@ -11,8 +11,8 @@ test("Mini App shows only the two requested independent engine cards", () => {
   assert.match(html, /ENGINE 03 · TREND RIDER/);
   assert.match(html, /id="engineBB"/);
   assert.match(html, /id="engineTrend"/);
-  for (const removed of ["v1Card", "engine4Card", "v1Signal", "engine4Signal", "id=" + '"panel"']) {
-    assert.doesNotMatch(html, new RegExp(removed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  for (const id of ["v1Card", "engine4Card", "v1Signal", "engine4Signal", "panel"]) {
+    assert.doesNotMatch(html, new RegExp('id="' + id + '"'));
   }
   assert.match(serverJs, /const engineEnabled = \{ V1: false, BB: true, TREND_RIDER: true, ENGINE_4: false \}/);
   assert.match(serverJs, /engines: 2/);
