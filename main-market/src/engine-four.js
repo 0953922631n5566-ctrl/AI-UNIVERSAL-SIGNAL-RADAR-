@@ -50,8 +50,20 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   }
 
   const ao = fastSma - slowSma;
+  // Normalize the current AO magnitude against the largest absolute AO in the latest 28 AO samples.
+  // This is a relative momentum-strength gauge, not a win probability or a signal score.
+  const aoSeries = [];
+  for (let end = 33; end < medianPrices.length; end++) {
+    const sample = medianPrices.slice(0, end + 1);
+    aoSeries.push(smaLast(sample, 5) - smaLast(sample, 34));
+  }
+  const momentumLookback = aoSeries.slice(-28);
+  const momentumReferenceMaxAbs = momentumLookback.length === 28
+    ? Math.max(...momentumLookback.map(value => Math.abs(value))) : null;
   // Ignore floating-point residue at the zero line; this is numeric precision, not a market filter.
   const zeroTolerance = 1e-12;
+  const momentumPercent = Number.isFinite(momentumReferenceMaxAbs) && momentumReferenceMaxAbs > zeroTolerance
+    ? Math.min(100, Math.round(Math.abs(ao) / momentumReferenceMaxAbs * 100)) : null;
   const signal = ao > zeroTolerance ? "CALL" : ao < -zeroTolerance ? "PUT" : null;
   const sourceCandleEpoch = liveCandle.epoch;
   const targetCandleEpoch = sourceCandleEpoch + 60;
@@ -61,6 +73,11 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     aoSlowSma: slowSma,
     aoPeriod: { fast: 5, slow: 34 },
     medianPrice: medianPrices.at(-1),
+    momentumPercent,
+    momentumDirection: ao > zeroTolerance ? "CALL" : ao < -zeroTolerance ? "PUT" : "NEUTRAL",
+    momentumReferenceMaxAbs,
+    momentumLookbackAoSamples: momentumLookback.length,
+    momentumMethod: "ABS_AO_DIVIDED_BY_MAX_ABS_AO_OF_LAST_28_M1_SAMPLES",
     sourceCandleEpoch,
     targetCandleEpoch
   };
@@ -75,7 +92,10 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   }
 
   const direction = signal === "CALL" ? "เหนือเส้นศูนย์" : "ใต้เส้นศูนย์";
-  const reason = `Awesome Oscillator 5/34 อยู่${direction} (AO ${ao.toFixed(8)})`;
+  const momentumText = momentumPercent === null
+    ? "เปอร์เซ็นต์แรงส่งรอข้อมูล AO ครบ 28 ค่า"
+    : `แรงส่ง ${momentumPercent}% เทียบค่าสูงสุดของ AO 28 ค่าล่าสุด`;
+  const reason = `Awesome Oscillator 5/34 อยู่${direction} (AO ${ao.toFixed(8)}) · ${momentumText}`;
   return {
     ready: true, decisionMade: true, signal, candidateSignal: signal,
     sourceCandleEpoch, candleEpoch: sourceCandleEpoch, targetCandleEpoch,
