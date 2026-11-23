@@ -244,7 +244,7 @@ async function evaluate(feed) {
  feed.preAlertSignal=null;
  if(prepare&&feed.lastPrepareLoggedCandle!==sourceEpoch){
   feed.lastPrepareLoggedCandle=sourceEpoch;
-  console.info("[timing] Engine 3 T-10 prepare",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,candidate});
+  console.info("[timing] Engine 3 T-15 prepare",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,candidate});
  }
  let active=feed.engineActive?.TREND_RIDER||null;
  if(active&&now>=active.expiresAt){active=null;feed.engineActive.TREND_RIDER=null;}
@@ -258,7 +258,7 @@ async function evaluate(feed) {
  }
  const isActive=Boolean(active&&now<active.expiresAt);
  const signal=isActive?active.signal:"STANDBY";
- const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-10 · Trend Rider "+candidate+" · รอยืนยัน T-5"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
+ const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-15 · Trend Rider "+candidate+" · รอยืนยัน T-5"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
  const engineResult={...raw,engine:"TREND_RIDER",candidateSignal:candidate,active:isActive,signal,
   status:isActive?"SIGNAL":candidate?"WATCH":raw.status,reason:isActive?reason:raw.reason,
   alertId:isActive?active.alertId:null,signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
