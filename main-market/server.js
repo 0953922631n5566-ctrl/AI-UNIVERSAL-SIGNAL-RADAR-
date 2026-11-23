@@ -1192,7 +1192,7 @@ app.get("/health", (_req, res) => {
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine4: { independent: true, copiedFrom: null, strategy: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1", indicator: "MACD", fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, priceSource: "CLOSE", formula: "EMA12(CLOSE)-EMA26(CLOSE); SIGNAL=EMA9(MACD)", decisionRule: "MACD_CROSS_ABOVE_SIGNAL_CALL; MACD_CROSS_BELOW_SIGNAL_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_34_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_AO_5_34_T5_NEXT_M1"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_MACD_12_26_9_CROSSOVER_T5_NEXT_M1"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
