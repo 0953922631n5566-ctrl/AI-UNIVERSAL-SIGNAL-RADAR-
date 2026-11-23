@@ -3,43 +3,32 @@ import express from "express";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import WebSocket, { WebSocketServer } from "ws";
+import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
-import { validateClientToken } from "./src/client-auth.js";
-import { fetchCandles, fetchEma5, fetchMomentum9 } from "./src/twelve-data.js";
-import { createLiveCandlePreview } from "./src/live-candle-preview.js";
+import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMarket } from "./src/analyzer.js";
-import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
-import { analyzeEarlyEntryEngine4, ENGINE4_STRATEGY } from "./src/engine-four.js";
-import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
-import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
+const SIGNAL_RELEASE_VALIDATED = false;
+import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
   MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
-  SIGNAL_HOLD_SECONDS, resolveSymbol
+  resolveSymbol
 } from "./src/config.js";
 
 const APP_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const CLIENT_TOKEN = process.env.ANDROID_CLIENT_TOKEN || "";
 // TELEGRAM_BOT_TOKEN is intentionally optional; open Mini App sessions do not validate Telegram initData.
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA EMA5 MOMENTUM9";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-EMA5-MOMENTUM9";
-const VERSION = "2026-11-23-engine4-twelvedata-ema5-momentum9-v1";
-const ENGINE4_EMA_REFRESH_SECONDS = 60;
-const ENGINE4_EMA_RETRY_MIN_MS = 5000;
+const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
+const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
+const VERSION = "2026-11-23-engine3-twelvedata-native-indicators-v1";
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
@@ -53,16 +42,11 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
-    engine4Ema: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA 5 จาก Twelve Data" },
-    engine4Momentum: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ Momentum 9 จาก Twelve Data" },
-    engine4EmaPromise: null, engine4PullbackState: null,
-    enginePendingForecasts: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
-    engineForecastHistory: { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] },
-    engineRecoveryStates: { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() },
-    engineActive: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
-    engineLastDispatchedCandle: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
-    engineLastDispatchedAlertId: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
+    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
+    engine3IndicatorsPromise: null,
+    engineActive: { TREND_RIDER: null },
+    engineLastDispatchedCandle: { TREND_RIDER: null },
+    engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
   };
 }
@@ -83,8 +67,6 @@ let liveAnalysisPending = false;
 let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
-const engineEnabled = { V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true };
-const ENGINE_KEYS = Object.keys(engineEnabled);
 
 function standby(reason, extra = {}) {
   return {
@@ -105,16 +87,6 @@ function feedStatus(feed) {
   return feed.tickAt ? "STALE" : "REST_ONLY";
 }
 
-function forecastStats(feed) {
-  const rows = Array.isArray(feed.forecastHistory) ? feed.forecastHistory : [];
-  const wins = rows.filter(x => x.outcome === "WIN").length;
-  const losses = rows.filter(x => x.outcome === "LOSS").length;
-  const neutral = rows.filter(x => x.outcome === "FLAT").length;
-  const decided = wins + losses;
-  return { sample: rows.length, wins, losses, neutral,
-    winRate: decided ? Math.round(wins / decided * 1000) / 10 : null,
-    note: "Observed next-M1 entry-to-close outcomes; not a guarantee or backtest" };
-}
 
 function publicFeed(feed) {
   const status = feedStatus(feed);
@@ -162,15 +134,9 @@ function publicFeed(feed) {
     signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
-    forecastStats: forecastStats(feed),
-    recovery: { mode: Object.values(feed.engineRecoveryStates || {}).some(x => x.status === "ARMED" || x.status === "ATTEMPT_PENDING") ? "RECOVERY_ACTIVE" : "NORMAL",
-      engines: Object.fromEntries(ENGINE_KEYS.map(engine => { const state = feed.engineRecoveryStates?.[engine] || createRecoveryState();
-        return [engine, { status: state.status, mode: state.status === "ARMED" || state.status === "ATTEMPT_PENDING" ? "RECOVERY_ACTIVE" : "NORMAL",
-          lastOutcome: state.lastOutcome, attempts: state.attempts || 0, pending: Boolean(feed.enginePendingForecasts?.[engine]) }]; })),
-      martingale: false
-    },
     preAlertSignal: feed.preAlertSignal,
-    source: "Twelve Data REST + live-price Streaming"
+    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
+    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + live-price Streaming"
   };
 }
 
@@ -195,9 +161,8 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
-    engineEnabled: { ...engineEnabled },
   };
 }
 
@@ -229,9 +194,9 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
-  feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
-  feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineActive = { TREND_RIDER: null };
+  feed.engineLastDispatchedCandle = { TREND_RIDER: null };
+  feed.engineLastDispatchedAlertId = { TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.signalCandle = null;
   feed.signalSourceCandle = null;
@@ -241,13 +206,12 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
   feed.preAlertCandle = null;
   feed.alertId = null;
   feed.analysis = standby(reason);
-  feed.engine4PullbackState = null;
 }
 
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.analysis = standby(reason);
   feed.streamMessage = reason;
@@ -262,354 +226,86 @@ function classifyError(error) {
 }
 
 async function evaluate(feed) {
- const now = Date.now();
- const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
- const currentCandle = feed.candles.at(-1);
- const sourceCandleEpoch = currentCandle?.live === true ? currentCandle.epoch : null;
- const targetCandleEpoch = sourceCandleEpoch === null ? null : sourceCandleEpoch + 60;
-
- const restFallback = feed.restStatus === "READY" &&
-   (!feed.tickAt || tickAge === null || tickAge > MAX_STREAM_AGE_SECONDS);
- const closedCandles = feed.candles.filter(c => c && c.live !== true &&
-   Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-54);
- const livePreview = createLiveCandlePreview(currentCandle, {
-   now, tickAt: feed.tickAt, maxAgeMs: MAX_STREAM_AGE_SECONDS * 1000
- });
- const analysisCandles = livePreview ? [...closedCandles, livePreview] : closedCandles;
- // Shared source-quality gate; Engines 1–3 keep their existing 54-candle input.
- const v1Raw = engineEnabled.V1 ? await analyzeMarket(feed.candles, {
-   now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
-   liveCandle: livePreview
- }) : standby("V1 ปิดการทำงานจาก Mini App");
- const v1Result = applySignalReleaseGate(v1Raw);
- const latestClosed = closedCandles.at(-1);
- const latestClosedAge = latestClosed ? now / 1000 - (latestClosed.epoch + 60) : Infinity;
- const bbOhlcValid = closedCandles.slice(-21).length === 21 &&
-   closedCandles.slice(-21).every(c => [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
-     c.low > 0 && c.high >= Math.max(c.open, c.close) &&
-     c.low <= Math.min(c.open, c.close) && c.high >= c.low);
- const bbSourceReady = bbOhlcValid && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
-   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
- const bbRaw = !engineEnabled.BB
-   ? { ready: false, signal: null, score: 0, status: "DISABLED", reason: "BB ปิดการทำงานจาก Mini App" }
-   : bbSourceReady
-     ? analyzeBBPureScalper(analysisCandles)
-     : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
-         reason: "BB ต้องมีแท่ง M1 ปิดอย่างน้อย 21 แท่งและข้อมูลราคาต้องสด" };
- const trendSourceReady = closedCandles.length >= 30 && latestClosedAge <= MAX_CANDLE_AGE_SECONDS &&
-   ((Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= MAX_STREAM_AGE_SECONDS) || restFallback);
- const trendRaw = !engineEnabled.TREND_RIDER
-   ? { ready: false, signal: null, score: 0, status: "DISABLED", reason: "Trend Rider ปิดการทำงานจาก Mini App" }
-   : trendSourceReady
-     ? analyzeTrendRider(analysisCandles)
-     : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
-         reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
- let engine4Raw;
- if (!engineEnabled.ENGINE_4) {
-   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"DISABLED", reason:"Engine 4 ปิดการทำงานจาก Mini App" };
- } else {
-   const analyzed = analyzeEarlyEntryEngine4({
-     emaValues: feed.engine4Ema?.values, momentumValues: feed.engine4Momentum?.values, livePrice: feed.lastTick, tickAt: feed.tickAt,
-     now, symbol: feed.symbol, sourceCandleEpoch, state: feed.engine4PullbackState
-   });
-   engine4Raw = analyzed;
-   engine4Raw.emaApiStatus = feed.engine4Ema?.status || "WAITING";
-   engine4Raw.momentumApiStatus = feed.engine4Momentum?.status || "WAITING";
-   if ((feed.engine4Ema?.status !== "READY" || feed.engine4Momentum?.status !== "READY") && !engine4Raw.ready) {
-     engine4Raw.status = feed.engine4Ema?.status !== "READY" ? "EMA5_API_NOT_READY" : "MOMENTUM9_API_NOT_READY";
-     engine4Raw.reason = feed.engine4Ema?.status !== "READY" ? feed.engine4Ema?.message : feed.engine4Momentum?.message;
-   }
+ const now=Date.now();
+ const tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
+ const current=feed.candles.at(-1);
+ const sourceEpoch=current?.live===true?current.epoch:null;
+ const targetEpoch=sourceEpoch===null?null:sourceEpoch+60;
+ const closed=feed.candles.filter(c=>c&&c.live!==true&&Number.isFinite(c.epoch)&&c.epoch<Math.floor(now/60000)*60).slice(-54);
+ const latest=closed.at(-1);
+ const latestAge=latest?now/1000-(latest.epoch+60):Infinity;
+ const freshTick=Number.isFinite(tickAge)&&tickAge>=0&&tickAge<=MAX_STREAM_AGE_SECONDS;
+ const restFallback=feed.restStatus==="READY"&&!freshTick;
+ const sourceReady=closed.length>=30&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
+ const raw=sourceReady
+  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14})
+  : {ready:false,signal:null,score:0,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด"};
+ const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
+ const prepare=sourceEpoch!==null&&isPrepareAlertWindow(sourceEpoch,now)&&Boolean(candidate);
+ feed.preAlertStatus=prepare?"PREPARE_ALERT":null;
+ feed.preAlertCandle=prepare?targetEpoch:null;
+ feed.preAlertSignal=null;
+ if(prepare&&feed.lastPrepareLoggedCandle!==sourceEpoch){
+  feed.lastPrepareLoggedCandle=sourceEpoch;
+  console.info("[timing] Engine 3 T-10 prepare",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,candidate});
  }
- const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
-   ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: engine4Raw.analysisMode || ENGINE4_STRATEGY,
-       targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
-       signal: engine4Raw.signal }
-   : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
- const candidates = {
-   V1: v1Result,
-   BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
-   TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
- };
-
- const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
- const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
- if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
- if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
- if (!feed.engineLastDispatchedAlertId) feed.engineLastDispatchedAlertId = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
- if (!feed.engineRecoveryStates) feed.engineRecoveryStates = { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() };
- if (!feed.enginePendingForecasts) feed.enginePendingForecasts = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
- if (!feed.engineForecastHistory) feed.engineForecastHistory = { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] };
-
- const engineResults = {};
- for (const engine of ENGINE_KEYS) {
-   const candidate = candidates[engine];
-   const recoveryWindow = inspectRecoveryWindow(feed.engineRecoveryStates[engine], sourceCandleEpoch);
-   feed.engineRecoveryStates[engine] = recoveryWindow.state;
-   const recoveryMode = recoveryWindow.mode;
-   if (!engineEnabled[engine]) {
-     feed.engineActive[engine] = null;
-     const disabledResult = {
-       ...candidate, engine, candidateSignal: null, candidateScore: 0,
-       direction: null, signal: "STANDBY", status: "DISABLED", active: false,
-       reason: `${engine} ปิดการทำงานจาก Mini App`, alertId: null,
-       signalExpiresAt: null, signalTargetCandleAt: null
-     };
-     if (engine === "ENGINE_4") {
-       delete disabledResult.candidateScore;
-       delete disabledResult.score;
-       delete disabledResult.confidence;
-       delete disabledResult.activeSignalScore;
-     }
-     engineResults[engine] = disabledResult;
-     continue;
-   }
-   // Normal mode uses this engine's original analyzer. During recovery, select the
-   // clearest available CALL/PUT candidate from the independent analyzer pool.
-   const finalSignal = ["CALL", "PUT"].includes(candidate.signal) ? candidate.signal : null;
-   const candidateSignal = finalSignal ||
-     (engine === "V1" && candidate.signal === "PREPARE" &&
-       ["CALL", "PUT"].includes(candidate.prepareSignal) ? candidate.prepareSignal : null);
-   const recoveryCandidate = engine === "ENGINE_4" ? null : selectRecoveryCandidate(
-     candidates, engine, recoveryMode,
-     ENGINE_KEYS.filter(key => engineEnabled[key]), null
-   );
-   const selectedCandidate = recoveryCandidate || candidate;
-   const selectedFinalSignal = recoveryMode === "RECOVERY_ACTIVE"
-     ? (recoveryCandidate?.signal || null)
-     : finalSignal;
-   let active = feed.engineActive[engine];
-   if (active && now >= active.expiresAt) {
-     active = null;
-     feed.engineActive[engine] = null;
-   }
-   const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
-      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch || engine === "ENGINE_4"));
-   const engine4Entry = engine === "ENGINE_4";
-   const engineWindow = finalizeWindow;
-   const engine4Window = engine4Entry && sourceCandleEpoch !== null;
-   const timingReady = engine4Entry
-     ? isFreshSignalTick(feed.tickAt, now) && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch
-     : canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-         lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
-   if (!activeForCurrentOrNext && (engine4Entry ? engine4Window : engineWindow) && selectedFinalSignal && timingReady) {
-     const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
-     const signalSourceEpoch = sourceCandleEpoch;
-     active = {
-       engine, signal: selectedFinalSignal, sourceCandleEpoch: signalSourceEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: engine4Entry ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
-       ...(engine4Entry ? {} : { score: selectedCandidate.score ?? 0 }), sourceReason: selectedCandidate.reason || null,
-       sourceEngine: engine, mode: "NORMAL",
-       entryPrice: engine4Entry ? selectedCandidate.entryPrice : null,
-       entryPriceBasis: engine4Entry ? "TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE" : "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "ADAPTIVE_M1_IMMEDIATE" : "NORMAL"}`
-     };
-     feed.engineActive[engine] = active;
-     console.info("[signal] independent engine candidate finalized", {
-       engine, symbol: feed.symbol, signal: selectedFinalSignal,
-       sourceCandleEpoch, targetCandleEpoch, score: selectedCandidate.score ?? null,
-       expiresAt: new Date(active.expiresAt).toISOString()
-     });
-   }
-   const currentActive = activeForCurrentOrNext || Boolean(active && (active.targetCandleEpoch === targetCandleEpoch || (engine4Entry && active.targetCandleEpoch === sourceCandleEpoch)));
-   const isActive = Boolean(currentActive && active);
-   const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "Twelve Data adaptive M1 setup · เข้าได้ทันที" : "T-5 confirmed"))}`
-     : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
-   const engineResult = {
-     ...selectedCandidate,
-     engine,
-     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || ENGINE4_STRATEGY) : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
-     candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
-     candidateScore: selectedCandidate.score ?? 0,
-     candidateReason: selectedCandidate.reason || null,
-     candleEpoch: isActive ? active.sourceCandleEpoch : (selectedCandidate.candleEpoch ?? null),
-     targetCandleEpoch: isActive ? active.targetCandleEpoch : (selectedCandidate.targetCandleEpoch ?? null),
-     direction: isActive ? active.signal : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null)),
-     score: isActive ? active.score : (selectedCandidate.score ?? 0),
-     confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
-     reason: activeReason,
-     signal: isActive ? active.signal : "STANDBY",
-     status: isActive ? "SIGNAL" : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal) ? "WATCH" : "STANDBY",
-     active: isActive,
-     activeSignalScore: isActive ? active.score : null,
-     alertId: isActive ? active.alertId : null,
-     signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
-     signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null,
-      entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
-      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
-   };
-   if (engine === "ENGINE_4") {
-     delete engineResult.candidateScore;
-     delete engineResult.score;
-     delete engineResult.confidence;
-     delete engineResult.activeSignalScore;
-   }
-   engineResults[engine] = engineResult;
+ let active=feed.engineActive?.TREND_RIDER||null;
+ if(active&&now>=active.expiresAt){active=null;feed.engineActive.TREND_RIDER=null;}
+ const timingReady=sourceEpoch!==null&&canFinalizeSignal({candleEpoch:sourceEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER});
+ if(!active&&sourceEpoch!==null&&isSignalFinalizeWindow(sourceEpoch,now)&&candidate&&timingReady){
+  active={engine:"TREND_RIDER",signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,
+   triggeredAt:now,expiresAt:signalHoldExpiresAt(targetEpoch),score:raw.score??0,sourceReason:raw.reason||null,
+   alertId:"TREND_RIDER:"+targetEpoch+":"+candidate,entryPrice:null,entryPriceBasis:"TARGET_M1_CANDLE_OPEN"};
+  feed.engineActive.TREND_RIDER=active;
+  console.info("[signal] Engine 3 finalized",{symbol:feed.symbol,signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
  }
-
- const activeSignals = Object.values(engineResults)
-   .filter(engine => engine.active)
-   .map(engine => ({
-     engine: engine.engine, signal: engine.signal, score: engine.activeSignalScore,
-     reason: engine.reason, alertId: engine.alertId,
-     expiresAt: engine.signalExpiresAt, targetCandleAt: engine.signalTargetCandleAt,
-     targetCandleEpoch: feed.engineActive[engine.engine]?.targetCandleEpoch
-   }));
- const activeDirections = [...new Set(activeSignals.map(item => item.signal))];
- const aggregateSignal = activeDirections.length === 1 ? activeDirections[0] : "STANDBY";
- const conflicting = activeDirections.length > 1;
- const activeEngineNames = activeSignals.map(item => item.engine);
- const v1Candidate = engineResults.V1.candidateSignal;
- const bbCandidate = engineResults.BB.candidateSignal;
- const trendCandidate = engineResults.TREND_RIDER.candidateSignal;
- const engine4Candidate = engineResults.ENGINE_4.candidateSignal;
- feed.preAlertStatus = !activeSignals.length && prepareWindow &&
-   Boolean(v1Candidate || bbCandidate || trendCandidate || engine4Candidate) ? "PREPARE_ALERT" : null;
- feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
- feed.preAlertSignal = null;
-
- if (feed.preAlertStatus === "PREPARE_ALERT" &&
-     feed.lastPrepareLoggedCandle !== sourceCandleEpoch) {
-   feed.lastPrepareLoggedCandle = sourceCandleEpoch;
-   console.info("[timing] T-10 independent engine watch window entered", {
-     symbol: feed.symbol, sourceCandleEpoch, targetCandleEpoch,
-     v1Candidate, bbCandidate, trendCandidate, engine4Candidate
-   });
- }
-
- // Keep legacy aggregate fields for existing UI/forecast consumers while exposing each engine separately.
- feed.activeSignal = aggregateSignal === "STANDBY" ? null : aggregateSignal;
- const activeStates = activeSignals.map(item => feed.engineActive[item.engine]).filter(Boolean);
- feed.signalCandle = activeStates.length ? activeStates[0].targetCandleEpoch : null;
- feed.signalSourceCandle = activeStates.length ? activeStates[0].sourceCandleEpoch : null;
- feed.signalTriggeredAt = activeStates.length
-   ? Math.min(...activeStates.map(x => x.triggeredAt)) : 0;
- feed.activeUntil = activeSignals.length
-   ? Math.min(...Object.values(feed.engineActive).filter(Boolean).map(x => x.expiresAt)) : 0;
- feed.alertId = activeSignals.length === 1 ? activeSignals[0].alertId
-   : activeSignals.length ? activeSignals.map(x => x.alertId).join("|") : null;
-
- for (const item of activeSignals) {
-    const engine = item.engine, existing = feed.enginePendingForecasts[engine];
-    if (existing?.targetCandleEpoch === item.targetCandleEpoch) continue;
-    const liveActive = feed.engineActive[engine];
-    const pending = { engine, alertId: item.alertId, symbol: feed.symbol, signal: item.signal,
-      targetCandleEpoch: item.targetCandleEpoch, signalAt: now,
-      entryAt: liveActive?.entryPrice !== null && liveActive?.entryPrice !== undefined ? liveActive.triggeredAt : null,
-      entryPrice: liveActive?.entryPrice ?? null,
-      mode: liveActive?.mode || "NORMAL",
-      entryPriceBasis: liveActive?.entryPriceBasis || "TARGET_M1_CANDLE_OPEN" };
-    feed.enginePendingForecasts[engine] = pending;
-    if (pending.mode === "RECOVERY_ACTIVE") feed.engineRecoveryStates[engine] =
-      markRecoveryAttempt(feed.engineRecoveryStates[engine], pending);
-  }
-
-let reason;
- if (conflicting) {
-   reason = "V1 และ BB ออกสัญญาณคนละทิศทาง · แสดงผลแยกแต่ไม่รวมเป็นคำสั่งเดียว";
- } else if (activeSignals.length) {
-   reason = `สัญญาณ ${aggregateSignal} จาก ${activeEngineNames.join(" + ")} · แสดงผลแยกตามเครื่องยนต์`;
- } else if (feed.preAlertStatus === "PREPARE_ALERT") {
-   reason = `PREPARE T-10 · V1: ${v1Candidate || "รอ"} · BB: ${bbCandidate || "รอ"} · Trend Rider: ${trendCandidate || "รอ"} · รอยืนยัน T-5`;
- } else {
-   reason = `V1: ${v1Result.reason || "STANDBY"} · BB: ${bbRaw.reason || "STANDBY"} · Trend Rider: ${trendRaw.reason || "STANDBY"}`;
- }
- const primary = activeSignals.length
-   ? (engineResults.V1.active ? engineResults.V1 : engineResults.BB.active ? engineResults.BB :
-     engineResults.TREND_RIDER.active ? engineResults.TREND_RIDER : engineResults.ENGINE_4)
-   : v1Result;
- feed.analysis = {
-   ...v1Result,
-   signal: aggregateSignal,
-   direction: aggregateSignal === "STANDBY" ? null : aggregateSignal,
-   status: aggregateSignal === "STANDBY" ? (feed.preAlertStatus ? "PREPARE" : "STANDBY") : "SIGNAL",
-   prepareSignal: feed.preAlertStatus ? (v1Candidate || bbCandidate) : null,
-   reason,
-   summary: reason,
-   score: primary.score ?? v1Result.score ?? 0,
-   confidence: primary.confidence ?? primary.score ?? v1Result.confidence ?? 0,
-   engineResults,
-   activeSignals,
-   bbPureScalper: bbRaw,
-   trendRider: trendRaw,
-   engine4: engineResults.ENGINE_4,
-   preAlertStatus: feed.preAlertStatus,
-   preAlertCandle: feed.preAlertCandle,
-   preAlertSignal: null,
-   tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
-   lastTickPrice: feed.lastTick,
-   alertId: feed.alertId,
-   signalTriggeredAt: feed.signalTriggeredAt ? new Date(feed.signalTriggeredAt).toISOString() : null,
-   signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
-   signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
-   signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: ENGINE4_STRATEGY,
-   engine4UsesClosedCandlesOnly: false,
-   engine4DirectionSource: "TWELVE_DATA_NATIVE_EMA5_AND_MOMENTUM9_PLUS_LIVE_STREAM",
-   analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
-   livePreviewCandleEpoch: livePreview?.epoch ?? null,
-   liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้เฉพาะ Twelve Data native EMA5 + Momentum9 และ Live Streaming · ราคาเหนือ EMA5 พร้อม MOM9 บวก = CALL; ราคาใต้ EMA5 พร้อม MOM9 ลบ = PUT · หนึ่งสัญญาณต่อแท่ง M1 · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
- };
+ const isActive=Boolean(active&&now<active.expiresAt);
+ const signal=isActive?active.signal:"STANDBY";
+ const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-10 · Trend Rider "+candidate+" · รอยืนยัน T-5"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
+ const engineResult={...raw,engine:"TREND_RIDER",candidateSignal:candidate,active:isActive,signal,
+  status:isActive?"SIGNAL":candidate?"WATCH":raw.status,reason:isActive?reason:raw.reason,
+  alertId:isActive?active.alertId:null,signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
+  signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null};
+ const activeSignals=isActive?[{engine:"TREND_RIDER",signal:active.signal,score:active.score,reason,
+  alertId:active.alertId,expiresAt:new Date(active.expiresAt).toISOString(),
+  targetCandleAt:new Date(active.targetCandleEpoch*1000).toISOString(),targetCandleEpoch:active.targetCandleEpoch}]:[];
+ feed.activeSignal=isActive?active.signal:null;
+ feed.signalCandle=isActive?active.targetCandleEpoch:null;
+ feed.signalSourceCandle=isActive?active.sourceCandleEpoch:null;
+ feed.signalTriggeredAt=isActive?active.triggeredAt:0;
+ feed.activeUntil=isActive?active.expiresAt:0;
+ feed.alertId=isActive?active.alertId:null;
+ feed.analysis={...raw,signal,direction:isActive?signal:null,status:isActive?"SIGNAL":prepare?"PREPARE":"STANDBY",
+  prepareSignal:prepare?candidate:null,reason,summary:reason,active:isActive,engine:"TREND_RIDER",
+  engineResults:{TREND_RIDER:engineResult},activeSignals,trendRider:raw,
+  preAlertStatus:feed.preAlertStatus,preAlertCandle:feed.preAlertCandle,preAlertSignal:null,
+  tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,
+  signalTriggeredAt:isActive?new Date(active.triggeredAt).toISOString():null,
+  signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
+  signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null,
+  signalTimingWindowSeconds:[5,0],indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
+  analysisMode:"CLOSED_M1_NATIVE_INDICATORS",liveAnalysisIntervalSeconds:LIVE_ANALYSIS_INTERVAL_SECONDS,
+  signalValidationNote:"Engine 3 เท่านั้น · EMA5 / EMA20 / ATR14 ใช้ค่าจาก Twelve Data native endpoints · สูตร Trend Rider ของเรา · Manual only · No broker execution"};
 }
 
 function dispatchSignalIfReady(feed) {
- const now = Date.now();
- for (const engine of ENGINE_KEYS) {
-   if (!engineEnabled[engine]) continue;
-   const active = feed.engineActive?.[engine];
-   if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
-   const dispatchReady = engine === "ENGINE_4"
-     ? isFreshSignalTick(feed.tickAt, now) && feed.candles.at(-1)?.epoch === active.sourceCandleEpoch && feed.engineLastDispatchedCandle?.[engine] !== active.sourceCandleEpoch
-     : canFinalizeSignal({ candleEpoch: active.sourceCandleEpoch, tickAt: feed.tickAt, now,
-         lastDispatchedCandle: feed.engineLastDispatchedCandle?.[engine] });
-   if (!dispatchReady) continue;
-   if (feed.engineLastDispatchedAlertId?.[engine] === active.alertId) continue;
-   feed.engineLastDispatchedAt = feed.engineLastDispatchedAt || {};
-   feed.engineLastDispatchedAt[engine] = now;
-   feed.engineLastDispatchedCandle[engine] = active.sourceCandleEpoch;
-   feed.engineLastDispatchedAlertId[engine] = active.alertId;
-   console.info("[signal] independent signal available to Telegram Mini App polling", {
-     engine, alertId: active.alertId, signal: active.signal,
-     symbol: feed.symbol, sourceCandleEpoch: active.sourceCandleEpoch,
-     targetCandleEpoch: active.targetCandleEpoch,
-     expiresAt: new Date(active.expiresAt).toISOString()
-   });
- }
+ const active=feed.engineActive?.TREND_RIDER;
+ if(!active||!["CALL","PUT"].includes(active.signal)||!active.alertId)return;
+ if(feed.engineLastDispatchedAlertId?.TREND_RIDER===active.alertId)return;
+ const now=Date.now();
+ if(!canFinalizeSignal({candleEpoch:active.sourceCandleEpoch,tickAt:feed.tickAt,now,
+  lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER}))return;
+ feed.engineLastDispatchedAt=now;
+ feed.engineLastDispatchedCandle.TREND_RIDER=active.sourceCandleEpoch;
+ feed.engineLastDispatchedAlertId.TREND_RIDER=active.alertId;
+ console.info("[signal] Engine 3 signal available to Telegram Mini App",{engine:"TREND_RIDER",alertId:active.alertId,signal:active.signal,symbol:feed.symbol,targetCandleEpoch:active.targetCandleEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
 }
 
 function applyTick(feed, price, epoch) {
   const minute = Math.floor(epoch / 60) * 60;
   const current = feed.candles.at(-1);
   if (!current || current.epoch < minute) {
-    if (current) {
-      current.live = false;
-      for (const engine of ENGINE_KEYS) {
-        const pending = feed.enginePendingForecasts?.[engine];
-        if (!pending || pending.targetCandleEpoch !== current.epoch) continue;
-        const evaluated = evaluateM1Outcome(pending.signal, current, pending.entryPrice);
-        const record = { ...pending, entryAt: pending.entryAt ?? current.epoch * 1000, entryPrice: evaluated.entryPrice,
-          exitAt: Date.now(), exitPrice: evaluated.exitPrice, outcome: evaluated.outcome,
-          outcomeReason: evaluated.reason, entryPriceBasis: pending.entryPriceBasis || "TWELVE_DATA_STREAM_M1_OPEN",
-          exitPriceBasis: "TWELVE_DATA_STREAM_M1_CLOSE",
-          priceChange: Number.isFinite(evaluated.entryPrice) && Number.isFinite(evaluated.exitPrice)
-            ? evaluated.exitPrice - evaluated.entryPrice : null };
-        feed.forecastHistory.push(record); feed.forecastHistory = feed.forecastHistory.slice(-100);
-        feed.engineForecastHistory[engine].push(record);
-        feed.engineForecastHistory[engine] = feed.engineForecastHistory[engine].slice(-100);
-        feed.enginePendingForecasts[engine] = null;
-        if (pending.mode === "RECOVERY_ACTIVE") feed.engineRecoveryStates[engine] =
-          settleRecoveryAttempt(feed.engineRecoveryStates[engine], record);
-        else if (record.outcome === "LOSS") feed.engineRecoveryStates[engine] =
-          armRecoveryAfterLoss(feed.engineRecoveryStates[engine], record);
-        console.info("[recovery] independent engine outcome", { engine, symbol: feed.symbol,
-          outcome: record.outcome, mode: pending.mode, state: feed.engineRecoveryStates[engine].status,
-          next: feed.engineRecoveryStates[engine].status === "ARMED" ? "REANALYZE_NEXT_M1" : "NORMAL_MODE" });
-      }
-    }
-    // Each engine signal targets the immediately following M1 candle.
+    if (current) current.live = false;
     feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
       epoch: minute, open: price, high: price, low: price, close: price, live: true
@@ -622,16 +318,12 @@ function applyTick(feed, price, epoch) {
   } else {
     return;
   }
-
-  // Engine 4 triggers on a confirmed EMA5 pullback rebound; Engines 1–3 keep T-5.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
-  // Re-score all four engines as soon as a fresh Streaming Tick arrives.
-  // A shared 250ms throttle coalesces bursts and never creates a REST request.
   scheduleLiveAnalysis(feed);
 }
 
@@ -687,23 +379,39 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
   return feed.restSyncPromise;
 }
 
-async function syncEngine4Ema(feed,{force=false}={}){
- if(!feed||!monitoring||selectedSymbol!==feed.symbol||!engineEnabled.ENGINE_4)return;if(feed.engine4EmaPromise)return feed.engine4EmaPromise;
- const now=Date.now(),minute=Math.floor(now/60000)*60;if(!force&&feed.engine4Ema?.lastFetchedMinute===minute&&feed.engine4Momentum?.lastFetchedMinute===minute)return;if(!force&&Number.isFinite(feed.engine4Ema?.nextAttemptAt)&&now<feed.engine4Ema.nextAttemptAt)return;
- feed.engine4EmaPromise=(async()=>{try{const at=Date.now(),er=await fetchEma5({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:at}),mr=await fetchMomentum9({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),key=Math.floor(at/60000)*60;
- feed.engine4Ema={...er,status:"READY",lastFetchedMinute:key,nextAttemptAt:null,lastError:null,message:"Twelve Data EMA 5 พร้อม"};feed.engine4Momentum={...mr,status:"READY",lastFetchedMinute:key,nextAttemptAt:null,lastError:null,message:"Twelve Data Momentum 9 พร้อม"};
- console.info("[engine4] Twelve Data EMA5 + MOM9 refreshed",{symbol:feed.symbol,ema:er.values,momentum:mr.values});
- }catch(error){const failed=Date.now(),insufficient=error?.kind==="INSUFFICIENT_HISTORY",retry=insufficient?Math.max(ENGINE4_EMA_RETRY_MIN_MS,Math.floor(failed/60000)*60000+ENGINE4_EMA_REFRESH_SECONDS*1000+2000-failed):Math.max(ENGINE4_EMA_RETRY_MIN_MS,twelveDataKeyPool.nextAvailableInMs()||ENGINE4_EMA_RETRY_MIN_MS);
- for(const field of ["engine4Ema","engine4Momentum"]){const prev=feed[field]||{},cached=Array.isArray(prev.values)&&prev.values.length===2;feed[field]={...prev,status:cached?"DEGRADED":"ERROR",values:prev.values||[],receivedAt:prev.receivedAt||0,nextAttemptAt:failed+retry,lastError:String(error?.message||error),message:"Twelve Data indicator error · รอลองใหม่: "+String(error?.message||error)};}
- console.error("[engine4] EMA5/MOM9 request failed",feed.symbol,{kind:error?.kind||"UNKNOWN",retryInMs:retry,message:error.message});
- }finally{feed.engine4EmaPromise=null;}await evaluate(feed);dispatchSignalIfReady(feed);publish();})();return feed.engine4EmaPromise;
+async function syncEngine3Indicators(feed,{force=false}={}) {
+ if(!feed||!monitoring||selectedSymbol!==feed.symbol)return;
+ if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
+ const now=Date.now(),minute=Math.floor(now/60000)*60;
+ if(!force&&feed.engine3Indicators?.lastFetchedMinute===minute)return;
+ if(!force&&Number.isFinite(feed.engine3Indicators?.nextAttemptAt)&&now<feed.engine3Indicators.nextAttemptAt)return;
+ feed.engine3IndicatorsPromise=(async()=>{
+  try{
+   const [ema5,ema20,atr14]=await Promise.all([
+    fetchTrendEma5({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
+    fetchEma20({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
+    fetchAtr14({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()})
+   ]);
+   feed.engine3Indicators={status:"READY",ema5:ema5.values,ema20:ema20.values,atr14:atr14.values,
+    receivedAt:Date.now(),lastFetchedMinute:minute,nextAttemptAt:null,lastError:null,
+    sources:{ema5:ema5.source,ema20:ema20.source,atr14:atr14.source},
+    periods:{ema5:5,ema20:20,atr14:14},message:"Twelve Data EMA5 / EMA20 / ATR14 พร้อม"};
+  }catch(error){
+   const retry=error?.kind==="RATE_LIMIT"?15*60*1000:30000;
+   feed.engine3Indicators={...(feed.engine3Indicators||{}),status:"ERROR",lastError:error.message,
+    nextAttemptAt:Date.now()+retry,message:"Twelve Data Indicator ขัดข้อง: "+error.message};
+   console.error("[engine3] native indicator request failed",feed.symbol,{kind:error?.kind||"UNKNOWN",retryInMs:retry,message:error.message});
+  }finally{feed.engine3IndicatorsPromise=null;}
+  await evaluate(feed);dispatchSignalIfReady(feed);publish();
+ })();
+ return feed.engine3IndicatorsPromise;
 }
-function startEngine4EmaTimer() {
-  if (emaTimer) clearInterval(emaTimer);
-  emaTimer = setInterval(() => {
-    const feed = feeds.get(selectedSymbol);
-    if (feed) syncEngine4Ema(feed).catch(error => console.error("[engine4] EMA5 refresh loop failed", error.message));
-  }, ENGINE4_EMA_RETRY_MIN_MS);
+function startEngine3IndicatorTimer() {
+ if(emaTimer)clearInterval(emaTimer);
+ emaTimer=setInterval(()=>{
+  const feed=feeds.get(selectedSymbol);
+  if(feed)syncEngine3Indicators(feed).catch(error=>console.error("[engine3] refresh loop failed",error.message));
+ },5000);
 }
 
 function startRestTimer() {
@@ -750,7 +458,7 @@ function scheduleLiveAnalysis(feed) {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Local safety cadence supports the same live-candle T-5 finalization for all engines.
+  // Local safety cadence keeps the single Trend Rider analysis aligned to M1 timing.
   signalTimer = setInterval(() => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
@@ -796,7 +504,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -958,7 +666,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+    feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
     void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
@@ -970,7 +678,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+    feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
     if (feed.streamStatus !== "UNSUPPORTED") {
       feed.streamStatus = "ERROR";
@@ -996,12 +704,12 @@ async function start(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
-  startEngine4EmaTimer();
+  startEngine3IndicatorTimer();
   startWatchdog();
   startSignalTimer();
   publish();
   await syncSelected({ force: true, symbol });
-  await syncEngine4Ema(feed, { force: true });
+  await syncEngine3Indicators(feed, { force: true });
   if (monitoring) startStream();
   publish();
 }
@@ -1026,7 +734,7 @@ async function select(symbolValue) {
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
   await syncSelected({ force: true, symbol });
-  if (wasMonitoring && monitoring) await syncEngine4Ema(feed, { force: true });
+  if (wasMonitoring && monitoring) await syncEngine3Indicators(feed, { force: true });
   if (wasMonitoring && monitoring) startStream();
   return true;
 }
@@ -1048,24 +756,6 @@ function stop(clearSignal = true) {
 
 function finite(value) { return Number.isFinite(value); }
 
-function sessionForRequest(req) {
-  const authorization = String(req.headers.authorization || "");
-  const bearer = authorization.match(/^Bearer\\s+([a-f0-9]{64})$/i)?.[1] || "";
-  const session = bearer ? sessions.get(bearer) : null;
-  if (!session) return null;
-  if (session.expiresAt <= Date.now()) {
-    sessions.delete(bearer);
-    return null;
-  }
-  return session;
-}
-
-function requireDeviceSession(req, res, next) {
-  const session = sessionForRequest(req);
-  if (!session) return res.status(401).json({ ok: false, error: "อุปกรณ์ยังไม่ได้เชื่อมต่อหรือ Session หมดอายุ กรุณาเชื่อมต่อใหม่" });
-  req.deviceId = session.deviceId;
-  next();
-}
 
 function telegramSessionForRequest(req) {
   const authorization = String(req.headers.authorization || "");
@@ -1152,8 +842,6 @@ app.get("/api/public/signal", (_req, res) => {
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 3],
       engineResults: state.engineResults || null,
-      recovery: state.recovery || null,
-      engineSummary: state.engineSummary || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
       signalValidationNote: state.signalValidationNote,
@@ -1191,31 +879,26 @@ app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
 });
-app.post("/api/telegram/engines", requireTelegramSession, rateLimitControl, async (req, res) => {
-  const requested = req.body?.engines;
-  if (!requested || typeof requested !== "object" || Array.isArray(requested) ||
-      ENGINE_KEYS.some(key => typeof requested[key] !== "boolean")) {
-    return res.status(400).json({ ok: false, error: "ต้องระบุสถานะเปิด/ปิดของเครื่องยนต์ทั้ง 4 ตัว" });
-  }
-  for (const key of ENGINE_KEYS) {
-    engineEnabled[key] = requested[key];
-    if (!engineEnabled[key] && key !== "ENGINE_4") {
-      for (const feed of feeds.values()) {
-        if (feed.engineActive) feed.engineActive[key] = null;
-      }
+app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const action = req.body?.action;
+  try {
+    if (action === "start") {
+      if (!monitoring) await start(selectedSymbol);
+    } else if (action === "stop") {
+      if (monitoring) stop();
+    } else {
+      return res.status(400).json({ ok: false, error: "รองรับเฉพาะคำสั่ง start และ stop" });
     }
+    noCache(res);
+    res.json({ ok: true, market: snapshot() });
+  } catch (error) {
+    console.error("[mini-app] monitoring control failed", error.message);
+    res.status(500).json({ ok: false, error: error.message || "ควบคุมระบบไม่สำเร็จ" });
   }
-  const feed = feeds.get(selectedSymbol);
-  if (feed) await evaluate(feed);
-  publish();
-  noCache(res);
-  res.json({ ok: true, engineEnabled: { ...engineEnabled }, market: snapshot() });
 });
-app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
+
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
-app.get("/app.js", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "app.js")); });
-app.get("/styles.css", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "styles.css")); });
 app.get("/health", (_req, res) => {
   noCache(res);
   res.json({
@@ -1224,38 +907,29 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_INDEPENDENT", engines: 4,
-      decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
-      bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
+      decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
+      decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
+
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      historicalAnalogueWorker: "BYPASSED",
-      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING", indicatorEndpoints: ["EMA time_period=5", "MOM time_period=9"], derivedIndicators: [], momentumPeriod: 9, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedIndicatorCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS) * 2, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, scoring: "DISABLED", cadence: "LIVE_STREAM_TICK_ANALYSIS_WITH_ONCE_PER_MINUTE_EMA5_AND_MOM9_REFRESH", decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
-      independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_MOMENTUM9"
+      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 65, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
+      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
-      provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
-      role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
-      closedCandlesOnly: false, liveCandlePreview: true,
-      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-      liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER", localDirectionalFallback: true,
-      componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-      bbPureScalper: { period: 20, standardDeviation: 2, independent: true, mayCreateSignalAlone: true, wickThreshold: 0.18, confirmationMode: "ONE_SOFT_CUE" },
-      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, continuationOnly: true },
-      thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
-      priceActionEvidence: { marketStructure: "BOS_CHOCH_CLOSED_CANDLE_SWINGS", candleConfirmation: "BODY_WICKS_CLOSE_LOCATION", momentumExhaustion: "EMA5_ATR_EXTENSION_BODY_CONTRACTION_DIRECTIONAL_RUN" },
+      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
+      model: null, configured: true,
+      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
+      externalAiCalls: false, localTechnicalIndicatorCalculations: false,
+      indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
+      priceAction: "RAW_TWELVE_DATA_OHLC_SWING_STRUCTURE_AND_CANDLE_CONFIRMATION",
+      scoreThreshold: 65, minimumClosedCandles: 30,
+      guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
     },
-    recovery: {
-      enabled: false, mode: "DISABLED", status: "ORIGINAL_INDEPENDENT_ANALYZERS",
-      strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER",
-      altersMiniApp: false, badgeText: null, martingale: false,
-      independentEngines: ENGINE_KEYS
-    },
+    recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: false,
       miniAppOpenAccess: true,
-      androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
       minimumClosedCandles: MIN_CLOSED_CANDLES,
@@ -1263,9 +937,9 @@ app.get("/health", (_req, res) => {
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      engine4EmaRefreshSeconds: ENGINE4_EMA_REFRESH_SECONDS,
-      estimatedEngine4EmaCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS) * 2,
-      engine4EmaKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
+      engine3IndicatorRefreshSeconds: 60,
+      estimatedEngine3IndicatorCreditsPerDay: 4320,
+      engine3IndicatorKeyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER",
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
       entryCandles: 4,
@@ -1274,119 +948,27 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "PARTIAL_SCORING_55_EARLY_ENTRY_MANUAL_ONLY_NOT_OOS_VALIDATED",
-      emaTrendFlow: {
-        emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
-        touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
-        proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
-        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_54_CLOSED_M1_PLUS_LIVE_FORMING_CANDLE_PREVIEW",
-        externalAi: false,
-        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
-        slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
-        supportResistanceFakeout: "FULL_POINTS_ONLY_ON_CONFIRMED_SWEEP_CLOSE_RECLAIM",
-        sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
-        volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
-      }
+      signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
     }
   });
-});
-app.post("/api/auth", rateLimitAuth, (req, res) => {
-  if (!CLIENT_TOKEN) {
-    console.error("[auth] blocked: ANDROID_CLIENT_TOKEN is not configured");
-    return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่ารหัสเชื่อมต่ออุปกรณ์" });
-  }
-  if (!validateClientToken(req.body?.clientToken, CLIENT_TOKEN)) {
-    console.warn("[auth] rejected Android client credential");
-    return res.status(401).json({ ok: false, error: "รหัสเชื่อมต่ออุปกรณ์ไม่ถูกต้อง" });
-  }
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, { deviceId: "android-client", expiresAt });
-  noCache(res);
-  console.info("[auth] Android client session created");
-  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
-});
-app.get("/api/state", requireDeviceSession, (_req, res) => { noCache(res); res.json(snapshot()); });
-app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res) => {
-  const body = req.body || {};
-  try {
-    if (body.action === "start") {
-      console.info("[radar] start requested", resolveSymbol(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL) || DEFAULT_SYMBOL);
-      await start(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL);
-    } else if (body.action === "select") {
-      if (!await select(body.symbol)) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้" });
-    } else if (body.action === "heartbeat") {
-    } else if (body.action === "stop") stop();
-    else return res.status(400).json({ ok: false, error: "ไม่รองรับคำสั่งนี้" });
-    noCache(res);
-    res.json({ ok: true, state: snapshot() });
-  } catch (error) {
-    console.error("[radar] control action failed", error);
-    res.status(500).json({ ok: false, error: error.message || "คำสั่งไม่สำเร็จ" });
-  }
-});
-
-server.on("upgrade", (req, socket, head) => {
-  const origin = req.headers.origin;
-  if (origin && !allowedOrigins.has(origin) && origin !== `https://${req.headers.host}`) {
-    socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  const pathname = new URL(req.url || "/", "http://localhost").pathname;
-  if (pathname !== "/live") {
-    socket.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  const session = sessionForRequest(req);
-  if (!session) {
-    socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(req, socket, head, client => {
-    wss.emit("connection", client, req);
-  });
-});
-
-wss.on("connection", socket => {
-  socket.send(JSON.stringify({ type: "market_state", data: snapshot() }));
-  socket.on("message", raw => {
-    let message;
-    try { message = JSON.parse(raw.toString()); } catch { return; }
-  });
-  socket.on("close", () => {});
 });
 
 server.listen(PORT, () => {
   console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
-  console.info("[radar] Android client credential configured", Boolean(CLIENT_TOKEN));
   console.info("[radar] startup configuration", {
-    androidClientAuthConfigured: Boolean(CLIENT_TOKEN),
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
     miniAppOpenAccess: true,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    autoStartMonitoring: process.env.AUTO_START_MONITORING !== "false",
     minimumClosedCandles: MIN_CLOSED_CANDLES,
     historyCandles: HISTORY_CANDLES,
     restRefreshSeconds: REST_SYNC_SECONDS
   });
-  if (process.env.AUTO_START_MONITORING !== "false") {
-    setTimeout(() => {
-      start(DEFAULT_SYMBOL).catch(error => console.error("[radar] startup scanner failed", error.message));
-    }, 1000);
-  }
+  console.info("[radar] monitoring starts only after Telegram Mini App user action");
 });
 
 setInterval(() => {
   const now = Date.now();
-  for (const [token, session] of sessions) {
-    if (session.expiresAt <= now) sessions.delete(token);
-  }
   for (const [token, session] of telegramSessions) {
     if (session.expiresAt <= now) telegramSessions.delete(token);
   }

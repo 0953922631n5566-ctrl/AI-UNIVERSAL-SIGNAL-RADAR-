@@ -2282,3 +2282,44 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Both indicators refresh once per selected M1 minute (2 indicator credits/minute); streaming alignment is evaluated on live ticks. One signal per candle, 30-second hold, shared sound/vibration and manual-only/no-broker behavior retained.
 - Only Engine 4 code, UI label, metadata and tests are intended to change. Engines 1–3 remain unchanged.
 - CI, Render deployment, health, public signal endpoint and Telegram Mini App verification pending. Paper-test first; no profitability claim.
+
+
+## 2026-11-23 — Engine 3 only / Twelve Data-native indicators / manual light switch (approved scope)
+
+- User approved retaining only Engine 3 (TREND_RIDER) as the sole signal-analysis engine in Main Market. Remove V1, BB Pure Scalper, and Engine 4 from the active signal path and Mini App engine selector/cards; do not delete their historical source files until dependency and rollback review is complete.
+- Engine 3's strategy formula remains our own: EMA5/EMA20 alignment and slope, swing-structure confirmation, pullback or breakout, momentum/body confirmation, sideways guard, late-extension guard, and abnormal-volatility guard.
+- Provider rule: all market prices/candles and technical-indicator values must come directly from Twelve Data native REST endpoints/streaming. Do not locally calculate EMA, ATR, Momentum, RSI, MACD, or other technical indicators. For the current Trend Rider formula, replace local EMA5/EMA20 and ATR14 calculations with native Twelve Data EMA(5), EMA(20), and ATR(14) data. Price-action structure (swing highs/lows, candle body/range) may be derived from Twelve Data OHLC candles because those are raw market observations, not locally calculated technical indicators.
+- Use the existing 10-key Twelve Data pool with round-robin/failover; expose each indicator's source, freshness, API state, last value, and failure reason in the Mini App. Any stale, missing, conflicting, or failed indicator must fail closed to STANDBY and show the API/indicator status.
+- Mini App must show Engine 3 analysis only, including indicator values and the formula's evidence/reasons. No parallel engine aggregation, recovery borrowing from other engines, or Engine 4 EMA/MOM signal path.
+- Add a separate manual lamp switch controlled by the user: toggle RED <-> GREEN; display current manual lamp color and state. This manual lamp is strictly separate from the real Engine 3 signal lamp and must never alter, invert, or fabricate CALL/PUT signals. Real signal lamp follows Engine 3 output and its normal expiry/clear rules.
+- Keep the existing Start/Stop monitoring and manual-only/no-broker-execution policy. Preserve Main Market repository/branch/service separation; do not modify VISUAL-SIGNAL-AI, OTC/OCR, APK, or other projects.
+- Implementation status at approval: scope approved and documented; code changes, tests, deployment, live endpoint checks, and Telegram-device verification are pending. Do not claim implemented or deployed until verified.
+
+
+### Implementation progress — 2026-11-23
+
+- Feature branch contains the first implementation pass for Engine 3-only operation.
+- Trend Rider now accepts EMA5, EMA20, and ATR14 values supplied by Twelve Data native endpoints; its own EMA/ATR calculations have been removed. Raw OHLC swing structure and candle-body confirmation remain part of our own decision formula.
+- Added native endpoint wrappers for /ema period 5, /ema period 20, and /atr period 14 with 10-key pool failover, consecutive closed-M1 validation, and per-indicator status exposure.
+- Main Market server defaults to only TREND_RIDER enabled; its dispatch/recovery engine key list is restricted to TREND_RIDER. Twelve Data indicator refresh is once per minute (3 indicator requests/minute; estimated 4,320 indicator credits/day for one selected pair, plus existing candle REST usage).
+- Mini App hides V1, BB, and Engine 4 cards, shows Engine 3 plus native EMA5/EMA20/ATR14 values/status, and adds a separate manual RED/GREEN lamp switch persisted on the client. Manual lamp is isolated from the real CALL/PUT signal lamp.
+- Updated Trend Rider and Twelve Data endpoint tests. Full CI/test execution, deeper dead-code pruning, PR review, Render deployment, health/API verification, and Telegram-client verification are still pending.
+- Do not merge/deploy until the tests pass and the server is verified to have no references that can re-enable the other engines. Keep production main-market branch unchanged until then.
+
+- CI: added `.github/workflows/main-market-engine3-tests.yml` to run Node 20 tests and syntax checks for the single-engine branch.
+
+- Runtime isolation pass: the Main Market server no longer imports the V1, BB, Engine 4 analyzers or the old signal-release gate. ENGINE_KEYS is restricted to TREND_RIDER and the API toggle route cannot re-enable the other engines. Legacy source/test files are still present in the repository for now; remove them only after a successful full test run confirms no remaining dependencies.
+- A new ATR14 failover test was added. GitHub workflow/status queries still return no runs, so no claim of passing tests is made.
+
+
+### Latest continuation — Engine 3 / Telegram Mini App only (2026-11-23)
+
+- Feature branch remains `feature/engine3-twelvedata-only-single-engine-20261123`; PR #227 remains separate from production `main-market`. Production Render service `ai-signal-radar-main-market` has not been changed by this work.
+- Server execution path was refactored to a single Trend Rider evaluation/dispatch path. V1, BB, Engine 4, Momentum 9, multi-engine aggregation, cross-engine recovery, historical analogue, Gemini analyzer/quota modules, unused push/entry helpers, and the old original-ai multi-engine subtree were removed from the Main Market feature branch.
+- Native Twelve Data indicator path remains EMA5, EMA20, and ATR14 only. Indicator values are refreshed once per minute through the existing 10-key pool; the Trend Rider uses those provider values plus raw M1 OHLC structure. Missing/stale/misaligned values fail closed.
+- Telegram Mini App is now the only client surface in the active runtime. Android auth/control routes, the old control dashboard assets, and APK build workflows were removed from this branch.
+- Added a real Mini App Start/Stop control backed by `POST /api/telegram/control`. Monitoring no longer auto-starts on server boot; the user must tap Start in the Mini App. Stop shuts down the stream/timers and clears the active signal.
+- Mini App retains T-10 PREPARE, T-5 final signal, 30-second display, sound/vibration, EMA5/EMA20/ATR14 and analysis evidence, API pool status, and the independent manual RED/GREEN lamp.
+- Test contracts were rewritten for the single-engine architecture. A prior run on an intermediate commit reported the full Node test suite passing but failed a syntax-check step because CI still referenced deleted Android modules; CI workflow references were corrected. New end-to-end CI runs for the latest commits are pending.
+- Do not merge or deploy until all relevant GitHub Actions jobs pass, the server and inline Mini App scripts pass syntax checks, and the deployed endpoints are verified. Do not invite the user to test the production Mini App before deployment and health/API checks.
+- Signal quality/profitability remains unvalidated out-of-sample; this is a functional implementation/test task, not a profitability guarantee.
