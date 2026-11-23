@@ -1,23 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
-const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
-
-test("health metadata confirms recovery is disabled and original analyzers remain independent", () => {
-  assert.match(server, /enabled: false, mode: "DISABLED"/);
-  assert.match(server, /strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER"/);
-  assert.match(server, /status: "ORIGINAL_INDEPENDENT_ANALYZERS"/);
-  assert.match(server, /altersMiniApp: false, badgeText: null, martingale: false/);
-  assert.match(server, /independentEngines: ENGINE_KEYS/);
+const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
+test("health metadata declares one fixed Engine 3 Trend Rider analyzer",()=>{
+ assert.match(server,/decisionEngine: "ENGINE_3_TREND_RIDER_ONLY"/);
+ assert.match(server,/decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS"/);
+ assert.match(server,/engines: 1/);
+ assert.match(server,/engineToggles: \{ supported: false, fixedEngine: "TREND_RIDER" \}/);
 });
-
-test("public signal API exposes the per-engine recovery status used by Mini App", () => {
-  assert.match(server, /recovery: state\.recovery \|\| null/);
-  assert.match(server, /engines: Object\.fromEntries\(ENGINE_KEYS\.map/);
+test("health metadata identifies native Twelve Data indicators and manual-only timing",()=>{
+ assert.match(server,/indicatorEndpoints: \["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"\]/);
+ assert.match(server,/signalTiming: "T_MINUS_5_NEXT_M1"/);
+ assert.match(server,/signalHoldSeconds: 30/);
+ assert.match(server,/manualOnly: true/);
+ assert.match(server,/brokerExecution: false/);
 });
-
-test("health metadata matches the shared Engine 4 alert implementation", () => {
-  assert.match(server, /participatesInAggregate: true/);
-  assert.match(server, /alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE"/);
+test("recovery and cross-engine signal borrowing are absent",()=>{
+ assert.match(server,/recovery: \{ enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false \}/);
+ assert.doesNotMatch(server,/selectRecoveryCandidate|engineRecoveryStates|enginePendingForecasts|ENGINE_4|analyzeMarket\(|analyzeBBPureScalper\(/);
 });
