@@ -1,0 +1,36 @@
+name: Main Market Engine 3 Tests
+
+on:
+  pull_request:
+    branches: [main-market]
+    paths:
+      - "main-market/**"
+      - ".github/workflows/main-market-engine3-tests.yml"
+  push:
+    branches: [feature/engine3-twelvedata-only-single-engine-20261123]
+
+jobs:
+  test-main-market:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: main-market
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: main-market/package-lock.json
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: |
+          node --check server.js
+          node --check public/app.js
+          node --check src/twelve-data.js
+          node --check src/trend-rider.js
+          node --check src/client-auth.js
+          node --check src/telegram-auth.js
+          node --check src/twelve-data-pool.js
+          node --check src/stream-retry.js
+          node --check src/live-candle-preview.js
