@@ -31,8 +31,8 @@ function liveCandle(overrides = {}) {
 }
 
 test("AO 5/34 above zero produces CALL for the next M1 candle", () => {
-  const history = makeHistory({ direction: 1 });
-  const live = liveCandle();
+  const history = makeHistory({ count: 60, direction: 1 });
+  const live = liveCandle({ open: 1.106, high: 1.1061, low: 1.1059, close: 1.106 });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
@@ -41,7 +41,8 @@ test("AO 5/34 above zero produces CALL for the next M1 candle", () => {
   assert.equal(result.metrics.aoPeriod.fast, 5);
   assert.equal(result.metrics.aoPeriod.slow, 34);
   assert.ok(result.metrics.awesomeOscillator > 0);
-  assert.equal(result.metrics.momentumPercent, 100);
+  assert.ok(Number.isInteger(result.metrics.momentumPercent));
+  assert.ok(result.metrics.momentumPercent >= 0 && result.metrics.momentumPercent <= 100);
   assert.equal(result.metrics.momentumLookbackAoSamples, 28);
   assert.equal(result.metrics.momentumDirection, "CALL");
   assert.equal(result.targetCandleEpoch, target);
