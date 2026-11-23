@@ -1,57 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {analyzeEarlyEntryEngine4,ENGINE4_EMA_PERIOD,ENGINE4_MIN_CANDLES} from "../src/engine-four.js";
-import {isEngine4EntryWindow,canDispatchEngine4Signal} from "../src/signal-timing.js";
-const source=1_800_000_000;
-const target=source+60;
-function makeHistory(direction="CALL",count=12) {
-  return Array.from({length:count},(_,i)=>{
-    const close=direction==="CALL"?1.1000+i*0.00005:1.1010-i*0.00005;
-    const open=direction==="CALL"?close-0.00005:close+0.00005;
-    return {epoch:source-((count-1-i)*60),open,high:Math.max(open,close)+0.00001,
-      low:Math.min(open,close)-0.00001,close,live:false};
-  });
+import {analyzeEarlyEntryEngine4,ENGINE4_STRATEGY} from "../src/engine-four.js";
+import {isSignalFinalizeWindow,canFinalizeSignal} from "../src/signal-timing.js";
+const source=1_800_000_000,target=source+60;
+function preview({open=1.1,high=1.1005,low=1.0998,close=1.1002,epoch=source}={}) {
+ return {epoch,open,high,low,close,live:false,provisional:true};
 }
-test("CALL when the latest closed M1 close is above EMA 5",()=>{
-  const candles=makeHistory("CALL"),out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(out.ready,true);assert.equal(out.signal,"CALL");assert.equal(out.sourceCandleEpoch,source);
-  assert.equal(out.targetCandleEpoch,target);assert.equal(out.strategy,"EMA5_CLOSED_M1_TO_NEXT_M1_ENTRY");
-  assert.ok(out.metrics.closedClose>out.metrics.ema5);assert.equal("score" in out,false);
-  assert.equal("confidence" in out,false);
+test("CALL when lower wick is longer than upper wick",()=>{
+ const c=preview({high:1.1003,low:1.0995}),o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
+ assert.equal(o.ready,true);assert.equal(o.signal,"CALL");assert.equal(o.sourceCandleEpoch,source);
+ assert.equal(o.targetCandleEpoch,target);assert.equal(o.strategy,ENGINE4_STRATEGY);
+ assert.ok(o.metrics.lowerWick>o.metrics.upperWick);assert.equal("score" in o,false);assert.equal("confidence" in o,false);
 });
-test("PUT when the latest closed M1 close is below EMA 5",()=>{
-  const candles=makeHistory("PUT"),out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(out.ready,true);assert.equal(out.signal,"PUT");assert.ok(out.metrics.closedClose<out.metrics.ema5);
+test("PUT when upper wick is longer than lower wick",()=>{
+ const c=preview({high:1.1008,low:1.1001}),o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
+ assert.equal(o.ready,true);assert.equal(o.signal,"PUT");assert.ok(o.metrics.upperWick>o.metrics.lowerWick);
 });
-test("uses Close versus EMA 5 only; candle body direction is irrelevant",()=>{
-  const candles=makeHistory("CALL"),last=candles.at(-1);
-  candles[candles.length-1]={...last,open:last.close+0.00003,high:last.close+0.00004,low:last.close-0.00001};
-  const out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(out.ready,true);assert.equal(out.signal,"CALL");
+test("wick comparison is independent of candle body direction",()=>{
+ const c=preview({open:1.1003,close:1.1,high:1.1005,low:1.0997});
+ assert.equal(analyzeEarlyEntryEngine4([c],{liveCandle:c}).signal,"CALL");
 });
-test("returns no signal when the latest close equals EMA 5",()=>{
-  const candles=Array.from({length:8},(_,i)=>({epoch:source-((7-i)*60),open:1.1,high:1.1001,low:1.0999,close:1.1,live:false}));
-  const out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(out.ready,false);assert.equal(out.status,"CLOSE_EQUALS_EMA5");
+test("equal upper and lower wicks produce no signal",()=>{
+ const c=preview({high:1.1005,low:1.0997,open:1.1,close:1.1002}),o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
+ assert.equal(o.ready,false);assert.equal(o.status,"WICKS_EQUAL");
 });
-test("requires only five completed M1 candles for EMA 5",()=>{
-  const candles=makeHistory("CALL",ENGINE4_MIN_CANDLES),out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(ENGINE4_EMA_PERIOD,5);assert.equal(out.ready,true);
+test("does not require historical candles or EMA values",()=>{
+ const c=preview(),o=analyzeEarlyEntryEngine4([],{liveCandle:c});
+ assert.equal(o.ready,true);assert.equal("ema5" in (o.metrics||{}),false);
 });
-test("does not use a forming candle for direction",()=>{
-  const candles=makeHistory("CALL"),live={...candles.at(-1),live:true};
-  const out=analyzeEarlyEntryEngine4([...candles.slice(0,-1),live],{closedCandle:live});
-  assert.equal(out.ready,false);assert.equal(out.status,"CLOSED_M1_CANDLE_NOT_READY");
+test("rejects completed candle instead of live provisional preview",()=>{
+ const c={...preview(),provisional:false},o=analyzeEarlyEntryEngine4([c],{liveCandle:c});
+ assert.equal(o.ready,false);assert.equal(o.status,"LIVE_M1_PREVIEW_NOT_READY");
 });
-test("rejects a gap in recent closed M1 history",()=>{
-  const candles=makeHistory("CALL");candles[candles.length-2].epoch-=60;
-  const out=analyzeEarlyEntryEngine4(candles,{closedCandle:candles.at(-1)});
-  assert.equal(out.ready,false);assert.equal(out.status,"EMA_HISTORY_NOT_READY");
+test("rejects malformed live OHLC",()=>{
+ const c=preview({high:1.099,low:1.1001});assert.equal(analyzeEarlyEntryEngine4([c],{liveCandle:c}).ready,false);
 });
-test("dispatch remains limited to first five seconds of next M1 with fresh Streaming quote",()=>{
-  assert.equal(isEngine4EntryWindow(target,target*1000),true);
-  assert.equal(isEngine4EntryWindow(target,target*1000+4999),true);
-  assert.equal(isEngine4EntryWindow(target,target*1000+5000),false);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:target,tickAt:target*1000+100,now:target*1000+200,lastDispatchedCandle:null}),true);
-  assert.equal(canDispatchEngine4Signal({candleEpoch:target,tickAt:target*1000+100,now:target*1000+200,lastDispatchedCandle:target}),false);
+test("uses same T-5 finalization window and fresh-tick guard as Engines 1–3",()=>{
+ assert.equal(isSignalFinalizeWindow(source,source*1000+54999),false);
+ assert.equal(isSignalFinalizeWindow(source,source*1000+55000),true);
+ assert.equal(isSignalFinalizeWindow(source,source*1000+59999),true);
+ assert.equal(isSignalFinalizeWindow(source,source*1000+60000),false);
+ assert.equal(canFinalizeSignal({candleEpoch:source,tickAt:source*1000+55100,now:source*1000+55200,lastDispatchedCandle:null}),true);
+ assert.equal(canFinalizeSignal({candleEpoch:source,tickAt:source*1000+55100,now:source*1000+55200,lastDispatchedCandle:source}),false);
 });
