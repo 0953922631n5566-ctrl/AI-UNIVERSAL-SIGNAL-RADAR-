@@ -12,7 +12,7 @@ test("Mini App exposes only the Engine 3 Trend Rider analyzer",()=>{
 });
 test("Mini App displays Twelve Data native EMA5 EMA20 ATR14 and analysis evidence",()=>{
  for(const id of ["ema5Value","ema20Value","atr14Value","indicatorStatus","emaGapAtrValue","extensionAtrValue","bodyRatioValue","priorHighValue","priorLowValue"])assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/Twelve Data EMA 5/);assert.match(html,/Twelve Data native endpoints/);
+ assert.match(html,/TWELVE DATA EMA 5/);assert.match(html,/Twelve Data native endpoints/);
 });
 test("Manual red green switch is independent from the actual signal lamp",()=>{
  assert.match(html,/id="manualLampToggle"/);assert.match(html,/id="manualLampStatus"/);
