@@ -303,6 +303,7 @@ async function evaluate(feed) {
  const engine4Pending = feed.engine4PendingForecast;
  const engine4SourceReady = Boolean(currentCandle?.live === true) &&
    Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= 5 &&
+   isEngine4EntryWindow(currentCandle.epoch, now) &&
    latestClosed?.epoch + 60 === currentCandle.epoch;
  const wallClockCandleEpoch = Math.floor(now / 60_000) * 60;
  const engine4PendingTargetWindowOpen = Boolean(engine4Pending &&
@@ -1224,9 +1225,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "CLOSED_M1_TO_NEXT_M1_ENTRY", minimumClosedCandles: 1, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumBodyRangeRatio: 0.55, minimumDirectionalCloseLocation: 0.72, minimumScore: 65 }, decisionRule: "CALL_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", closedCandleConfirmation: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "CLOSED_M1_TO_NEXT_M1_ENTRY", minimumClosedCandles: 1, lookbackClosedCandles: 1, cadence: "CLOSED_CANDLE_CONFIRM_ON_NEXT_M1_FIRST_TICK", input: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumBodyRangeRatio: 0.55, minimumDirectionalCloseLocation: 0.72, minimumScore: 65 }, decisionRule: "CALL_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", closedCandleConfirmation: "ONE_COMPLETED_CANDLE_OHLC_ONLY", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_M1_MOMENTUM_NEXT_M1_ENTRY"
+      signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_CLOSED_M1_NEXT_M1_ENTRY"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
