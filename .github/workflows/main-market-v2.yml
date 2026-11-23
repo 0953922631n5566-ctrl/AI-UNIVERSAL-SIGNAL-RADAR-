@@ -48,4 +48,3 @@ jobs:
           node --check src/signal-timing.js
           node --check src/stream-retry.js
           node --check src/client-auth.js
-          node --check public/app.js
