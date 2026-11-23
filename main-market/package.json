@@ -26,7 +26,7 @@
     "directionalVoters": 3,
     "standaloneEveryCandleEngine": "ENGINE_4",
     "engine4": {
-      "strategy": "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1",
+      "strategy": "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN",
       "indicator": "AWESOME_OSCILLATOR",
       "fastPeriod": 5,
       "slowPeriod": 34,
