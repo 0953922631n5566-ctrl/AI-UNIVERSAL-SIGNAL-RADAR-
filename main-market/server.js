@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA EMA5 PULLBACK";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-EMA5-PULLBACK";
-const VERSION = "2026-11-23-engine4-twelvedata-ema5-pullback-v2";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA ADAPTIVE M1 SCALPER";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-ADAPTIVE-M1-SCALPER";
+const VERSION = "2026-11-23-engine4-twelvedata-adaptive-m1-v1";
 const ENGINE4_EMA_REFRESH_SECONDS = 60;
 const ENGINE4_EMA_RETRY_MIN_MS = 5000;
 const app = express();
@@ -308,7 +308,7 @@ async function evaluate(feed) {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"DISABLED", reason:"Engine 4 ปิดการทำงานจาก Mini App" };
  } else {
    const analyzed = analyzeEarlyEntryEngine4({
-     emaValues: feed.engine4Ema?.values, livePrice: feed.lastTick, tickAt: feed.tickAt,
+     emaValues: feed.engine4Ema?.values, candles: feed.candles, livePrice: feed.lastTick, tickAt: feed.tickAt,
      now, symbol: feed.symbol, sourceCandleEpoch, state: feed.engine4PullbackState
    });
    feed.engine4PullbackState = analyzed.nextState || feed.engine4PullbackState;
@@ -330,7 +330,7 @@ async function evaluate(feed) {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
    TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_EMA5_ENDPOINT", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
+   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_OHLC_EMA5_STREAM", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
@@ -546,13 +546,13 @@ let reason;
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
    engine4DecisionMode: ENGINE4_STRATEGY,
-   engine4UsesClosedCandlesOnly: true,
-   engine4LookbackClosedCandles: 2,
-   engine4DirectionSource: "TWO_TWELVE_DATA_EMA5_VALUES_SLOPE_PLUS_LIVE_STREAM_PULLBACK_REBOUND",
+   engine4UsesClosedCandlesOnly: false,
+   engine4LookbackClosedCandles: 50,
+   engine4DirectionSource: "TWELVE_DATA_M1_OHLC_EMA5_PLUS_LOCAL_RSI7_MACD5134_ADX14_ATR14_BOLLINGER20_AND_LIVE_STREAM",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Twelve Data EMA 5 เท่านั้น · EMA ชี้ขึ้น + ราคาย่อเข้าใกล้แล้วเด้งกลับ = CALL · EMA ชี้ลง + ราคาดีดเข้าใกล้แล้วกลับลง = PUT · ส่งสัญญาณทันทีในแท่งปัจจุบัน · ไม่มีอินดิเคเตอร์อื่นหรือคะแนน · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Twelve Data M1 OHLC + EMA5 + live Streaming · คำนวณ EMA8/21, RSI7, MACD(5,13,4), ADX14, ATR14 และ Bollinger20 จาก OHLC เดียวกัน · สลับ Trend Pullback/Breakout กับ Sideway Band Rejection · เข้าเมื่อข้อมูลสดยืนยัน · หนึ่งสัญญาณต่อแท่ง M1 · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
  };
 }
 
@@ -1274,7 +1274,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, indicator: "EMA", provider: "TWELVE_DATA_EMA_ENDPOINT", period: 5, interval: "1min", seriesType: "CLOSE", apiCreditsPerRequest: 1, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS), keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, slopeSamples: 2, pullbackProximityPips: 0.5, bounceConfirmPips: 0.2, decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "EMA5_REFRESH_ONCE_PER_M1_PLUS_LIVE_STREAMING_TICK_ANALYSIS", decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, provider: "TWELVE_DATA_M1_OHLC_EMA5_AND_STREAMING", indicatorEndpoints: ["EMA5"], derivedIndicators: ["EMA8", "EMA21", "RSI7", "MACD_5_13_4", "ADX14", "ATR14", "BOLLINGER20_2"], regimeSwitch: { trendAdxMin: 14, trendEntries: ["EMA8_21_PULLBACK_RECLAIM", "MOMENTUM_BREAKOUT"], rangeEntries: ["BOLLINGER_EDGE_REJECTION_WITH_RSI"] }, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedEmaCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS), keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, scoring: "DISABLED", cadence: "LIVE_STREAM_TICK_ANALYSIS_WITH_ONCE_PER_MINUTE_EMA_REFRESH", decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_PULLBACK_IMMEDIATE"
     },
