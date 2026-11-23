@@ -717,7 +717,6 @@ function startSignalTimer() {
   signalTimer = setInterval(() => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
-    const feed = feeds.get(selectedSymbol);
     if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
   }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
 }
