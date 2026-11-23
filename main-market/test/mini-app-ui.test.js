@@ -37,7 +37,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.match(html, /<div class="engine-title">04 · EMA 5/20 CLOSED M1<\/div>/);
+  assert.ok(html.includes('<div class="engine-title">04 · EMA 5/20 CLOSED M1</div>'));
   assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 CALL"));
   assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
@@ -166,7 +166,8 @@ test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 20/);
   assert.match(serverJs, /minimumBodyPips: 0\.4/);
-  assert.match(serverJs, /emaSlow: 20/);\n  assert.match(serverJs, /scoreWeights: \\{ emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 \\}/);
+  assert.match(serverJs, /emaSlow: 20/);
+  assert.match(serverJs, /scoreWeights: \\{ emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 \\}/);
   assert.match(serverJs, /minimumScore: 40/);
   assert.match(serverJs, /emaFast: 5/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
