@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 MACD 12/26/9";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-MACD-12-26-9";
-const VERSION = "2026-11-23-engine4-macd-only-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 ADAPTIVE MACD";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-ADAPTIVE-MACD";
+const VERSION = "2026-11-23-engine4-macd-historical-proximity-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -268,9 +268,13 @@ async function evaluate(feed) {
    now, tickAt: feed.tickAt, maxAgeMs: MAX_STREAM_AGE_SECONDS * 1000
  });
  const analysisCandles = livePreview ? [...closedCandles, livePreview] : closedCandles;
+ // Engine 4 alone needs a longer rolling sample to estimate its historical MACD gap distribution.
+ const engine4ClosedCandles = feed.candles.filter(c => c && c.live !== true &&
+   Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-80);
+ const engine4AnalysisCandles = livePreview
+   ? [...engine4ClosedCandles, livePreview] : engine4ClosedCandles;
 
- // Shared source-quality gate; after it passes, all four engines receive the same
- // closed history plus the same validated provisional M1 candle (when available).
+ // Shared source-quality gate; Engines 1–3 keep their existing 54-candle input.
  const v1Raw = engineEnabled.V1 ? await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
    liveCandle: livePreview
@@ -302,13 +306,13 @@ async function evaluate(feed) {
  if (!engineEnabled.ENGINE_4) {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"DISABLED", reason:"Engine 4 ปิดการทำงานจาก Mini App" };
  } else if (livePreview && sourceCandleEpoch !== null) {
-   engine4Raw = analyzeEarlyEntryEngine4(analysisCandles, { liveCandle:livePreview });
+   engine4Raw = analyzeEarlyEntryEngine4(engine4AnalysisCandles, { liveCandle:livePreview });
  } else {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับคำนวณ MACD 12/26/9" };
  }
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: engine4Raw.analysisMode || "MACD_12_26_9_CROSSOVER",
+       analysisMode: engine4Raw.analysisMode || "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -403,7 +407,7 @@ async function evaluate(feed) {
    const engineResult = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "MACD_12_26_9_CROSSOVER") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -528,10 +532,10 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1",
+   engine4DecisionMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1",
    engine4UsesClosedCandlesOnly: false,
-   engine4LookbackClosedCandles: 34,
-   engine4DirectionSource: "MACD_LINE_VS_SIGNAL_LINE",
+   engine4LookbackClosedCandles: 73,
+   engine4DirectionSource: "MACD_LINE_VS_SIGNAL_LINE_AND_HISTORICAL_GAP_PERCENTILE",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
@@ -1190,9 +1194,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1", indicator: "MACD", fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, priceSource: "CLOSE", formula: "EMA12(CLOSE)-EMA26(CLOSE); SIGNAL=EMA9(MACD)", decisionRule: "MACD_CROSS_ABOVE_SIGNAL_CALL; MACD_CROSS_BELOW_SIGNAL_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_34_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1", indicator: "MACD", fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, priceSource: "CLOSE", formula: "EMA12(CLOSE)-EMA26(CLOSE); SIGNAL=EMA9(MACD)", decisionRule: "MACD_CROSSOVER_OR_HISTORICAL_PROXIMITY; NEGATIVE_GAP_CALL; POSITIVE_GAP_PUT", historicalProximity: { window: 40, percentile: 25, method: "TRAILING_ABSOLUTE_MACD_SIGNAL_GAP_DISTRIBUTION", minimumSamples: 40 }, otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_73_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_MACD_12_26_9_CROSSOVER_T5_NEXT_M1"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
