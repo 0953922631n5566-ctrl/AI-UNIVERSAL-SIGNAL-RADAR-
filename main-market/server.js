@@ -385,12 +385,13 @@ async function evaluate(feed) {
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
       (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch || engine === "ENGINE_4"));
    const engine4Entry = engine === "ENGINE_4";
-   const engineWindow = engine4Entry ? sourceCandleEpoch !== null : finalizeWindow;
+   const engineWindow = finalizeWindow;
+   const engine4Window = engine4Entry && sourceCandleEpoch !== null;
    const timingReady = engine4Entry
      ? isFreshSignalTick(feed.tickAt, now) && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch
      : canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
-   if (!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady) {
+   if (!activeForCurrentOrNext && (engine4Entry ? engine4Window : engineWindow) && selectedFinalSignal && timingReady) {
      const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
      const signalSourceEpoch = sourceCandleEpoch;
      active = {
@@ -1039,10 +1040,8 @@ async function select(symbolValue) {
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
   await syncSelected({ force: true, symbol });
-  if (wasMonitoring && monitoring) {
-    await syncEngine4Ema(feed, { force: true });
-    startStream();
-  }
+  if (wasMonitoring && monitoring) await syncEngine4Ema(feed, { force: true });
+  if (wasMonitoring && monitoring) startStream();
   return true;
 }
 

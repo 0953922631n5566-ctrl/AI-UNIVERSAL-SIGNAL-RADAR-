@@ -4,11 +4,13 @@ import { readFileSync } from "node:fs";
 
 const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
-test("normal signals use the original T-5 finalization window and target the next M1 candle", () => {
+test("Engines 1–3 retain T-5; Engine 4 triggers immediately after EMA5 rebound", () => {
   assert.match(server, /const engineWindow = finalizeWindow/);
-  assert.match(server, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
+  assert.match(server, /const engine4Window = engine4Entry && sourceCandleEpoch !== null/);
+  assert.match(server, /engine4Entry \? engine4Window : engineWindow/);
   assert.match(server, /canFinalizeSignal\(/);
-  assert.match(server, /targetCandleEpoch: signalTargetEpoch,\s*triggeredAt: now, expiresAt: signalHoldExpiresAt\(signalTargetEpoch\)/);
+  assert.match(server, /const signalTargetEpoch = engine4Entry \? sourceCandleEpoch : targetCandleEpoch/);
+  assert.match(server, /expiresAt: engine4Entry \? now \+ SIGNAL_HOLD_SECONDS \* 1000 : signalHoldExpiresAt\(signalTargetEpoch\)/);
   assert.doesNotMatch(server, /const recoveryStartWindow/);
   assert.doesNotMatch(server, /LIVE_TICK_AT_RECOVERY_ALERT/);
 });
