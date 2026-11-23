@@ -535,7 +535,7 @@ let reason;
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ MACD 12/26/9 เท่านั้น · MACD ตัดขึ้นเหนือ Signal = CALL · ตัดลงใต้ Signal = PUT · ไม่มีคะแนนหรือตัวกรองอื่น · ยืนยัน T-5 สำหรับแท่ง M1 ถัดไป · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ MACD 12/26/9 เท่านั้น · MACD ตัดขึ้นเหนือ Signal = CALL · ตัดลงใต้ Signal = PUT · ไม่มีคะแนนหรือตัวกรองอื่น · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
