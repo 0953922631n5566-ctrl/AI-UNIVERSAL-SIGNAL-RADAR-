@@ -39,6 +39,8 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   }
   assert.ok(html.includes('<div class="engine-title">04 · AWESOME OSCILLATOR 5/34</div>'));
   assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 CALL"));
+  assert.ok(html.includes("AO ขยายแรงต่อเนื่อง 2 ช่วง"));
+  assert.ok(html.includes("0.12 × ATR(14)"));
   assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
