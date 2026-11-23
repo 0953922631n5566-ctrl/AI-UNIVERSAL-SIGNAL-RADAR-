@@ -18,7 +18,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App presents live-momentum next-M1 entry and preserves shared sound, vibration and 30-second alert UI", () => {
+test("Mini App presents closed-M1 next-candle entry and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -121,7 +121,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /isEngine4EntryWindow\(engine4Pending\.targetCandleEpoch, now\)/);
   assert.match(serverJs, /signalTargetEpoch = engine4Entry && Number\.isFinite\(selectedCandidate\.targetCandleEpoch\)/);
   assert.match(serverJs, /pendingEngine4Window/);
-  assert.match(serverJs, /WAITING_FOR_NEXT_M1_OPEN/);
+  assert.match(serverJs, /NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
