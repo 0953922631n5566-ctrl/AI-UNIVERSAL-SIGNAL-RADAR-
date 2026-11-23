@@ -237,7 +237,6 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 }
 
 function lockFeed(feed, reason) {
-  feed.engine4PendingForecast = null;
   feed.dataLocked = true;
   feed.activeSignal = null;
   feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -321,7 +320,6 @@ async function evaluate(feed) {
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
- const engine4EntryWindow = engine4TargetReady;
  const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
  if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
  if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -390,7 +388,6 @@ async function evaluate(feed) {
        entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
        alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_WICK" : "NORMAL"}`
      };
-     if (engine4Entry) { active.expiresAt = signalHoldExpiresAt(signalTargetEpoch); feed.engine4PendingForecast = null; }
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
        engine, symbol: feed.symbol, signal: selectedFinalSignal,
