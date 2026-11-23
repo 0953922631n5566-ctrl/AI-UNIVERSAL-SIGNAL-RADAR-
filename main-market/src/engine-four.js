@@ -50,7 +50,9 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
   }
 
   const ao = fastSma - slowSma;
-  const signal = ao > 0 ? "CALL" : ao < 0 ? "PUT" : null;
+  // Ignore floating-point residue at the zero line; this is numeric precision, not a market filter.
+  const zeroTolerance = 1e-12;
+  const signal = ao > zeroTolerance ? "CALL" : ao < -zeroTolerance ? "PUT" : null;
   const sourceCandleEpoch = liveCandle.epoch;
   const targetCandleEpoch = sourceCandleEpoch + 60;
   const metrics = {
