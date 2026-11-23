@@ -60,8 +60,8 @@ test("MACD close to Signal from below produces early CALL before crossing", () =
 
 test("MACD close to Signal from above produces early PUT before crossing", () => {
   const history = Array.from({ length: 73 }, (_, i) =>
-    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
-  const live = liveAt(history.at(-1).close - 0.000258);
+    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5 + 2.18)));
+  const live = liveAt(history.at(-1).close - 0.000144);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "PUT");
