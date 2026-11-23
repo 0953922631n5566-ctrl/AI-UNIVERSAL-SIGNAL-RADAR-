@@ -41,6 +41,9 @@ test("AO 5/34 above zero produces CALL for the next M1 candle", () => {
   assert.equal(result.metrics.aoPeriod.fast, 5);
   assert.equal(result.metrics.aoPeriod.slow, 34);
   assert.ok(result.metrics.awesomeOscillator > 0);
+  assert.equal(result.metrics.momentumPercent, 100);
+  assert.equal(result.metrics.momentumLookbackAoSamples, 28);
+  assert.equal(result.metrics.momentumDirection, "CALL");
   assert.equal(result.targetCandleEpoch, target);
   assert.equal(result.strategy, ENGINE4_STRATEGY);
   assert.equal("score" in result, false);
@@ -84,4 +87,33 @@ test("retains T-5 finalization window and fresh-tick guard", () => {
     now: source * 1000 + 55200, lastDispatchedCandle: null }), true);
   assert.equal(canFinalizeSignal({ candleEpoch: source, tickAt: source * 1000 + 55100,
     now: source * 1000 + 55200, lastDispatchedCandle: source }), false);
+});
+
+test("AO momentum percentage is a 0-100 relative measure from the latest 28 AO samples", () => {
+  const history = makeHistory({ count: 60, direction: 1 });
+  const live = liveCandle();
+  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+  assert.equal(result.metrics.momentumPercent, 100);
+  assert.equal(result.metrics.momentumLookbackAoSamples, 28);
+  assert.equal(result.metrics.momentumMethod,
+    "ABS_AO_DIVIDED_BY_MAX_ABS_AO_OF_LAST_28_M1_SAMPLES");
+  assert.ok(result.metrics.momentumPercent >= 0 && result.metrics.momentumPercent <= 100);
+});
+
+test("AO direction remains independent of relative momentum percentage", () => {
+  const history = makeHistory({ count: 60, direction: -1 });
+  const live = liveCandle({ open: 1.096, high: 1.0961, low: 1.0959, close: 1.096 });
+  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.metrics.momentumDirection, "PUT");
+  assert.equal(result.metrics.momentumPercent, 100);
+});
+
+test("momentum percentage stays unavailable until 28 AO samples exist", () => {
+  const history = makeHistory({ count: 40, direction: 1 });
+  const live = liveCandle();
+  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.metrics.momentumPercent, null);
+  assert.equal(result.metrics.momentumLookbackAoSamples, 8);
 });
