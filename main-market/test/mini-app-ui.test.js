@@ -122,7 +122,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
@@ -162,9 +162,9 @@ test("four engine cards remain independently toggleable and Engine 4 uses MACD 1
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1"/);
+  assert.match(serverJs, /strategy: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"/);
   assert.match(serverJs, /formula: "EMA12\(CLOSE\)-EMA26\(CLOSE\); SIGNAL=EMA9\(MACD\)"/);
-  assert.match(serverJs, /decisionRule: "MACD_CROSS_ABOVE_SIGNAL_CALL; MACD_CROSS_BELOW_SIGNAL_PUT"/);
+  assert.match(serverJs, /decisionRule: "MACD_CROSSOVER_OR_HISTORICAL_PROXIMITY; NEGATIVE_GAP_CALL; POSITIVE_GAP_PUT"/);
   assert.match(serverJs, /otherIndicators: "NONE"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
@@ -194,7 +194,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 MAC
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MACD_12_26_9_CROSSOVER"\)/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY"\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
