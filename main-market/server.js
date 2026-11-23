@@ -11,7 +11,7 @@ import { createLiveCandlePreview } from "./src/live-candle-preview.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
-import { SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
+const SIGNAL_RELEASE_VALIDATED = false;
 import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
