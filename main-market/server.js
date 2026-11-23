@@ -555,7 +555,7 @@ let reason;
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 อ่าน OHLC ของแท่ง M1 ปัจจุบันแบบสดโดยไม่รอแท่งปิดย้อนหลัง 3 แท่ง · เมื่อตรวจพบ Body และตำแหน่งปิดแท่งมีแรงชัด จะล็อก CALL/PUT สำหรับแท่ง M1 ถัดไป · ส่งสัญญาณใน 5 วินาทีแรกของแท่งเป้าหมายและคงสัญญาณ 30 วินาที · หากแรง Body ขาขึ้นและขาลงเท่ากันจะงดสัญญาณ · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 อ่าน OHLC ของแท่ง M1 ปัจจุบันแบบสดโดยไม่รอแท่งปิดย้อนหลัง 3 แท่ง · เมื่อตรวจพบ Body และตำแหน่งปิดแท่งมีแรงชัด จะล็อก CALL/PUT สำหรับแท่ง M1 ถัดไป · ส่งสัญญาณใน 5 วินาทีแรกของแท่งเป้าหมายและคงสัญญาณ 30 วินาที · หาก Body สั้นหรือราคาปิดไม่ใกล้ปลายแท่งจะงดสัญญาณ · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1211,7 +1211,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY", minimumClosedCandles: 0, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_[0,5S)", decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY", minimumClosedCandles: 0, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumBodyRangeRatio: 0.55, minimumDirectionalCloseLocation: 0.72, minimumScore: 65 }, decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_M1_MOMENTUM_NEXT_M1_ENTRY"
     },
