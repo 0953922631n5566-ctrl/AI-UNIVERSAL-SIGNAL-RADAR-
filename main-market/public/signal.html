@@ -78,7 +78,8 @@ function paintEngineLightSettings(){
   if(button){
    button.textContent=inverted?"ไฟ: สลับ":"ไฟ: ปกติ";
    button.setAttribute("aria-pressed",String(inverted));
-   button.setAttribute("aria-label","สลับสีไฟ "+engineLabelMap[key]+" · "+(inverted?"แดง=ลง/PUT · เขียว=ขึ้น/CALL":"แดง=ขึ้น/CALL · เขียว=ลง/PUT"));
+   const mapping=key==="ENGINE_4"?(inverted?"แดง=CALL · เขียว=PUT":"เขียว=CALL · แดง=PUT"):(inverted?"เขียว=CALL · แดง=PUT":"แดง=CALL · เขียว=PUT");
+   button.setAttribute("aria-label","สลับสีไฟ "+engineLabelMap[key]+" · "+mapping);
   }
  }
 }
