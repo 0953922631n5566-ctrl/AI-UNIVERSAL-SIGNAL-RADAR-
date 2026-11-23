@@ -2294,3 +2294,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Add a separate manual lamp switch controlled by the user: toggle RED <-> GREEN; display current manual lamp color and state. This manual lamp is strictly separate from the real Engine 3 signal lamp and must never alter, invert, or fabricate CALL/PUT signals. Real signal lamp follows Engine 3 output and its normal expiry/clear rules.
 - Keep the existing Start/Stop monitoring and manual-only/no-broker-execution policy. Preserve Main Market repository/branch/service separation; do not modify VISUAL-SIGNAL-AI, OTC/OCR, APK, or other projects.
 - Implementation status at approval: scope approved and documented; code changes, tests, deployment, live endpoint checks, and Telegram-device verification are pending. Do not claim implemented or deployed until verified.
+
+
+### Implementation progress — 2026-11-23
+
+- Feature branch contains the first implementation pass for Engine 3-only operation.
+- Trend Rider now accepts EMA5, EMA20, and ATR14 values supplied by Twelve Data native endpoints; its own EMA/ATR calculations have been removed. Raw OHLC swing structure and candle-body confirmation remain part of our own decision formula.
+- Added native endpoint wrappers for /ema period 5, /ema period 20, and /atr period 14 with 10-key pool failover, consecutive closed-M1 validation, and per-indicator status exposure.
+- Main Market server defaults to only TREND_RIDER enabled; its dispatch/recovery engine key list is restricted to TREND_RIDER. Twelve Data indicator refresh is once per minute (3 indicator requests/minute; estimated 4,320 indicator credits/day for one selected pair, plus existing candle REST usage).
+- Mini App hides V1, BB, and Engine 4 cards, shows Engine 3 plus native EMA5/EMA20/ATR14 values/status, and adds a separate manual RED/GREEN lamp switch persisted on the client. Manual lamp is isolated from the real CALL/PUT signal lamp.
+- Updated Trend Rider and Twelve Data endpoint tests. Full CI/test execution, deeper dead-code pruning, PR review, Render deployment, health/API verification, and Telegram-client verification are still pending.
+- Do not merge/deploy until the tests pass and the server is verified to have no references that can re-enable the other engines. Keep production main-market branch unchanged until then.
