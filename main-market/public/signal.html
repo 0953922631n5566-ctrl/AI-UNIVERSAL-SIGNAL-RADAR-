@@ -78,7 +78,7 @@ function paint(m){
  paintApiPool(m.apiPool||{});
  const required=Number(m.requiredCandles||30);
  const usable=api==="ONLINE"&&m.monitoring!==false;
- paintEngineCards(m,usable);
+ paintTrendCard(m,usable);
  const activeSignals=usable&&Array.isArray(m.activeSignals)?m.activeSignals:[];
  const direction=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;
  const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";
