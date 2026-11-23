@@ -18,7 +18,7 @@
   },
   "radarArchitecture": {
     "name": "V1 + BB + Trend Rider AI + Independent Engine 4",
-    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 Awesome Oscillator 5/34",
+    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 Adaptive MACD 12/26/9",
     "engineCount": 4,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
@@ -26,11 +26,14 @@
     "directionalVoters": 3,
     "standaloneEveryCandleEngine": "ENGINE_4",
     "engine4": {
-      "strategy": "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1",
-      "indicator": "AWESOME_OSCILLATOR",
-      "fastPeriod": 5,
-      "slowPeriod": 34,
-      "decisionRule": "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL",
+      "strategy": "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1",
+      "indicator": "MACD",
+      "fastPeriod": 12,
+      "slowPeriod": 26,
+      "signalPeriod": 9,
+      "priceSource": "CLOSE",
+      "decisionRule": "MACD_CROSSOVER_OR_HISTORICAL_PROXIMITY; NEGATIVE_GAP_CALL; POSITIVE_GAP_PUT",
+      "historicalProximity": { "window": 40, "percentile": 25, "minimumSamples": 40 },
       "otherIndicators": "NONE",
       "scoring": "DISABLED"
     },
