@@ -330,7 +330,7 @@ async function evaluate(feed) {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
    TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_OHLC_EMA5_STREAM", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
+   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
@@ -548,11 +548,11 @@ let reason;
    engine4DecisionMode: ENGINE4_STRATEGY,
    engine4UsesClosedCandlesOnly: false,
    engine4LookbackClosedCandles: 50,
-   engine4DirectionSource: "TWELVE_DATA_M1_OHLC_EMA5_PLUS_LOCAL_RSI7_MACD5134_ADX14_ATR14_BOLLINGER20_AND_LIVE_STREAM",
+   engine4DirectionSource: "TWELVE_DATA_NATIVE_EMA5_AND_MOMENTUM9_PLUS_LIVE_STREAM",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Twelve Data M1 OHLC + EMA5 + live Streaming · คำนวณ EMA8/21, RSI7, MACD(5,13,4), ADX14, ATR14 และ Bollinger20 จาก OHLC เดียวกัน · สลับ Trend Pullback/Breakout กับ Sideway Band Rejection · เข้าเมื่อข้อมูลสดยืนยัน · หนึ่งสัญญาณต่อแท่ง M1 · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้เฉพาะ Twelve Data native EMA5 + Momentum9 และ Live Streaming · ราคาเหนือ EMA5 พร้อม MOM9 บวก = CALL; ราคาใต้ EMA5 พร้อม MOM9 ลบ = PUT · หนึ่งสัญญาณต่อแท่ง M1 · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
  };
 }
 
