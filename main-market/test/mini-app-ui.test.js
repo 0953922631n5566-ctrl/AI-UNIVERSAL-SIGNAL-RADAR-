@@ -11,7 +11,7 @@ test("Mini App is a new minimal interface with only market, price, lamp and coun
  assert.ok(drawerStart>0);
  const home=body.slice(0,drawerStart),drawer=body.slice(drawerStart);
  for(const id of ["api","price","age","lampShell","signal","hint","candle","expiry","menuButton"])assert.match(home,new RegExp('id="'+id+'"'));
- for(const id of ["monitorToggle","soundEnable","engineSignal","ema5","ema20","atr14","apiKeys","reason"])assert.match(drawer,new RegExp('id="'+id+'"'));
+ for(const id of ["monitorToggle","soundEnable","engineSignal","ema5","ema20","atr14","apiKeys","reason","trendCard","manualLampToggle","manualLampStatus"])assert.match(drawer,new RegExp('id="'+id+'"'));
  assert.match(home,/EUR \/ USD/);
  assert.doesNotMatch(home,/ENGINE 3|EMA 5|SOUND & HAPTICS|CONTROL CENTER|API POOL STATUS/);
  assert.match(html,/class="lamp-shell"/);
@@ -35,7 +35,7 @@ test("Manual stop and restart remain available only in the menu",()=>{
 test("Mini App retains Engine 3 native Twelve Data diagnostics in the menu",()=>{
  for(const id of ["engineSignal","regime","ema5","ema20","atr14","candles","reason","apiSummary","apiPool","apiKeys"])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/ENGINE 3 · TREND RIDER/);
- assert.match(html,/Twelve Data/);
+ assert.match(html,/Twelve Data/);\n assert.match(html,/signalRadarManualLampColor/);\n assert.match(html,/แยกจากสัญญาณจริง/);
  assert.match(serverJs,/fetchTrendEma5/);
  assert.match(serverJs,/fetchEma20/);
  assert.match(serverJs,/fetchAtr14/);
