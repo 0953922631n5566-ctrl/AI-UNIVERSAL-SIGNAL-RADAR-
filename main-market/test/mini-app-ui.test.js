@@ -120,7 +120,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
-  assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
+  assert.match(serverJs, /analyzeEarlyEntryEngine4\(engine4AnalysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
   assert.match(serverJs, /engine4DecisionMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"/);
