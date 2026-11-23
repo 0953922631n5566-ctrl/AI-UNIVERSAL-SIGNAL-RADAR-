@@ -150,7 +150,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 
   }
   assert.match(html, /signalRadarEngineLightInverted/);
   assert.doesNotMatch(html, /data-light-toggle="ENGINE_4"/);
-  assert.match(html, /#engine4Card\\{--call-color:#39e879;--call-glow:#39e87988;--put-color:#ff535b;--put-glow:#ff535b88\\}/);
+  assert.ok(html.includes("#engine4Card{--call-color:#39e879;--call-glow:#39e87988;--put-color:#ff535b;--put-glow:#ff535b88}"));
   assert.match(html, /เขียว=เหนือ · แดง=ใต้/);
   assert.match(serverJs, /colors: \\{ CALL: "GREEN", PUT: "RED" \\}/);
   assert.match(html, /function toggleEngineLight/);
