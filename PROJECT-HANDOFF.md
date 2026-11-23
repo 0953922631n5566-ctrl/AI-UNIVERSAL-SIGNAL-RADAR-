@@ -2203,3 +2203,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Existing shared data-quality/fresh-live-price guard, T-5 finalization, next-M1 target, one-signal-per-candle dedupe, 30-second hold, sound/vibration, and manual-only/no-broker behavior are retained.
 - Engine 4 card receives a functional data-light-toggle button. Its default mapping remains CALL=green / PUT=red; the button toggles the color mapping like Engines 1–3. The existing card on/off toggle remains independent.
 - Validation, CI, PR merge, Render deployment, live /health and /api/public/signal, and Telegram device verification are pending. Do not describe the change as deployed until those checks are complete.
+
+
+## 2026-11-23 — Post-deploy timing metadata correction
+
+- Production verification confirmed the existing Engine 4 dispatch contract is the first 5 seconds of the target M1 candle (using the fresh live tick), not the shared T-5 finalization window used by Engines 1–3. This behavior was intentionally preserved; no timing behavior was changed by the AO replacement.
+- Corrected Engine 4 metadata, Mini App explanatory copy, alert ID suffix, and strategy identifier to accurately report NEXT_M1_OPEN / TARGET_M1_OPEN_TO_PLUS_5S.
+- Engine 4 computes AO from 33 closed M1 candles plus the current live M1 preview (34 median-price samples total).
