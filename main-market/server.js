@@ -386,7 +386,7 @@ async function evaluate(feed) {
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: null,
        entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "TARGET_OPEN_AO_5_34" : "NORMAL"}`
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_AO_5_34" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -528,14 +528,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN",
+   engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1",
    engine4UsesClosedCandlesOnly: false,
    engine4LookbackClosedCandles: 33,
    engine4DirectionSource: "AWESOME_OSCILLATOR_5_34_MEDIAN_PRICE_ONLY",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Awesome Oscillator 5/34 เพียงตัวเดียว: AO เหนือเส้นศูนย์ = CALL, AO ใต้เส้นศูนย์ = PUT, เท่ากับศูนย์ = ไม่มีสัญญาณ · ไม่มีคะแนนหรืออินดิเคเตอร์อื่น · แจ้งเตือนใน 5 วินาทีแรกของแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Awesome Oscillator 5/34 เพียงตัวเดียว: AO เหนือเส้นศูนย์ = CALL, AO ใต้เส้นศูนย์ = PUT, เท่ากับศูนย์ = ไม่มีสัญญาณ · ไม่มีคะแนนหรืออินดิเคเตอร์อื่น · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1190,9 +1190,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; DISPATCH_FIRST_5S_OF_TARGET_M1", input: "LIVE_M1_OHLC_PLUS_33_CLOSED_M1_CONTEXT", decisionWindow: "TARGET_M1_OPEN_TO_PLUS_5S", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_33_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_AO_5_34_NEXT_M1_OPEN"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_AO_5_34_T5_NEXT_M1"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
