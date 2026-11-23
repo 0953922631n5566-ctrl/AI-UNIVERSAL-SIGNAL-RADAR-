@@ -141,7 +141,7 @@ test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () =
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses wick-only rules without scoring", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses adaptive Trend/Sideway rules without scoring", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
@@ -170,7 +170,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses wick-o
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 21/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /emaPeriods: [8, 21]/);
+  assert.match(serverJs, /emaPeriods: \\[8, 21\\]/);
   assert.ok(serverJs.includes('scoring: "DISABLED"'));
   assert.match(serverJs, /scoring: "DISABLED"/);
   assert.match(serverJs, /emaFast: 5/);
@@ -200,7 +200,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 ada
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "LIVE_M1_WICK_ONLY_T5"/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE"\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
