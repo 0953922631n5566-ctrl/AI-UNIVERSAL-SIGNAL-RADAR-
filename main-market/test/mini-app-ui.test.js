@@ -66,7 +66,7 @@ test("Only BB and Trend Rider can be enabled from the Mini App", () => {
   assert.match(html, /\$\("bbEnabled"\)/);
   assert.match(html, /\$\("trendEnabled"\)/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
-  assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
+  assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);\n  assert.match(serverJs, /key === "BB" \|\| key === "TREND_RIDER" \? requested\[key\] : false/);
 });
 
 test("Mini App is fixed to EUR/USD M1 and keeps manual-only execution", () => {
