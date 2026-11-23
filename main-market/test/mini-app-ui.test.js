@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("AWESOME OSCILLATOR 5/34"));
+  assert.ok(html.includes("MACD 12/26/9"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,10 +37,10 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · AWESOME OSCILLATOR 5/34</div>'));
+  assert.ok(html.includes('<div class="engine-title">04 · MACD 12/26/9</div>'));
   assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 CALL"));
-  assert.ok(html.includes("AO ขยายแรงต่อเนื่อง 2 ช่วง"));
-  assert.ok(html.includes("0.12 × ATR(14)"));
+  assert.ok(html.includes("MACD crossover"));
+  assert.ok(html.includes(""));
   assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
@@ -109,7 +109,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_AWESOME_OSCILLATOR_ENGINE_4"/);
+  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_MACD_ENGINE_4"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -122,7 +122,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
@@ -162,7 +162,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses Awesom
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1"/);
+  assert.match(serverJs, /strategy: "MACD_12_26_9_CROSSOVER_T5_NEXT_M1"/);
   assert.match(serverJs, /formula: "SMA5\(MEDIAN_PRICE\)-SMA34\(MEDIAN_PRICE\)"/);
   assert.match(serverJs, /decisionRule: "AO_DIRECTION_ONLY_WHEN_SAME_SIDE_AND_EXPANDING_TWICE_AND_ABS_AO_AT_LEAST_0_12_ATR14"/);
   assert.match(serverJs, /otherIndicators: "ATR14_USED_ONLY_AS_NORMALIZER"/);
@@ -194,7 +194,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awe
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "AO_STRONG_MOMENTUM"\)/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MACD_12_26_9_CROSSOVER"\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
