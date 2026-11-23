@@ -301,43 +301,44 @@ async function evaluate(feed) {
      : { ready: false, signal: null, score: 0, status: "SOURCE_LOCKED",
          reason: "Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด" };
  const engine4Pending = feed.engine4PendingForecast;
- const engine4SourceReady = Boolean(currentCandle?.live === true) && Number.isFinite(tickAge) &&
-   tickAge >= 0 && tickAge <= 5;
+ const engine4SourceReady = Boolean(currentCandle?.live === true) &&
+   Number.isFinite(tickAge) && tickAge >= 0 && tickAge <= 5 &&
+   latestClosed?.epoch + 60 === currentCandle.epoch;
  const wallClockCandleEpoch = Math.floor(now / 60_000) * 60;
  const engine4PendingTargetWindowOpen = Boolean(engine4Pending &&
+   engine4Pending.targetCandleEpoch === currentCandle?.epoch &&
    isEngine4EntryWindow(engine4Pending.targetCandleEpoch, now));
  let engine4Raw;
  if (!engineEnabled.ENGINE_4) {
    feed.engine4PendingForecast = null;
-   engine4Raw = { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" };
+   engine4Raw = { ready:false, signal:null, candidateSignal:null, score:0, status:"DISABLED",
+     reason:"Engine 4 ปิดการทำงานจาก Mini App" };
  } else if (engine4PendingTargetWindowOpen) {
-   engine4Raw = { ...engine4Pending, ready: true, decisionMade: true,
-     signal: engine4Pending.signal, candidateSignal: engine4Pending.signal,
-     status: "NEXT_M1_ENTRY_READY", reason: "พบจังหวะจากแท่งก่อนหน้าแล้ว · พร้อมส่งสัญญาณในช่วง 5 วินาทีแรกของแท่งนี้" };
- } else if (engine4Pending && engine4Pending.targetCandleEpoch > wallClockCandleEpoch) {
-   engine4Raw = { ...engine4Pending, ready: true, decisionMade: true,
-     signal: engine4Pending.signal, candidateSignal: engine4Pending.signal,
-     status: "WAITING_FOR_NEXT_M1_OPEN", reason: "ล็อกจังหวะได้แล้ว · เตรียมเข้าแท่ง M1 ถัดไปเมื่อเริ่มต้น" };
+   engine4Raw = { ...engine4Pending, ready:true, decisionMade:true,
+     signal:engine4Pending.signal, candidateSignal:engine4Pending.signal,
+     status:"NEXT_M1_ENTRY_READY",
+     reason:"ยืนยันจากแท่ง M1 ที่ปิดแล้ว · พร้อมเข้าแท่งถัดไปในช่วงเปิดแท่ง" };
  } else {
    if (engine4Pending && engine4Pending.targetCandleEpoch <= wallClockCandleEpoch)
      feed.engine4PendingForecast = null;
    engine4Raw = engine4SourceReady
-     ? analyzeEarlyEntryEngine4([], { now, liveCandle: currentCandle, currentPrice: feed.lastTick })
-     : { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED",
-         reason: "Engine 4 ต้องมีแท่ง M1 ปัจจุบันและ Streaming สดภายใน 5 วินาที" };
-   if (engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)) {
+     ? analyzeEarlyEntryEngine4(closedCandles, { closedCandle:latestClosed })
+     : { ready:false, signal:null, candidateSignal:null, score:0, status:"SOURCE_LOCKED",
+         reason:"รอแท่ง M1 ปิดสมบูรณ์และราคา Streaming สดของแท่งถัดไป" };
+   if (engine4Raw.ready && ["CALL","PUT"].includes(engine4Raw.signal)) {
      feed.engine4PendingForecast = { ...engine4Raw,
-       sourceCandleEpoch, targetCandleEpoch: sourceCandleEpoch + 60,
-       signal: engine4Raw.signal, candidateSignal: engine4Raw.signal };
-     engine4Raw = { ...feed.engine4PendingForecast, status: "WAITING_FOR_NEXT_M1_OPEN",
-       reason: "พบจังหวะจากแรงราคาในแท่งปัจจุบันแล้ว · ล็อกทิศทางสำหรับแท่ง M1 ถัดไป" };
+       sourceCandleEpoch:latestClosed.epoch,targetCandleEpoch:latestClosed.epoch+60,
+       signal:engine4Raw.signal,candidateSignal:engine4Raw.signal };
+     engine4Raw = { ...feed.engine4PendingForecast,status:"NEXT_M1_ENTRY_READY",
+       reason:"แท่ง M1 ก่อนหน้าปิดยืนยันแล้ว · สัญญาณสำหรับแท่ง M1 ที่เพิ่งเริ่ม" };
    }
  }
  const engine4TargetReady = Boolean(feed.engine4PendingForecast &&
+   feed.engine4PendingForecast.targetCandleEpoch === currentCandle?.epoch &&
    isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
 const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: "LIVE_M1_BODY_MOMENTUM",
+       analysisMode: "CLOSED_M1_BODY_CONFIRMATION",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -412,7 +413,7 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
        score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: engine4Entry ? (Number.isFinite(feed.lastTick) ? feed.lastTick : Number.isFinite(selectedCandidate.entryPrice) ? selectedCandidate.entryPrice : null) : null,
-       entryPriceBasis: engine4Entry ? "LATEST_FRESH_STREAM_TICK_AT_TARGET_M1_OPEN_WINDOW" : "TARGET_M1_CANDLE_OPEN",
+       entryPriceBasis: engine4Entry ? "FIRST_FRESH_STREAM_TICK_OF_NEXT_M1" : "TARGET_M1_CANDLE_OPEN",
        alertId: engine4Entry ? `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:NEXT_M1` : `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:NORMAL`
      };
      if (engine4Entry) { active.expiresAt = signalHoldExpiresAt(signalTargetEpoch); feed.engine4PendingForecast = null; }
@@ -431,7 +432,7 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
    engineResults[engine] = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? "LIVE_M1_BODY_MOMENTUM_TO_NEXT_M1" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? "CLOSED_M1_BODY_CONFIRMATION_TO_NEXT_M1" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -449,7 +450,7 @@ const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.si
      signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
      signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null,
       entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
-      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "FIRST_STREAM_TICK_OF_TARGET_M1" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
+      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "FIRST_FRESH_STREAM_TICK_OF_NEXT_M1" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
    };
  }
 
@@ -549,14 +550,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY",
-   engine4UsesClosedCandlesOnly: false,
-   engine4LookbackClosedCandles: 0,
-   engine4DirectionSource: "CURRENT_FORMING_M1_BODY_STRENGTH_AND_CLOSE_LOCATION",
+   engine4DecisionMode: "CLOSED_M1_TO_NEXT_M1_ENTRY",
+   engine4UsesClosedCandlesOnly: true,
+   engine4LookbackClosedCandles: 1,
+   engine4DirectionSource: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 อ่าน OHLC ของแท่ง M1 ปัจจุบันแบบสดโดยไม่รอแท่งปิดย้อนหลัง 3 แท่ง · เมื่อตรวจพบ Body และตำแหน่งปิดแท่งมีแรงชัด จะล็อก CALL/PUT สำหรับแท่ง M1 ถัดไป · ส่งสัญญาณใน 5 วินาทีแรกของแท่งเป้าหมายและคงสัญญาณ 30 วินาที · หาก Body สั้นหรือราคาปิดไม่ใกล้ปลายแท่งจะงดสัญญาณ · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 วิเคราะห์ OHLC จากแท่ง M1 ที่ปิดสมบูรณ์ล่าสุดเพียง 1 แท่ง · หาก Body และตำแหน่งปิดผ่านเกณฑ์ จะส่ง CALL/PUT ในช่วง 5 วินาทีแรกของแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · เป็นสัญญาณแจ้งเตือนสำหรับผู้ใช้ตัดสินใจเอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1223,7 +1224,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY", minimumClosedCandles: 0, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumBodyRangeRatio: 0.55, minimumDirectionalCloseLocation: 0.72, minimumScore: 65 }, decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
+      engine4: { independent: true, copiedFrom: null, strategy: "CLOSED_M1_TO_NEXT_M1_ENTRY", minimumClosedCandles: 1, lookbackClosedCandles: 0, cadence: "LIVE_M1_TICK_REACTIVE_AND_LATCH_NEXT_M1", input: "LATEST_COMPLETED_M1_OHLC_BODY_AND_CLOSE_LOCATION", decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_[0,5S)", thresholds: { minimumBodyPips: 0.4, minimumBodyRangeRatio: 0.55, minimumDirectionalCloseLocation: 0.72, minimumScore: 65 }, decisionRule: "CALL_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LAST_CLOSED_M1_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL", closedCandleMovement: "NOT_USED_FOR_DIRECTION", closedCandleConfirmation: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "RED", PUT: "GREEN" }, confidenceCalibration: "RULE_BASED_STRENGTH_NOT_CALIBRATED_PROBABILITY" },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_T5_PLUS_ENGINE_4_LIVE_M1_MOMENTUM_NEXT_M1_ENTRY"
     },
