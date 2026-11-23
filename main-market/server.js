@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 LIVE M1 WICK ONLY T-5";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-LIVE-M1-WICK-ONLY-T5";
-const VERSION = "2026-11-23-engine4-live-m1-wick-only-t5-v1";
+const SYSTEM_NAME = "BB PURE SCALPER + TREND RIDER ONLY";
+const ARCHITECTURE_ID = "BB-TREND-RIDER-TWO-INDEPENDENT-ENGINES";
+const VERSION = "2026-11-23-two-engine-fullscreen-miniapp-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -77,7 +77,7 @@ let liveAnalysisPending = false;
 let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
-const engineEnabled = { V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true };
+const engineEnabled = { V1: false, BB: true, TREND_RIDER: true, ENGINE_4: false };
 const ENGINE_KEYS = Object.keys(engineEnabled);
 
 function standby(reason, extra = {}) {
@@ -1158,7 +1158,7 @@ app.post("/api/telegram/engines", requireTelegramSession, rateLimitControl, asyn
     return res.status(400).json({ ok: false, error: "ต้องระบุสถานะเปิด/ปิดของเครื่องยนต์ทั้ง 4 ตัว" });
   }
   for (const key of ENGINE_KEYS) {
-    engineEnabled[key] = requested[key];
+    engineEnabled[key] = key === "BB" || key === "TREND_RIDER" ? requested[key] : false;
     if (!engineEnabled[key] && key !== "ENGINE_4") {
       for (const feed of feeds.values()) {
         if (feed.engineActive) feed.engineActive[key] = null;
@@ -1184,19 +1184,19 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_INDEPENDENT", engines: 4,
-      decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
+      decisionEngine: "BB_PURE_SCALPER_PLUS_TREND_RIDER_ONLY", engines: 2,
+      decisionAuthority: "TWO_INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_WICK_ONLY_T5_NEXT_M1", minimumClosedCandles: 0, lookbackClosedCandles: 0, emaPeriod: null, cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5_WITH_ENGINES_1_TO_3", input: "CURRENT_LIVE_M1_UPPER_WICK_VS_LOWER_WICK_ONLY", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", scoring: "DISABLED", decisionRule: "LOWER_WICK_LONGER_CALL_GREEN; UPPER_WICK_LONGER_PUT_RED; EQUAL_NO_SIGNAL", closedCandleConfirmation: "LIVE_CANDLE_WICK_COMPARISON_ONLY_NO_EMA_NO_SCORE", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
-      independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_LIVE_WICK_T5_NEXT_M1"
+      engine4: { enabled: false, role: "DISABLED_NOT_IN_ACTIVE_SIGNAL_PATH" },
+      independentEngineToggles: { supported: true, keys: ["BB", "TREND_RIDER"], disabledMeansAnalysisAndSignalsStopped: true },
+      signalDecisionPath: "BB_AND_TREND_RIDER_INDEPENDENT_SIGNALS_ONLY"
     },
     analyzer: {
-      provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
-      role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
+      provider: "LOCAL_BB_PURE_SCALPER_PLUS_TREND_RIDER_ONLY", model: null, configured: true,
+      role: "TWO_ACTIVE_INDEPENDENT_ANALYSTS", externalAiCalls: false,
       closedCandlesOnly: false, liveCandlePreview: true,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER", localDirectionalFallback: true,
@@ -1210,7 +1210,7 @@ app.get("/health", (_req, res) => {
       enabled: false, mode: "DISABLED", status: "ORIGINAL_INDEPENDENT_ANALYZERS",
       strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER",
       altersMiniApp: false, badgeText: null, martingale: false,
-      independentEngines: ENGINE_KEYS
+      independentEngines: ["BB", "TREND_RIDER"]
     },
     configuration: {
       telegramMiniAppAuthConfigured: false,
