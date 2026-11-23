@@ -164,7 +164,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses adapti
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: ENGINE4_STRATEGY/);
-  assert.match(serverJs, /provider: "TWELVE_DATA_EMA_ENDPOINT"/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_M1_OHLC_EMA5_AND_STREAMING"/);
   assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
   assert.match(serverJs, /refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS/);
   assert.match(serverJs, /estimatedEmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
