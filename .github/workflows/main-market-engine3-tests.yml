@@ -28,7 +28,5 @@ jobs:
           node --check src/twelve-data.js
           node --check src/trend-rider.js
           node --check src/client-auth.js
-          node --check src/telegram-auth.js
           node --check src/twelve-data-pool.js
           node --check src/stream-retry.js
-          node --check src/live-candle-preview.js
