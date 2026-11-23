@@ -167,7 +167,7 @@ test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 
   assert.match(serverJs, /minimumClosedCandles: 20/);
   assert.match(serverJs, /minimumBodyPips: 0\.4/);
   assert.match(serverJs, /emaSlow: 20/);
-  assert.match(serverJs, /scoreWeights: \\{ emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 \\}/);
+  assert.ok(serverJs.includes("scoreWeights: { emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 }"));
   assert.match(serverJs, /minimumScore: 40/);
   assert.match(serverJs, /emaFast: 5/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
