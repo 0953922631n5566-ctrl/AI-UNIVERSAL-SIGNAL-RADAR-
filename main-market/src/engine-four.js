@@ -44,8 +44,8 @@ export function analyzeEarlyEntryEngine4({
   const pip = pipSize(symbol);
   const proximity = pip * ENGINE4_PULLBACK_PROXIMITY_PIPS;
   const bounce = pip * ENGINE4_BOUNCE_CONFIRM_PIPS;
-  const sameTrend = state?.direction === direction && state?.emaEpoch === latest.epoch;
-  let nextState = sameTrend ? { ...state } : {
+  const sameTrend = state?.direction === direction;
+  let nextState = sameTrend ? { ...state, emaEpoch: latest.epoch } : {
     direction, emaEpoch: latest.epoch, phase: "WAIT_TREND_SIDE",
     extremePrice: null, triggeredCandleEpoch: null
   };

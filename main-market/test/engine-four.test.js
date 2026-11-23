@@ -62,3 +62,40 @@ test("only one Engine 4 signal is permitted per M1 candle", () => {
   assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1002), emaValues: emaUp, state }).status,
     "EMA5_ALREADY_TRIGGERED_THIS_CANDLE");
 });
+
+test("an armed pullback survives the next EMA5 refresh when slope direction stays the same", () => {
+  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
+  const nextMinute = source + 60;
+  const nextNow = now + 60000;
+  const refreshed = [
+    { epoch: source - 60, ema: 1.10010 },
+    { epoch: source, ema: 1.10020 }
+  ];
+  result = analyzeEarlyEntryEngine4({
+    emaValues: refreshed, livePrice: 1.10024, tickAt: nextNow, now: nextNow,
+    sourceCandleEpoch: nextMinute, symbol: "EUR/USD", state: result.nextState
+  });
+  assert.equal(result.ready, true);
+  assert.equal(result.signal, "CALL");
+});
+
+test("JPY pairs use 0.01 pip sizing for pullback and rebound distances", () => {
+  const jpyEma = [{ epoch: source - 120, ema: 150.02 }, { epoch: source - 60, ema: 150.01 }];
+  let result = analyzeEarlyEntryEngine4({
+    ...tick(149.99), symbol: "USD/JPY", emaValues: jpyEma
+  });
+  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
+  result = analyzeEarlyEntryEngine4({
+    ...tick(150.006), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
+  });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({
+    ...tick(150.008), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
+  });
+  result = analyzeEarlyEntryEngine4({
+    ...tick(150.003), symbol: "USD/JPY", emaValues: jpyEma, state: result.nextState
+  });
+  assert.equal(result.ready, true);
+  assert.equal(result.signal, "PUT");
+});
