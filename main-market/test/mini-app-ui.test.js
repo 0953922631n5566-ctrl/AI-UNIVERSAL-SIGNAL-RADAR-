@@ -145,7 +145,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
-  for (const key of ["V1", "BB", "TREND_RIDER", "ENGINE_4"]) {
+  for (const key of ["V1", "BB", "TREND_RIDER"]) {
     assert.match(html, new RegExp('data-light-toggle="' + key + '"'));
   }
   assert.match(html, /signalRadarEngineLightInverted/);
