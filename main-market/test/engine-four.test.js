@@ -76,7 +76,7 @@ test("requires 36 valid M1 samples including the live preview for momentum confi
   const short = makeHistory({ count: 32 });
   const live = liveCandle();
   assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status,
-    "INSUFFICIENT_HISTORY");
+    "INSUFFICIENT_MOMENTUM_HISTORY");
   assert.equal(analyzeEarlyEntryEngine4([], { liveCandle: { ...live, provisional: false } }).status,
     "LIVE_M1_PREVIEW_NOT_READY");
 });
