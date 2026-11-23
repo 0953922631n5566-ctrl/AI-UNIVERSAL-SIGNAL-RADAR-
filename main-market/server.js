@@ -41,7 +41,7 @@ const wss = new WebSocketServer({ noServer: true });
 
 function newFeed(symbol) {
   return {
-    symbol, candles: [], lastTick: null, tickAt: 0, engine4TickStats: { candleEpoch: null, firstPrice: null, previousPrice: null, upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: [] }, engine4DecisionCandle: null, streamApiKey: null, subscribeAt: 0,
+    symbol, candles: [], lastTick: null, tickAt: 0, engine4DecisionCandle: null, streamApiKey: null, subscribeAt: 0,
     restStatus: "NOT_CHECKED", restMessage: "ยังไม่ได้ตรวจสอบ REST",
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
@@ -604,32 +604,7 @@ function applyTick(feed, price, epoch) {
     return;
   }
 
-  // Engine 4 accumulates every positive and negative tick-to-tick move from the
-  // current M1 open through T-5; T-10 is provisional PREPARE, T-5 is final.
-  const elapsedInMinute = epoch - minute;
-  let tickStats = feed.engine4TickStats;
-  if (!tickStats || tickStats.candleEpoch !== minute) {
-    const currentCandle = feed.candles.at(-1);
-    const openingPrice = currentCandle?.epoch === minute && Number.isFinite(currentCandle.open)
-      ? currentCandle.open : price;
-    tickStats = { candleEpoch: minute, firstPrice: null, previousPrice: openingPrice,
-      upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: [] };
-    feed.engine4TickStats = tickStats;
-    feed.engine4DecisionCandle = null;
-  }
-  if (elapsedInMinute >= 0 && elapsedInMinute < 55) {
-    if (!Number.isFinite(tickStats.firstPrice)) tickStats.firstPrice = price;
-    const delta = price - tickStats.previousPrice;
-    if (delta > 0) tickStats.upMovement += delta;
-    else if (delta < 0) tickStats.downMovement += Math.abs(delta);
-    tickStats.previousPrice = price;
-    tickStats.totalTicks += 1;
-    const sampleAt = Date.now();
-    tickStats.recentSamples.push({ at: sampleAt, price });
-    tickStats.recentSamples = tickStats.recentSamples
-      .filter(sample => sample.at >= sampleAt - 5_000).slice(-100);
-  }
-
+  // Engine 4 uses only completed M1 OHLC candles; no intrabar tick path is accumulated.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
