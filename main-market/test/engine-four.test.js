@@ -10,26 +10,24 @@ function candle(epoch, close, provisional = false) {
   return { epoch, open: close, high: close + 0.00002, low: close - 0.00002,
     close, live: false, provisional };
 }
-function reversalCandles(direction) {
+function trendCandles(direction) {
   const history = [];
-  for (let i = 0; i < 34; i++) {
+  for (let i = 0; i < 73; i++) {
     const close = direction === "CALL" ? 1.1 - i * 0.0001 : 1.1 + i * 0.0001;
-    history.push(candle(source - (34 - i) * 60, close));
+    history.push(candle(source - (73 - i) * 60, close));
   }
-  const liveClose = 1.1;
-  const live = candle(source, liveClose, true);
-  return { history, live };
+  return history;
 }
+function liveAt(close) { return candle(source, close, true); }
 
-test("MACD 12/26/9 bullish crossover produces CALL for the next M1 candle without scores", () => {
-  const { history, live } = reversalCandles("CALL");
+test("MACD bullish crossover produces CALL without score fields", () => {
+  const history = trendCandles("CALL"), live = liveAt(1.1);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
-  assert.equal(result.candidateSignal, "CALL");
   assert.equal(result.status, "MACD_BULLISH_CROSS");
+  assert.equal(result.trigger, "CROSSOVER");
   assert.deepEqual(result.metrics.periods, { fast: 12, slow: 26, signal: 9 });
-  assert.ok(result.metrics.macdLine > result.metrics.signalLine);
   assert.equal(result.targetCandleEpoch, target);
   assert.equal(result.strategy, ENGINE4_STRATEGY);
   for (const key of ["score", "confidence", "candidateScore", "momentumPercent"]) {
@@ -37,28 +35,55 @@ test("MACD 12/26/9 bullish crossover produces CALL for the next M1 candle withou
   }
 });
 
-test("MACD 12/26/9 bearish crossover produces PUT for the next M1 candle", () => {
-  const { history, live } = reversalCandles("PUT");
+test("MACD bearish crossover produces PUT without score fields", () => {
+  const history = trendCandles("PUT"), live = liveAt(1.1);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "PUT");
   assert.equal(result.status, "MACD_BEARISH_CROSS");
-  assert.ok(result.metrics.macdLine < result.metrics.signalLine);
+  assert.equal(result.trigger, "CROSSOVER");
 });
 
-test("MACD without a crossover stays STANDBY", () => {
-  const history = [];
-  for (let i = 0; i < 40; i++) history.push(candle(source - (40 - i) * 60, 1.1 + i * 0.0001));
-  const live = candle(source, 1.104, true);
+test("MACD close to Signal from below produces early CALL before crossing", () => {
+  const history = Array.from({ length: 73 }, (_, i) =>
+    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
+  const live = liveAt(history.at(-1).close + 0.000258);
+  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+  assert.equal(result.ready, true);
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.trigger, "HISTORICAL_PROXIMITY");
+  assert.equal(result.status, "MACD_APPROACHING_FROM_BELOW");
+  assert.ok(result.metrics.macdLine < result.metrics.signalLine);
+  assert.ok(result.metrics.absoluteGap <= result.metrics.historicalProximityThreshold);
+  assert.equal(result.metrics.historicalSamples, 40);
+});
+
+test("MACD close to Signal from above produces early PUT before crossing", () => {
+  const history = Array.from({ length: 73 }, (_, i) =>
+    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
+  const live = liveAt(history.at(-1).close - 0.000258);
+  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+  assert.equal(result.ready, true);
+  assert.equal(result.signal, "PUT");
+  assert.equal(result.trigger, "HISTORICAL_PROXIMITY");
+  assert.equal(result.status, "MACD_APPROACHING_FROM_ABOVE");
+  assert.ok(result.metrics.macdLine > result.metrics.signalLine);
+});
+
+test("MACD far from Signal remains STANDBY", () => {
+  const history = Array.from({ length: 73 }, (_, i) =>
+    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
+  const live = liveAt(history.at(-1).close + 0.0002);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, false);
   assert.equal(result.signal, null);
-  assert.equal(result.status, "MACD_NO_CROSS");
+  assert.equal(result.status, "MACD_NOT_NEAR_SIGNAL");
 });
 
-test("requires 35 valid M1 samples and a live preview", () => {
-  const short = Array.from({ length: 33 }, (_, i) => candle(source - (33 - i) * 60, 1.1 + i * 0.0001));
-  const live = candle(source, 1.104, true);
+test("requires 74 M1 samples including a live preview and 40 historical gaps", () => {
+  const short = Array.from({ length: 72 }, (_, i) =>
+    candle(source - (72 - i) * 60, 1.1 + 0.0001 * i));
+  const live = liveAt(1.1072);
   assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status,
     "INSUFFICIENT_MACD_HISTORY");
   assert.equal(analyzeEarlyEntryEngine4([], { liveCandle: { ...live, provisional: false } }).status,
