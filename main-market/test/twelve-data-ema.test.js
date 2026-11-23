@@ -30,3 +30,26 @@ test("fetchMomentum9 fails over to the next Twelve Data key after a quota respon
  }});
  assert.deepEqual(attempts,["key-1","key-2"]);assert.deepEqual(failures,[{key:"key-1",kind:"RATE_LIMIT"}]);assert.deepEqual(successes,["key-2"]);assert.equal(r.values.length,2);
 });
+
+import { fetchTrendEma5, fetchEma20, fetchAtr14 } from "../src/twelve-data.js";
+const fourClosed=[
+ {datetime:"2026-11-23 12:01:00",ema:"1.1004",atr:"0.00014"},
+ {datetime:"2026-11-23 12:00:00",ema:"1.1003",atr:"0.00013"},
+ {datetime:"2026-11-23 11:59:00",ema:"1.1002",atr:"0.00012"},
+ {datetime:"2026-11-23 11:58:00",ema:"1.1001",atr:"0.00011"}
+];
+test("Engine 3 requests native EMA5 and EMA20 from Twelve Data",async()=>{
+ const seen=[];
+ for(const [fn,period] of [[fetchTrendEma5,5],[fetchEma20,20]]){
+  const result=await fn({keyPool,now,fetchImpl:async url=>{const u=new URL(url);seen.push({path:u.pathname,period:u.searchParams.get("time_period")});return{ok:true,status:200,json:async()=>({status:"ok",values:fourClosed.map(x=>({datetime:x.datetime,ema:x.ema}))})};}});
+  assert.equal(result.values.length,4);assert.equal(result.period,period);
+ }
+ assert.deepEqual(seen,[{path:"/ema",period:"5"},{path:"/ema",period:"20"}]);
+});
+test("Engine 3 requests native ATR14 from Twelve Data without local calculation",async()=>{
+ let request;
+ const result=await fetchAtr14({keyPool,now,fetchImpl:async url=>{request=new URL(url);return{ok:true,status:200,json:async()=>({status:"ok",values:fourClosed.map(x=>({datetime:x.datetime,atr:x.atr}))})};}});
+ assert.equal(request.pathname,"/atr");assert.equal(request.searchParams.get("time_period"),"14");
+ assert.equal(request.searchParams.has("series_type"),false);assert.equal(result.values.length,4);
+ assert.equal(result.values.at(-1).atr,.00014);
+});
