@@ -227,13 +227,12 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
   feed.preAlertCandle = null;
   feed.alertId = null;
   feed.analysis = standby(reason);
-  feed.engine4PullbackState = null;
 }
 
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
+  feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
   feed.analysis = standby(reason);
   feed.streamMessage = reason;
@@ -695,7 +694,7 @@ function startStream() {
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
     feed.activeSignal = null;
-    feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+    feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
     void evaluate(feed).then(publish).catch(error => console.error("[radar] stream analysis failed", error.message));
     if (monitoring) retryTimer = setTimeout(startStream, 1000);
@@ -928,26 +927,7 @@ app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
 });
-app.post("/api/telegram/engines", requireTelegramSession, rateLimitControl, async (req, res) => {
-  const requested = req.body?.engines;
-  if (!requested || typeof requested !== "object" || Array.isArray(requested) ||
-      ENGINE_KEYS.some(key => typeof requested[key] !== "boolean")) {
-    return res.status(400).json({ ok: false, error: "ต้องระบุสถานะของ Engine 3" });
-  }
-  for (const key of ENGINE_KEYS) {
-    engineEnabled[key] = requested[key];
-    if (!engineEnabled[key] && key !== "ENGINE_4") {
-      for (const feed of feeds.values()) {
-        if (feed.engineActive) feed.engineActive[key] = null;
-      }
-    }
-  }
-  const feed = feeds.get(selectedSymbol);
-  if (feed) await evaluate(feed);
-  publish();
-  noCache(res);
-  res.json({ ok: true, engineEnabled: { ...engineEnabled }, market: snapshot() });
-});
+
 app.get("/control", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "control.html")); });
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
