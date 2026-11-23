@@ -37,7 +37,7 @@ test("strong expanding AO 5/34 above zero produces CALL for the next M1 candle",
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
   assert.equal(result.candidateSignal, "CALL");
-  assert.equal(result.analysisMode, "AO_ZERO_LINE");
+  assert.equal(result.analysisMode, "AO_STRONG_MOMENTUM");
   assert.equal(result.metrics.aoPeriod.fast, 5);
   assert.equal(result.metrics.aoPeriod.slow, 34);
   assert.ok(result.metrics.awesomeOscillator > 0);
@@ -72,7 +72,7 @@ test("AO exactly on zero line does not invent a direction", () => {
   assert.equal(result.signal, null);
 });
 
-test("requires 34 valid M1 samples including the live preview", () => {
+test("requires 36 valid M1 samples including the live preview for momentum confirmation", () => {
   const short = makeHistory({ count: 32 });
   const live = liveCandle();
   assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status,
