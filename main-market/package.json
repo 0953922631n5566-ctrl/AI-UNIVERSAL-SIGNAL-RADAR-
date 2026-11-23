@@ -32,7 +32,7 @@
       "derivedIndicators": [],
       "regimes": ["TREND_PULLBACK_OR_BREAKOUT", "SIDEWAY_BAND_REJECTION"],
       "trendAdxMinimum": 14,
-      "apiCreditsPerMinuteForEngine4Indicator": 1,
+      "apiCreditsPerMinuteForEngine4Indicator": 2,
       "emaRefreshSeconds": 60,
       "decisionWindow": "IMMEDIATE_ON_CONFIRMED_LIVE_SETUP",
       "oneSignalPerM1Candle": true,
