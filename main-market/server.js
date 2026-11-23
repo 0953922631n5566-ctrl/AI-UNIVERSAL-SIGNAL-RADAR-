@@ -46,7 +46,6 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    forecastHistory: [],
     engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
     engine3IndicatorsPromise: null,
     engineActive: { TREND_RIDER: null },
@@ -92,16 +91,6 @@ function feedStatus(feed) {
   return feed.tickAt ? "STALE" : "REST_ONLY";
 }
 
-function forecastStats(feed) {
-  const rows = Array.isArray(feed.forecastHistory) ? feed.forecastHistory : [];
-  const wins = rows.filter(x => x.outcome === "WIN").length;
-  const losses = rows.filter(x => x.outcome === "LOSS").length;
-  const neutral = rows.filter(x => x.outcome === "FLAT").length;
-  const decided = wins + losses;
-  return { sample: rows.length, wins, losses, neutral,
-    winRate: decided ? Math.round(wins / decided * 1000) / 10 : null,
-    note: "Observed next-M1 entry-to-close outcomes; not a guarantee or backtest" };
-}
 
 function publicFeed(feed) {
   const status = feedStatus(feed);
@@ -149,8 +138,6 @@ function publicFeed(feed) {
     signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
-    forecastStats: forecastStats(feed),
-    recovery: { enabled: false, mode: "DISABLED", martingale: false },
     preAlertSignal: feed.preAlertSignal,
     indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
     source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + live-price Streaming"
@@ -475,7 +462,7 @@ function scheduleLiveAnalysis(feed) {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Local safety cadence supports the same live-candle T-5 finalization for all engines.
+  // Local safety cadence keeps the single Trend Rider analysis aligned to M1 timing.
   signalTimer = setInterval(() => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
