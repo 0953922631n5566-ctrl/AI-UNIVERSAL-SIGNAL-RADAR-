@@ -21,7 +21,7 @@ test("Manual red green switch is independent from the actual signal lamp",()=>{
 test("Mini App keeps T-10 prepare, T-5 signal timing, sound vibration and 30 second hold",()=>{
  assert.match(html,/m\.preAlertStatus==="PREPARE_ALERT"/);assert.match(html,/function triggerSignalAlert/);
  assert.match(html,/signalExpiresAt/);assert.match(html,/navigator\.vibrate/);assert.match(html,/holdMs/);
- assert.match(html,/T-10 PREPARE alert/);assert.match(html,/function countdown\(/);assert.match(html,/remaining/);
+ assert.match(html,/T-10 PREPARE alert/);assert.match(html,/function countdown\(/);assert.match(html,/const remain=/);
 });
 test("Mini App script only references existing DOM elements and parses",()=>{
  const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));
