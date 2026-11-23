@@ -418,7 +418,7 @@ async function evaluate(feed) {
    const engineResult = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || ENGINE4_STRATEGY) : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: "CLOSED_M1_NATIVE_INDICATORS",
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -541,7 +541,7 @@ let reason;
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
    indicatorSource: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
-   analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
+   analysisMode: "CLOSED_M1_NATIVE_INDICATORS",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
    signalValidationNote: "Engine 3 เท่านั้น · EMA5 / EMA20 / ATR14 ใช้ค่าที่ Twelve Data คำนวณจาก native endpoints · สูตร Trend Rider และ price-action guards เป็นของเรา · สัญญาณจริงแยกจากไฟสลับด้วยมือ · Manual only · No broker execution"
@@ -1235,10 +1235,10 @@ app.get("/health", (_req, res) => {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
       decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
       decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
-      bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
+
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
-      trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 65, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
@@ -1254,8 +1254,8 @@ app.get("/health", (_req, res) => {
       guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
     },
     recovery: {
-      enabled: false, mode: "DISABLED", status: "ORIGINAL_INDEPENDENT_ANALYZERS",
-      strategy: "EACH_ENGINE_USES_ITS_OWN_ORIGINAL_ANALYZER",
+      enabled: false, mode: "DISABLED", status: "ENGINE_3_ONLY",
+      strategy: "NO_CROSS_ENGINE_RECOVERY_OR_SIGNAL_BORROWING",
       altersMiniApp: false, badgeText: null, martingale: false,
       independentEngines: ["TREND_RIDER"]
     },
