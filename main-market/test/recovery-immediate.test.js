@@ -10,7 +10,7 @@ test("Engine 3 is the only signal producer and finalizes in the T-5 window",()=>
  assert.match(server,/signalHoldExpiresAt\(targetEpoch\)/);
 });
 test("signal dispatch uses only the Trend Rider engine and never borrows another analyzer",()=>{
- assert.match(server,/const ENGINE_KEYS = \["TREND_RIDER"\]/);
+ assert.match(server,/engineResults:\{TREND_RIDER:engineResult\}/);
  assert.match(server,/feed\.engineActive\?\.TREND_RIDER/);
  assert.doesNotMatch(server,/engine4|ENGINE_4|V1|BB|selectRecoveryCandidate|enginePendingForecasts|engineRecoveryStates/);
 });
