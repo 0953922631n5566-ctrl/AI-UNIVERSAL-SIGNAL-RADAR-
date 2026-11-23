@@ -2138,3 +2138,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The Engine 4 pending forecast is now keyed to its target wall-clock M1 epoch. The local 250ms safety timer can evaluate and dispatch it during the target candle's first 5 seconds even if the candle-rollover tick has not arrived yet.
 - Dispatch still requires a genuinely fresh Twelve Data Streaming quote (<=5 seconds old); stale prices are never used. Pending forecasts expire after the 5-second target window instead of remaining displayed as a stale WATCH.
 - This is a reliability fix for Engine 4 only; Engines 1–3 T-5 behavior remains unchanged. CI and Render deployment verification are pending.
+
+
+## 2026-11-23 — Engine 4 corrected to one completed M1 candle → next M1 entry
+
+- User clarified the exact desired behavior: analyze the OHLC of the M1 candle only after it has fully closed, then issue CALL/PUT for the immediately following M1 candle.
+- Branch: `feature/engine4-closed-m1-next-entry-20261123`.
+- Engine 4 no longer reads the forming candle's body for direction. It evaluates exactly the latest completed candle's body/range ratio and close location.
+- If the completed candle passes the strength filters, latch the direction for the current/new M1 candle and dispatch on its first fresh Streaming tick, within the first five seconds. Signal hold remains 30 seconds.
+- If the first fresh tick arrives after the five-second entry window or the candle fails filters, do not send a late/stale signal.
+- Engines 1–3, their T-5 decision timing, shared sound/vibration pipeline, and manual-only/no-broker behavior remain unchanged.
+- Thresholds retained from the live-momentum version pending paper-trading calibration: body >= 0.4 EUR/USD pips, body/range >= 0.55, directional close location >= 0.72, score >= 65.
+- CI and live Render verification pending; do not call the corrected behavior production-ready until `/health` and the public signal endpoint confirm it.
