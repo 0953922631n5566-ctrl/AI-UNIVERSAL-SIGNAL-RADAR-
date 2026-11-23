@@ -2117,3 +2117,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Updated Mini App copy, health metadata, package architecture label, and Engine 4 unit tests.
 - Pull request: https://github.com/0953922631n5566-ctrl/AI-UNIVERSAL-SIGNAL-RADAR-/pull/202
 - Status: PR open and not merged; no GitHub Actions workflow runs were returned for the head commit. Tests are added but not independently executed in this task. Render production service remains on its existing deployed version; no production deployment performed.
+
+
+## 2026-11-23 — Engine 4 live-momentum next-M1 entry (new request)
+
+- User explicitly changed the requirement: Engine 4 must not wait for three fully closed M1 candles. It should detect a clear opportunity from the currently forming M1 candle and prepare CALL/PUT for the next M1 candle as soon as it begins.
+- Isolated branch: `feature/engine4-live-momentum-next-m1-20261123`.
+- New Engine 4 direction source: current forming M1 OHLC body direction, body/range strength, and close location. No historical three-candle lookback is required.
+- Initial quality gate: wait at least 5 seconds into the source candle; body >= 0.4 EUR/USD pips; body/range >= 0.55; directional close location >= 0.72; heuristic score >= 65. Weak or ambiguous candles produce no signal.
+- Once qualified, latch one direction for the immediately following M1 candle. Dispatch only in the target candle's first 5 seconds, require a fresh Streaming tick, and hold the signal for 30 seconds from target candle open.
+- The pending Engine 4 forecast survives the minute rollover and is consumed at target open. Sound/vibration/shared alert pipeline/manual-only/no-broker behavior are retained. Engine 1–3 analyzers and T-5 timing are not intentionally changed.
+- Important: a directional heuristic is not a guarantee of profit. Verify with live demo/paper observations and consecutive entry-to-close outcomes before using real funds.
+- Validation/deployment status: implementation and tests are being prepared on the isolated feature branch; do not test production until CI/build pass, PR is merged, and Render `/health` confirms `2026-11-23-engine4-live-momentum-next-m1-v1`.
