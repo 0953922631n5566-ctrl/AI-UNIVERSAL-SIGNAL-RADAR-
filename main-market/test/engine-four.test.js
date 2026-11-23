@@ -10,18 +10,14 @@ function candle(epoch, close, provisional = false) {
   return { epoch, open: close, high: close + 0.00002, low: close - 0.00002,
     close, live: false, provisional };
 }
-function trendCandles(direction) {
-  const history = [];
-  for (let i = 0; i < 73; i++) {
-    const close = direction === "CALL" ? 1.1 - i * 0.0001 : 1.1 + i * 0.0001;
-    history.push(candle(source - (73 - i) * 60, close));
-  }
-  return history;
+function oscillatingCandles(phase = 0) {
+  return Array.from({ length: 73 }, (_, i) =>
+    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5 + phase)));
 }
 function liveAt(close) { return candle(source, close, true); }
 
 test("MACD bullish crossover produces CALL without score fields", () => {
-  const history = trendCandles("CALL"), live = liveAt(1.1);
+  const history = oscillatingCandles(0), live = liveAt(history.at(-1).close + 0.000442);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
@@ -36,7 +32,7 @@ test("MACD bullish crossover produces CALL without score fields", () => {
 });
 
 test("MACD bearish crossover produces PUT without score fields", () => {
-  const history = trendCandles("PUT"), live = liveAt(1.1);
+  const history = oscillatingCandles(2.18), live = liveAt(history.at(-1).close - 0.001);
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "PUT");
