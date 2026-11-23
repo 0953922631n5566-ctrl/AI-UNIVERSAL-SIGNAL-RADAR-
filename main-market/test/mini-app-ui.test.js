@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("EMA 5 ONLY CLOSED M1"));
+  assert.ok(html.includes("WICK ONLY · T-5"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,9 +37,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · EMA 5 ONLY CLOSED M1</div>'));
-  assert.ok(html.includes("Engine 4 · EMA 5 → Next M1 CALL"));
-  assert.ok(html.includes("Engine 4 · EMA 5 → Next M1 PUT"));
+  assert.ok(html.includes('<div class="engine-title">04 · WICK ONLY · T-5</div>'));
+  assert.ok(html.includes("Engine 4 · Wick → T-5 CALL"));
+  assert.ok(html.includes("Engine 4 · Wick → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -117,15 +117,15 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
-  assert.match(serverJs, /engine4PendingForecast/);
-  assert.match(serverJs, /isEngine4EntryWindow\(engine4Pending\.targetCandleEpoch, now\)/);
-  assert.match(serverJs, /signalTargetEpoch = engine4Entry && Number\.isFinite\(selectedCandidate\.targetCandleEpoch\)/);
-  assert.match(serverJs, /pendingEngine4Window/);
-  assert.match(serverJs, /NEXT_M1_ENTRY_READY/);
+  assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
+  assert.match(serverJs, /const engineWindow = finalizeWindow/);
+  assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
+  assert.match(serverJs, /engine4DecisionMode: "LIVE_M1_WICK_ONLY_T5_NEXT_M1"/);
+  assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 latches EMA 5 closed-M1 signal for the next candle and holds it for 30 seconds", () => {
+test("Engine 4 wick-only signal shares T-5 alert timing and 30-second hold", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -141,7 +141,7 @@ test("Engine 4 latches EMA 5 closed-M1 signal for the next candle and holds it f
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 only with no scoring", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses wick-only rules without scoring", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
@@ -151,7 +151,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 
   assert.match(html, /signalRadarEngineLightInverted/);
   assert.doesNotMatch(html, /data-light-toggle="ENGINE_4"/);
   assert.ok(html.includes("#engine4Card{--call-color:#39e879;--call-glow:#39e87988;--put-color:#ff535b;--put-glow:#ff535b88}"));
-  assert.match(html, /เขียว=เหนือ · แดง=ใต้/);
+  assert.match(html, /เขียว=ไส้ล่าง · แดง=ไส้บน/);
   assert.ok(serverJs.includes('colors: { CALL: "GREEN", PUT: "RED" }'));
   assert.match(html, /function toggleEngineLight/);
   assert.match(html, /function paintEngineLightSettings/);
@@ -161,16 +161,16 @@ test("four engine cards remain independently toggleable and Engine 4 uses EMA 5 
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "EMA5_CLOSED_M1_TO_NEXT_M1_ENTRY"/);
-  assert.match(serverJs, /input: "LATEST_COMPLETED_M1_CLOSE_COMPARED_WITH_EMA5"/);
-  assert.match(serverJs, /decisionWindow: "SOURCE_M1_CLOSE; DISPATCH_NEXT_M1_\[0,5S\)"/);
-  assert.match(serverJs, /decisionRule: "CALL_WHEN_LAST_CLOSED_M1_CLOSE_ABOVE_EMA5; PUT_WHEN_BELOW_EMA5; EQUAL_NO_SIGNAL"/);
-  assert.match(serverJs, /closedCandleConfirmation: "CLOSE_ONLY_NO_BODY_WICK_OR_SCORE"/);
+  assert.match(serverJs, /strategy: "LIVE_M1_WICK_ONLY_T5_NEXT_M1"/);
+  assert.match(serverJs, /input: "CURRENT_LIVE_M1_UPPER_WICK_VS_LOWER_WICK_ONLY"/);
+  assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
+  assert.match(serverJs, /decisionRule: "LOWER_WICK_LONGER_CALL_GREEN; UPPER_WICK_LONGER_PUT_RED; EQUAL_NO_SIGNAL"/);
+  assert.match(serverJs, /closedCandleConfirmation: "LIVE_CANDLE_WICK_COMPARISON_ONLY_NO_EMA_NO_SCORE"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
-  assert.match(serverJs, /minimumClosedCandles: 5/);
+  assert.match(serverJs, /minimumClosedCandles: 0/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /emaPeriod: 5/);
+  assert.match(serverJs, /emaPeriod: null/);
   assert.ok(serverJs.includes('scoring: "DISABLED"'));
   assert.match(serverJs, /scoring: "DISABLED"/);
   assert.match(serverJs, /emaFast: 5/);
@@ -187,7 +187,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 calculates EMA from closed M1 candles", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 wicks", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
@@ -198,9 +198,11 @@ test("Streaming Tick re-analysis stays local while Engine 4 calculates EMA from 
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "EMA5_CLOSED_M1_TO_NEXT_M1"/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "LIVE_M1_WICK_ONLY_T5"/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
+  assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
+  assert.match(html, /engineLightInverted\.ENGINE_4=false/);
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });
