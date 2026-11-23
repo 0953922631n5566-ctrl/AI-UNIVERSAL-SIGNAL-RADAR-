@@ -323,9 +323,6 @@ function applyTick(feed, price, epoch) {
   const current = feed.candles.at(-1);
   if (!current || current.epoch < minute) {
     if (current) current.live = false;
-
-    }
-    // Each engine signal targets the immediately following M1 candle.
     feed.candles.push({
       time: new Date(minute * 1000).toISOString().slice(0, 16).replace("T", " "),
       epoch: minute, open: price, high: price, low: price, close: price, live: true
@@ -338,16 +335,12 @@ function applyTick(feed, price, epoch) {
   } else {
     return;
   }
-
-  // Engine 3 uses the confirmed M1 candle and the shared T-5 timing window.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
   globalLockMessage = null;
-  // Re-evaluate the single Trend Rider engine when a fresh Streaming Tick arrives.
-  // A shared 250ms throttle coalesces bursts and never creates a REST request.
   scheduleLiveAnalysis(feed);
 }
 
