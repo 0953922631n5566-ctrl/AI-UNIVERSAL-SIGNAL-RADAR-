@@ -403,7 +403,7 @@ async function evaluate(feed) {
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || "T-5 confirmed")}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "ทำนายแท่ง M1 ถัดไปหลังแท่งก่อนหน้าปิด" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    engineResults[engine] = {
      ...selectedCandidate,
@@ -412,6 +412,8 @@ async function evaluate(feed) {
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
+     candleEpoch: isActive ? active.sourceCandleEpoch : (selectedCandidate.candleEpoch ?? null),
+     targetCandleEpoch: isActive ? active.targetCandleEpoch : (selectedCandidate.targetCandleEpoch ?? null),
      direction: isActive ? active.signal : (recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : (selectedCandidate.direction || selectedFinalSignal || candidateSignal || null)),
      score: isActive ? active.score : (selectedCandidate.score ?? 0),
      confidence: isActive ? active.score : (selectedCandidate.confidence ?? selectedCandidate.score ?? 0),
@@ -552,7 +554,7 @@ function dispatchSignalIfReady(feed) {
    feed.engineLastDispatchedAt[engine] = now;
    feed.engineLastDispatchedCandle[engine] = engine === "ENGINE_4" ? active.targetCandleEpoch : active.sourceCandleEpoch;
    feed.engineLastDispatchedAlertId[engine] = active.alertId;
-   console.info("[signal] T-5 independent signal available to Telegram Mini App polling", {
+   console.info(engine === "ENGINE_4" ? "[signal] next-M1 forecast available to Telegram Mini App polling" : "[signal] T-5 independent signal available to Telegram Mini App polling", {
      engine, alertId: active.alertId, signal: active.signal,
      symbol: feed.symbol, sourceCandleEpoch: active.sourceCandleEpoch,
      targetCandleEpoch: active.targetCandleEpoch,
