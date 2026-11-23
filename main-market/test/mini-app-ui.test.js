@@ -118,6 +118,9 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
   assert.match(serverJs, /engine4PendingForecast/);
+  assert.match(serverJs, /isEngine4EntryWindow\(engine4Pending\.targetCandleEpoch, now\)/);
+  assert.match(serverJs, /signalTargetEpoch = engine4Entry && Number\.isFinite\(selectedCandidate\.targetCandleEpoch\)/);
+  assert.match(serverJs, /pendingEngine4Window/);
   assert.match(serverJs, /WAITING_FOR_NEXT_M1_OPEN/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });

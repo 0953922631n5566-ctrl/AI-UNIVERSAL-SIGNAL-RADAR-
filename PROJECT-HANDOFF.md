@@ -2129,3 +2129,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The pending Engine 4 forecast survives the minute rollover and is consumed at target open. Sound/vibration/shared alert pipeline/manual-only/no-broker behavior are retained. Engine 1–3 analyzers and T-5 timing are not intentionally changed.
 - Important: a directional heuristic is not a guarantee of profit. Verify with live demo/paper observations and consecutive entry-to-close outcomes before using real funds.
 - Validation/deployment status: implementation and tests are being prepared on the isolated feature branch; do not test production until CI/build pass, PR is merged, and Render `/health` confirms `2026-11-23-engine4-live-momentum-next-m1-v1`.
+
+
+## 2026-11-23 — Engine 4 target-boundary dispatch reliability follow-up
+
+- Production smoke testing showed a newly restarted Render instance can receive its first Streaming tick more than 5 seconds after the minute boundary.
+- Follow-up branch: `feature/engine4-live-m1-boundary-dispatch-20261123`.
+- The Engine 4 pending forecast is now keyed to its target wall-clock M1 epoch. The local 250ms safety timer can evaluate and dispatch it during the target candle's first 5 seconds even if the candle-rollover tick has not arrived yet.
+- Dispatch still requires a genuinely fresh Twelve Data Streaming quote (<=5 seconds old); stale prices are never used. Pending forecasts expire after the 5-second target window instead of remaining displayed as a stale WATCH.
+- This is a reliability fix for Engine 4 only; Engines 1–3 T-5 behavior remains unchanged. CI and Render deployment verification are pending.

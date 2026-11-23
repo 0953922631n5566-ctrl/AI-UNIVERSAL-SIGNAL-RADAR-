@@ -303,22 +303,23 @@ async function evaluate(feed) {
  const engine4Pending = feed.engine4PendingForecast;
  const engine4SourceReady = Boolean(currentCandle?.live === true) && Number.isFinite(tickAge) &&
    tickAge >= 0 && tickAge <= 5;
+ const wallClockCandleEpoch = Math.floor(now / 60_000) * 60;
+ const engine4PendingTargetWindowOpen = Boolean(engine4Pending &&
+   isEngine4EntryWindow(engine4Pending.targetCandleEpoch, now));
  let engine4Raw;
  if (!engineEnabled.ENGINE_4) {
    feed.engine4PendingForecast = null;
    engine4Raw = { ready: false, signal: null, candidateSignal: null, score: 0, status: "DISABLED", reason: "Engine 4 ปิดการทำงานจาก Mini App" };
- } else if (sourceCandleEpoch === null) {
-   engine4Raw = { ready: false, signal: null, candidateSignal: null, score: 0, status: "SOURCE_LOCKED", reason: "รอแท่ง M1 ปัจจุบันที่กำลังวิ่ง" };
- } else if (engine4Pending?.targetCandleEpoch === sourceCandleEpoch) {
+ } else if (engine4PendingTargetWindowOpen) {
    engine4Raw = { ...engine4Pending, ready: true, decisionMade: true,
      signal: engine4Pending.signal, candidateSignal: engine4Pending.signal,
      status: "NEXT_M1_ENTRY_READY", reason: "พบจังหวะจากแท่งก่อนหน้าแล้ว · พร้อมส่งสัญญาณในช่วง 5 วินาทีแรกของแท่งนี้" };
- } else if (engine4Pending?.sourceCandleEpoch === sourceCandleEpoch) {
+ } else if (engine4Pending && engine4Pending.targetCandleEpoch > wallClockCandleEpoch) {
    engine4Raw = { ...engine4Pending, ready: true, decisionMade: true,
      signal: engine4Pending.signal, candidateSignal: engine4Pending.signal,
      status: "WAITING_FOR_NEXT_M1_OPEN", reason: "ล็อกจังหวะได้แล้ว · เตรียมเข้าแท่ง M1 ถัดไปเมื่อเริ่มต้น" };
  } else {
-   if (engine4Pending && engine4Pending.targetCandleEpoch < sourceCandleEpoch)
+   if (engine4Pending && engine4Pending.targetCandleEpoch <= wallClockCandleEpoch)
      feed.engine4PendingForecast = null;
    engine4Raw = engine4SourceReady
      ? analyzeEarlyEntryEngine4([], { now, liveCandle: currentCandle, currentPrice: feed.lastTick })
@@ -333,8 +334,8 @@ async function evaluate(feed) {
    }
  }
  const engine4TargetReady = Boolean(feed.engine4PendingForecast &&
-   feed.engine4PendingForecast.targetCandleEpoch === sourceCandleEpoch);
- const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
+   isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
+const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
        analysisMode: "LIVE_M1_BODY_MOMENTUM",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
@@ -348,7 +349,7 @@ async function evaluate(feed) {
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
- const engine4EntryWindow = engine4TargetReady && sourceCandleEpoch !== null && isEngine4EntryWindow(sourceCandleEpoch, now);
+ const engine4EntryWindow = engine4TargetReady;
  const prepareWindow = sourceCandleEpoch !== null && isPrepareAlertWindow(sourceCandleEpoch, now);
  if (!feed.engineActive) feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
  if (!feed.engineLastDispatchedCandle) feed.engineLastDispatchedCandle = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
@@ -396,13 +397,13 @@ async function evaluate(feed) {
      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
    const engineWindow = engine === "ENGINE_4" ? engine4EntryWindow : finalizeWindow;
    const timingReady = engine === "ENGINE_4"
-     ? engine4TargetReady && canDispatchEngine4Signal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+     ? engine4TargetReady && canDispatchEngine4Signal({ candleEpoch: feed.engine4PendingForecast?.targetCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] })
      : canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
          lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
    if (!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady) {
      const engine4Entry = engine === "ENGINE_4";
-     const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
+     const signalTargetEpoch = engine4Entry && Number.isFinite(selectedCandidate.targetCandleEpoch) ? selectedCandidate.targetCandleEpoch : targetCandleEpoch;
      const signalSourceEpoch = engine4Entry && Number.isFinite(selectedCandidate.sourceCandleEpoch ?? selectedCandidate.candleEpoch)
        ? (selectedCandidate.sourceCandleEpoch ?? selectedCandidate.candleEpoch) : sourceCandleEpoch;
      active = {
@@ -411,7 +412,7 @@ async function evaluate(feed) {
        score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: engine4Entry ? (Number.isFinite(feed.lastTick) ? feed.lastTick : Number.isFinite(selectedCandidate.entryPrice) ? selectedCandidate.entryPrice : null) : null,
-       entryPriceBasis: engine4Entry ? "FIRST_STREAM_TICK_OF_TARGET_M1" : "TARGET_M1_CANDLE_OPEN",
+       entryPriceBasis: engine4Entry ? "LATEST_FRESH_STREAM_TICK_AT_TARGET_M1_OPEN_WINDOW" : "TARGET_M1_CANDLE_OPEN",
        alertId: engine4Entry ? `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:NEXT_M1` : `${engine}:${targetCandleEpoch}:${selectedFinalSignal}:NORMAL`
      };
      if (engine4Entry) { active.expiresAt = signalHoldExpiresAt(signalTargetEpoch); feed.engine4PendingForecast = null; }
@@ -701,6 +702,13 @@ function startRestTimer() {
 
 function scheduleLiveAnalysis(feed) {
   if (!monitoring || !feed || selectedSymbol !== feed.symbol) return;
+  const now = Date.now();
+  const pendingEngine4Window = Boolean(feed.engine4PendingForecast &&
+    isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
+  const current = feed.candles.at(-1);
+  if (!current?.live && !pendingEngine4Window) return;
+  const elapsedMs = current?.live ? now - current.epoch * 1000 : Infinity;
+  if (!pendingEngine4Window && (elapsedMs < 0 || elapsedMs > 60000)) return;
   liveAnalysisPending = true;
   if (liveAnalysisBusy || liveAnalysisTimer) return;
   const cadenceMs = LIVE_ANALYSIS_INTERVAL_SECONDS * 1000;
@@ -712,10 +720,11 @@ function scheduleLiveAnalysis(feed) {
       return;
     }
     liveAnalysisPending = false;
-    const current = feed.candles.at(-1);
-    if (!current?.live) return;
-    const elapsedMs = Date.now() - current.epoch * 1000;
-    if (elapsedMs < 0 || elapsedMs > 60000) return;
+    const latest = feed.candles.at(-1);
+    const targetWindow = Boolean(feed.engine4PendingForecast &&
+      isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, Date.now()));
+    const latestElapsedMs = latest?.live ? Date.now() - latest.epoch * 1000 : Infinity;
+    if (!targetWindow && (!latest?.live || latestElapsedMs < 0 || latestElapsedMs > 60000)) return;
     liveAnalysisBusy = true;
     lastLiveAnalysisAt = Date.now();
     try {
@@ -733,12 +742,15 @@ function scheduleLiveAnalysis(feed) {
 
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
-  // Safety cadence for T-10/T-5 boundaries; tick events also trigger immediate analysis.
-  // This is local computation over the existing WebSocket buffer, never a REST/API poll.
+  // Local safety cadence also evaluates a latched Engine 4 forecast at the target M1 open.
+  // It never calls REST; a real signal still requires a fresh Streaming quote.
   signalTimer = setInterval(() => {
     if (!monitoring) return;
     const feed = feeds.get(selectedSymbol);
-    if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
+    const now = Date.now();
+    const pendingEngine4Window = Boolean(feed?.engine4PendingForecast &&
+      isEngine4EntryWindow(feed.engine4PendingForecast.targetCandleEpoch, now));
+    if (feed?.candles.at(-1)?.live || pendingEngine4Window) scheduleLiveAnalysis(feed);
   }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
 }
 

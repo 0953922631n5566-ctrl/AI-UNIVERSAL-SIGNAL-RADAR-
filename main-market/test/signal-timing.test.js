@@ -44,3 +44,9 @@ test("Engine 4 dispatches once in the first five seconds of the target M1 candle
  assert.equal(canDispatchEngine4Signal({candleEpoch:candle,tickAt:opening,lastDispatchedCandle:candle,now:opening+1000}),false);
  assert.equal(canDispatchEngine4Signal({candleEpoch:candle,tickAt:opening,now:opening+6000}),false);
  assert.equal(canDispatchEngine4Signal({candleEpoch:candle,tickAt:opening+59000,now:openAt+60000}),false);});
+
+test("Engine 4 can dispatch at target open from a still-fresh pre-boundary Streaming quote",()=>{
+ const target=1_800_000_060,openAt=target*1000;
+ assert.equal(canDispatchEngine4Signal({candleEpoch:target,tickAt:openAt-4000,now:openAt+1000}),true);
+ assert.equal(canDispatchEngine4Signal({candleEpoch:target,tickAt:openAt-5001,now:openAt+1000}),false);
+});
