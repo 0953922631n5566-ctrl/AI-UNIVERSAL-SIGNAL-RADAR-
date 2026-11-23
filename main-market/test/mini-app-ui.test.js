@@ -107,7 +107,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_EARLY_ENTRY_ENGINE_4"/);
+  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_MULTI_DIMENSION_ADAPTIVE_ENGINE_4"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -120,12 +120,12 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "LIVE_M1_WICK_ONLY_T5_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 wick-only signal shares T-5 alert timing and 30-second hold", () => {
+test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -151,7 +151,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses wick-o
   assert.match(html, /signalRadarEngineLightInverted/);
   assert.doesNotMatch(html, /data-light-toggle="ENGINE_4"/);
   assert.ok(html.includes("#engine4Card{--call-color:#39e879;--call-glow:#39e87988;--put-color:#ff535b;--put-glow:#ff535b88}"));
-  assert.match(html, /เขียว=ไส้ล่าง · แดง=ไส้บน/);
+  assert.match(html, /CALL=เขียว · PUT=แดง/);
   assert.ok(serverJs.includes('colors: { CALL: "GREEN", PUT: "RED" }'));
   assert.match(html, /function toggleEngineLight/);
   assert.match(html, /function paintEngineLightSettings/);
@@ -161,16 +161,16 @@ test("four engine cards remain independently toggleable and Engine 4 uses wick-o
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "LIVE_M1_WICK_ONLY_T5_NEXT_M1"/);
-  assert.match(serverJs, /input: "CURRENT_LIVE_M1_UPPER_WICK_VS_LOWER_WICK_ONLY"/);
+  assert.match(serverJs, /strategy: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1"/);
+  assert.match(serverJs, /input: "LIVE_M1_OHLC_PLUS_21_CLOSED_M1_INDICATOR_CONTEXT"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
-  assert.match(serverJs, /decisionRule: "LOWER_WICK_LONGER_CALL_GREEN; UPPER_WICK_LONGER_PUT_RED; EQUAL_NO_SIGNAL"/);
-  assert.match(serverJs, /closedCandleConfirmation: "LIVE_CANDLE_WICK_COMPARISON_ONLY_NO_EMA_NO_SCORE"/);
+  assert.match(serverJs, /decisionRule: "TREND_EMA8_21_PULLBACK_MACD_CONFIRM_OR_SIDEWAY_BOLLINGER_RSI_REVERSAL"/);
+  assert.match(serverJs, /closedCandleConfirmation: "LIVE_M1_ADAPTIVE_INDICATOR_RULES_NO_SCORE"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
-  assert.match(serverJs, /minimumClosedCandles: 0/);
+  assert.match(serverJs, /minimumClosedCandles: 21/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /emaPeriod: null/);
+  assert.match(serverJs, /emaPeriods: [8, 21]/);
   assert.ok(serverJs.includes('scoring: "DISABLED"'));
   assert.match(serverJs, /scoring: "DISABLED"/);
   assert.match(serverJs, /emaFast: 5/);
@@ -189,7 +189,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 wicks", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 adaptive indicators", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
