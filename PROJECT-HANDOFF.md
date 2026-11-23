@@ -2263,3 +2263,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/api/public/signal` returned API ONLINE / STREAMING and Engine 4 produced a CALL candidate from MACD 12/26/9 (the API snapshot was outside the T-5 dispatch window, so it correctly remained WATCH/STANDBY at aggregate level). Another snapshot after restart showed a real crossover candidate. This confirms the analyzer is receiving the live feed and exposing candidate reasons/threshold metrics.
 - Engines 1–3 retain their prior 54-candle inputs; Engine 4 receives its own isolated 80-closed-candle rolling history so the 40 historical MACD-gap samples are available. This is intentionally isolated from the other engines.
 - Not yet verified on the user's physical Telegram device, and no win-rate/backtest evidence exists. The proximity trigger is earlier and may produce more false positives; use manual/paper testing first. Broker execution remains disabled.
+
+
+## 2026-11-23 — Engine 4 Twelve Data EMA5 pullback/rebound (implementation in progress)
+
+- User approved replacing only Engine 4 with Twelve Data's native `/ema` endpoint, `time_period=5`, `series_type=close`, `interval=1min`. No locally calculated EMA and no MACD, RSI, AO, EMA20, score, or other Engine 4 indicator.
+- Direction comes from the two latest consecutive completed EMA5 values returned by Twelve Data. Rising EMA5: price first trades above the EMA trend side, pulls back into a 0.5-pip proximity zone, then reclaims above EMA5 by at least 0.2 pip for CALL. Falling EMA5: mirror logic for PUT.
+- EMA5 is refreshed once per M1 minute (one API credit per selected symbol per request); the live Twelve Data Streaming price is evaluated locally between refreshes. Engine 4 fires immediately in the current M1 candle after the rebound confirms, captures the live trigger price, holds for 30 seconds, and is limited to one signal per candle.
+- Engines 1–3, their analysis/timing/thresholds, Mini App controls, shared sound/vibration, manual-only/no-broker behavior, and other projects are not intended to change.
+- Isolated branch: `feature/engine4-twelvedata-ema5-pullback-20261123`. CI, full test/build, PR review, Render deployment, health/API and Telegram Mini App verification remain pending. Do not call this production-ready until the PR is merged and the new Render version is live.

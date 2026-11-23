@@ -131,3 +131,81 @@ export async function fetchCandles({
     source: "Twelve Data REST"
   };
 }
+
+
+/** Fetch the provider-calculated EMA(5) series; no local EMA calculation is performed. */
+export async function fetchEma5({
+  keyPool = twelveDataKeyPool, symbol = "EUR/USD", interval = "1min",
+  outputsize = 4, fetchImpl = fetch, now = Date.now()
+} = {}) {
+  const normalized = normalizeSymbol(symbol);
+  if (!SYMBOLS.some(item => normalizeSymbol(item) === normalized)) {
+    throw new Error(`Pair is not enabled: ${symbol}`);
+  }
+  const candidateKeys = keyPool.getRestCandidates?.() || keyPool.getCandidates();
+  if (!candidateKeys.length) {
+    const error = new Error("No Twelve Data API keys are currently available for EMA 5");
+    error.kind = "RATE_LIMIT";
+    throw error;
+  }
+  const url = new URL("/ema", API_BASE);
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("interval", interval);
+  url.searchParams.set("time_period", "5");
+  url.searchParams.set("series_type", "close");
+  url.searchParams.set("outputsize", String(outputsize));
+  url.searchParams.set("order", "desc");
+  url.searchParams.set("timezone", "UTC");
+
+  let body, successfulKey = null, lastError = null;
+  for (const candidateKey of candidateKeys) {
+    try {
+      const response = await fetchImpl(url, {
+        headers: { Authorization: `apikey ${candidateKey}` },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      });
+      try { body = await response.json(); }
+      catch {
+        const error = new Error(`Twelve Data returned invalid EMA JSON for ${symbol}`);
+        error.kind = "INVALID_RESPONSE";
+        throw error;
+      }
+      if (!response.ok || body?.status === "error" || !Array.isArray(body?.values)) {
+        throw providerError(symbol, body, response.status);
+      }
+      successfulKey = candidateKey;
+      break;
+    } catch (caught) {
+      const error = caught?.kind ? caught : (() => {
+        const wrapped = new Error(`Twelve Data EMA network error for ${symbol}: ${caught.message}`);
+        wrapped.kind = "NETWORK_ERROR";
+        return wrapped;
+      })();
+      lastError = error;
+      if (error.kind === "PAIR_UNAVAILABLE" || error.kind === "INSUFFICIENT_HISTORY") throw error;
+      keyPool.markFailure(candidateKey, error);
+    }
+  }
+  if (!successfulKey) throw lastError || new Error("Twelve Data EMA API pool failed");
+  if (typeof keyPool.markRestSuccess === "function") keyPool.markRestSuccess(successfulKey);
+  else keyPool.markSuccess(successfulKey);
+
+  const currentMinute = Math.floor(now / 60000) * 60;
+  const byEpoch = new Map();
+  for (const raw of body.values) {
+    const epoch = Date.parse(String(raw?.datetime || "").replace(" ", "T") + "Z") / 1000;
+    const ema = Number(raw?.ema);
+    if (!Number.isFinite(epoch) || !Number.isFinite(ema) || epoch >= currentMinute) continue;
+    byEpoch.set(epoch, { epoch, ema });
+  }
+  const values = [...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-2);
+  if (values.length !== 2 || values[1].epoch - values[0].epoch !== 60) {
+    const error = new Error(`${symbol}: Twelve Data EMA 5 needs two consecutive completed M1 values`);
+    error.kind = "INSUFFICIENT_HISTORY";
+    throw error;
+  }
+  return {
+    symbol: body.meta?.symbol || symbol, interval: body.meta?.interval || interval,
+    period: 5, seriesType: "close", values, receivedAt: now, source: "Twelve Data /ema"
+  };
+}

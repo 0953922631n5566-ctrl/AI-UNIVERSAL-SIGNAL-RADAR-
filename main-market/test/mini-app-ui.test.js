@@ -18,7 +18,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App presents closed-M1 next-candle entry and preserves shared sound, vibration and 30-second alert UI", () => {
+test("Mini App presents immediate EMA5 pullback signals and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -28,8 +28,8 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("MACD 12/26/9"));
-  assert.ok(html.includes("เส้นชิดกันตามสถิติย้อนหลัง"));
+  assert.ok(html.includes("Twelve Data EMA 5 เท่านั้น"));
+  assert.ok(html.includes("ส่งสัญญาณทันที"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -38,11 +38,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · MACD 12/26/9</div>'));
-  assert.ok(html.includes("Engine 4 · MACD 12/26/9 → T-5 CALL"));
-  assert.ok(html.includes("MACD 12/26/9"));
-  assert.ok(html.includes(""));
-  assert.ok(html.includes("Engine 4 · MACD 12/26/9 → T-5 PUT"));
+  assert.ok(html.includes('<div class="engine-title">04 · TWELVE DATA EMA 5</div>'));
+  assert.ok(html.includes("Engine 4 · EMA5 Pullback → CALL ทันที"));
+  assert.ok(html.includes("Engine 4 · EMA5 Pullback → PUT ทันที"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -104,13 +102,13 @@ test("dashboard audio timing follows backend PREPARE T-10 and signal finalizatio
 
 test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65", () => {
   assert.match(serverJs, /const finalSignal = \["CALL", "PUT"\]\.includes\(candidate\.signal\)/);
-  assert.match(serverJs, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
+  assert.match(serverJs, /if \(!activeForCurrentOrNext && \(engine4Entry \? engine4Window : engineWindow\) && selectedFinalSignal && timingReady\)/);
   assert.doesNotMatch(serverJs, /finalizeWindow && candidateSignal &&/);
 });
 
-test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
+test("Engine 4 is exposed as an independent Twelve Data EMA5 analyzer", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_MACD_ENGINE_4"/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_EMA5_ENDPOINT"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -120,15 +118,16 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
-  assert.match(serverJs, /analyzeEarlyEntryEngine4\(engine4AnalysisCandles, \{ liveCandle:livePreview \}\)/);
+  assert.match(serverJs, /analyzeEarlyEntryEngine4\(\{/);
+  assert.match(serverJs, /emaValues: feed\.engine4Ema\?\.values/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: ENGINE4_STRATEGY/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () => {
+test("Engine 4 immediate signal shares existing sound, vibration and 30-second hold", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
@@ -144,9 +143,9 @@ test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () =
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses MACD 12/26/9 only", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses Twelve Data EMA5 only", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
-    assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
+    assert.match(html, new RegExp('id="' + id + '" class="engine-card engine-enabled" role="button"'));
   }
   for (const key of ["V1", "BB", "TREND_RIDER", "ENGINE_4"]) {
     assert.match(html, new RegExp('data-light-toggle="' + key + '"'));
@@ -163,17 +162,20 @@ test("four engine cards remain independently toggleable and Engine 4 uses MACD 1
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"/);
-  assert.match(serverJs, /formula: "EMA12\(CLOSE\)-EMA26\(CLOSE\); SIGNAL=EMA9\(MACD\)"/);
-  assert.match(serverJs, /decisionRule: "MACD_CROSSOVER_OR_HISTORICAL_PROXIMITY; NEGATIVE_GAP_CALL; POSITIVE_GAP_PUT"/);
+  assert.match(serverJs, /strategy: ENGINE4_STRATEGY/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_EMA_ENDPOINT"/);
+  assert.match(serverJs, /period: 5/);
+  assert.match(serverJs, /refreshSeconds: 60/);
+  assert.match(serverJs, /pullbackProximityPips: 0.5/);
+  assert.match(serverJs, /bounceConfirmPips: 0.2/);
+  assert.match(serverJs, /decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT"/);
   assert.match(serverJs, /otherIndicators: "NONE"/);
-  assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
-  assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
+  assert.match(serverJs, /decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND"/);
+  assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /historicalProximity: \{ window: 40, percentile: 25/);
-  assert.match(serverJs, /engine4LookbackClosedCandles: 73/);
-  assert.match(serverJs, /engine === "ENGINE_4" \? "TARGET_M1_CANDLE_OPEN"/);
+  assert.match(serverJs, /engine4LookbackClosedCandles: 2/);
+  assert.match(serverJs, /TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE/);
   assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
 
@@ -186,7 +188,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 MACD", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 detects live EMA5 pullbacks", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
@@ -197,7 +199,7 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 MAC
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY"\)/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| ENGINE4_STRATEGY\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);

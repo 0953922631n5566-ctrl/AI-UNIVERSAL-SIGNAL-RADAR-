@@ -6,16 +6,16 @@ import { fileURLToPath } from "node:url";
 import WebSocket, { WebSocketServer } from "ws";
 import { randomBytes } from "node:crypto";
 import { validateClientToken } from "./src/client-auth.js";
-import { fetchCandles } from "./src/twelve-data.js";
+import { fetchCandles, fetchEma5 } from "./src/twelve-data.js";
 import { createLiveCandlePreview } from "./src/live-candle-preview.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeMarket } from "./src/analyzer.js";
 import { analyzeBBPureScalper } from "./src/bb-pure-scalper.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
-import { analyzeEarlyEntryEngine4 } from "./src/engine-four.js";
+import { analyzeEarlyEntryEngine4, ENGINE4_STRATEGY } from "./src/engine-four.js";
 import { applySignalReleaseGate, SIGNAL_RELEASE_VALIDATED } from "./src/signal-release-gate.js";
-import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
+import { canFinalizeSignal, isFreshSignalTick, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { createRecoveryState, inspectRecoveryWindow, markRecoveryAttempt, settleRecoveryAttempt, armRecoveryAfterLoss, evaluateM1Outcome, selectRecoveryCandidate } from "./src/recovery.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 ADAPTIVE MACD";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-ADAPTIVE-MACD";
-const VERSION = "2026-11-23-engine4-macd-historical-proximity-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 TWELVE DATA EMA5 PULLBACK";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-TWELVE-DATA-EMA5-PULLBACK";
+const VERSION = "2026-11-23-engine4-twelvedata-ema5-pullback-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -52,6 +52,8 @@ function newFeed(symbol) {
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     pendingForecast: null, forecastHistory: [], recoveryState: createRecoveryState(),
+    engine4Ema: { status: "WAITING", values: [], receivedAt: 0, lastFetchedMinute: null, message: "รอค่า EMA 5 จาก Twelve Data" },
+    engine4EmaPromise: null, engine4PullbackState: null,
     enginePendingForecasts: { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null },
     engineForecastHistory: { V1: [], BB: [], TREND_RIDER: [], ENGINE_4: [] },
     engineRecoveryStates: { V1: createRecoveryState(), BB: createRecoveryState(), TREND_RIDER: createRecoveryState(), ENGINE_4: createRecoveryState() },
@@ -67,6 +69,7 @@ let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
 let upstream = null;
 let restTimer = null;
+let emaTimer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
@@ -204,6 +207,7 @@ function publish() {
 
 function clearTimers() {
   clearInterval(restTimer); restTimer = null;
+  clearInterval(emaTimer); emaTimer = null;
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
   clearInterval(signalTimer); signalTimer = null;
@@ -234,6 +238,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
   feed.preAlertCandle = null;
   feed.alertId = null;
   feed.analysis = standby(reason);
+  feed.engine4PullbackState = null;
 }
 
 function lockFeed(feed, reason) {
@@ -268,12 +273,6 @@ async function evaluate(feed) {
    now, tickAt: feed.tickAt, maxAgeMs: MAX_STREAM_AGE_SECONDS * 1000
  });
  const analysisCandles = livePreview ? [...closedCandles, livePreview] : closedCandles;
- // Engine 4 alone needs a longer rolling sample to estimate its historical MACD gap distribution.
- const engine4ClosedCandles = feed.candles.filter(c => c && c.live !== true &&
-   Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-80);
- const engine4AnalysisCandles = livePreview
-   ? [...engine4ClosedCandles, livePreview] : engine4ClosedCandles;
-
  // Shared source-quality gate; Engines 1–3 keep their existing 54-candle input.
  const v1Raw = engineEnabled.V1 ? await analyzeMarket(feed.candles, {
    now, symbol: feed.symbol, tickAgeSeconds: tickAge, allowRestFallback: restFallback,
@@ -305,14 +304,23 @@ async function evaluate(feed) {
  let engine4Raw;
  if (!engineEnabled.ENGINE_4) {
    engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"DISABLED", reason:"Engine 4 ปิดการทำงานจาก Mini App" };
- } else if (livePreview && sourceCandleEpoch !== null) {
-   engine4Raw = analyzeEarlyEntryEngine4(engine4AnalysisCandles, { liveCandle:livePreview });
  } else {
-   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับคำนวณ MACD 12/26/9" };
+   const analyzed = analyzeEarlyEntryEngine4({
+     emaValues: feed.engine4Ema?.values, livePrice: feed.lastTick, tickAt: feed.tickAt,
+     now, symbol: feed.symbol, sourceCandleEpoch, state: feed.engine4PullbackState
+   });
+   feed.engine4PullbackState = analyzed.nextState || feed.engine4PullbackState;
+   const { nextState, ...publicResult } = analyzed;
+   engine4Raw = publicResult;
+   engine4Raw.emaApiStatus = feed.engine4Ema?.status || "WAITING";
+   if (feed.engine4Ema?.status !== "READY" && !engine4Raw.ready) {
+     engine4Raw.status = "EMA5_API_NOT_READY";
+     engine4Raw.reason = feed.engine4Ema?.message || "รอค่า EMA 5 จาก Twelve Data";
+   }
  }
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: engine4Raw.analysisMode || "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY",
+       analysisMode: engine4Raw.analysisMode || ENGINE4_STRATEGY,
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -320,7 +328,7 @@ async function evaluate(feed) {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
    TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "LOCAL_MACD_ENGINE_4", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
+   ENGINE_4: { ...engine4Raw, provider: "TWELVE_DATA_EMA5_ENDPOINT", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
@@ -375,22 +383,25 @@ async function evaluate(feed) {
      feed.engineActive[engine] = null;
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
-     (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
+      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch || engine === "ENGINE_4"));
+   const engine4Entry = engine === "ENGINE_4";
    const engineWindow = finalizeWindow;
-   const timingReady = canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
-     lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
-   if (!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady) {
-     const engine4Entry = engine === "ENGINE_4";
-     const signalTargetEpoch = targetCandleEpoch;
+   const engine4Window = engine4Entry && sourceCandleEpoch !== null;
+   const timingReady = engine4Entry
+     ? isFreshSignalTick(feed.tickAt, now) && feed.engineLastDispatchedCandle[engine] !== sourceCandleEpoch
+     : canFinalizeSignal({ candleEpoch: sourceCandleEpoch, tickAt: feed.tickAt, now,
+         lastDispatchedCandle: feed.engineLastDispatchedCandle[engine] });
+   if (!activeForCurrentOrNext && (engine4Entry ? engine4Window : engineWindow) && selectedFinalSignal && timingReady) {
+     const signalTargetEpoch = engine4Entry ? sourceCandleEpoch : targetCandleEpoch;
      const signalSourceEpoch = sourceCandleEpoch;
      active = {
        engine, signal: selectedFinalSignal, sourceCandleEpoch: signalSourceEpoch, targetCandleEpoch: signalTargetEpoch,
-       triggeredAt: now, expiresAt: signalHoldExpiresAt(signalTargetEpoch),
+       triggeredAt: now, expiresAt: engine4Entry ? now + SIGNAL_HOLD_SECONDS * 1000 : signalHoldExpiresAt(signalTargetEpoch),
        ...(engine4Entry ? {} : { score: selectedCandidate.score ?? 0 }), sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
-       entryPrice: null,
-       entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_MACD_12_26_9" : "NORMAL"}`
+       entryPrice: engine4Entry ? selectedCandidate.entryPrice : null,
+       entryPriceBasis: engine4Entry ? "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE" : "TARGET_M1_CANDLE_OPEN",
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "EMA5_PULLBACK_IMMEDIATE" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -399,15 +410,15 @@ async function evaluate(feed) {
        expiresAt: new Date(active.expiresAt).toISOString()
      });
    }
-   const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
+   const currentActive = activeForCurrentOrNext || Boolean(active && (active.targetCandleEpoch === targetCandleEpoch || (engine4Entry && active.targetCandleEpoch === sourceCandleEpoch)));
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "MACD 12/26/9 เพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "Twelve Data EMA 5 pullback rebound · เข้าได้ทันที" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    const engineResult = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || ENGINE4_STRATEGY) : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -425,7 +436,7 @@ async function evaluate(feed) {
      signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
      signalTargetCandleAt: isActive ? new Date(active.targetCandleEpoch * 1000).toISOString() : null,
       entryPrice: isActive ? active.entryPrice : selectedCandidate.entryPrice ?? null,
-      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TARGET_M1_CANDLE_OPEN" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
+      entryPriceBasis: isActive ? active.entryPriceBasis : (engine === "ENGINE_4" ? "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE" : "M1_OPEN_TO_CURRENT_PRICE_AND_TICK_CONFIRM")
    };
    if (engine === "ENGINE_4") {
      delete engineResult.candidateScore;
@@ -532,14 +543,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1",
-   engine4UsesClosedCandlesOnly: false,
-   engine4LookbackClosedCandles: 73,
-   engine4DirectionSource: "MACD_LINE_VS_SIGNAL_LINE_AND_HISTORICAL_GAP_PERCENTILE",
+   engine4DecisionMode: ENGINE4_STRATEGY,
+   engine4UsesClosedCandlesOnly: true,
+   engine4LookbackClosedCandles: 2,
+   engine4DirectionSource: "TWO_TWELVE_DATA_EMA5_VALUES_SLOPE_PLUS_LIVE_STREAM_PULLBACK_REBOUND",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ MACD 12/26/9 เท่านั้น · MACD ใต้ Signal และเข้าใกล้ตามสถิติย้อนหลัง = CALL · MACD เหนือ Signal และเข้าใกล้ตามสถิติย้อนหลัง = PUT · การตัดเส้นยังส่งสัญญาณได้ทันที · ไม่มีคะแนนหรืออินดิเคเตอร์อื่น · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Twelve Data EMA 5 เท่านั้น · EMA ชี้ขึ้น + ราคาย่อเข้าใกล้แล้วเด้งกลับ = CALL · EMA ชี้ลง + ราคาดีดเข้าใกล้แล้วกลับลง = PUT · ส่งสัญญาณทันทีในแท่งปัจจุบัน · ไม่มีอินดิเคเตอร์อื่นหรือคะแนน · คงสัญญาณ 30 วินาที · Manual only · No broker execution"
  };
 }
 
@@ -549,15 +560,17 @@ function dispatchSignalIfReady(feed) {
    if (!engineEnabled[engine]) continue;
    const active = feed.engineActive?.[engine];
    if (!active || !["CALL", "PUT"].includes(active.signal) || !active.alertId) continue;
-   const dispatchReady = canFinalizeSignal({ candleEpoch: active.sourceCandleEpoch, tickAt: feed.tickAt, now,
-     lastDispatchedCandle: feed.engineLastDispatchedCandle?.[engine] });
+   const dispatchReady = engine === "ENGINE_4"
+     ? isFreshSignalTick(feed.tickAt, now) && feed.candles.at(-1)?.epoch === active.sourceCandleEpoch && feed.engineLastDispatchedCandle?.[engine] !== active.sourceCandleEpoch
+     : canFinalizeSignal({ candleEpoch: active.sourceCandleEpoch, tickAt: feed.tickAt, now,
+         lastDispatchedCandle: feed.engineLastDispatchedCandle?.[engine] });
    if (!dispatchReady) continue;
    if (feed.engineLastDispatchedAlertId?.[engine] === active.alertId) continue;
    feed.engineLastDispatchedAt = feed.engineLastDispatchedAt || {};
    feed.engineLastDispatchedAt[engine] = now;
    feed.engineLastDispatchedCandle[engine] = active.sourceCandleEpoch;
    feed.engineLastDispatchedAlertId[engine] = active.alertId;
-   console.info("[signal] T-5 independent signal available to Telegram Mini App polling", {
+   console.info("[signal] independent signal available to Telegram Mini App polling", {
      engine, alertId: active.alertId, signal: active.signal,
      symbol: feed.symbol, sourceCandleEpoch: active.sourceCandleEpoch,
      targetCandleEpoch: active.targetCandleEpoch,
@@ -609,7 +622,7 @@ function applyTick(feed, price, epoch) {
     return;
   }
 
-  // Engine 4 compares the live M1 upper/lower wicks; all engines finalize at T-5.
+  // Engine 4 triggers on a confirmed EMA5 pullback rebound; Engines 1–3 keep T-5.
   feed.lastTick = price;
   feed.tickAt = Date.now();
   feed.streamStatus = "READY";
@@ -671,6 +684,40 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
     }
   })();
   return feed.restSyncPromise;
+}
+
+async function syncEngine4Ema(feed, { force = false } = {}) {
+  if (!feed || !monitoring || selectedSymbol !== feed.symbol || !engineEnabled.ENGINE_4) return;
+  if (feed.engine4EmaPromise) return feed.engine4EmaPromise;
+  const minuteKey = Math.floor(Date.now() / 60000) * 60;
+  if (!force && feed.engine4Ema?.lastFetchedMinute === minuteKey) return;
+  feed.engine4EmaPromise = (async () => {
+    try {
+      const response = await fetchEma5({ keyPool: twelveDataKeyPool, symbol: feed.symbol, interval: INTERVAL, now: Date.now() });
+      feed.engine4Ema = { ...response, status: "READY", lastFetchedMinute: minuteKey,
+        message: "Twelve Data EMA 5 พร้อม · ใช้ค่าจาก API โดยตรง" };
+      console.info("[engine4] Twelve Data EMA5 refreshed", { symbol: feed.symbol, values: response.values });
+    } catch (error) {
+      feed.engine4Ema = { status: "ERROR", values: [], receivedAt: 0,
+        lastFetchedMinute: minuteKey, message: "EMA 5 API ใช้งานไม่ได้: " + error.message };
+      feed.engine4PullbackState = null;
+      if (feed.engineActive) feed.engineActive.ENGINE_4 = null;
+      console.error("[engine4] Twelve Data EMA5 request failed", feed.symbol, error.message);
+    } finally {
+      feed.engine4EmaPromise = null;
+    }
+    await evaluate(feed);
+    dispatchSignalIfReady(feed);
+    publish();
+  })();
+  return feed.engine4EmaPromise;
+}
+function startEngine4EmaTimer() {
+  if (emaTimer) clearInterval(emaTimer);
+  emaTimer = setInterval(() => {
+    const feed = feeds.get(selectedSymbol);
+    if (feed) syncEngine4Ema(feed).catch(error => console.error("[engine4] EMA5 refresh loop failed", error.message));
+  }, 5000);
 }
 
 function startRestTimer() {
@@ -763,7 +810,7 @@ function retrySelectedStream(feed, reason) {
   feed.tickAt = 0;
   feed.lastTick = null;
   feed.activeSignal = null;
-  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null };
+  feed.engineActive = { V1: null, BB: null, TREND_RIDER: null, ENGINE_4: null };
   feed.activeUntil = 0;
   feed.streamStatus = "TIMEOUT";
   feed.streamMessage = reason === "FIRST_TICK_TIMEOUT"
@@ -963,10 +1010,12 @@ async function start(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
+  startEngine4EmaTimer();
   startWatchdog();
   startSignalTimer();
   publish();
   await syncSelected({ force: true, symbol });
+  await syncEngine4Ema(feed, { force: true });
   if (monitoring) startStream();
   publish();
 }
@@ -991,6 +1040,7 @@ async function select(symbolValue) {
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
   await syncSelected({ force: true, symbol });
+  if (wasMonitoring && monitoring) await syncEngine4Ema(feed, { force: true });
   if (wasMonitoring && monitoring) startStream();
   return true;
 }
@@ -1194,9 +1244,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1", indicator: "MACD", fastPeriod: 12, slowPeriod: 26, signalPeriod: 9, priceSource: "CLOSE", formula: "EMA12(CLOSE)-EMA26(CLOSE); SIGNAL=EMA9(MACD)", decisionRule: "MACD_CROSSOVER_OR_HISTORICAL_PROXIMITY; NEGATIVE_GAP_CALL; POSITIVE_GAP_PUT", historicalProximity: { window: 40, percentile: 25, method: "TRAILING_ABSOLUTE_MACD_SIGNAL_GAP_DISTRIBUTION", minimumSamples: 40 }, otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_73_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, indicator: "EMA", provider: "TWELVE_DATA_EMA_ENDPOINT", period: 5, interval: "1min", seriesType: "CLOSE", apiCreditsPerRequest: 1, refreshSeconds: 60, slopeSamples: 2, pullbackProximityPips: 0.5, bounceConfirmPips: 0.2, decisionRule: "EMA5_SLOPE_UP_PLUS_PULLBACK_AND_RECLAIM_CALL; EMA5_SLOPE_DOWN_PLUS_RALLY_AND_REJECTION_PUT", otherIndicators: "NONE", scoring: "DISABLED", cadence: "EMA5_REFRESH_ONCE_PER_M1_PLUS_LIVE_STREAMING_TICK_ANALYSIS", decisionWindow: "IMMEDIATE_AFTER_CONFIRMED_REBOUND", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_PULLBACK_IMMEDIATE"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
