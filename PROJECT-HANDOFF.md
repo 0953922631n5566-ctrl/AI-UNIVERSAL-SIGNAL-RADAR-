@@ -2219,3 +2219,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live public signal API confirmed an active Engine 4 CALL while AO was positive; signal hold 30 seconds. No broker execution is performed.
 - Mini App route /signal serves the Engine 4 Awesome Oscillator card and the new data-light-toggle control; UI contract tests cover its behavior. User should refresh/reopen Telegram Mini App to load the deployed page.
 - Interpretation of the user's “Awesome Oscillator 34.5”: standard AO parameters fast=5, slow=34.
+
+
+## 2026-11-23 — Engine 4 strong-momentum gate and percentage removal
+
+- User requested removal of the newly added momentum percentage and stricter Engine 4 entry criteria.
+- Scope: only Engine 4 in main-market; Engines 1–3, shared T-5 timing, 30-second signal hold, sound/vibration and manual-only operation remain unchanged.
+- Removed the momentum percentage calculation, related API metrics, card gauge, progress bar and explanatory text.
+- Engine 4 still uses AO 5/34 (median price). A directional signal is allowed only when the latest three AO readings stay on the same side of zero, absolute AO expands twice in succession, and absolute AO is at least 0.12 × ATR(14). ATR is used only as a scale normalizer.
+- Any failed condition returns STANDBY; this is a stricter filter, not a guarantee of profitable trades. No percentage, score or confidence output is used.
+- Added/updated tests for strong CALL/PUT expansion, weak/non-expanding momentum rejection, and removal of percentage UI. Build, CI, Render deploy and live endpoint checks must be recorded after merge/deploy.
