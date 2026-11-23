@@ -139,7 +139,7 @@ function paintEngineCards(m,usable){
   if(engine4HeldSignal&&Date.now()>=engine4HoldUntil)engine4HeldSignal=null;
   if(fourthActive&&windowKey!==engine4LastFinalKey){
    engine4LastFinalKey=windowKey;
-   engine4HeldSignal=fourth.signal;engine4HoldUntil=Date.now()+30000;engine4FlashUntil=Date.now()+4200;
+   engine4HeldSignal=fourth.signal;engine4HoldUntil=Date.parse(fourth.signalExpiresAt)||Date.now()+30000;engine4FlashUntil=Date.now()+4200;
   }
   const held=Boolean(engine4HeldSignal&&Date.now()<engine4HoldUntil);
   const displaySignal=fourthActive?fourth.signal:held?engine4HeldSignal:fourthCandidate?"WATCH · "+fourthCandidate:"STANDBY";
