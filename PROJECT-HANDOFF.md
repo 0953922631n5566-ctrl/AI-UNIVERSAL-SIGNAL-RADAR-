@@ -2159,3 +2159,10 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Target the immediately following M1 candle; dispatch only in its first five seconds with a fresh Twelve Data Streaming tick. Keep one signal per candle, 30-second hold, existing shared sound/vibration, and manual-only/no-broker behavior.
 - Engine 1–3, their thresholds/timing, Twelve Data polling cadence, and all other projects remain unchanged.
 - Implementation branch: feature/engine4-ema5-only-no-score-20261123. CI, Render deploy, health metadata, and live Engine 4 signal behavior must be verified before calling this production-ready.
+
+
+### Follow-up — Engine 4 public API score fields removed
+
+- The generic engine-result serializer was still adding zero-valued `score`, `confidence`, `candidateScore`, and `activeSignalScore` fields to Engine 4 even though the analyzer no longer calculates a score.
+- Updated both enabled and disabled Engine 4 API result paths to omit those fields entirely. Other engines retain their existing score fields and behavior.
+- Added a Mini App/server contract assertion. Pending CI, merge, and Render verification.
