@@ -2150,3 +2150,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Engines 1–3, their T-5 decision timing, shared sound/vibration pipeline, and manual-only/no-broker behavior remain unchanged.
 - Thresholds retained from the live-momentum version pending paper-trading calibration: body >= 0.4 EUR/USD pips, body/range >= 0.55, directional close location >= 0.72, score >= 65.
 - CI and live Render verification pending; do not call the corrected behavior production-ready until `/health` and the public signal endpoint confirm it.
+
+
+## 2026-11-23 — Engine 4 EMA 5 close-only rule (user confirmed)
+
+- User confirmed Engine 4 must use EMA 5 only; remove all score thresholds/scoring, EMA 20, body/wick confirmation, and candle-body direction checks.
+- Rule: after the latest M1 candle fully closes, compare that candle's Close with EMA 5 calculated from consecutive completed M1 closes. Close above EMA 5 => CALL; close below EMA 5 => PUT; exact equality => no signal.
+- Target the immediately following M1 candle; dispatch only in its first five seconds with a fresh Twelve Data Streaming tick. Keep one signal per candle, 30-second hold, existing shared sound/vibration, and manual-only/no-broker behavior.
+- Engine 1–3, their thresholds/timing, Twelve Data polling cadence, and all other projects remain unchanged.
+- Implementation branch: feature/engine4-ema5-only-no-score-20261123. CI, Render deploy, health metadata, and live Engine 4 signal behavior must be verified before calling this production-ready.
