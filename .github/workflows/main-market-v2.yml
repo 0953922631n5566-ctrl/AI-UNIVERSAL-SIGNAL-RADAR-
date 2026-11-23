@@ -47,4 +47,3 @@ jobs:
           node --check src/twelve-data-pool.js
           node --check src/signal-timing.js
           node --check src/stream-retry.js
-          node --check src/client-auth.js
