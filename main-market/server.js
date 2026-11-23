@@ -943,7 +943,6 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      historicalAnalogueWorker: "BYPASSED",
       trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 65, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
@@ -983,20 +982,6 @@ app.get("/health", (_req, res) => {
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
-      emaTrendFlow: {
-        emaFast: 5, emaTrend: 20, emaTrendRole: "CHOPPY_KILL_SWITCH_ONLY",
-        touchRule: "PARTIAL_SCORE_WITHIN_0_35_ATR",
-        proximityRule: "0_35_ATR_PARTIAL_WEIGHT",
-        trendFlowRule: "FOUR_COMPONENT_PARTIAL_SCORING_100_POINT_MODEL",
-        directionalSource: "LOCAL_PARTIAL_SCORING_ON_54_CLOSED_M1_PLUS_LIVE_FORMING_CANDLE_PREVIEW",
-        externalAi: false,
-        componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 },
-        thresholds: { callPut: 55, prepare: 40, standbyBelow: 40 },
-        slopeReversal: "GRADUAL_EMA5_SLOPE_PARTIAL_POINTS",
-        supportResistanceFakeout: "FULL_POINTS_ONLY_ON_CONFIRMED_SWEEP_CLOSE_RECLAIM",
-        sidewayPolicy: "EMA5_EMA20_TANGLED_AND_FLAT_KILL_SWITCH",
-        volatilityPolicy: "ABNORMAL_ATR_SPIKE_KILL_SWITCH"
-      }
     }
   });
 });
