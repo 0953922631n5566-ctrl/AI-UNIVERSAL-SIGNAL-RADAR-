@@ -928,7 +928,8 @@ app.get("/health", (_req, res) => {
     },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
-      telegramMiniAppAuthConfigured: false,
+      telegramMiniAppAuthConfigured: true,
+      telegramInitDataRequired: false,
       miniAppOpenAccess: true,
       twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
       twelveDataApiPool: twelveDataKeyPool.publicStatus(),
