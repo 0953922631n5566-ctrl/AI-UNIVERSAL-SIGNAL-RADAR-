@@ -2166,3 +2166,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The generic engine-result serializer was still adding zero-valued `score`, `confidence`, `candidateScore`, and `activeSignalScore` fields to Engine 4 even though the analyzer no longer calculates a score.
 - Updated both enabled and disabled Engine 4 API result paths to omit those fields entirely. Other engines retain their existing score fields and behavior.
 - Added a Mini App/server contract assertion. Pending CI, merge, and Render verification.
+
+
+### 2026-11-23 — Engine 4 signal color mapping (user confirmed)
+
+- Engine 4 only: latest completed M1 Close above EMA 5 => CALL with GREEN indicator; below EMA 5 => PUT with RED indicator; equal => no signal.
+- This changes only Engine 4's color presentation and its health metadata. The Mini App labels the fixed mapping and removes Engine 4's manual color-inversion control so the requested mapping cannot be accidentally reversed.
+- EMA 5 close-only decision, no scoring, next-M1 first-five-second dispatch, 30-second hold, sound/vibration, and Engine 1–3 behavior remain unchanged.
+- Branch: fix/engine4-green-above-red-below-ema5. CI and Render deployment verification pending.
