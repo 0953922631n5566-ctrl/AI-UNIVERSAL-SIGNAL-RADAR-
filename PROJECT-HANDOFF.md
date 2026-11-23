@@ -2307,3 +2307,6 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Do not merge/deploy until the tests pass and the server is verified to have no references that can re-enable the other engines. Keep production main-market branch unchanged until then.
 
 - CI: added `.github/workflows/main-market-engine3-tests.yml` to run Node 20 tests and syntax checks for the single-engine branch.
+
+- Runtime isolation pass: the Main Market server no longer imports the V1, BB, Engine 4 analyzers or the old signal-release gate. ENGINE_KEYS is restricted to TREND_RIDER and the API toggle route cannot re-enable the other engines. Legacy source/test files are still present in the repository for now; remove them only after a successful full test run confirms no remaining dependencies.
+- A new ATR14 failover test was added. GitHub workflow/status queries still return no runs, so no claim of passing tests is made.
