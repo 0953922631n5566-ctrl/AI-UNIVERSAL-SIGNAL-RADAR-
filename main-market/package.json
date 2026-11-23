@@ -21,11 +21,11 @@
     "displayName": "Two Independent Engines: BB Pure Scalper + Trend Rider",
     "engineCount": 2,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
+    "executionModel": "LOCAL_DETERMINISTIC_INDEPENDENT_ANALYZERS",
     "decisionAuthority": "BB_AND_TREND_RIDER_INDEPENDENT_SIGNALS",
-    "directionalVoters": 3,
+    "directionalVoters": 2,
     "standaloneEveryCandleEngine": null,
-    "aggregator": 1,
+    "aggregator": 0,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,
     "scoreWeights": {
@@ -63,6 +63,10 @@
       "wickThreshold": 0.18,
       "conflictPolicy": "SHOW_BOTH_SEPARATELY",
       "mayCreateSignalAlone": true
-    }
+    },
+    "disabledEngines": [
+      "V1",
+      "ENGINE_4"
+    ]
   }
 }
