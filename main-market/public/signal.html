@@ -1,183 +1,138 @@
 <!doctype html>
-<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#07110d"><title>SIGNAL RADAR · EUR/USD M1</title>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080d12">
+<title>SIGNAL RADAR · MAIN MARKET</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#090e18;color:#edf3ff}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -15%,#233653 0,transparent 58%),#090e18;padding:16px 13px 28px}main{max-width:460px;margin:0 auto;display:grid;gap:13px}.top{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand{font-weight:900;letter-spacing:.12em;font-size:15px}.sub{font-size:9px;color:#93a8c6;letter-spacing:.1em;margin-top:3px}.pill{display:flex;align-items:center;gap:7px;border:1px solid #34445d;border-radius:99px;padding:7px 10px;font-size:9px;color:#a9bad3;white-space:nowrap}.pill:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.pill.live{color:#5df0a4;border-color:#23794e}.pill.live:before{animation:blink 1s infinite}.pill.rest{color:#f2cf79;border-color:#80682d}.pill.off{color:#ff858e;border-color:#783d49}@keyframes blink{0%,100%{opacity:1;box-shadow:0 0 0 0 currentColor}50%{opacity:.3;box-shadow:0 0 0 5px transparent}}
-.card{background:linear-gradient(145deg,#152238,#101a2a);border:1px solid #31415a;border-radius:19px;padding:16px;box-shadow:0 14px 34px #0004}.eyebrow{font-size:9px;letter-spacing:.12em;color:#91a6c4}.market-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.market-head strong{display:block;margin-top:4px;font-size:24px;letter-spacing:.035em}.market-head small{display:block;margin-top:3px;color:#91a6c4;font-size:10px}.market-price{text-align:right}.market-price b{display:block;color:#dce8ff;font-size:25px;font-variant-numeric:tabular-nums}.market-price small{font-size:9px;color:#91a6c4}
-.pair-select{width:100%;margin-top:9px;background:#0a1423;color:#eaf2ff;border:1px solid #344b6b;border-radius:10px;padding:11px;font-size:15px;font-weight:800}.pair-help{font-size:10px;color:#91a6c4;margin-top:6px}
-.signal{min-height:156px;display:flex;align-items:center;gap:16px;margin-top:9px;padding:15px;border-radius:13px;border:1px solid #3b4c64;background:#172338}.signal.call{background:linear-gradient(135deg,#481b29,#241a2b);border-color:#bd4c62}.signal.put{background:linear-gradient(135deg,#103c2b,#12243a);border-color:#2b9b68}.lamp{width:76px;height:76px;border-radius:50%;background:#7b8799;box-shadow:0 0 0 8px #ffffff09,inset 0 0 15px #0008;flex:0 0 auto}.call .lamp{background:#ff535b;box-shadow:0 0 25px #ff535b88}.put .lamp{background:#39e879;box-shadow:0 0 25px #39e87988}.words{display:grid;gap:5px;min-width:0}.hint{font-size:11px;color:#c1cee0}.value{font-size:40px;font-weight:900;line-height:1}.call .value{color:#ff777d}.put .value{color:#6cf59a}.standby .value{color:#c5cfdf}.prepare{background:#3b3015;border-color:#c69d35}.prepare .lamp{background:#f2c94c;box-shadow:0 0 20px #f2c94c77}.prepare .value{color:#ffe39a;font-size:24px}.action{font-size:10px;color:#d4dfef}
-.timer{display:flex;justify-content:space-between;gap:10px;margin-top:11px;color:#91a6c4;font-size:10px}.timer b{display:block;color:#f1f5ff;font-size:21px;font-variant-numeric:tabular-nums}.engine-grid{display:grid;grid-template-columns:1fr;gap:9px}.engine-card{position:relative;min-width:0;background:#0d192a;border:1px solid #30425c;border-radius:12px;padding:11px}.engine-title{font-size:9px;letter-spacing:.08em;color:#91a6c4}.engine-value{display:block;font-size:22px;font-weight:900;margin:7px 0 4px;color:#d9e6f8}.engine-reason{font-size:10px;line-height:1.4;color:#a9bad3;margin:0}.engine-card.call{border-color:#39e879}.engine-card.put{border-color:#ff535b}.engine-card.watch{border-color:#9a7625}
-.menu-drawer{border:1px solid #35445b;border-radius:16px;background:#101a29;overflow:hidden}
-.menu-drawer>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:13px 15px;color:#dce7f7;font-size:12px;font-weight:750;cursor:pointer;user-select:none}
-.menu-drawer>summary::-webkit-details-marker{display:none}
-.menu-icon{display:grid;place-items:center;width:28px;height:28px;border:1px solid #40516b;border-radius:9px;color:#c8d6eb;font-size:16px}
-.menu-chevron{margin-left:auto;color:#91a6c4;font-size:16px;transition:transform .2s}
-.menu-drawer[open] .menu-chevron{transform:rotate(180deg)}
-.menu-content{display:grid;gap:11px;padding:0 10px 12px}
-.menu-content .card,.menu-content .engine-card,.menu-content .api-drawer{box-shadow:none}
-.top{padding:2px 2px 4px}.brand{font-size:14px;letter-spacing:.14em}.sub{font-size:8px}
-.market-head{padding:17px}.eyebrow{font-size:9px;letter-spacing:.14em}
-.market-head small{font-size:10px}.market-price small{font-size:9px}
-[data-panel="signal"]{padding:17px}
-.signal{margin-top:11px;border-radius:16px;padding:18px}
-.timer{margin-top:14px}
-.footer{font-size:8px;line-height:1.5;color:#63748e;text-align:center;padding:3px}
-@media(max-width:360px){.lamp{width:64px;height:64px}.value{font-size:34px}.market-head strong{font-size:21px}.market-price b{font-size:21px}}
-</style></head><body><main>
-<header class="top"><div><div class="brand">◈ SIGNAL RADAR</div><div class="sub">TELEGRAM MINI APP · MAIN MARKET · NON-OTC · M1</div></div><div id="api" class="pill off">CONNECTING</div></header>
-<section class="card market-head" data-panel="market"><div><div class="eyebrow">ตลาดหลัก · NON-OTC</div><strong>EUR / USD</strong><small>อัตราแลกเปลี่ยน · M1</small></div><div class="market-price"><div class="eyebrow">LIVE PRICE</div><b id="price">—</b><small id="age">รอราคา Streaming</small></div></section>
-<section class="card" data-panel="signal"><div class="eyebrow">สัญญาณปัจจุบัน · EUR/USD</div><div id="panel" class="signal standby"><div class="lamp"></div><div class="words"><span id="hint" class="hint">กำลังตรวจสอบข้อมูลตลาด</span><strong id="signal" class="value">STANDBY</strong><span id="action" class="action">ยังไม่เข้าออเดอร์</span></div></div><div class="timer"><span>นับถอยหลังแท่งถัดไป <b id="candle">—</b></span><span>เวลาสัญญาณ <b id="expiry">—</b></span></div></section>
-<details class="menu-drawer" id="settingsMenu"><summary><span class="menu-icon">☰</span><span>เมนูตั้งค่าและข้อมูลระบบ</span><span class="menu-chevron">⌄</span></summary><div class="menu-content">
-
-<section class="card" data-panel="sound"><div class="eyebrow">SOUND & ALERT</div><div class="alert-controls"><button id="soundEnable" class="sound-button" type="button">เปิดเสียงแจ้งเตือน</button><span id="soundStatus" class="sound-status">แตะเพื่ออนุญาตเสียง</span></div><div class="alert-note">Engine 3 เท่านั้น · ใช้ EMA5, EMA20 และ ATR14 จาก Twelve Data โดยตรง · สูตรตัดสินใจเป็นของเรา · แจ้งเตือนสัญญาณจริงแยกจากไฟสลับด้วยมือ</div></section>
-<section class="card" data-panel="monitor-control"><div class="eyebrow">SYSTEM CONTROL · MANUAL START / STOP</div><div class="alert-controls"><button id="monitorToggle" class="sound-button" type="button">เริ่มวิเคราะห์</button><span id="monitorStatus" class="sound-status">หยุดอยู่</span></div><div class="alert-note">ระบบจะรับราคาและวิเคราะห์เมื่อกดเริ่มเท่านั้น · กดหยุดเพื่อปิดการสแกน</div></section>
-<section id="access" class="card" data-panel="access"><div class="eyebrow">MINI APP SESSION</div><p id="accessText" class="reason">กำลังยืนยันบัญชี Telegram…</p></section>
-
-<section class="engine-grid" data-panel="engines">
-<div id="trendCard" class="engine-card engine-enabled" aria-label="ENGINE 3 · TREND RIDER">
- <div class="engine-head"><div class="engine-title">ENGINE 3 · TREND RIDER</div><span class="engine-title">SOLE ANALYZER</span></div>
- <b id="trendSignal" class="engine-value">STANDBY</b><p id="trendReason" class="engine-reason">รอผลวิเคราะห์ Trend Rider</p>
-</div></section>
-<section class="grid" data-panel="metrics"><div class="metric"><span>MARKET REGIME</span><b id="regime">—</b></div><div class="metric"><span>CLOSED CANDLES</span><b id="candles">—</b></div><div class="metric"><span>TWELVE DATA EMA 5</span><b id="ema5Value">—</b></div><div class="metric"><span>TWELVE DATA EMA 20</span><b id="ema20Value">—</b></div><div class="metric"><span>TWELVE DATA ATR 14</span><b id="atr14Value">—</b></div><div class="metric"><span>INDICATOR API STATUS</span><b id="indicatorStatus">WAITING</b></div><div class="metric"><span>EMA GAP / ATR</span><b id="emaGapAtrValue">—</b></div><div class="metric"><span>PRICE EXTENSION / ATR</span><b id="extensionAtrValue">—</b></div><div class="metric"><span>CANDLE BODY RATIO</span><b id="bodyRatioValue">—</b></div><div class="metric"><span>PRIOR SWING HIGH</span><b id="priorHighValue">—</b></div><div class="metric"><span>PRIOR SWING LOW</span><b id="priorLowValue">—</b></div></section>
-<section class="card" data-panel="manual-lamp"><div class="eyebrow">MANUAL LIGHT SWITCH · แยกจากสัญญาณจริง</div><div class="alert-controls"><button id="manualLampToggle" class="sound-button" type="button">สลับไฟเป็นสีเขียว</button><span id="manualLampStatus" class="sound-status">ไฟสลับด้วยมือ: สีแดง</span></div><div class="alert-note">ไฟนี้เป็นไฟที่ผู้ใช้สั่งเอง ไม่เปลี่ยนผลวิเคราะห์ CALL/PUT และไม่ควบคุมไฟสัญญาณจริง</div></section>
-<section class="card" data-panel="details"><div class="eyebrow">เหตุผลและหลักฐาน</div><p id="reason" class="reason">กำลังรอข้อมูลจาก Twelve Data</p><p id="reversal" class="reversal-stage">SCORING BREAKDOWN · —</p><ul id="evidence" class="evidence"></ul><div id="validation" class="note">Engine 3 เท่านั้น · Twelve Data Native EMA5 / EMA20 / ATR14 · สูตรตัดสินใจของเรา · Manual only</div></section>
-<details class="api-drawer" data-panel="api"><summary><span>ศูนย์ API · สถานะคีย์</span><b id="apiSummary" class="api-summary">กำลังโหลด</b><span>⌄</span></summary><div id="apiKeys" class="api-grid"></div><div class="note api-note">เขียว = พร้อมใช้ · แดง = พัก/โควตา · เทา = ยังไม่ได้ตั้งค่า</div></details>
-</div></details>
-<div id="alertToast" role="status" aria-live="assertive" hidden><strong id="alertTitle"></strong><span id="alertMessage"></span></div>
-<footer class="footer">ENGINE 3 ONLY · TWELVE DATA NATIVE INDICATORS · EUR/USD M1 · MANUAL ONLY · NO BROKER EXECUTION · <span id="updated">—</span></footer>
-</main><script>
-const $=id=>document.getElementById(id);let latest=null,sessionToken="",lastSignal="",pollBusy=false,monitorActionBusy=false,authPromise=null,authRetryAt=0,audioContext=null,soundEnabled=false,lastAlertKeys=new Set(),lastPrepareAlertKey="",toastTimer=null,signalClearTimer=null;const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
+:root{color-scheme:dark;--bg:#080d12;--panel:#101a22;--line:#24343d;--muted:#8da1a9;--white:#f1f7f5;--green:#47e39a;--red:#ff6472;--gold:#eac66b}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -12%,#1b3b34 0,transparent 48%),linear-gradient(160deg,#0b1218,#070b10 72%);color:var(--white);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding:calc(16px + env(safe-area-inset-top)) 16px calc(22px + env(safe-area-inset-bottom))}
+button{font:inherit}
+.app{width:min(100%,440px);margin:0 auto;min-height:calc(100dvh - 38px);display:flex;flex-direction:column;gap:18px}
+.topbar{display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:34px;height:34px;border:1px solid #345448;border-radius:12px;display:grid;place-items:center;color:var(--green);font-size:19px;background:#10251e}.brand-name{font-size:12px;font-weight:850;letter-spacing:.18em}.brand-sub{font-size:8px;color:var(--muted);letter-spacing:.17em;margin-top:3px}
+.api{display:flex;align-items:center;gap:7px;border:1px solid #3c4b50;border-radius:30px;padding:8px 11px;font-size:9px;letter-spacing:.1em;color:#b5c2c5;background:#10191e}.api:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.api.live{color:var(--green);border-color:#286b4d}.api.live:before{box-shadow:0 0 12px var(--green);animation:pulse 1.5s infinite}.api.wait{color:var(--gold);border-color:#6e5b30}.api.off{color:var(--red);border-color:#6c3840}
+.menu-button{width:40px;height:40px;border:1px solid var(--line);border-radius:13px;background:#111b22;color:#dce9e5;font-size:20px;display:grid;place-items:center}
+.market{text-align:center;padding:12px 0 2px}.market-tag{font-size:9px;letter-spacing:.22em;color:#9bb0ad}.pair{font-size:30px;font-weight:780;letter-spacing:.04em;margin-top:7px}.pair small{font-size:12px;color:#9fb2ae;font-weight:600;letter-spacing:.13em;margin-left:5px}.price-label{font-size:9px;color:var(--muted);letter-spacing:.18em;margin-top:18px}.price{font-size:clamp(30px,9vw,42px);font-weight:650;letter-spacing:.025em;font-variant-numeric:tabular-nums;margin-top:3px}.price-age{font-size:10px;color:var(--muted);margin-top:4px}
+.signal-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:270px;padding:8px 0}
+.lamp-shell{width:190px;height:190px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle,#15242b 0,#0d171e 62%,#0a1116 70%);border:1px solid #2b3c42;box-shadow:0 20px 55px #0008,inset 0 0 35px #0008;position:relative}
+.lamp-shell:before{content:"";position:absolute;inset:12px;border-radius:50%;border:1px solid #263a3e}
+.lamp{width:112px;height:112px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#7b898a,#3b484b 54%,#202c30 100%);box-shadow:inset 0 -12px 22px #0008,0 0 0 9px #ffffff05;transition:all .25s}
+.lamp-shell.call .lamp{background:radial-gradient(circle at 35% 28%,#ffabb0,#ff5365 48%,#8b1e31 100%);box-shadow:0 0 25px #ff536577,0 0 70px #ff536533,inset 0 -12px 22px #721a2a}
+.lamp-shell.put .lamp{background:radial-gradient(circle at 35% 28%,#b4ffd7,#48e99a 48%,#16764c 100%);box-shadow:0 0 25px #47e39a77,0 0 70px #47e39a33,inset 0 -12px 22px #125a3b}
+.lamp-shell.prepare .lamp{background:radial-gradient(circle at 35% 28%,#fff0bd,#eac66b 48%,#8c6824 100%);box-shadow:0 0 25px #eac66b66,0 0 70px #eac66b22,inset 0 -12px 22px #634718}
+.signal-state{font-size:34px;font-weight:900;letter-spacing:.12em;margin-top:22px}.signal-state.call{color:var(--red)}.signal-state.put{color:var(--green)}.signal-state.prepare{font-size:22px;color:var(--gold);letter-spacing:.1em}.signal-hint{font-size:11px;color:#a4b5b5;text-align:center;margin-top:7px;min-height:18px}
+.timing{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:26px}.time-card{border:1px solid var(--line);background:linear-gradient(145deg,#111d24,#0d151b);border-radius:16px;padding:13px 15px;text-align:center}.time-card span{display:block;color:var(--muted);font-size:9px;letter-spacing:.12em}.time-card b{display:block;font-size:24px;font-variant-numeric:tabular-nums;margin-top:5px;letter-spacing:.04em}
+.bottom{display:flex;align-items:center;justify-content:space-between;color:#63777b;font-size:8px;letter-spacing:.1em;padding:4px 2px}
+.drawer-backdrop{position:fixed;inset:0;background:#0009;z-index:10}.drawer{position:fixed;z-index:11;top:0;right:0;height:100dvh;width:min(88vw,360px);padding:calc(18px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));background:#0d171e;border-left:1px solid #2a3c43;box-shadow:-20px 0 60px #0009;overflow:auto}.drawer[hidden],.drawer-backdrop[hidden]{display:none}.drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.drawer-head strong{font-size:12px;letter-spacing:.14em}.close{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#132028;color:#dce9e5;font-size:18px}
+.section{border:1px solid var(--line);background:#111d24;border-radius:14px;padding:13px;margin:10px 0}.section-title{font-size:9px;color:#92aaa8;letter-spacing:.16em;margin-bottom:10px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;color:#d4e0dc;padding:6px 0}.row small{color:var(--muted);font-size:10px;text-align:right}.control{width:100%;border:1px solid #365348;border-radius:11px;background:#153126;color:#b9f5d8;padding:12px;font-size:12px;font-weight:750;margin-top:8px}.control.secondary{border-color:#4b555a;background:#182329;color:#d8e2df}.note{font-size:10px;line-height:1.55;color:var(--muted);margin-top:9px}.key-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.key{display:flex;justify-content:space-between;gap:5px;border-radius:8px;padding:7px;background:#16242a;font-size:9px;color:#a9b9b8}.key.good b{color:var(--green)}.key.bad b{color:var(--red)}.key.empty b{color:#879498}
+.toast{position:fixed;z-index:20;left:16px;right:16px;top:calc(12px + env(safe-area-inset-top));max-width:420px;margin:auto;border:1px solid #45645a;border-radius:14px;background:#10251d;padding:13px 15px;box-shadow:0 12px 40px #0009}.toast[hidden]{display:none}.toast.call{border-color:#86414c;background:#2a151b}.toast.put{border-color:#28734f;background:#10271e}.toast strong,.toast span{display:block}.toast strong{font-size:12px}.toast span{font-size:10px;color:#b5c7c0;margin-top:4px}
+@keyframes pulse{50%{opacity:.45}}@media(max-height:690px){.signal-wrap{min-height:230px}.lamp-shell{width:156px;height:156px}.lamp{width:92px;height:92px}.signal-state{margin-top:15px}.timing{margin-top:17px}}
+</style>
+</head>
+<body>
+<div class="app">
+ <header class="topbar">
+  <div class="brand"><div class="brand-mark">◈</div><div><div class="brand-name">SIGNAL RADAR</div><div class="brand-sub">MAIN MARKET · NON-OTC</div></div></div>
+  <div style="display:flex;align-items:center;gap:9px"><div id="api" class="api wait">CONNECTING</div><button id="menuButton" class="menu-button" aria-label="เปิดเมนู">☰</button></div>
+ </header>
+ <section class="market">
+  <div class="market-tag">LIVE MARKET · ONE MINUTE</div>
+  <div class="pair">EUR / USD <small>M1</small></div>
+  <div class="price-label">LIVE PRICE</div>
+  <div id="price" class="price">—</div>
+  <div id="age" class="price-age">กำลังเชื่อมต่อข้อมูลตลาดจริง</div>
+ </section>
+ <section class="signal-wrap" aria-live="polite">
+  <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
+  <div id="signal" class="signal-state">STANDBY</div>
+  <div id="hint" class="signal-hint">กำลังเริ่มระบบวิเคราะห์อัตโนมัติ</div>
+  <div class="timing">
+   <div class="time-card"><span>แท่งถัดไป · M1</span><b id="candle">—</b></div>
+   <div class="time-card"><span>สัญญาณคงเหลือ</span><b id="expiry">—</b></div>
+  </div>
+ </section>
+ <footer class="bottom"><span>EUR/USD · NON-OTC · M1</span><span id="updated">INITIALIZING</span></footer>
+</div>
+<div id="backdrop" class="drawer-backdrop" hidden></div>
+<aside id="drawer" class="drawer" hidden>
+ <div class="drawer-head"><strong>CONTROL CENTER</strong><button id="closeMenu" class="close" aria-label="ปิดเมนู">×</button></div>
+ <section class="section">
+  <div class="section-title">MONITORING</div>
+  <div class="row"><span>สถานะการวิเคราะห์</span><small id="monitorStatus">กำลังเริ่มต้น</small></div>
+  <button id="monitorToggle" class="control secondary">หยุดการวิเคราะห์</button>
+  <p class="note">เปิด Mini App แล้วระบบเริ่มเชื่อมต่อและวิเคราะห์ให้อัตโนมัติ หากกดหยุด สามารถกดเริ่มใหม่จากเมนูนี้ได้</p>
+ </section>
+ <section class="section">
+  <div class="section-title">SOUND & HAPTICS</div>
+  <button id="soundEnable" class="control">แตะเพื่อเปิดเสียงแจ้งเตือน</button>
+  <div id="soundStatus" class="note">การเปิดเสียงต้องอนุญาตด้วยการแตะหนึ่งครั้งตามข้อจำกัดของ Telegram / Android</div>
+ </section>
+ <section class="section" id="trendCard">
+  <div class="section-title">ENGINE 3 · TREND RIDER</div>
+  <div class="row"><span>ผลวิเคราะห์</span><small id="engineSignal">STANDBY</small></div>
+  <div class="row"><span>สภาวะตลาด</span><small id="regime">—</small></div>
+  <div class="row"><span>EMA 5 · Twelve Data</span><small id="ema5">—</small></div>
+  <div class="row"><span>EMA 20 · Twelve Data</span><small id="ema20">—</small></div>
+  <div class="row"><span>ATR 14 · Twelve Data</span><small id="atr14">—</small></div>
+  <div class="row"><span>แท่งปิดที่พร้อม</span><small id="candles">—</small></div>
+  <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div>
+  <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
+  <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
+ </section>
+ <section class="section">
+  <div class="section-title">API POOL STATUS</div>
+  <div class="row"><span id="apiSummary">กำลังโหลดสถานะคีย์</span><small id="apiPool">—</small></div>
+  <div id="apiKeys" class="key-list"></div>
+  <p class="note">สีเขียว = พร้อมใช้ · สีแดง = พักหรือโควตา · สีเทา = ยังไม่ได้ตั้งค่า</p>
+ </section>
+ <div class="note">MAIN MARKET · EUR/USD · NON-OTC · M1<br>MANUAL ONLY · ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์</div>
+</aside>
+<div id="toast" class="toast" hidden><strong id="toastTitle"></strong><span id="toastText"></span></div>
+<script>
+const $=id=>document.getElementById(id);
 const tg=window.Telegram?.WebApp||null;
-function playSequence(frequencies,duration=0.15,gap=0.11){if(!soundEnabled||!audioContext||audioContext.state!=="running")return;const start=audioContext.currentTime+0.025;frequencies.forEach((frequency,index)=>{const at=start+index*(duration+gap),osc=audioContext.createOscillator(),gain=audioContext.createGain();osc.type="triangle";osc.frequency.setValueAtTime(frequency,at);gain.gain.setValueAtTime(0.0001,at);gain.gain.exponentialRampToValueAtTime(0.16,at+0.018);gain.gain.exponentialRampToValueAtTime(0.0001,at+duration);osc.connect(gain);gain.connect(audioContext.destination);osc.start(at);osc.stop(at+duration+0.03);});}
-async function enableSound(){try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)throw new Error("เบราว์เซอร์นี้ไม่รองรับ Web Audio");if(!audioContext)audioContext=new Audio();await audioContext.resume();soundEnabled=audioContext.state==="running";if(!soundEnabled)throw new Error("ยังเปิดเสียงไม่ได้ กรุณาแตะปุ่มอีกครั้ง");$("soundEnable").textContent="ทดสอบเสียงอีกครั้ง";$("soundStatus").textContent="เปิดเสียงแล้ว · พร้อมแจ้งเตือนขณะเปิด Mini App";playSequence([740,988],0.13,0.1);}catch(error){soundEnabled=false;$("soundStatus").textContent=error.message||"เปิดเสียงไม่สำเร็จ";}}
+let token="",latest={},pollBusy=false,controlBusy=false,authBusy=null,autoStartBusy=false,bootStartCompleted=false;
+let audio=null,soundEnabled=false,lastAlertId="",lastPrepareId="",toastTimer=null,manualLampColor="RED";
+const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
+function timeMs(v){if(v===null||v===undefined||v==="")return NaN;const n=typeof v==="number"?v:Number(v);if(Number.isFinite(n))return n;const p=Date.parse(v);return Number.isFinite(p)?p:NaN;}
+function countdown(v){const t=timeMs(v);if(!Number.isFinite(t))return "—";const s=Math.max(0,Math.ceil((t-Date.now())/1000));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
+function soundPattern(freqs){if(!soundEnabled||!audio||audio.state!=="running")return;const start=audio.currentTime+.02;freqs.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),at=start+i*.22;o.type="sine";o.frequency.setValueAtTime(f,at);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.13,at+.02);g.gain.exponentialRampToValueAtTime(.0001,at+.15);o.connect(g);g.connect(audio.destination);o.start(at);o.stop(at+.18);});}
+async function enableSound(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error("อุปกรณ์ไม่รองรับเสียง");if(!audio)audio=new C();await audio.resume();soundEnabled=audio.state==="running";if(!soundEnabled)throw Error("ยังเปิดเสียงไม่ได้");$("soundEnable").textContent="เสียงแจ้งเตือนเปิดแล้ว";$("soundStatus").textContent="เปิดเสียงเรียบร้อย · ระบบจะส่งเสียงเมื่อมี PREPARE / CALL / PUT";soundPattern([660,880]);}catch(e){$("soundStatus").textContent=e.message||"เปิดเสียงไม่สำเร็จ";}}
 $("soundEnable").addEventListener("click",enableSound);
-function showAlertToast(kind,title,message,duration){const toast=$("alertToast");toast.className=kind; $("alertTitle").textContent=title;$("alertMessage").textContent=message;toast.hidden=false;if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(()=>{toast.hidden=true;},duration);}
-function triggerSignalAlert(signal,key,engine){
- if(lastAlertKeys.has(key))return;
- lastAlertKeys.add(key);
- const isCall=signal==="CALL";
- playSequence(isCall?[660,880,1175,880]:[880,660,440,660],0.2,0.1);
- if(typeof navigator!=="undefined"&&navigator.vibrate)navigator.vibrate(isCall?[250,100,250,100,450]:[450,120,250,120,450]);
- try{tg?.HapticFeedback?.notificationOccurred(isCall?"success":"error");}catch{}
- const panel=$("panel"),flash=isCall?"alert-flash-call":"alert-flash-put";
- panel.classList.remove("alert-flash-call","alert-flash-put");void panel.offsetWidth;panel.classList.add(flash);
- setTimeout(()=>panel.classList.remove(flash),4200);
- const expiresAt=timeMs(latest?.signalExpiresAt);
- const holdMs=Number.isFinite(expiresAt)?Math.max(0,expiresAt-Date.now()):0;
- showAlertToast(isCall?"real-call":"real-put",(engine||"SIGNAL")+" · "+signal,
-   "สัญญาณสำหรับแท่ง M1 ถัดไป"+" · "+(latest?.symbol||""),holdMs);
- if(signalClearTimer)clearTimeout(signalClearTimer);
- if(holdMs>0){
-   const activeAlertId=latest?.alertId;
-   signalClearTimer=setTimeout(()=>{
-     if(latest?.alertId===activeAlertId&&Date.now()>=expiresAt){
-       $("panel").className="signal standby";$("signal").textContent="STANDBY";
-       $("hint").textContent="หมดช่วงแสดงสัญญาณ";$("action").textContent="ยังไม่เข้าออเดอร์";
-       $("alertToast").hidden=true;
-     }
-   },holdMs);
- }
-}
-function regime(v){return({UPTREND:"TRENDING · ขาขึ้น",DOWNTREND:"TRENDING · ขาลง",SIDEWAY:"SIDEWAY · ออกข้าง",HIGH_VOLATILITY:"HIGH VOLATILITY",REVERSAL:"REVERSAL",UNCLEAR:"UNCLEAR"})[v]||v||"—"}
-function accessMessage(message,kind="off"){$("access").hidden=false;$("accessText").textContent=message;$("api").className="pill "+kind;$("api").textContent=kind==="live"?"SESSION READY":"CONNECTING";}
-async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const response=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const body=await response.json().catch(()=>({}));if(!response.ok||!body.sessionToken){const retrySeconds=Math.max(5,Number(response.headers.get("Retry-After")||15));authRetryAt=Date.now()+retrySeconds*1000;throw new Error(body.error||"Session creation failed");}authRetryAt=0;sessionToken=body.sessionToken;$("access").hidden=true;$("api").className="pill live";$("api").textContent="SESSION READY";}
-function ensureAuth(){if(!authPromise)authPromise=authenticate().finally(()=>{authPromise=null;});return authPromise;}
-async function toggleMonitoring(){
- if(monitorActionBusy)return;
- monitorActionBusy=true;paint(latest||{});
- try{
-  if(!sessionToken)await ensureAuth();
-  const action=latest?.monitoring===true?"stop":"start";
-  let response=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sessionToken},cache:"no-store",body:JSON.stringify({action})});
-  if(response.status===401){sessionToken="";await ensureAuth();response=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+sessionToken},cache:"no-store",body:JSON.stringify({action})});}
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(body.error||("HTTP "+response.status));
-  paint(body.market||{});
- }catch(error){$("monitorStatus").textContent=error.message||"สั่งงานไม่สำเร็จ";}
- finally{monitorActionBusy=false;paint(latest||{});}
-}
-function paintTrendCard(m,usable){
- const engine=m.engineResults?.TREND_RIDER||m.trendRider||{};
- const active=usable&&engine.active===true&&["CALL","PUT"].includes(engine.signal);
- const candidate=usable&&["CALL","PUT"].includes(engine.candidateSignal)?engine.candidateSignal:null;
- const shown=active?engine.signal:candidate?"WATCH · "+candidate:"STANDBY";
- $("trendSignal").textContent=shown;
- $("trendCard").className="engine-card engine-enabled "+(active?engine.signal.toLowerCase():candidate?"watch":"");
- $("trendReason").textContent=engine.reason||engine.status||"รอข้อมูลตลาด";
-}
-
-function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0),cooldown=Math.max(0,total-ready);$("apiSummary").textContent="ตั้งค่า "+total+"/10 คีย์ · พร้อมใช้ "+ready+" · พัก/จำกัด "+cooldown;$("apiKeys").replaceChildren();for(let n=1;n<=10;n++){const item=states.find(v=>Number(v.number)===n);const row=document.createElement("div"),name=document.createElement("span"),status=document.createElement("b");row.className="api-key "+(!item?"empty":item.available===false?"bad":"good");name.textContent="API KEY "+String(n).padStart(2,"0");status.textContent=!item?"NOT SET":item.status==="ACTIVE"?"ACTIVE":item.status==="COOLDOWN"?"COOLDOWN":"READY";row.append(name,status);$("apiKeys").append(row);}}
-
-function paint(m){
- latest=m||{};
- const api=m.apiStatus||"OFFLINE",support=m.supportStatus||"";
- paintApiPool(m.apiPool||{});
- const required=Number(m.requiredCandles||30);
- const usable=api==="ONLINE"&&m.monitoring!==false;
- paintTrendCard(m,usable);
- const activeSignals=usable&&Array.isArray(m.activeSignals)?m.activeSignals:[];
- const direction=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;
- const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";
- const prepareKey=preparing&&m.nextCandleAt?String(m.symbol||m.selectedSymbol||"")+":"+String(m.nextCandleAt):"";
- if(prepareKey&&prepareKey!==lastPrepareAlertKey){
-   lastPrepareAlertKey=prepareKey;playSequence([587,784],0.12,0.08);
-   if(typeof navigator!=="undefined"&&navigator.vibrate)navigator.vibrate([100,60,100]);
-   try{tg?.HapticFeedback?.impactOccurred("light");}catch{}
-   console.info("[mini-app] T-10 PREPARE alert",{symbol:m.symbol||m.selectedSymbol,targetCandleAt:m.nextCandleAt});
- }
- const signal=direction||(preparing?"PREPARE":"STANDBY");
- $("panel").className="signal "+(signal==="PREPARE"?"prepare":signal.toLowerCase());
- $("signal").textContent=signal==="PREPARE"?"PREPARE / เฝ้าระวัง":signal;
- $("hint").textContent=signal==="CALL"?( "สัญญาณฝั่งซื้อ · เข้าแท่ง M1 ถัดไป"):signal==="PUT"?( "สัญญาณฝั่งขาย · เข้าแท่ง M1 ถัดไป"):signal==="PREPARE"?"PREPARE · เฝ้าระวัง Trend Rider · รอยืนยันที่ T-5":"รอข้อมูลหรือเงื่อนไขที่ผ่านเกณฑ์";
- $("action").textContent=signal==="CALL"?"พิจารณา CALL ด้วยตนเอง":signal==="PUT"?"พิจารณา PUT ด้วยตนเอง":signal==="PREPARE"?"เฝ้าระวัง · ยังไม่มี CALL/PUT":"ยังไม่เข้าออเดอร์";
- $("api").className="pill "+(api!=="ONLINE"?"off":support==="REST_ONLY"?"rest":"live");
- $("api").textContent=api!=="ONLINE"?"API "+api:support==="REST_ONLY"?"REST DATA":"STREAM LIVE";
- $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice??m.metrics?.lastPrice);
- $("ema5Value").textContent=fmt(m.metrics?.ema5);$("ema20Value").textContent=fmt(m.metrics?.ema20);$("atr14Value").textContent=fmt(m.metrics?.atr14);$("indicatorStatus").textContent=m.indicatorStatus?("EMA5 "+m.indicatorStatus.ema5+" · EMA20 "+m.indicatorStatus.ema20+" · ATR14 "+m.indicatorStatus.atr14):(m.indicators?.status||"WAITING");$("emaGapAtrValue").textContent=Number.isFinite(m.metrics?.emaGapAtr)?m.metrics.emaGapAtr.toFixed(3):"—";$("extensionAtrValue").textContent=Number.isFinite(m.metrics?.extensionAtr)?m.metrics.extensionAtr.toFixed(3):"—";$("bodyRatioValue").textContent=Number.isFinite(m.metrics?.bodyRatio)?m.metrics.bodyRatio.toFixed(3):"—";$("priorHighValue").textContent=fmt(m.metrics?.priorHigh);$("priorLowValue").textContent=fmt(m.metrics?.priorLow);
- $("regime").textContent=regime(m.regime);
- $("candles").textContent=(m.closedCandleCount??0)+"/"+required+" · "+(m.analysisWindow?.contextCandles??50)+"+"+(m.analysisWindow?.entryCandles??4);
- $("age").textContent=Number.isFinite(m.ageSeconds)?Math.round(m.ageSeconds)+"s":Number.isFinite(m.tickAgeSeconds)?Math.round(m.tickAgeSeconds)+"s":"—";
- $("reason").textContent=usable?(m.reason||m.statusMessage||"Engine 3 Trend Rider กำลังวิเคราะห์"):(m.statusMessage||m.reason||"รอข้อมูลตลาดที่สดและครบถ้วน");
- const scoreParts=m.components||{};
- const scoreBreakdown="ENGINE 3 · CALL "+(m.scoreUp??"—")+"/100 · PUT "+(m.scoreDown??"—")+"/100 · เกณฑ์ออกสัญญาณ 65 · EMA gap "+(m.metrics?.emaGapAtr??"—")+" ATR · Extension "+(m.metrics?.extensionAtr??"—")+" ATR";
- $("reversal").textContent=scoreBreakdown;
- $("reversal").className="reversal-stage "+(m.killSwitch?"warning":signal==="CALL"||signal==="PUT"?"confirmed":"");
- $("evidence").replaceChildren(...(Array.isArray(m.evidence)?m.evidence:[]).slice(0,5).map(v=>{const li=document.createElement("li");li.textContent=String(v);return li}));
- $("validation").textContent=m.signalValidationNote||"Engine 3 Trend Rider เท่านั้น · ใช้ EMA5 / EMA20 / ATR14 จาก Twelve Data native endpoints · วิเคราะห์โครงสร้างราคาและ Pullback · Manual only · ไม่มีการส่งคำสั่งซื้อขายอัตโนมัติ";
- $("updated").textContent="UPDATED "+new Date().toLocaleTimeString("th-TH");
- if(activeSignals.length){
-   for(const item of activeSignals){
-     const alertKey=String(m.symbol||m.selectedSymbol||"")+":"+String(item.alertId||item.engine+":"+item.signal);
-     triggerSignalAlert(item.signal,alertKey,item.engine);
-   }
- }else if(direction&&m.alertId){
-   const alertKey=String(m.symbol||m.selectedSymbol||"")+":"+String(m.alertId);
-   triggerSignalAlert(direction,alertKey,"SIGNAL");
- }
- if(!activeSignals.length&&!direction&&!preparing&&signalClearTimer){clearTimeout(signalClearTimer);signalClearTimer=null;}
- lastSignal=signal;
-}
-async function poll(){if(pollBusy||document.visibilityState==="hidden"||(!sessionToken&&Date.now()<authRetryAt))return;pollBusy=true;try{if(!sessionToken)await ensureAuth();let response=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+sessionToken},cache:"no-store"});if(response.status===401){sessionToken="";await ensureAuth();response=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+sessionToken},cache:"no-store"});}const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||("HTTP "+response.status));$("access").hidden=true;paint(body.market||{});}catch(error){if(!authRetryAt)authRetryAt=Date.now()+15000;accessMessage(error.message||"ไม่สามารถยืนยัน Telegram ได้");$("panel").className="signal standby";$("signal").textContent="STANDBY";$("reason").textContent=error.message||"รอการยืนยัน Telegram";$("action").textContent="ยังไม่เข้าออเดอร์";}finally{pollBusy=false;}}
-function timeMs(value){if(value===null||value===undefined||value==="")return NaN;const n=typeof value==="number"?value:Number(value);if(Number.isFinite(n))return n;const parsed=Date.parse(value);return Number.isFinite(parsed)?parsed:NaN;}
-function countdown(value,now){const target=timeMs(value);if(!Number.isFinite(target))return "—";const seconds=Math.max(0,Math.ceil((target-now)/1000));if(seconds===0)return "00:00";const minutes=Math.floor(seconds/60),remain=seconds%60;return String(minutes).padStart(2,"0")+":"+String(remain).padStart(2,"0");}
-function tick(){const m=latest||{},now=Date.now(),c=timeMs(m.nextCandleAt),e=timeMs(m.signalExpiresAt);$("candle").textContent=Number.isFinite(c)?countdown(c,now):"—";$("expiry").textContent=Number.isFinite(e)?(e>now?countdown(e,now):"หมดอายุ"):"—";}
-
-let manualLampColor="RED";
+function notify(signal,id){if(!id||id===lastAlertId)return;lastAlertId=id;const call=signal==="CALL";soundPattern(call?[660,880,1100]:[880,660,440]);try{navigator.vibrate?.(call?[220,90,220,90,380]:[380,100,220,100,380]);tg?.HapticFeedback?.notificationOccurred(call?"success":"error");}catch{}$("toast").className="toast "+(call?"call":"put");$("toastTitle").textContent="ENGINE 3 · "+signal;$("toastText").textContent="สัญญาณสำหรับแท่ง M1 ถัดไป · ตรวจสอบก่อนตัดสินใจด้วยตนเอง";$("toast").hidden=false;if(toastTimer)clearTimeout(toastTimer);const expires=timeMs(latest.signalExpiresAt);toastTimer=setTimeout(()=>$("toast").hidden=true,Number.isFinite(expires)?Math.max(1200,expires-Date.now()):30000);}
+function setApi(status,label){$("api").className="api "+(status==="ONLINE"?"live":status==="CONNECTING"?"wait":"off");$("api").textContent=label||status;}
+async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const r=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const b=await r.json().catch(()=>({}));if(!r.ok||!b.sessionToken)throw Error(b.error||"เปิด Session ไม่สำเร็จ");token=b.sessionToken;}
+function ensureAuth(){if(!authBusy)authBusy=authenticate().finally(()=>authBusy=null);return authBusy;}
+async function control(action){if(controlBusy)return;controlBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"สั่งงานไม่สำเร็จ");paint(b.market||{});return true;}catch(e){$("monitorStatus").textContent=e.message||"เชื่อมต่อไม่สำเร็จ";setApi("OFFLINE","API OFFLINE");return false;}finally{controlBusy=false;}}
+async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเริ่มอัตโนมัติ";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
+function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
+function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
+$("monitorStatus").textContent=monitoring?"กำลังทำงาน":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดการวิเคราะห์":"เริ่มวิเคราะห์";
+$("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
+const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir|| (preparing?"PREPARE":"STANDBY");
+$("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
+$("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
+$("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · แท่ง M1 ถัดไป":"สัญญาณฝั่งขาย · แท่ง M1 ถัดไป"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
+$("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
+const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.metrics?.ema5);$("ema20").textContent=fmt(m.metrics?.ema20);$("atr14").textContent=fmt(m.metrics?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??30);$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
+if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
+const active=Array.isArray(m.activeSignals)?m.activeSignals:[];if(active.length){for(const item of active)notify(item.signal,String(item.alertId||item.engine+item.signal));}else if(dir&&m.alertId)notify(dir,String(m.alertId));
+$("updated").textContent=new Date().toLocaleTimeString("th-TH");}
+async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
+$("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});
 try{const saved=localStorage.getItem("signalRadarManualLampColor");if(saved==="RED"||saved==="GREEN")manualLampColor=saved;}catch{}
-function paintManualLamp(){
- const green=manualLampColor==="GREEN";
- $("manualLampToggle").textContent=green?"สลับไฟเป็นสีแดง":"สลับไฟเป็นสีเขียว";
- $("manualLampStatus").textContent="ไฟสลับด้วยมือ: "+(green?"สีเขียว":"สีแดง");
- $("manualLampStatus").style.color=green?"#5df0a4":"#ff858e";
- $("manualLampToggle").style.borderColor=green?"#23794e":"#783d49";
-}
-$("manualLampToggle").addEventListener("click",()=>{
- manualLampColor=manualLampColor==="RED"?"GREEN":"RED";
- try{localStorage.setItem("signalRadarManualLampColor",manualLampColor);}catch{}
- paintManualLamp();
-});
-paintManualLamp();
-$("monitorToggle").addEventListener("click",toggleMonitoring);
-
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")poll();});poll();setInterval(poll,2000);setInterval(tick,250);
+function paintManualLamp(){const green=manualLampColor==="GREEN";$("manualLampToggle").textContent=green?"สลับไฟเสริมเป็นสีแดง":"สลับไฟเสริมเป็นสีเขียว";$("manualLampStatus").textContent="ไฟเสริม: "+(green?"สีเขียว":"สีแดง")+" · แยกจากสัญญาณจริง";$("manualLampStatus").style.color=green?"#47e39a":"#ff6472";}
+$("manualLampToggle").addEventListener("click",()=>{manualLampColor=manualLampColor==="RED"?"GREEN":"RED";try{localStorage.setItem("signalRadarManualLampColor",manualLampColor);}catch{}paintManualLamp();});paintManualLamp();
+function openMenu(){ $("drawer").hidden=false;$("backdrop").hidden=false; }
+function closeMenu(){ $("drawer").hidden=true;$("backdrop").hidden=true; }
+$("menuButton").addEventListener("click",openMenu);$("closeMenu").addEventListener("click",closeMenu);$("backdrop").addEventListener("click",closeMenu);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")poll();});
+try{tg?.ready?.();tg?.expand?.();}catch{}
+autoStart();setInterval(()=>{if(!bootStartCompleted)autoStart();},5000);setInterval(poll,1200);setInterval(()=>{if(latest.nextCandleAt)$("candle").textContent=countdown(latest.nextCandleAt);if(latest.signalExpiresAt)$("expiry").textContent=countdown(latest.signalExpiresAt);},250);
 </script>
+</body>
+</html>
