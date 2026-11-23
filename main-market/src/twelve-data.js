@@ -223,3 +223,45 @@ export async function fetchMomentum9({keyPool=twelveDataKeyPool,symbol="EUR/USD"
  const values=[...map.values()].sort((a,b)=>a.epoch-b.epoch).slice(-2);if(values.length!==2||values[1].epoch-values[0].epoch!==60){const e=new Error(`${symbol}: Momentum 9 needs two consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;}
  return{symbol:body.meta?.symbol||symbol,interval:body.meta?.interval||interval,period:9,seriesType:"close",values,receivedAt:now,source:"Twelve Data /mom"};
 }
+
+
+/** Fetch a provider-calculated native indicator series; no local indicator math. */
+async function fetchNativeIndicator({endpoint,field,period,symbol="EUR/USD",interval="1min",outputsize=6,keyPool=twelveDataKeyPool,fetchImpl=fetch,now=Date.now()}){
+ const normalized=normalizeSymbol(symbol);
+ if(!SYMBOLS.some(item=>normalizeSymbol(item)===normalized))throw new Error(`Pair is not enabled: ${symbol}`);
+ const keys=keyPool.getRestCandidates?.()||keyPool.getCandidates();
+ if(!keys.length){const e=new Error(`No Twelve Data API keys available for ${endpoint}(${period})`);e.kind="RATE_LIMIT";throw e;}
+ const url=new URL(`/${endpoint}`,API_BASE);
+ for(const [k,v] of Object.entries({symbol,interval,time_period:String(period),outputsize:String(outputsize),order:"desc",timezone:"UTC"}))url.searchParams.set(k,v);
+ if(endpoint==="ema")url.searchParams.set("series_type","close");
+ let body,success=null,last=null;
+ for(const key of keys){
+  try{
+   const response=await fetchImpl(url,{headers:{Authorization:`apikey ${key}`},signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS)});
+   try{body=await response.json();}catch{const e=new Error(`Twelve Data returned invalid ${endpoint} JSON`);e.kind="INVALID_RESPONSE";throw e;}
+   if(!response.ok||body?.status==="error"||!Array.isArray(body?.values))throw providerError(symbol,body,response.status);
+   success=key;break;
+  }catch(caught){
+   const error=caught?.kind?caught:(()=>{const e=new Error(`Twelve Data ${endpoint} network error: ${caught.message}`);e.kind="NETWORK_ERROR";return e;})();
+   last=error;
+   if(error.kind==="PAIR_UNAVAILABLE"||error.kind==="INSUFFICIENT_HISTORY")throw error;
+   keyPool.markFailure(key,error);
+  }
+ }
+ if(!success)throw last||new Error(`Twelve Data ${endpoint} pool failed`);
+ if(typeof keyPool.markRestSuccess==="function")keyPool.markRestSuccess(success);else keyPool.markSuccess(success);
+ const current=Math.floor(now/60000)*60,byEpoch=new Map();
+ for(const raw of body.values){
+  const epoch=Date.parse(String(raw?.datetime||"").replace(" ","T")+"Z")/1000;
+  const value=Number(raw?.[field]);
+  if(Number.isFinite(epoch)&&Number.isFinite(value)&&epoch<current)byEpoch.set(epoch,{epoch,value});
+ }
+ const values=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-4);
+ if(values.length!==4||values.some((v,i)=>i>0&&v.epoch-values[i-1].epoch!==60)){
+  const e=new Error(`${symbol}: Twelve Data ${endpoint}(${period}) needs four consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;
+ }
+ return{symbol:body.meta?.symbol||symbol,interval:body.meta?.interval||interval,endpoint,period,values:values.map(v=>({epoch:v.epoch,[field]:v.value})),receivedAt:now,source:`Twelve Data /${endpoint}`};
+}
+export const fetchTrendEma5 = options => fetchNativeIndicator({...options,endpoint:"ema",field:"ema",period:5});
+export const fetchEma20 = options => fetchNativeIndicator({...options,endpoint:"ema",field:"ema",period:20});
+export const fetchAtr14 = options => fetchNativeIndicator({...options,endpoint:"atr",field:"atr",period:14,outputsize:4});
