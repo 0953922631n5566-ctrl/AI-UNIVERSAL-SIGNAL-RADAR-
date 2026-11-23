@@ -170,7 +170,7 @@ test("four engine cards remain independently toggleable and Engine 4 uses adapti
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 21/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /emaPeriods: \\[8, 21\\]/);
+  assert.ok(serverJs.includes("emaPeriods: [8, 21]"));
   assert.ok(serverJs.includes('scoring: "DISABLED"'));
   assert.match(serverJs, /scoring: "DISABLED"/);
   assert.match(serverJs, /emaFast: 5/);
