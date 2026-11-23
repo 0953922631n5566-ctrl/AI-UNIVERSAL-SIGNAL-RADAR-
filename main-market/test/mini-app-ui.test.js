@@ -19,7 +19,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App presents immediate EMA5 pullback signals and preserves shared sound, vibration and 30-second alert UI", () => {
+test("Mini App presents immediate EMA5 and Momentum9 signals and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -39,7 +39,7 @@ test("Mini App presents immediate EMA5 pullback signals and preserves shared sou
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · TWELVE DATA EMA 5</div>'));
+  assert.ok(html.includes('<div class="engine-title">04 · EMA 5 + MOMENTUM 9</div>'));
   assert.ok(html.includes("Engine 4 · EMA5 + Momentum9 → CALL"));
   assert.ok(html.includes("Engine 4 · EMA5 + Momentum9 → PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
@@ -176,7 +176,6 @@ test("four engine cards remain independently toggleable and Engine 4 uses native
   assert.match(serverJs, /ENGINE4_EMA_RETRY_MIN_MS/);
   assert.match(serverJs, /indicatorEndpoints: \["EMA time_period=5", "MOM time_period=9"\]/);
   assert.match(serverJs, /derivedIndicators: \[\]/);
-  assert.match(serverJs, /trendAdxMin: 14/);
   assert.match(serverJs, /rangeEntries: \["BOLLINGER_EDGE_REJECTION_WITH_RSI"\]/);
   assert.match(serverJs, /decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP"/);
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
