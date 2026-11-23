@@ -120,7 +120,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN"/);
+  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
@@ -160,11 +160,11 @@ test("four engine cards remain independently toggleable and Engine 4 uses Awesom
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_NEXT_M1_OPEN"/);
+  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
   assert.match(serverJs, /formula: "SMA5\(MEDIAN_PRICE\)-SMA34\(MEDIAN_PRICE\)"/);
   assert.match(serverJs, /decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL"/);
   assert.match(serverJs, /otherIndicators: "NONE"/);
-  assert.match(serverJs, /decisionWindow: "TARGET_M1_OPEN_TO_PLUS_5S"/);
+  assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
