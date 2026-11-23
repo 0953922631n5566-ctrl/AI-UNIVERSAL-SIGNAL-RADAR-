@@ -459,10 +459,10 @@ async function evaluate(feed) {
  const aggregateSignal = activeDirections.length === 1 ? activeDirections[0] : "STANDBY";
  const conflicting = activeDirections.length > 1;
  const activeEngineNames = activeSignals.map(item => item.engine);
- const v1Candidate = engineResults.V1.candidateSignal;
- const bbCandidate = engineResults.BB.candidateSignal;
+ const v1Candidate = null;
+ const bbCandidate = null;
  const trendCandidate = engineResults.TREND_RIDER.candidateSignal;
- const engine4Candidate = engineResults.ENGINE_4.candidateSignal;
+ const engine4Candidate = null;
  feed.preAlertStatus = !activeSignals.length && prepareWindow &&
    Boolean(v1Candidate || bbCandidate || trendCandidate || engine4Candidate) ? "PREPARE_ALERT" : null;
  feed.preAlertCandle = feed.preAlertStatus ? targetCandleEpoch : null;
@@ -1209,7 +1209,7 @@ app.post("/api/telegram/engines", requireTelegramSession, rateLimitControl, asyn
   const requested = req.body?.engines;
   if (!requested || typeof requested !== "object" || Array.isArray(requested) ||
       ENGINE_KEYS.some(key => typeof requested[key] !== "boolean")) {
-    return res.status(400).json({ ok: false, error: "ต้องระบุสถานะเปิด/ปิดของเครื่องยนต์ทั้ง 4 ตัว" });
+    return res.status(400).json({ ok: false, error: "ต้องระบุสถานะของ Engine 3" });
   }
   for (const key of ENGINE_KEYS) {
     engineEnabled[key] = requested[key];
