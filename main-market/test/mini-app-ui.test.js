@@ -176,6 +176,8 @@ test("four engine cards remain independently toggleable and Engine 4 uses wick-o
   assert.match(serverJs, /emaFast: 5/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
   assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
+  assert.doesNotMatch(serverJs, /FIRST_FRESH_STREAM_TICK_OF_NEXT_M1/);
+  assert.match(serverJs, /engine === "ENGINE_4" \? "TARGET_M1_CANDLE_OPEN"/);
 });
 
 test("Engine 4 API result omits score and confidence fields", () => {
