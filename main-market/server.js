@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 LIVE M1 WICK ONLY T-5";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-LIVE-M1-WICK-ONLY-T5";
-const VERSION = "2026-11-23-engine4-live-m1-wick-only-t5-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 MULTI-DIMENSION ADAPTIVE";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-MULTI-DIMENSION-ADAPTIVE";
+const VERSION = "2026-11-23-engine4-multi-dimension-adaptive-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -304,11 +304,11 @@ async function evaluate(feed) {
  } else if (livePreview && sourceCandleEpoch !== null) {
    engine4Raw = analyzeEarlyEntryEngine4(analysisCandles, { liveCandle:livePreview });
  } else {
-   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับตรวจไส้เทียน" };
+   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับวิเคราะห์ Adaptive" };
  }
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: "LIVE_M1_WICK_ONLY_T5",
+       analysisMode: engine4Raw.analysisMode || "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -316,7 +316,7 @@ async function evaluate(feed) {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
    TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "LOCAL_EARLY_ENTRY_ENGINE_4", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
+   ENGINE_4: { ...engine4Raw, provider: "LOCAL_MULTI_DIMENSION_ADAPTIVE_ENGINE_4", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
@@ -382,11 +382,11 @@ async function evaluate(feed) {
      active = {
        engine, signal: selectedFinalSignal, sourceCandleEpoch: signalSourceEpoch, targetCandleEpoch: signalTargetEpoch,
        triggeredAt: now, expiresAt: signalHoldExpiresAt(signalTargetEpoch),
-       score: selectedCandidate.score ?? 0, sourceReason: selectedCandidate.reason || null,
+       ...(engine4Entry ? {} : { score: selectedCandidate.score ?? 0 }), sourceReason: selectedCandidate.reason || null,
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: null,
        entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_WICK" : "NORMAL"}`
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_ADAPTIVE" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -398,12 +398,12 @@ async function evaluate(feed) {
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "ตรวจจับแรงราคาในแท่ง M1 ปัจจุบันเพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "ตรวจจับ Trend Pullback / Range Reversal เพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    const engineResult = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? "LIVE_M1_WICK_ONLY_T5" : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -528,14 +528,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "LIVE_M1_WICK_ONLY_T5_NEXT_M1",
+   engine4DecisionMode: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1",
    engine4UsesClosedCandlesOnly: false,
    engine4LookbackClosedCandles: 0,
-   engine4DirectionSource: "CURRENT_LIVE_M1_UPPER_VS_LOWER_WICK",
+   engine4DirectionSource: "LIVE_M1_OHLC_WITH_EMA_ATR_MACD_RSI_BOLLINGER",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 เปรียบเทียบไส้บนกับไส้ล่างของแท่ง M1 ปัจจุบันเท่านั้น · ไส้ล่างยาวกว่า = CALL/เขียว, ไส้บนยาวกว่า = PUT/แดง, เท่ากัน = งดสัญญาณ · ยืนยันและแจ้งเตือนที่ T-5 พร้อม Engine 1–3 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 สลับ Trend Pullback / Sideway Range Reversal อัตโนมัติด้วย EMA8/21, ATR14, MACD4/9/4, RSI5 และ Bollinger14/2 · ไม่มีคะแนน · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1190,9 +1190,9 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "LIVE_M1_WICK_ONLY_T5_NEXT_M1", minimumClosedCandles: 0, lookbackClosedCandles: 0, emaPeriod: null, cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5_WITH_ENGINES_1_TO_3", input: "CURRENT_LIVE_M1_UPPER_WICK_VS_LOWER_WICK_ONLY", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", scoring: "DISABLED", decisionRule: "LOWER_WICK_LONGER_CALL_GREEN; UPPER_WICK_LONGER_PUT_RED; EQUAL_NO_SIGNAL", closedCandleConfirmation: "LIVE_CANDLE_WICK_COMPARISON_ONLY_NO_EMA_NO_SCORE", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1", minimumClosedCandles: 21, lookbackClosedCandles: 21, emaPeriods: [8, 21], atrPeriod: 14, macd: [4, 9, 4], rsiPeriod: 5, bollinger: { period: 14, deviations: 2 }, cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_21_CLOSED_M1_INDICATOR_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", scoring: "DISABLED", decisionRule: "TREND_EMA8_21_PULLBACK_MACD_CONFIRM_OR_SIDEWAY_BOLLINGER_RSI_REVERSAL", closedCandleConfirmation: "LIVE_M1_ADAPTIVE_INDICATOR_RULES_NO_SCORE", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_LIVE_WICK_T5_NEXT_M1"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_ADAPTIVE_T5_NEXT_M1"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
