@@ -6,18 +6,18 @@ import { isSignalFinalizeWindow, canFinalizeSignal } from "../src/signal-timing.
 const source = 1_800_000_000;
 const target = source + 60;
 
-function makeHistory({ count = 30, start = 1.1, step = 0.001, wide = false, declines = 0 } = {}) {
+function makeHistory({ count = 40, direction = 1, flat = false } = {}) {
   const rows = [];
-  let close = start;
   for (let i = 0; i < count; i++) {
-    if (i >= count - declines) close -= 0.0001;
-    else close += step;
-    const open = close - (step >= 0 ? 0.0002 : -0.00002);
+    const mid = 1.1 + (flat ? 0 : direction * i * 0.0001);
     rows.push({
-      epoch: source - (count - i) * 60, open,
-      high: Math.max(open, close) + (wide ? 0.001 : 0.0002),
-      low: Math.min(open, close) - (wide ? 0.001 : 0.0002),
-      close, live: false, provisional: false
+      epoch: source - (count - i) * 60,
+      open: mid - 0.00002,
+      high: mid + 0.00005,
+      low: mid - 0.00005,
+      close: mid + 0.00002,
+      live: false,
+      provisional: false
     });
   }
   return rows;
@@ -25,61 +25,52 @@ function makeHistory({ count = 30, start = 1.1, step = 0.001, wide = false, decl
 
 function liveCandle(overrides = {}) {
   return {
-    epoch: source, open: 1.1, high: 1.101, low: 1.099,
-    close: 1.1005, live: false, provisional: true, ...overrides
+    epoch: source, open: 1.104, high: 1.1041, low: 1.1039,
+    close: 1.104, live: false, provisional: true, ...overrides
   };
 }
 
-test("trend regime issues CALL on EMA8 pullback with bullish MACD", () => {
-  const history = makeHistory({ step: 0.0001 });
-  const previous = history.at(-1).close;
-  const live = liveCandle({
-    open: previous - 0.0001, close: previous + 0.0008,
-    low: previous - 0.0005, high: previous + 0.0009
-  });
+test("AO 5/34 above zero produces CALL for the next M1 candle", () => {
+  const history = makeHistory({ direction: 1 });
+  const live = liveCandle();
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
-  assert.equal(result.analysisMode, "TREND_PULLBACK");
-  assert.equal(result.metrics.regime, "TREND");
+  assert.equal(result.candidateSignal, "CALL");
+  assert.equal(result.analysisMode, "AO_ZERO_LINE");
+  assert.equal(result.metrics.aoPeriod.fast, 5);
+  assert.equal(result.metrics.aoPeriod.slow, 34);
+  assert.ok(result.metrics.awesomeOscillator > 0);
   assert.equal(result.targetCandleEpoch, target);
   assert.equal(result.strategy, ENGINE4_STRATEGY);
   assert.equal("score" in result, false);
   assert.equal("confidence" in result, false);
+  assert.equal("regime" in result, false);
 });
 
-test("sideway regime issues CALL on lower Bollinger touch with RSI below 30", () => {
-  const history = makeHistory({ step: 0, wide: true, declines: 5 });
-  const previous = history.at(-1).close;
-  const live = liveCandle({
-    open: previous - 0.00015, close: previous - 0.00010,
-    low: previous - 0.002, high: previous + 0.001
-  });
+test("AO 5/34 below zero produces PUT for the next M1 candle", () => {
+  const history = makeHistory({ direction: -1 });
+  const live = liveCandle({ open: 1.096, high: 1.0961, low: 1.0959, close: 1.096 });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
-  assert.equal(result.metrics.regime, "SIDEWAY");
-  assert.equal(result.metrics.rsi5 < 30, true);
   assert.equal(result.ready, true);
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.analysisMode, "RANGE_REVERSAL");
-  assert.equal("score" in result, false);
+  assert.equal(result.signal, "PUT");
+  assert.ok(result.metrics.awesomeOscillator < 0);
 });
 
-test("returns no signal when neither regime has a valid entry", () => {
-  const history = makeHistory({ step: 0.001 });
-  const previous = history.at(-1).close;
-  const live = liveCandle({
-    open: previous, close: previous + 0.00001,
-    low: previous - 0.00001, high: previous + 0.00002
-  });
+test("AO exactly on zero line does not invent a direction", () => {
+  const history = makeHistory({ flat: true });
+  const live = liveCandle({ open: 1.1, high: 1.10005, low: 1.09995, close: 1.1 });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, false);
-  assert.equal(result.status, "NO_ADAPTIVE_ENTRY");
+  assert.equal(result.status, "AO_ZERO_LINE");
+  assert.equal(result.signal, null);
 });
 
-test("requires at least 21 closed candles and a valid live preview", () => {
-  const short = makeHistory({ count: 20 });
+test("requires 34 valid M1 samples including the live preview", () => {
+  const short = makeHistory({ count: 32 });
   const live = liveCandle();
-  assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status, "INSUFFICIENT_HISTORY");
+  assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status,
+    "INSUFFICIENT_HISTORY");
   assert.equal(analyzeEarlyEntryEngine4([], { liveCandle: { ...live, provisional: false } }).status,
     "LIVE_M1_PREVIEW_NOT_READY");
 });

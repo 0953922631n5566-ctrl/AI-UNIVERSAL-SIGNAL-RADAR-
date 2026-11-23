@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("ADAPTIVE · T-5"));
+  assert.ok(html.includes("AWESOME OSCILLATOR 5/34"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,9 +37,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · ADAPTIVE · T-5</div>'));
-  assert.ok(html.includes("Engine 4 · Adaptive → T-5 CALL"));
-  assert.ok(html.includes("Engine 4 · Adaptive → T-5 PUT"));
+  assert.ok(html.includes('<div class="engine-title">04 · AWESOME OSCILLATOR 5/34</div>'));
+  assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 CALL"));
+  assert.ok(html.includes("Engine 4 · AO 5/34 → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -107,7 +107,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is exposed as an independent analyzer and participates in the four-engine system", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_MULTI_DIMENSION_ADAPTIVE_ENGINE_4"/);
+  assert.match(serverJs, /ENGINE_4: \{ \.\.\.engine4Raw, provider: "LOCAL_AWESOME_OSCILLATOR_ENGINE_4"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -120,7 +120,7 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(analysisCandles, \{ liveCandle:livePreview \}\)/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
-  assert.match(serverJs, /engine4DecisionMode: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1"/);
+  assert.match(serverJs, /engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
   assert.doesNotMatch(serverJs, /engine4PendingForecast|NEXT_M1_ENTRY_READY/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
@@ -141,43 +141,35 @@ test("Engine 4 adaptive signal shares T-5 alert timing and 30-second hold", () =
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses adaptive Trend/Sideway rules without scoring", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses Awesome Oscillator 5/34 only", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
-  for (const key of ["V1", "BB", "TREND_RIDER"]) {
+  for (const key of ["V1", "BB", "TREND_RIDER", "ENGINE_4"]) {
     assert.match(html, new RegExp('data-light-toggle="' + key + '"'));
   }
   assert.match(html, /signalRadarEngineLightInverted/);
-  assert.doesNotMatch(html, /data-light-toggle="ENGINE_4"/);
   assert.ok(html.includes("#engine4Card{--call-color:#39e879;--call-glow:#39e87988;--put-color:#ff535b;--put-glow:#ff535b88}"));
-  assert.match(html, /CALL=เขียว · PUT=แดง/);
-  assert.ok(serverJs.includes('colors: { CALL: "GREEN", PUT: "RED" }'));
+  assert.match(html, /#engine4Card\.light-inverted\{--call-color:#ff535b/);
   assert.match(html, /function toggleEngineLight/);
   assert.match(html, /function paintEngineLightSettings/);
+  assert.match(html, /const mapping=key==="ENGINE_4"/);
   assert.match(html, /signalRadarEngineEnabled/);
   assert.match(html, /api\/telegram\/engines/);
   assert.match(html, /engineEnabled\.ENGINE_4/);
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1"/);
-  assert.match(serverJs, /input: "LIVE_M1_OHLC_PLUS_21_CLOSED_M1_INDICATOR_CONTEXT"/);
+  assert.match(serverJs, /strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1"/);
+  assert.match(serverJs, /formula: "SMA5\(MEDIAN_PRICE\)-SMA34\(MEDIAN_PRICE\)"/);
+  assert.match(serverJs, /decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL"/);
+  assert.match(serverJs, /otherIndicators: "NONE"/);
   assert.match(serverJs, /decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3"/);
-  assert.match(serverJs, /decisionRule: "TREND_EMA8_21_PULLBACK_MACD_CONFIRM_OR_SIDEWAY_BOLLINGER_RSI_REVERSAL"/);
-  assert.match(serverJs, /closedCandleConfirmation: "LIVE_M1_ADAPTIVE_INDICATOR_RULES_NO_SCORE"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
-  assert.match(serverJs, /minimumClosedCandles: 21/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.ok(serverJs.includes("emaPeriods: [8, 21]"));
-  assert.ok(serverJs.includes('scoring: "DISABLED"'));
-  assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /emaFast: 5/);
-  assert.doesNotMatch(serverJs, /engine4TickStats/);
-  assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
-  assert.doesNotMatch(serverJs, /FIRST_FRESH_STREAM_TICK_OF_NEXT_M1/);
   assert.match(serverJs, /engine === "ENGINE_4" \? "TARGET_M1_CANDLE_OPEN"/);
+  assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
 
 test("Engine 4 API result omits score and confidence fields", () => {
@@ -189,7 +181,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 adaptive indicators", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 Awesome Oscillator", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
@@ -200,11 +192,11 @@ test("Streaming Tick re-analysis stays local while Engine 4 analyzes live M1 ada
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE"\)/);
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? \(selectedCandidate\.analysisMode \|\| "AO_ZERO_LINE"\)/);
   assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
   assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
   assert.match(html, /if\(lightButton\)lightButton\.addEventListener/);
-  assert.match(html, /engineLightInverted\.ENGINE_4=false/);
+  assert.match(html, /data-light-toggle="ENGINE_4"/);
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });

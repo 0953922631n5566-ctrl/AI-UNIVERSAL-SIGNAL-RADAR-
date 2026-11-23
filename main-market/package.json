@@ -18,13 +18,22 @@
   },
   "radarArchitecture": {
     "name": "V1 + BB + Trend Rider AI + Independent Engine 4",
-    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 Multi-Dimension Adaptive Trend and Range",
+    "displayName": "Four Analyzer Cards: V1 + BB(20,2) + Trend Rider EMA5/20 + Engine 4 Awesome Oscillator 5/34",
     "engineCount": 4,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "LOCAL_DETERMINISTIC_PARTIAL_SCORING",
     "decisionAuthority": "V1_BB_AND_TREND_RIDER_INDEPENDENT_DIRECTIONAL_ANALYSTS",
     "directionalVoters": 3,
     "standaloneEveryCandleEngine": "ENGINE_4",
+    "engine4": {
+      "strategy": "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1",
+      "indicator": "AWESOME_OSCILLATOR",
+      "fastPeriod": 5,
+      "slowPeriod": 34,
+      "decisionRule": "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL",
+      "otherIndicators": "NONE",
+      "scoring": "DISABLED"
+    },
     "aggregator": 1,
     "safetyValidation": "DATA_QUALITY_CHOPPY_AND_HIGH_ATR_KILL_SWITCH_PLUS_TIMING_GUARDS",
     "externalAiCalls": false,

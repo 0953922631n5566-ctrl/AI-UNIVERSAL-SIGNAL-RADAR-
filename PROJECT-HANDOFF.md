@@ -2193,3 +2193,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Live `/health` returned `ok:true`, Engine 4 strategy `LIVE_M1_WICK_ONLY_T5_NEXT_M1`, direction mapping lower wick longer => CALL/GREEN, upper wick longer => PUT/RED, equal => no signal, score disabled, 30-second hold, sound/vibration enabled; Twelve Data pool reported 10/10 available.
 - Live `/signal` displays the WICK ONLY · T-5 Engine 4 card and the wick-color legend. Live `/api/public/signal` showed Engine 4 using the new wick-only strategy; the sampled live candle had equal zero-length wicks, so it correctly returned no Engine 4 signal at that moment.
 - On-device Telegram sound/vibration and a full live T-5 directional dispatch still require a user-side market-cycle test. No broker execution is performed.
+
+
+## 2026-11-23 — Engine 4 Awesome Oscillator 5/34 (implementation branch)
+
+- User requested replacing Engine 4's adaptive Trend/Sideway indicators with Awesome Oscillator only, using the standard 5/34 periods, and adding the same light-color toggle button used by Engines 1–3.
+- Implementation branch: feature/engine4-awesome-oscillator-5-34-toggle-20261123, based on the verified production main-market branch after PR #213.
+- Engine 4 direction rule: AO = SMA5(median price) − SMA34(median price), where median price = (high + low) / 2. AO above zero => CALL; below zero => PUT; exactly zero => no directional signal. No EMA, MACD, RSI, Bollinger, trend/sideway regime filter, candle-pattern filter, or score is used by Engine 4.
+- Existing shared data-quality/fresh-live-price guard, T-5 finalization, next-M1 target, one-signal-per-candle dedupe, 30-second hold, sound/vibration, and manual-only/no-broker behavior are retained.
+- Engine 4 card receives a functional data-light-toggle button. Its default mapping remains CALL=green / PUT=red; the button toggles the color mapping like Engines 1–3. The existing card on/off toggle remains independent.
+- Validation, CI, PR merge, Render deployment, live /health and /api/public/signal, and Telegram device verification are pending. Do not describe the change as deployed until those checks are complete.
