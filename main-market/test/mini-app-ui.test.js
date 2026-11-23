@@ -117,6 +117,8 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(html, /id="engine4Signal"/);
   assert.match(html, /id="engine4Reason"/);
   assert.match(serverJs, /engine4Candidate/);
+  assert.match(serverJs, /engine4PendingForecast/);
+  assert.match(serverJs, /WAITING_FOR_NEXT_M1_OPEN/);
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
@@ -154,12 +156,15 @@ test("four engine cards are independently toggleable and Engine 4 uses live-mome
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: "LIVE_M1_MOMENTUM_TO_NEXT_M1_ENTRY"/);
   assert.match(serverJs, /input: "CURRENT_FORMING_M1_OHLC_BODY_AND_CLOSE_LOCATION"/);
-  assert.match(serverJs, /decisionWindow: "\[0,5s\)"/);
+  assert.match(serverJs, /decisionWindow: "SOURCE_M1_AFTER_5S_UNTIL_CLOSE; DISPATCH_TARGET_M1_\[0,5S\)"/);
   assert.match(serverJs, /decisionRule: "CALL_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BULLISH; PUT_WHEN_LIVE_BODY_AND_CLOSE_LOCATION_ARE_BEARISH; OTHERWISE_NO_SIGNAL"/);
   assert.match(serverJs, /liveCandleMovement: "BODY_DIRECTION_STRENGTH_AND_CLOSE_LOCATION"/);
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 0/);
+  assert.match(serverJs, /minimumBodyPips: 0\.4/);
+  assert.match(serverJs, /minimumBodyRangeRatio: 0\.55/);
+  assert.match(serverJs, /minimumDirectionalCloseLocation: 0\.72/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
   assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
 });
