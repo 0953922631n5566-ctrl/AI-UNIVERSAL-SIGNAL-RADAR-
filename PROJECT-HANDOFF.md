@@ -2183,3 +2183,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Engine 4 evaluates the current live M1 preview and uses the same T-5 finalization window, fresh Streaming tick guard, one-signal-per-source-candle dedupe, next-M1 target, shared sound/vibration alert pipeline, and 30-second hold as Engines 1–3.
 - No broker order is executed; the Mini App displays a manual-entry signal. Engines 1–3 and other projects must remain unchanged.
 - Implementation branch: feature/engine4-wick-only-t5-timing-20261123. CI, Render deployment, live health/API/UI verification, and Android Telegram sound/vibration verification are pending. Do not call this production-ready until those checks pass.
+
+
+## 2026-11-23 — Engine 4 wick-only T-5 production verification
+
+- PR #213 merged to `main-market` as commit `5c92a85fe87473bdfcbefb2e012b6588ba6ffb46`.
+- Render service `ai-signal-radar-main-market` deployment `dep-dc1spvu1egvs738o745g` reached `live` at 2026-11-23T05:20:33Z.
+- CI passed all four required workflows: Main Market Telegram Mini App Checks, Main Market Node Tests, Main Market Checks, and Main Market Recovery Tests. Node test run reported 192 passed, 0 failed, 4 skipped; syntax checks passed.
+- Live `/health` returned `ok:true`, Engine 4 strategy `LIVE_M1_WICK_ONLY_T5_NEXT_M1`, direction mapping lower wick longer => CALL/GREEN, upper wick longer => PUT/RED, equal => no signal, score disabled, 30-second hold, sound/vibration enabled; Twelve Data pool reported 10/10 available.
+- Live `/signal` displays the WICK ONLY · T-5 Engine 4 card and the wick-color legend. Live `/api/public/signal` showed Engine 4 using the new wick-only strategy; the sampled live candle had equal zero-length wicks, so it correctly returned no Engine 4 signal at that moment.
+- On-device Telegram sound/vibration and a full live T-5 directional dispatch still require a user-side market-cycle test. No broker execution is performed.
