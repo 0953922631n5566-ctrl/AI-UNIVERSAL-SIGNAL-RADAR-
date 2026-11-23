@@ -2323,3 +2323,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Test contracts were rewritten for the single-engine architecture. A prior run on an intermediate commit reported the full Node test suite passing but failed a syntax-check step because CI still referenced deleted Android modules; CI workflow references were corrected. New end-to-end CI runs for the latest commits are pending.
 - Do not merge or deploy until all relevant GitHub Actions jobs pass, the server and inline Mini App scripts pass syntax checks, and the deployed endpoints are verified. Do not invite the user to test the production Mini App before deployment and health/API checks.
 - Signal quality/profitability remains unvalidated out-of-sample; this is a functional implementation/test task, not a profitability guarantee.
+
+
+### Final verification — deployed Main Market Engine 3 (2026-11-23)
+
+- PR #227 was merged into `main-market`; Render service `ai-signal-radar-main-market` deployed the Engine 3 runtime.
+- Final live health check returned `ok=true`, `decisionEngine=ENGINE_3_TREND_RIDER_ONLY`, `engines=1`, native indicator endpoints EMA(5), EMA(20), ATR(14), and all 10 Twelve Data keys configured/available.
+- Live GitHub Actions smoke test passed against Render: created a Mini App session, called Start, waited until Streaming was ONLINE and EMA5/EMA20/ATR14 were READY with non-null values, then called Stop and verified `monitoring=false`.
+- Production was left stopped after the smoke test. Opening `/signal` and pressing Start is required to begin monitoring.
+- Mini App route verified reachable: `https://ai-signal-radar-main-market.onrender.com/signal`. Public signal endpoint returned STANDBY while stopped, as intended.
+- Start/Stop is HTTP polling only; no old local WebSocket broadcaster, Android client API, APK build workflow, other analyzer, recovery system, or broker execution remains in the active Main Market runtime.
+- Important: signal logic is functionally smoke-tested, but profitability has not been validated out-of-sample. Keep manual execution and evaluate in demo/test mode first.
+- Device-level Telegram container behavior (in-app rendering, device sound/vibration) still needs a quick confirmation on the user's Telegram client; backend session, Start/Stop, live Streaming, and native indicators are verified.
