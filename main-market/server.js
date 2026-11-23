@@ -530,7 +530,7 @@ let reason;
    signalTimingWindowSeconds: [5, 0],
    engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1",
    engine4UsesClosedCandlesOnly: false,
-   engine4LookbackClosedCandles: 33,
+   engine4LookbackClosedCandles: 35,
    engine4DirectionSource: "AWESOME_OSCILLATOR_5_34_MEDIAN_PRICE_ONLY",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
@@ -1190,7 +1190,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_DIRECTION_ONLY_WHEN_SAME_SIDE_AND_EXPANDING_TWICE_AND_ABS_AO_AT_LEAST_0_12_ATR14", momentumGate: "THREE_AO_SAMPLES_SAME_SIDE; ABS_AO_EXPANDS_TWICE; ABS_AO_DIVIDED_BY_ATR14_GTE_0_12", otherIndicators: "ATR14_USED_ONLY_AS_NORMALIZER", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_33_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_DIRECTION_ONLY_WHEN_SAME_SIDE_AND_EXPANDING_TWICE_AND_ABS_AO_AT_LEAST_0_12_ATR14", momentumGate: "THREE_AO_SAMPLES_SAME_SIDE; ABS_AO_EXPANDS_TWICE; ABS_AO_DIVIDED_BY_ATR14_GTE_0_12", otherIndicators: "ATR14_USED_ONLY_AS_NORMALIZER", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_35_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_AO_5_34_T5_NEXT_M1"
     },
