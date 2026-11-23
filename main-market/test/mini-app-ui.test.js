@@ -172,7 +172,7 @@ test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 
   assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 reads the current forming M1 candle", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 calculates EMA from closed M1 candles", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
