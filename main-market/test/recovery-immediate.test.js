@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
 
 test("normal signals use the original T-5 finalization window and target the next M1 candle", () => {
-  assert.match(server, /const engineWindow = engine === "ENGINE_4" \? engine4EntryWindow : finalizeWindow/);
+  assert.match(server, /const engineWindow = finalizeWindow/);
   assert.match(server, /if \(!activeForCurrentOrNext && engineWindow && selectedFinalSignal && timingReady\)/);
   assert.match(server, /canFinalizeSignal\(/);
   assert.match(server, /targetCandleEpoch: signalTargetEpoch,\s*triggeredAt: now, expiresAt: signalHoldExpiresAt\(signalTargetEpoch\)/);
