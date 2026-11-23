@@ -4,7 +4,7 @@ Status: **Locked production baseline**
 Service: `ai-signal-radar-main-market`  
 Branch: `main-market`  
 Default market checked: `EUR/USD · M1 · NON-OTC`  
-Decision engine: `LOCAL_PARTIAL_SCORING_65_AGILE`  
+Decision engine: `TREND_RIDER_MODERATE_58`  
 External AI/Gemini decision calls: **DISABLED / NOT USED**
 
 This document records the deployed parameter baseline. A lock means the implementation and configuration must not drift without an explicitly reviewed change, tests, and a new release. It does **not** claim a verified win rate or guarantee trading accuracy.
@@ -23,15 +23,15 @@ Partial points are retained within each component; do not convert the model to a
 
 ## 2. Decision thresholds — fixed
 
-- **CALL / PUT:** top directional score >= 65, provided neither kill switch is active.
-- **PREPARE:** top directional score 45–64, provided neither kill switch is active.
+- **CALL / PUT:** top directional score >= 58 and directional score lead >= 8, with EMA alignment and structure confirmation, provided neither safety guard is active.
+- **PREPARE:** top directional score 45–57, provided neither safety guard is active.
 - **STANDBY:** top directional score < 45, ambiguous direction, insufficient data, or either kill switch is active.
 
-The score is a rule-based score, not a probability of winning.
+The score is a rule-based score, not a probability of winning. Moderate tuning: CALL/PUT threshold 58 (previously 65), directional lead 8 (previously 12), tight-sideways cutoff 0.08 ATR (previously 0.12 ATR). Late-entry, abnormal-volatility, stale-data, candle-quality, streaming, and T-5 timing guards remain unchanged.
 
 ## 3. Kill switches — fixed
 
-- **Choppy market:** EMA5 and EMA20 are tangled when their absolute separation is <= 0.12 × ATR; both EMA slopes are flat when each absolute slope is <= 0.025 × ATR. When both conditions are true, force STANDBY.
+- **Choppy market:** EMA5 and EMA20 are tightly tangled when their absolute separation is < 0.08 × ATR; both EMA slopes are flat when each absolute slope is <= 0.025 × ATR. When both conditions are true, force STANDBY. This moderately relaxes the previous 0.12 × ATR threshold.
 - **Abnormal ATR spike:** force STANDBY when the latest candle range is > 2.8 × ATR, or recent ATR is > 2.4 × the historical baseline ATR.
 - EMA20 is used for the Choppy kill switch only; EMA5 remains the directional reference in the scoring model.
 
