@@ -55,13 +55,13 @@ export function analyzeTrendRider(candles, options = {}) {
   const downMomentum=last.close<previous.close&&bodyRatio>=.35;
   const scoreUp=Math.round(30*Number(upAligned)+20*clamp(gapAtr/.55)+20*Number(risingStructure)+15*Number(upPullback||upBreak)+15*Number(upMomentum));
   const scoreDown=Math.round(30*Number(downAligned)+20*clamp(gapAtr/.55)+20*Number(fallingStructure)+15*Number(downPullback||downBreak)+15*Number(downMomentum));
-  const sideways=gapAtr<.12,late=extensionAtr>1.5,volatilitySpike=range>volatility*2.8;
+  const sideways=gapAtr<.08,late=extensionAtr>1.5,volatilitySpike=range>volatility*2.8;
   let signal=null,score=Math.max(scoreUp,scoreDown),status="TREND_NOT_CONFIRMED",reason="EMA5/EMA20 และโครงสร้างราคาไม่สอดคล้องพอ";
   if(sideways){status="SIDEWAYS_BLOCK";reason="EMA5/EMA20 พันกัน · งดสัญญาณในตลาดออกข้าง";}
   else if(late){status="LATE_ENTRY_BLOCK";reason="ราคาออกห่าง EMA5 เกิน 1.5 ATR · ไม่ไล่ตามเทรนด์";}
   else if(volatilitySpike){status="VOLATILITY_BLOCK";reason="แท่งล่าสุดกว้างผิดปกติเมื่อเทียบกับ ATR14";}
-  else if(scoreUp>=65&&scoreUp-scoreDown>=12&&upAligned&&(risingStructure||upBreak)){signal="CALL";score=scoreUp;status="UPTREND_CONTINUATION";reason="EMA5 เหนือ EMA20 · โครงสร้างขาขึ้น · มีแรงต่อเนื่องหรือย่อแล้วกลับขึ้น";}
-  else if(scoreDown>=65&&scoreDown-scoreUp>=12&&downAligned&&(fallingStructure||downBreak)){signal="PUT";score=scoreDown;status="DOWNTREND_CONTINUATION";reason="EMA5 ใต้ EMA20 · โครงสร้างขาลง · มีแรงต่อเนื่องหรือย่อแล้วกลับลง";}
+  else if(scoreUp>=58&&scoreUp-scoreDown>=8&&upAligned&&(risingStructure||upBreak)){signal="CALL";score=scoreUp;status="UPTREND_CONTINUATION";reason="EMA5 เหนือ EMA20 · โครงสร้างขาขึ้น · มีแรงต่อเนื่องหรือย่อแล้วกลับขึ้น";}
+  else if(scoreDown>=58&&scoreDown-scoreUp>=8&&downAligned&&(fallingStructure||downBreak)){signal="PUT";score=scoreDown;status="DOWNTREND_CONTINUATION";reason="EMA5 ใต้ EMA20 · โครงสร้างขาลง · มีแรงต่อเนื่องหรือย่อแล้วกลับลง";}
   else if(score>=45){status="TREND_WATCH";reason="เริ่มเห็นแนวโน้ม แต่หลักฐานต่อเนื่องยังไม่ครบ";}
   return {ready:true,signal,direction:signal,score,scoreUp,scoreDown,status,reason,
     strategy:"TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_PULLBACK",provider:"TWELVE_DATA_NATIVE_INDICATORS",
