@@ -32,9 +32,9 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const sessions = new Map();
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 MULTI-DIMENSION ADAPTIVE";
-const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-MULTI-DIMENSION-ADAPTIVE";
-const VERSION = "2026-11-23-engine4-multi-dimension-adaptive-v1";
+const SYSTEM_NAME = "V1 + BB PURE SCALPER + TREND RIDER AI + ENGINE 4 AWESOME OSCILLATOR 5/34";
+const ARCHITECTURE_ID = "V1-BB-TREND-RIDER-PLUS-ENGINE-4-AWESOME-OSCILLATOR-5-34";
+const VERSION = "2026-11-23-engine4-awesome-oscillator-5-34-v1";
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ noServer: true });
@@ -308,7 +308,7 @@ async function evaluate(feed) {
  }
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
-       analysisMode: engine4Raw.analysisMode || "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE",
+       analysisMode: engine4Raw.analysisMode || "AO_ZERO_LINE",
        targetCandleAt: engine4Raw.targetCandleAt || new Date(engine4Raw.targetCandleEpoch * 1000).toISOString(),
        signal: engine4Raw.signal }
    : { ...engine4Raw, engine: "ENGINE_4", active: false, signal: "STANDBY", status: engine4Raw.status || "SOURCE_LOCKED" };
@@ -316,7 +316,7 @@ async function evaluate(feed) {
    V1: v1Result,
    BB: { ...bbRaw, provider: "LOCAL_BB_PURE_SCALPER", strategy: bbRaw.strategy || "BB20_2_INDEPENDENT_EARLY_TOUCH_REVERSAL" },
    TREND_RIDER: { ...trendRaw, provider: "LOCAL_TREND_RIDER_AI" },
-   ENGINE_4: { ...engine4Raw, provider: "LOCAL_MULTI_DIMENSION_ADAPTIVE_ENGINE_4", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
+   ENGINE_4: { ...engine4Raw, provider: "LOCAL_AWESOME_OSCILLATOR_ENGINE_4", engine: "ENGINE_4", signal: engine4Raw.ready ? engine4Raw.signal : null }
  };
 
  const finalizeWindow = sourceCandleEpoch !== null && isSignalFinalizeWindow(sourceCandleEpoch, now);
@@ -398,7 +398,7 @@ async function evaluate(feed) {
    const currentActive = activeForCurrentOrNext || Boolean(active && active.targetCandleEpoch === targetCandleEpoch);
    const isActive = Boolean(currentActive && active);
    const activeReason = isActive
-     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "ตรวจจับ Trend Pullback / Range Reversal เพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
+     ? `ACTIVE ${active.signal} · hold 30s · ${selectedFinalSignal && selectedFinalSignal !== active.signal ? `latest scan sees ${selectedFinalSignal}, but the active signal is held until expiry` : (active.sourceReason || (engine === "ENGINE_4" ? "Awesome Oscillator 5/34 เพื่อเข้าแท่งถัดไป" : "T-5 confirmed"))}`
      : recoveryMode === "RECOVERY_ACTIVE" ? "กำลังแก้มือ · รอสัญญาณใหม่จากสูตรวิเคราะห์เดิม" : selectedCandidate.reason;
    const engineResult = {
      ...selectedCandidate,
@@ -1190,7 +1190,7 @@ app.get("/health", (_req, res) => {
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine4: { independent: true, copiedFrom: null, strategy: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1", minimumClosedCandles: 21, lookbackClosedCandles: 21, emaPeriods: [8, 21], atrPeriod: 14, macd: [4, 9, 4], rsiPeriod: 5, bollinger: { period: 14, deviations: 2 }, cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_21_CLOSED_M1_INDICATOR_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", scoring: "DISABLED", decisionRule: "TREND_EMA8_21_PULLBACK_MACD_CONFIRM_OR_SIDEWAY_BOLLINGER_RSI_REVERSAL", closedCandleConfirmation: "LIVE_M1_ADAPTIVE_INDICATOR_RULES_NO_SCORE", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
+      engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_33_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
       signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_ADAPTIVE_T5_NEXT_M1"
     },
