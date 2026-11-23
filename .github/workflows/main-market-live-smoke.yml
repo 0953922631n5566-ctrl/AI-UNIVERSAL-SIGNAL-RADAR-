@@ -28,7 +28,7 @@ jobs:
           for attempt in $(seq 1 60); do
             if HEALTH="$(curl -fsS --max-time 12 "$BASE/health" 2>/dev/null)" && printf '%s' "$HEALTH" | node -e '
               let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-                try { const h=JSON.parse(s); process.exit(h.ok && h.architecture?.decisionEngine==="ENGINE_3_TREND_RIDER_ONLY" && h.architecture?.engines===1 ? 0 : 1); }
+                try { const h=JSON.parse(s); process.exit(h.ok && h.architecture?.decisionEngine==="ENGINE_3_TREND_RIDER_ONLY" && h.architecture?.engines===1 && h.architecture?.controlChannel==="TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP" ? 0 : 1); }
                 catch { process.exit(1); }
               });'; then
               READY=1
