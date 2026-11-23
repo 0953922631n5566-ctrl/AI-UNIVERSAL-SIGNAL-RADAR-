@@ -1276,7 +1276,7 @@ app.get("/health", (_req, res) => {
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine4: { independent: true, copiedFrom: null, strategy: ENGINE4_STRATEGY, provider: "TWELVE_DATA_M1_OHLC_EMA5_AND_STREAMING", indicatorEndpoints: ["EMA5"], derivedIndicators: ["EMA8", "EMA21", "RSI7", "MACD_5_13_4", "ADX14", "ATR14", "BOLLINGER20_2"], regimeSwitch: { trendAdxMin: 14, trendEntries: ["EMA8_21_PULLBACK_RECLAIM", "MOMENTUM_BREAKOUT"], rangeEntries: ["BOLLINGER_EDGE_REJECTION_WITH_RSI"] }, refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS, estimatedEmaCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS), keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", retryOnPoolCooldown: true, scoring: "DISABLED", cadence: "LIVE_STREAM_TICK_ANALYSIS_WITH_ONCE_PER_MINUTE_EMA_REFRESH", decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP", target: "CURRENT_M1_CANDLE_AT_TRIGGER", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_EMA5_PULLBACK_IMMEDIATE"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_TWELVE_DATA_ADAPTIVE_M1_TREND_RANGE"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
