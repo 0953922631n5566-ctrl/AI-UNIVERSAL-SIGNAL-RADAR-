@@ -40,6 +40,6 @@ test("Engine 3 blocks a flat sideways market",()=>{
  const r=analyzeTrendRider(candles,values);assert.equal(r.signal,null);assert.equal(r.status,"SIDEWAYS_BLOCK");
 });
 test("Engine 3 rejects stale or misaligned Twelve Data indicator values",()=>{
- const candles=risingCandles(),values=indicators(candles);values.atrValues[3].epoch-=60;
+ const candles=risingCandles(),values=indicators(candles);values.atrValues=values.atrValues.map(v=>({...v,epoch:v.epoch-60}));
  const r=analyzeTrendRider(candles,values);assert.equal(r.ready,false);assert.equal(r.status,"TWELVE_DATA_INDICATORS_STALE");
 });
