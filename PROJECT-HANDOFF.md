@@ -2241,3 +2241,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The existing live M1 preview, T-5 finalization for the next M1 candle, one-signal-per-candle behavior, 30-second signal hold, sound/vibration, and manual-only operation remain in place.
 - MACD needs 35 total M1 samples including the live preview (34 prior candles plus current preview) to have two valid MACD/Signal observations for crossover detection.
 - This is a signal-rule change, not evidence of improved win rate. Run tests and verify live Render deployment before reporting complete.
+
+
+## 2026-11-23 — Engine 4 adaptive MACD historical proximity
+
+- User requested Engine 4 to signal when MACD and Signal lines are close; a crossover is no longer required. The distance threshold must adapt from historical MACD statistics.
+- Scope: only Engine 4 on `main-market`; Engines 1–3 and shared guards remain unchanged.
+- MACD remains close-based EMA(12) − EMA(26), with EMA(9) Signal. The engine samples the prior 40 valid absolute MACD-to-Signal gaps and uses their 25th percentile as the live proximity threshold; this is a rolling, symbol-specific MACD-derived threshold, not a fixed pip/price distance.
+- When MACD is below Signal and its gap is within the historical threshold, signal CALL. When MACD is above Signal and its gap is within the historical threshold, signal PUT. A true crossover remains an immediate signal. Outside the threshold, return STANDBY.
+- No score, confidence, percentage, AO, ATR, or additional indicators. No separate momentum/slope confirmation is added; the historical distance percentile alone defines closeness.
+- Minimum warmup is 73 closed M1 candles plus the current live preview, yielding 40 valid historical gap samples after MACD/Signal initialization. The current live preview is evaluated continuously; shared T-5 dispatch, next-M1 target, per-candle dedupe, 30-second hold, sound/vibration and manual-only behavior remain unchanged.
+- This change increases warmup compared with crossover-only mode and may create earlier but noisier signals. Run full tests/build and verify Render health + Mini App after merge before claiming live readiness.
