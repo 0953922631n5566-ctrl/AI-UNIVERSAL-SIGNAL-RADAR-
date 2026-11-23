@@ -910,6 +910,7 @@ app.get("/health", (_req, res) => {
       trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 65, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 65, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
+      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
