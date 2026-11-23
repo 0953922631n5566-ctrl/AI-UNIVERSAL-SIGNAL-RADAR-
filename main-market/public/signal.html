@@ -112,7 +112,7 @@ for(const [key,id] of Object.entries(engineCardMap)){
  const card=$(id);card.addEventListener("click",()=>toggleEngine(key));
  card.addEventListener("keydown",event=>{if(event.target!==card)return;if(event.key==="Enter"||event.key===" "){event.preventDefault();toggleEngine(key);}});
  const lightButton=card.querySelector("[data-light-toggle]");
- lightButton.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();toggleEngineLight(key);});
+ if(lightButton)lightButton.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();toggleEngineLight(key);});
 }
 paintEngineToggleState();paintEngineLightSettings();
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0),cooldown=Math.max(0,total-ready);$("apiSummary").textContent="ตั้งค่า "+total+"/10 คีย์ · พร้อมใช้ "+ready+" · พัก/จำกัด "+cooldown;$("apiKeys").replaceChildren();for(let n=1;n<=10;n++){const item=states.find(v=>Number(v.number)===n);const row=document.createElement("div"),name=document.createElement("span"),status=document.createElement("b");row.className="api-key "+(!item?"empty":item.available===false?"bad":"good");name.textContent="API KEY "+String(n).padStart(2,"0");status.textContent=!item?"NOT SET":item.status==="ACTIVE"?"ACTIVE":item.status==="COOLDOWN"?"COOLDOWN":"READY";row.append(name,status);$("apiKeys").append(row);}}
