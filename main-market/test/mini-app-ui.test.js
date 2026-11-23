@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("WICK ONLY · T-5"));
+  assert.ok(html.includes("ADAPTIVE · T-5"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -37,9 +37,9 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · WICK ONLY · T-5</div>'));
-  assert.ok(html.includes("Engine 4 · Wick → T-5 CALL"));
-  assert.ok(html.includes("Engine 4 · Wick → T-5 PUT"));
+  assert.ok(html.includes('<div class="engine-title">04 · ADAPTIVE · T-5</div>'));
+  assert.ok(html.includes("Engine 4 · Adaptive → T-5 CALL"));
+  assert.ok(html.includes("Engine 4 · Adaptive → T-5 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
