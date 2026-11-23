@@ -383,7 +383,7 @@ async function evaluate(feed) {
      feed.engineActive[engine] = null;
    }
    const activeForCurrentOrNext = Boolean(active && now < active.expiresAt &&
-     (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch));
+      (active.targetCandleEpoch === sourceCandleEpoch || active.targetCandleEpoch === targetCandleEpoch || engine === "ENGINE_4"));
    const engine4Entry = engine === "ENGINE_4";
    const engineWindow = engine4Entry ? sourceCandleEpoch !== null : finalizeWindow;
    const timingReady = engine4Entry
