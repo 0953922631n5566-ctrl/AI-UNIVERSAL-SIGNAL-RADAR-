@@ -2229,3 +2229,15 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Engine 4 still uses AO 5/34 (median price). A directional signal is allowed only when the latest three AO readings stay on the same side of zero, absolute AO expands twice in succession, and absolute AO is at least 0.12 × ATR(14). ATR is used only as a scale normalizer.
 - Any failed condition returns STANDBY; this is a stricter filter, not a guarantee of profitable trades. No percentage, score or confidence output is used.
 - Added/updated tests for strong CALL/PUT expansion, weak/non-expanding momentum rejection, and removal of percentage UI. Build, CI, Render deploy and live endpoint checks must be recorded after merge/deploy.
+
+
+## 2026-11-23 — Engine 4 switched to MACD-only
+
+- User requested replacing Engine 4's AO strong-momentum filter with MACD only, with no score.
+- Scope: only Engine 4 on `main-market`; Engines 1–3 remain unchanged.
+- Engine 4 now uses close-based standard MACD: EMA(12) minus EMA(26), with EMA(9) signal line.
+- CALL on MACD crossing above Signal; PUT on MACD crossing below Signal; otherwise STANDBY.
+- No score, confidence, percentage, AO, ATR, or additional confirmation filter is used by Engine 4.
+- The existing live M1 preview, T-5 finalization for the next M1 candle, one-signal-per-candle behavior, 30-second signal hold, sound/vibration, and manual-only operation remain in place.
+- MACD needs 35 total M1 samples including the live preview (34 prior candles plus current preview) to have two valid MACD/Signal observations for crossover detection.
+- This is a signal-rule change, not evidence of improved win rate. Run tests and verify live Render deployment before reporting complete.
