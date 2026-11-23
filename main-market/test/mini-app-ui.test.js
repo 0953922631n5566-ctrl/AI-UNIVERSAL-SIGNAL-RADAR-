@@ -28,7 +28,7 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.match(html, /EMA 5/20 CLOSED M1/);
+  assert.ok(html.includes("EMA 5/20 CLOSED M1"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
@@ -38,8 +38,8 @@ test("Mini App presents closed-M1 next-candle entry and preserves shared sound, 
     assert.match(html, new RegExp('id="' + id + '"'));
   }
   assert.match(html, /<div class="engine-title">04 · EMA 5/20 CLOSED M1<\/div>/);
-  assert.match(html, /Engine 4 · EMA 5/20 → Next M1 CALL/);
-  assert.match(html, /Engine 4 · EMA 5/20 → Next M1 PUT/);
+  assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 CALL"));
+  assert.ok(html.includes("Engine 4 · EMA 5/20 → Next M1 PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -165,7 +165,8 @@ test("four engine cards are independently toggleable and Engine 4 uses EMA 5/20 
   assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 20/);
-  assert.match(serverJs, /minimumBodyPips: 0\.4/);\n  assert.match(serverJs, /emaSlow: 20/);\n  assert.match(serverJs, /scoreWeights: \\{ emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 \\}/);
+  assert.match(serverJs, /minimumBodyPips: 0\.4/);
+  assert.match(serverJs, /emaSlow: 20/);\n  assert.match(serverJs, /scoreWeights: \\{ emaAlignment: 40, bodyStrength: 25, closeLocation: 20, wickConfirmation: 15 \\}/);
   assert.match(serverJs, /minimumScore: 40/);
   assert.match(serverJs, /emaFast: 5/);
   assert.doesNotMatch(serverJs, /engine4TickStats/);
