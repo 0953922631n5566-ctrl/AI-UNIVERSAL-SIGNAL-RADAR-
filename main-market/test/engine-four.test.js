@@ -31,11 +31,11 @@ function liveCandle(overrides = {}) {
 }
 
 test("trend regime issues CALL on EMA8 pullback with bullish MACD", () => {
-  const history = makeHistory({ step: 0.001 });
+  const history = makeHistory({ step: 0.0001 });
   const previous = history.at(-1).close;
   const live = liveCandle({
-    open: previous - 0.0004, close: previous + 0.0004,
-    low: previous - 0.0005, high: previous + 0.0006
+    open: previous - 0.0001, close: previous + 0.0008,
+    low: previous - 0.0005, high: previous + 0.0009
   });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, true);
