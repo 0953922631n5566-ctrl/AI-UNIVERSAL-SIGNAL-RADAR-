@@ -35,7 +35,9 @@ test("Manual stop and restart remain available only in the menu",()=>{
 test("Mini App retains Engine 3 native Twelve Data diagnostics in the menu",()=>{
  for(const id of ["engineSignal","regime","ema5","ema20","atr14","candles","reason","apiSummary","apiPool","apiKeys"])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/ENGINE 3 · TREND RIDER/);
- assert.match(html,/Twelve Data/);\n assert.match(html,/signalRadarManualLampColor/);\n assert.match(html,/แยกจากสัญญาณจริง/);
+ assert.match(html,/Twelve Data/);
+ assert.match(html,/signalRadarManualLampColor/);
+ assert.match(html,/แยกจากสัญญาณจริง/);
  assert.match(serverJs,/fetchTrendEma5/);
  assert.match(serverJs,/fetchEma20/);
  assert.match(serverJs,/fetchAtr14/);
