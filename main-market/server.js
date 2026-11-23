@@ -169,7 +169,8 @@ function publicFeed(feed) {
       martingale: false
     },
     preAlertSignal: feed.preAlertSignal,
-    source: "Twelve Data REST + live-price Streaming"
+    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
+    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + live-price Streaming"
   };
 }
 
@@ -1239,8 +1240,8 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "V1_BB_TREND_RIDER_PLUS_ENGINE_4_INDEPENDENT", engines: 4,
-      decisionAuthority: "INDEPENDENT_DIRECTIONAL_ANALYSTS_WITH_SHARED_DATA_AND_TIMING_GUARDS",
+      decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
+      decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
       bbPureScalper: { period: 20, standardDeviation: 2, role: "INDEPENDENT_SIGNAL_ENGINE", mayCreateSignalAlone: true, entryMode: "EARLY_TOUCH_ONE_SOFT_CUE", wickThreshold: 0.18, conflictPolicy: "SHOW_BOTH_SEPARATELY" },
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       historicalAnalogueWorker: "BYPASSED",
@@ -1250,8 +1251,8 @@ app.get("/health", (_req, res) => {
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
     },
     analyzer: {
-      provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
-      role: "THREE_EXISTING_ANALYSTS_PLUS_ONE_INDEPENDENT_EVERY_CANDLE_ANALYST", externalAiCalls: false,
+      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC", model: null, configured: true,
+      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA", externalAiCalls: false,
       closedCandlesOnly: false, liveCandlePreview: true,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       liveAnalysisTrigger: "STREAMING_TICK_EVENT_PLUS_LOCAL_SAFETY_TIMER", localDirectionalFallback: true,
@@ -1278,9 +1279,9 @@ app.get("/health", (_req, res) => {
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      engine4EmaRefreshSeconds: ENGINE4_EMA_REFRESH_SECONDS,
-      estimatedEngine4EmaCreditsPerDay: Math.ceil(86400 / ENGINE4_EMA_REFRESH_SECONDS) * 2,
-      engine4EmaKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
+      engine3IndicatorRefreshSeconds: 60,
+      estimatedEngine3IndicatorCreditsPerDay: 4320,
+      engine3IndicatorKeyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER",
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
       entryCandles: 4,
