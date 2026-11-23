@@ -2174,3 +2174,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - This changes only Engine 4's color presentation and its health metadata. The Mini App labels the fixed mapping and removes Engine 4's manual color-inversion control so the requested mapping cannot be accidentally reversed.
 - EMA 5 close-only decision, no scoring, next-M1 first-five-second dispatch, 30-second hold, sound/vibration, and Engine 1–3 behavior remain unchanged.
 - Branch: fix/engine4-green-above-red-below-ema5. CI and Render deployment verification pending.
+
+
+## 2026-11-23 — Engine 4 wick-only decision and shared T-5 timing (user confirmed)
+
+- User confirmed replacing Engine 4 EMA5 close-only with a wick-only rule and aligning its alert/entry timing with Engines 1–3.
+- Direction rule uses only the validated live M1 candle's wick lengths: lower wick longer than upper wick => CALL (GREEN); upper wick longer than lower wick => PUT (RED); equal lengths => no signal. No EMA, candle-body direction, historical lookback, or score threshold is used by Engine 4.
+- Engine 4 evaluates the current live M1 preview and uses the same T-5 finalization window, fresh Streaming tick guard, one-signal-per-source-candle dedupe, next-M1 target, shared sound/vibration alert pipeline, and 30-second hold as Engines 1–3.
+- No broker order is executed; the Mini App displays a manual-entry signal. Engines 1–3 and other projects must remain unchanged.
+- Implementation branch: feature/engine4-wick-only-t5-timing-20261123. CI, Render deployment, live health/API/UI verification, and Android Telegram sound/vibration verification are pending. Do not call this production-ready until those checks pass.
