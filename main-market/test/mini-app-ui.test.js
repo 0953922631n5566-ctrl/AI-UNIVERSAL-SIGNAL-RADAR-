@@ -18,7 +18,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seconds into the next candle", () => {
+test("Mini App presents the next-M1 forecast and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -28,26 +28,20 @@ test("Mini App shows score-aware PREPARE at T-10 and CALL/PUT at T-5 for 30 seco
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.match(html, /T-5/);
+  assert.match(html, /NEXT M1 FORECAST/);
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
-  assert.match(html, /ACCUMULATED PRESSURE/);
   assert.match(html, /id="reversal"/);
   assert.match(html, /m\.scores\?\.CALL/);
   assert.match(html, /m\.engineResults/);
   assert.match(html, /m\.activeSignals/);
-  assert.match(html, /id="v1Card"/);
-  assert.match(html, /id="bbCard"/);
-  assert.match(html, /id="trendCard"/);
-  assert.match(html, /id="trendSignal"/);
-  assert.match(html, /id="engine4Card"/);
-  assert.match(html, /id="engine4Signal"/);
-  assert.match(html, /id="engine4Reason"/);
-  assert.match(html, /<div class="engine-title">04 · ACCUMULATED PRESSURE<\/div>/);
-  assert.match(html, /Engine 4 · Accumulated Pressure CALL/);
-  assert.match(html, /Engine 4 · Accumulated Pressure PUT/);
+  for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
+    assert.match(html, new RegExp('id="' + id + '"'));
+  }
+  assert.match(html, /<div class="engine-title">04 · NEXT M1 FORECAST<\/div>/);
+  assert.match(html, /Engine 4 · Next M1 Forecast CALL/);
+  assert.match(html, /Engine 4 · Next M1 Forecast PUT/);
+  assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
-  assert.doesNotMatch(html, /<div class="engine-title">04 · INDEPENDENT EVERY-CANDLE<\/div>/);
-  assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
   assert.match(html, /\.engine-card\.put\{border-color:var\(--put-color\)\}/);
   assert.match(html, /\.engine-card\.light-inverted\{--call-color:#39e879/);
@@ -126,15 +120,15 @@ test("Engine 4 is exposed as an independent analyzer and participates in the fou
   assert.match(serverJs, /v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate/);
 });
 
-test("Engine 4 uses three closed candles and live tick accumulation through T-5 and holds for 30 seconds", () => {
+test("Engine 4 forecasts the next M1 from three completed candles and holds the signal for 30 seconds", () => {
   assert.match(serverJs, /Boolean\(v1Candidate \|\| bbCandidate \|\| trendCandidate \|\| engine4Candidate\)/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
   assert.match(html, /playSequence\(\[587,784\]/);
   assert.match(html, /navigator\.vibrate\(\[100,60,100\]\)/);
-  assert.match(html, /const fourthActive=usable&&fourth.active===true/);
+  assert.match(html, /const fourthActive=usable&&fourth\.active===true/);
   assert.match(html, /if\(fourthActive&&windowKey!==engine4LastFinalKey\)/);
-  assert.doesNotMatch(html, /const finalize=fourthReady&&remainingSeconds>0&&remainingSeconds<=5/);
-  assert.match(html, /engine4HoldUntil=Date\.now\(\)\+30000/);
+  assert.match(html, /const fourth=m\.engine4\|\|engines\.ENGINE_4\|\|\{\}/);
+  assert.match(html, /engine4HoldUntil=Date\.parse\(fourth\.signalExpiresAt\)\|\|Date\.now\(\)\+30000/);
   assert.match(html, /engine4HeldSignal&&Date\.now\(\)<engine4HoldUntil/);
   assert.match(html, /triggerSignalAlert\(item\.signal,alertKey,item\.engine\)/);
   assert.match(html, /playSequence\(isCall\?\[660,880,1175,880\]:\[880,660,440,660\]/);
@@ -142,7 +136,7 @@ test("Engine 4 uses three closed candles and live tick accumulation through T-5 
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards are independently toggleable and Engine 4 has no cross-card alert pipeline", () => {
+test("four engine cards are independently toggleable and Engine 4 uses next-M1 forecast metadata", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp(`id="${id}" class="engine-card engine-enabled" role="button"`));
   }
@@ -158,20 +152,19 @@ test("four engine cards are independently toggleable and Engine 4 has no cross-c
   assert.match(serverJs, /const engineEnabled = \{ V1: true, BB: true, TREND_RIDER: true, ENGINE_4: true \}/);
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
-  assert.match(serverJs, /strategy: "M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5"/);
-  assert.match(serverJs, /countWindow: "\[0,55\)"/);
-  assert.ok(serverJs.includes('prepareAtSeconds: 50, decisionAtSeconds: 55, dispatchWindow: "[55,60)"'));
-  assert.match(serverJs, /decisionRule: "CALL_WHEN_TOTAL_UPWARD_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL"/);
-  assert.match(serverJs, /previousClosedCandleContext: "LAST_THREE_CLOSED_M1_BODY_NET_MOVEMENT"/);
-  assert.doesNotMatch(serverJs, /previousClosedCandle: closedCandles/);
-  assert.match(serverJs, /historicalCandlesRequired: true/);
-  assert.match(serverJs, /engine4TickStats: \{ candleEpoch: null, firstPrice: null, previousPrice: null, upMovement: 0, downMovement: 0, totalTicks: 0, recentSamples: \[\]/);
-  assert.match(serverJs, /epoch - minute/);
+  assert.match(serverJs, /strategy: "THREE_CLOSED_M1_CANDLES_TO_NEXT_M1_FORECAST"/);
+  assert.match(serverJs, /input: "THREE_LATEST_COMPLETED_M1_OHLC_BODIES_ONLY"/);
+  assert.match(serverJs, /decisionWindow: "\[0,5s\)"/);
+  assert.match(serverJs, /decisionRule: "CALL_WHEN_TOTAL_UPWARD_CLOSED_BODY_MOVEMENT_EXCEEDS_DOWNWARD; PUT_WHEN_TOTAL_DOWNWARD_CLOSED_BODY_MOVEMENT_EXCEEDS_UPWARD; TIE_NO_SIGNAL"/);
+  assert.match(serverJs, /liveCandleMovement: "NOT_USED_FOR_DIRECTION"/);
+  assert.match(serverJs, /target: "NEXT_M1_CANDLE"/);
+  assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /minimumClosedCandles: 3/);
-  assert.match(serverJs, /copiedFrom: null/);
+  assert.doesNotMatch(serverJs, /engine4TickStats/);
+  assert.doesNotMatch(serverJs, /M1_THREE_CLOSED_PLUS_LIVE_TICK_T10_T5/);
 });
 
-test("all four analyzers re-score on fresh Streaming Ticks with a 250ms local safety cadence without increasing Twelve Data REST cadence", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 direction uses completed M1 candles", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);
@@ -182,8 +175,9 @@ test("all four analyzers re-score on fresh Streaming Ticks with a 250ms local sa
   assert.ok(serverJs.includes("REST_SYNC_SECONDS * 1000"));
   assert.match(serverJs, /restRefreshSeconds: REST_SYNC_SECONDS/);
   assert.match(serverJs, /liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS/);
-  assert.match(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
-  assert.ok(serverJs.includes('analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"'));
+  assert.match(serverJs, /analysisMode: engine === "ENGINE_4" \? "CLOSED_M1_NEXT_CANDLE"/);
+  assert.match(serverJs, /analysisMode: livePreview \? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"/);
+  assert.doesNotMatch(serverJs, /THREE_CLOSED_M1_PLUS_LIVE_TICK_ACCUMULATED_PRESSURE_T10_T5/);
 });
 
 test("Mini App does not show a recovery badge and health reports recovery disabled", () => { assert.doesNotMatch(html, /tag\.textContent="กำลังแก้มือ"/); assert.doesNotMatch(html, /const recovering=/); assert.match(serverJs, /enabled: false, mode: "DISABLED"/); assert.match(serverJs, /altersMiniApp: false/); });
