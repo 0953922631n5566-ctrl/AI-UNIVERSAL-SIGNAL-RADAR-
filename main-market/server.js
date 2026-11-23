@@ -304,7 +304,7 @@ async function evaluate(feed) {
  } else if (livePreview && sourceCandleEpoch !== null) {
    engine4Raw = analyzeEarlyEntryEngine4(analysisCandles, { liveCandle:livePreview });
  } else {
-   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับวิเคราะห์ Adaptive" };
+   engine4Raw = { ready:false, signal:null, candidateSignal:null, status:"SOURCE_LOCKED", reason:"รอแท่ง M1 กำลังวิ่งและราคา Streaming สดสำหรับคำนวณ Awesome Oscillator 5/34" };
  }
  const engine4Result = engine4Raw.ready && ["CALL", "PUT"].includes(engine4Raw.signal)
    ? { ...engine4Raw, engine: "ENGINE_4", active: true,
@@ -386,7 +386,7 @@ async function evaluate(feed) {
        sourceEngine: engine, mode: "NORMAL",
        entryPrice: null,
        entryPriceBasis: "TARGET_M1_CANDLE_OPEN",
-       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_ADAPTIVE" : "NORMAL"}`
+       alertId: `${engine}:${signalTargetEpoch}:${selectedFinalSignal}:${engine4Entry ? "T5_AO_5_34" : "NORMAL"}`
      };
      feed.engineActive[engine] = active;
      console.info("[signal] independent engine candidate finalized", {
@@ -403,7 +403,7 @@ async function evaluate(feed) {
    const engineResult = {
      ...selectedCandidate,
      engine,
-     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
+     analysisMode: engine === "ENGINE_4" ? (selectedCandidate.analysisMode || "AO_ZERO_LINE") : (livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY"),
      candidateSignal: recoveryMode === "RECOVERY_ACTIVE" ? selectedFinalSignal : candidateSignal,
      candidateScore: selectedCandidate.score ?? 0,
      candidateReason: selectedCandidate.reason || null,
@@ -528,14 +528,14 @@ let reason;
    signalExpiresAt: feed.activeUntil ? new Date(feed.activeUntil).toISOString() : null,
    signalTargetCandleAt: feed.signalCandle ? new Date(feed.signalCandle * 1000).toISOString() : null,
    signalTimingWindowSeconds: [5, 0],
-   engine4DecisionMode: "MULTI_DIMENSION_ADAPTIVE_TREND_RANGE_NEXT_M1",
+   engine4DecisionMode: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1",
    engine4UsesClosedCandlesOnly: false,
    engine4LookbackClosedCandles: 0,
    engine4DirectionSource: "LIVE_M1_OHLC_WITH_EMA_ATR_MACD_RSI_BOLLINGER",
    analysisMode: livePreview ? "LIVE_M1_PREVIEW" : "CLOSED_M1_ONLY",
    livePreviewCandleEpoch: livePreview?.epoch ?? null,
    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 สลับ Trend Pullback / Sideway Range Reversal อัตโนมัติด้วย EMA8/21, ATR14, MACD4/9/4, RSI5 และ Bollinger14/2 · ไม่มีคะแนน · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
+   signalValidationNote: "V1, BB และ Trend Rider ไม่เปลี่ยนแปลง · Engine 4 ใช้ Awesome Oscillator 5/34 เพียงตัวเดียว: AO เหนือเส้นศูนย์ = CALL, AO ใต้เส้นศูนย์ = PUT, เท่ากับศูนย์ = ไม่มีสัญญาณ · ไม่มีคะแนนหรืออินดิเคเตอร์อื่น · ยืนยันและแจ้งเตือนที่ T-5 สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาที · ใช้ระบบเสียงและสั่นเดิม · ผู้ใช้กดออเดอร์เอง ไม่มีการส่งคำสั่งซื้อขายไปยังโบรกเกอร์"
  };
 }
 
@@ -1192,7 +1192,7 @@ app.get("/health", (_req, res) => {
       trendRider: { independent: true, emaFast: 5, emaTrend: 20, scoreThreshold: 65, minimumClosedCandles: 30, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
       engine4: { independent: true, copiedFrom: null, strategy: "AWESOME_OSCILLATOR_5_34_ZERO_LINE_T5_NEXT_M1", indicator: "AWESOME_OSCILLATOR", fastPeriod: 5, slowPeriod: 34, priceSource: "MEDIAN_PRICE_HIGH_LOW", formula: "SMA5(MEDIAN_PRICE)-SMA34(MEDIAN_PRICE)", decisionRule: "AO_ABOVE_ZERO_CALL_BELOW_ZERO_PUT_EQUAL_ZERO_NO_SIGNAL", otherIndicators: "NONE", scoring: "DISABLED", cadence: "LIVE_M1_PREVIEW; CONFIRM_AND_DISPATCH_AT_T5", input: "LIVE_M1_OHLC_PLUS_33_CLOSED_M1_CONTEXT", decisionWindow: "SOURCE_M1_T_MINUS_5; DISPATCH_WITH_ENGINES_1_TO_3", target: "NEXT_M1_CANDLE", oneSignalPerCandle: true, signalHoldSeconds: 30, participatesInAggregate: true, sound: true, vibration: true, alertPipeline: "SHARED_ENGINE_ALERT_PIPELINE", colors: { CALL: "GREEN", PUT: "RED" } },
       independentEngineToggles: { supported: true, keys: ENGINE_KEYS, disabledMeansAnalysisAndSignalsStopped: true },
-      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_ADAPTIVE_T5_NEXT_M1"
+      signalDecisionPath: "V1_BB_TREND_RIDER_AND_ENGINE_4_AO_5_34_T5_NEXT_M1"
     },
     analyzer: {
       provider: "LOCAL_V1_BB_TREND_RIDER_PLUS_ENGINE_4", model: null, configured: true,
