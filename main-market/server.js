@@ -952,42 +952,6 @@ app.get("/health", (_req, res) => {
     }
   });
 });
-app.post("/api/auth", rateLimitAuth, (req, res) => {
-  if (!CLIENT_TOKEN) {
-    console.error("[auth] blocked: ANDROID_CLIENT_TOKEN is not configured");
-    return res.status(503).json({ ok: false, error: "เซิร์ฟเวอร์ยังไม่ได้ตั้งค่ารหัสเชื่อมต่ออุปกรณ์" });
-  }
-  if (!validateClientToken(req.body?.clientToken, CLIENT_TOKEN)) {
-    console.warn("[auth] rejected Android client credential");
-    return res.status(401).json({ ok: false, error: "รหัสเชื่อมต่ออุปกรณ์ไม่ถูกต้อง" });
-  }
-  const token = randomBytes(32).toString("hex");
-  const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(token, { deviceId: "android-client", expiresAt });
-  noCache(res);
-  console.info("[auth] Android client session created");
-  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000) });
-});
-app.get("/api/state", requireDeviceSession, (_req, res) => { noCache(res); res.json(snapshot()); });
-app.post("/api/control", requireDeviceSession, rateLimitControl, async (req, res) => {
-  const body = req.body || {};
-  try {
-    if (body.action === "start") {
-      console.info("[radar] start requested", resolveSymbol(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL) || DEFAULT_SYMBOL);
-      await start(body.symbol || body.symbols?.[0] || DEFAULT_SYMBOL);
-    } else if (body.action === "select") {
-      if (!await select(body.symbol)) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้" });
-    } else if (body.action === "heartbeat") {
-    } else if (body.action === "stop") stop();
-    else return res.status(400).json({ ok: false, error: "ไม่รองรับคำสั่งนี้" });
-    noCache(res);
-    res.json({ ok: true, state: snapshot() });
-  } catch (error) {
-    console.error("[radar] control action failed", error);
-    res.status(500).json({ ok: false, error: error.message || "คำสั่งไม่สำเร็จ" });
-  }
-});
-
 
 server.listen(PORT, () => {
   console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
