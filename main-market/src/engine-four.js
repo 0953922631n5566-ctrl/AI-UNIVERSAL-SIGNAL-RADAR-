@@ -1,150 +1,126 @@
-/** Engine 4: MACD 12/26/9 with adaptive historical proximity. No scoring or extra indicators. */
-export const ENGINE4_STRATEGY = "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY_T5_NEXT_M1";
-const HISTORY_WINDOW = 40;
-const PROXIMITY_PERCENTILE = 25;
-const MIN_PROXIMITY_SAMPLES = 40;
-
-function validCandle(c, provisional = false) {
-  return c && c.live === false && (!provisional || c.provisional === true) &&
-    Number.isFinite(c.epoch) &&
-    [c.open, c.high, c.low, c.close].every(Number.isFinite) &&
-    c.low > 0 && c.high >= Math.max(c.open, c.close) &&
-    c.low <= Math.min(c.open, c.close) && c.high >= c.low;
-}
-function notReady(status, reason, extra = {}) {
-  return { ready: false, decisionMade: false, signal: null, candidateSignal: null,
-    status, strategy: ENGINE4_STRATEGY, reason, ...extra };
-}
-function emaSeries(values, period) {
-  const result = Array(values.length).fill(null);
-  if (values.length < period) return result;
-  let current = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
-  result[period - 1] = current;
-  const alpha = 2 / (period + 1);
-  for (let i = period; i < values.length; i++) {
-    current = alpha * values[i] + (1 - alpha) * current;
-    result[i] = current;
-  }
-  return result;
-}
-function macdSeries(closes) {
-  const fast = emaSeries(closes, 12);
-  const slow = emaSeries(closes, 26);
-  const line = closes.map((_, i) =>
-    fast[i] === null || slow[i] === null ? null : fast[i] - slow[i]);
-  const signal = Array(closes.length).fill(null);
-  const validIndices = line.map((value, i) => value === null ? -1 : i).filter(i => i >= 0);
-  if (validIndices.length < 9) return { line, signal };
-  const seedIndices = validIndices.slice(0, 9);
-  let current = seedIndices.reduce((sum, i) => sum + line[i], 0) / 9;
-  const seedIndex = seedIndices.at(-1);
-  signal[seedIndex] = current;
-  const alpha = 2 / (9 + 1);
-  for (let i = seedIndex + 1; i < line.length; i++) {
-    if (line[i] === null) continue;
-    current = alpha * line[i] + (1 - alpha) * current;
-    signal[i] = current;
-  }
-  return { line, signal };
-}
-function percentile(values, percent) {
-  const sorted = [...values].sort((a, b) => a - b);
-  if (!sorted.length) return null;
-  const position = (sorted.length - 1) * percent / 100;
-  const lower = Math.floor(position), upper = Math.ceil(position);
-  if (lower === upper) return sorted[lower];
-  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
-}
-
 /**
- * MACD histogram distance is compared with its own trailing historical distribution.
- * A negative, historically-close gap gives CALL; a positive, historically-close gap
- * gives PUT. A real crossover remains an immediate directional trigger.
+ * Engine 4: Twelve Data EMA(5) pullback-and-rebound trigger.
+ * EMA values come from Twelve Data /ema; this module never calculates EMA.
  */
-export function analyzeEarlyEntryEngine4(candles, options = {}) {
-  const liveCandle = options.liveCandle || (Array.isArray(candles) ? candles.at(-1) : null);
-  if (!validCandle(liveCandle, true)) {
-    return notReady("LIVE_M1_PREVIEW_NOT_READY", "Engine 4 ต้องใช้แท่ง M1 ที่กำลังวิ่งและราคา Streaming สด");
+export const ENGINE4_STRATEGY = "TWELVE_DATA_EMA5_PULLBACK_BOUNCE_IMMEDIATE";
+export const ENGINE4_PULLBACK_PROXIMITY_PIPS = 0.5;
+export const ENGINE4_BOUNCE_CONFIRM_PIPS = 0.2;
+const MAX_TICK_AGE_MS = 5000;
+const MAX_EMA_AGE_MS = 120000;
+
+function notReady(status, reason, nextState = null, metrics = null) {
+  return { ready: false, decisionMade: false, signal: null, candidateSignal: null,
+    status, strategy: ENGINE4_STRATEGY, reason, nextState, metrics };
+}
+function pipSize(symbol) {
+  return String(symbol || "").toUpperCase().replace("/", "").endsWith("JPY") ? 0.01 : 0.0001;
+}
+function validEmaPoint(point) {
+  return point && Number.isFinite(point.epoch) && Number.isFinite(point.ema) && point.ema > 0;
+}
+
+export function analyzeEarlyEntryEngine4({
+  emaValues, livePrice, tickAt, now = Date.now(), symbol = "EUR/USD",
+  sourceCandleEpoch = Math.floor(now / 60000) * 60, state = null
+} = {}) {
+  if (!Array.isArray(emaValues) || emaValues.length < 2 ||
+      !emaValues.slice(-2).every(validEmaPoint) ||
+      emaValues.at(-1).epoch - emaValues.at(-2).epoch !== 60) {
+    return notReady("EMA5_API_NOT_READY", "รอค่า EMA 5 สองแท่ง M1 ที่ปิดแล้วจาก Twelve Data");
   }
-  const history = (Array.isArray(candles) ? candles : [])
-    .filter(c => c && c.epoch < liveCandle.epoch && validCandle(c)).slice(-80);
-  const series = [...history, liveCandle];
-  if (series.length < 74) {
-    return notReady("INSUFFICIENT_MACD_HISTORY",
-      "ต้องมีข้อมูล M1 อย่างน้อย 73 แท่งปิด + แท่งปัจจุบัน เพื่อวัดระยะ MACD จากสถิติย้อนหลัง");
+  const [previous, latest] = emaValues.slice(-2);
+  const emaAge = now - (latest.epoch + 60) * 1000;
+  if (!Number.isFinite(emaAge) || emaAge < -5000 || emaAge > MAX_EMA_AGE_MS) {
+    return notReady("EMA5_API_STALE", "ค่า EMA 5 จาก Twelve Data เก่าเกินกำหนด");
   }
-  const { line, signal } = macdSeries(series.map(c => c.close));
-  const index = series.length - 1;
-  const previousMacd = line[index - 1], previousSignal = signal[index - 1];
-  const currentMacd = line[index], currentSignal = signal[index];
-  if (![previousMacd, previousSignal, currentMacd, currentSignal].every(Number.isFinite)) {
-    return notReady("MACD_NOT_READY", "ข้อมูล MACD 12/26/9 ยังไม่ครบ");
+  if (!Number.isFinite(livePrice) || livePrice <= 0 ||
+      !Number.isFinite(tickAt) || tickAt > now || now - tickAt > MAX_TICK_AGE_MS) {
+    return notReady("LIVE_PRICE_STALE", "รอราคา Twelve Data Streaming สดเพื่อจับจังหวะเด้ง");
   }
-  const historicalGaps = [];
-  for (let i = Math.max(0, index - HISTORY_WINDOW); i < index; i++) {
-    if (Number.isFinite(line[i]) && Number.isFinite(signal[i])) {
-      historicalGaps.push(Math.abs(line[i] - signal[i]));
+
+  const slope = latest.ema - previous.ema;
+  if (slope === 0) return notReady("EMA5_SLOPE_FLAT", "EMA 5 ไม่เอียงขึ้นหรือลง · STANDBY");
+  const direction = slope > 0 ? "CALL" : "PUT";
+  const pip = pipSize(symbol);
+  const proximity = pip * ENGINE4_PULLBACK_PROXIMITY_PIPS;
+  const bounce = pip * ENGINE4_BOUNCE_CONFIRM_PIPS;
+  const sameTrend = state?.direction === direction && state?.emaEpoch === latest.epoch;
+  let nextState = sameTrend ? { ...state } : {
+    direction, emaEpoch: latest.epoch, phase: "WAIT_TREND_SIDE",
+    extremePrice: null, triggeredCandleEpoch: null
+  };
+
+  if (nextState.triggeredCandleEpoch === sourceCandleEpoch) {
+    return notReady("EMA5_ALREADY_TRIGGERED_THIS_CANDLE",
+      "เครื่องยนต์ตัวที่ 4 ส่งสัญญาณแล้วในแท่ง M1 นี้ · รอแท่งถัดไป", nextState);
+  }
+  if (nextState.phase === "TRIGGERED") {
+    nextState.phase = direction === "CALL"
+      ? (livePrice > latest.ema + proximity ? "WAIT_PULLBACK" : "WAIT_TREND_SIDE")
+      : (livePrice < latest.ema - proximity ? "WAIT_PULLBACK" : "WAIT_TREND_SIDE");
+    nextState.extremePrice = null;
+  }
+  if (nextState.phase === "WAIT_TREND_SIDE") {
+    const onTrendSide = direction === "CALL"
+      ? livePrice >= latest.ema + proximity
+      : livePrice <= latest.ema - proximity;
+    if (onTrendSide) nextState.phase = "WAIT_PULLBACK";
+  }
+  if (nextState.phase === "WAIT_PULLBACK") {
+    const reachedPullbackZone = direction === "CALL"
+      ? livePrice <= latest.ema + proximity
+      : livePrice >= latest.ema - proximity;
+    if (reachedPullbackZone) {
+      nextState.phase = "WAIT_REBOUND";
+      nextState.extremePrice = livePrice;
     }
   }
-  if (historicalGaps.length < MIN_PROXIMITY_SAMPLES) {
-    return notReady("INSUFFICIENT_MACD_STATISTICS",
-      "ข้อมูลสถิติระยะห่าง MACD ย้อนหลังยังไม่ครบ 40 ตัวอย่าง",
-      { historicalSamples: historicalGaps.length });
-  }
-  const historicalThreshold = percentile(historicalGaps, PROXIMITY_PERCENTILE);
-  const currentGap = currentMacd - currentSignal;
-  const absoluteGap = Math.abs(currentGap);
-  const crossedUp = previousMacd <= previousSignal && currentMacd > currentSignal;
-  const crossedDown = previousMacd >= previousSignal && currentMacd < currentSignal;
-  const nearFromBelow = currentGap < 0 && absoluteGap <= historicalThreshold;
-  const nearFromAbove = currentGap > 0 && absoluteGap <= historicalThreshold;
-  const crossed = crossedUp || crossedDown;
-  const near = nearFromBelow || nearFromAbove;
-  const sourceCandleEpoch = liveCandle.epoch;
-  const targetCandleEpoch = sourceCandleEpoch + 60;
-  const metrics = {
-    macdLine: currentMacd,
-    signalLine: currentSignal,
-    histogram: currentGap,
-    previousMacdLine: previousMacd,
-    previousSignalLine: previousSignal,
-    absoluteGap,
-    historicalProximityThreshold: historicalThreshold,
-    historicalPercentile: PROXIMITY_PERCENTILE,
-    historicalSamples: historicalGaps.length,
-    historyWindow: HISTORY_WINDOW,
-    periods: { fast: 12, slow: 26, signal: 9 },
-    sourceCandleEpoch,
-    targetCandleEpoch
-  };
-  if (!crossed && !near) {
-    return {
-      ...notReady("MACD_NOT_NEAR_SIGNAL",
-        "MACD ยังห่างจากเส้น Signal เมื่อเทียบกับสถิติย้อนหลัง · STANDBY"),
-      sourceCandleEpoch, targetCandleEpoch, candleEpoch: sourceCandleEpoch,
-      analysisMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY", metrics,
-      evidenceSummary: "รอ MACD เข้าใกล้ Signal ตามระยะอ้างอิงจากสถิติย้อนหลัง"
+  if (nextState.phase === "WAIT_REBOUND") {
+    nextState.extremePrice = direction === "CALL"
+      ? Math.min(nextState.extremePrice, livePrice)
+      : Math.max(nextState.extremePrice, livePrice);
+    const reboundDistance = direction === "CALL"
+      ? livePrice - nextState.extremePrice : nextState.extremePrice - livePrice;
+    const reclaimed = direction === "CALL" ? livePrice > latest.ema : livePrice < latest.ema;
+    const metrics = {
+      ema5: latest.ema, previousEma5: previous.ema, ema5Slope: slope, livePrice,
+      pullbackPhase: nextState.phase,
+      distanceToEmaPips: Number((Math.abs(livePrice - latest.ema) / pip).toFixed(3)),
+      reboundPips: Number((reboundDistance / pip).toFixed(3)),
+      proximityThresholdPips: ENGINE4_PULLBACK_PROXIMITY_PIPS,
+      bounceConfirmPips: ENGINE4_BOUNCE_CONFIRM_PIPS,
+      emaSource: "TWELVE_DATA_EMA_ENDPOINT"
     };
+    if (reclaimed && reboundDistance >= bounce) {
+      nextState.phase = "TRIGGERED";
+      nextState.triggeredCandleEpoch = sourceCandleEpoch;
+      const reason = direction === "CALL"
+        ? "EMA 5 ชี้ขึ้น · ราคาย่อลงเข้าใกล้เส้นแล้วเด้งกลับขึ้นเหนือ EMA 5 · CALL ทันที"
+        : "EMA 5 ชี้ลง · ราคาดีดขึ้นเข้าใกล้เส้นแล้วกลับลงใต้ EMA 5 · PUT ทันที";
+      return {
+        ready: true, decisionMade: true, signal: direction, candidateSignal: direction,
+        sourceCandleEpoch, candleEpoch: sourceCandleEpoch, targetCandleEpoch: sourceCandleEpoch,
+        targetCandleAt: new Date(sourceCandleEpoch * 1000).toISOString(),
+        entryPrice: livePrice, entryPriceBasis: "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE",
+        strategy: ENGINE4_STRATEGY, analysisMode: ENGINE4_STRATEGY,
+        status: direction === "CALL" ? "EMA5_PULLBACK_BOUNCE_CALL" : "EMA5_PULLBACK_BOUNCE_PUT",
+        trigger: "EMA5_PULLBACK_BOUNCE", metrics: { ...metrics, pullbackPhase: "TRIGGERED" },
+        nextState, evidenceSummary: reason,
+        alertId: "ENGINE_4:" + sourceCandleEpoch + ":" + direction + ":EMA5_PULLBACK_BOUNCE",
+        reason
+      };
+    }
+    return notReady("EMA5_WAITING_FOR_REBOUND",
+      "ราคาเข้าเขตย่อใกล้ EMA 5 แล้ว · รอราคาเด้งกลับยืนยัน", nextState, metrics);
   }
-  const signalName = crossed ? (crossedUp ? "CALL" : "PUT")
-    : nearFromBelow ? "CALL" : "PUT";
-  const trigger = crossed ? "CROSSOVER" : "HISTORICAL_PROXIMITY";
-  const reason = crossed
-    ? (crossedUp ? "MACD ตัดขึ้นเหนือเส้น Signal" : "MACD ตัดลงใต้เส้น Signal")
-    : (nearFromBelow
-      ? "MACD อยู่ใต้เส้น Signal และเข้าใกล้ในระยะ 25% แรกของสถิติย้อนหลัง"
-      : "MACD อยู่เหนือเส้น Signal และเข้าใกล้ในระยะ 25% แรกของสถิติย้อนหลัง");
-  return {
-    ready: true, decisionMade: true, signal: signalName, candidateSignal: signalName,
-    sourceCandleEpoch, candleEpoch: sourceCandleEpoch, targetCandleEpoch,
-    targetCandleAt: new Date(targetCandleEpoch * 1000).toISOString(),
-    strategy: ENGINE4_STRATEGY,
-    analysisMode: "MACD_12_26_9_ADAPTIVE_HISTORICAL_PROXIMITY",
-    status: trigger === "CROSSOVER"
-      ? (crossedUp ? "MACD_BULLISH_CROSS" : "MACD_BEARISH_CROSS")
-      : (nearFromBelow ? "MACD_APPROACHING_FROM_BELOW" : "MACD_APPROACHING_FROM_ABOVE"),
-    trigger, metrics, evidenceSummary: reason,
-    alertId: "ENGINE_4:" + targetCandleEpoch + ":" + signalName + ":" + trigger,
-    reason: signalName + " · " + reason + " · ยืนยันที่ T-5 สำหรับแท่ง M1 ถัดไป"
-  };
+  return notReady(nextState.phase === "WAIT_PULLBACK"
+    ? "EMA5_WAITING_FOR_PULLBACK" : "EMA5_WAITING_FOR_TREND_SIDE",
+    direction === "CALL"
+      ? "EMA 5 ชี้ขึ้น · รอราคาย่อลงเข้าใกล้เส้น EMA 5"
+      : "EMA 5 ชี้ลง · รอราคาดีดขึ้นเข้าใกล้เส้น EMA 5",
+    nextState, {
+      ema5: latest.ema, previousEma5: previous.ema, ema5Slope: slope, livePrice,
+      pullbackPhase: nextState.phase, proximityThresholdPips: ENGINE4_PULLBACK_PROXIMITY_PIPS,
+      bounceConfirmPips: ENGINE4_BOUNCE_CONFIRM_PIPS, emaSource: "TWELVE_DATA_EMA_ENDPOINT"
+    });
 }

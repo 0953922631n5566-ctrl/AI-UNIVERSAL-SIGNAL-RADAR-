@@ -1,98 +1,64 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { analyzeEarlyEntryEngine4, ENGINE4_STRATEGY } from "../src/engine-four.js";
-import { isSignalFinalizeWindow, canFinalizeSignal } from "../src/signal-timing.js";
 
-const source = 1_800_000_000;
-const target = source + 60;
+const now = Date.parse("2026-11-23T12:02:30Z");
+const source = Math.floor(now / 60000) * 60;
+const emaUp = [{ epoch: source - 120, ema: 1.10000 }, { epoch: source - 60, ema: 1.10010 }];
+const emaDown = [{ epoch: source - 120, ema: 1.10010 }, { epoch: source - 60, ema: 1.10000 }];
+const tick = price => ({ livePrice: price, tickAt: now, now, sourceCandleEpoch: source, symbol: "EUR/USD" });
 
-function candle(epoch, close, provisional = false) {
-  return { epoch, open: close, high: close + 0.00002, low: close - 0.00002,
-    close, live: false, provisional };
-}
-function oscillatingCandles(phase = 0) {
-  return Array.from({ length: 73 }, (_, i) =>
-    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5 + phase)));
-}
-function liveAt(close) { return candle(source, close, true); }
-
-test("MACD bullish crossover produces CALL without score fields", () => {
-  const history = oscillatingCandles(0), live = liveAt(history.at(-1).close + 0.000442);
-  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+test("Twelve Data EMA5 rising + pullback + rebound produces immediate CALL", () => {
+  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
+  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10010), emaValues: emaUp, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "CALL");
-  assert.equal(result.status, "MACD_BULLISH_CROSS");
-  assert.equal(result.trigger, "CROSSOVER");
-  assert.deepEqual(result.metrics.periods, { fast: 12, slow: 26, signal: 9 });
-  assert.equal(result.targetCandleEpoch, target);
+  assert.equal(result.entryPrice, 1.10013);
   assert.equal(result.strategy, ENGINE4_STRATEGY);
-  for (const key of ["score", "confidence", "candidateScore", "momentumPercent"]) {
-    assert.equal(key in result, false);
-  }
+  assert.equal(result.targetCandleEpoch, source);
+  assert.equal(result.entryPriceBasis, "TWELVE_DATA_STREAM_PULLBACK_BOUNCE_PRICE");
+  for (const key of ["score","confidence","candidateScore","momentumPercent","macdLine"]) assert.equal(key in result, false);
 });
 
-test("MACD bearish crossover produces PUT without score fields", () => {
-  const history = oscillatingCandles(2.18), live = liveAt(history.at(-1).close - 0.001);
-  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+test("Twelve Data EMA5 falling + upward pullback + rejection produces immediate PUT", () => {
+  let result = analyzeEarlyEntryEngine4({ ...tick(1.09980), emaValues: emaDown });
+  assert.equal(result.status, "EMA5_WAITING_FOR_PULLBACK");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.09987), emaValues: emaDown, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.09990), emaValues: emaDown, state: result.nextState });
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
+  result = analyzeEarlyEntryEngine4({ ...tick(1.09987), emaValues: emaDown, state: result.nextState });
   assert.equal(result.ready, true);
   assert.equal(result.signal, "PUT");
-  assert.equal(result.status, "MACD_BEARISH_CROSS");
-  assert.equal(result.trigger, "CROSSOVER");
 });
 
-test("MACD close to Signal from below produces early CALL before crossing", () => {
-  const history = Array.from({ length: 73 }, (_, i) =>
-    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
-  const live = liveAt(history.at(-1).close + 0.000258);
-  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "CALL");
-  assert.equal(result.trigger, "HISTORICAL_PROXIMITY");
-  assert.equal(result.status, "MACD_APPROACHING_FROM_BELOW");
-  assert.ok(result.metrics.macdLine < result.metrics.signalLine);
-  assert.ok(result.metrics.absoluteGap <= result.metrics.historicalProximityThreshold);
-  assert.equal(result.metrics.historicalSamples, 40);
-});
-
-test("MACD close to Signal from above produces early PUT before crossing", () => {
-  const history = Array.from({ length: 73 }, (_, i) =>
-    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5 + 2.18)));
-  const live = liveAt(history.at(-1).close - 0.000144);
-  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
-  assert.equal(result.ready, true);
-  assert.equal(result.signal, "PUT");
-  assert.equal(result.trigger, "HISTORICAL_PROXIMITY");
-  assert.equal(result.status, "MACD_APPROACHING_FROM_ABOVE");
-  assert.ok(result.metrics.macdLine > result.metrics.signalLine);
-});
-
-test("MACD far from Signal remains STANDBY", () => {
-  const history = Array.from({ length: 73 }, (_, i) =>
-    candle(source - (73 - i) * 60, 1.1 + 0.0002 * Math.sin(i * 0.5)));
-  const live = liveAt(history.at(-1).close + 0.0002);
-  const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
+test("touching EMA5 without rebound remains STANDBY", () => {
+  let result = analyzeEarlyEntryEngine4({ ...tick(1.10020), emaValues: emaUp });
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10013), emaValues: emaUp, state: result.nextState });
+  result = analyzeEarlyEntryEngine4({ ...tick(1.10011), emaValues: emaUp, state: result.nextState });
   assert.equal(result.ready, false);
-  assert.equal(result.signal, null);
-  assert.equal(result.status, "MACD_NOT_NEAR_SIGNAL");
+  assert.equal(result.status, "EMA5_WAITING_FOR_REBOUND");
 });
 
-test("requires 74 M1 samples including a live preview and 40 historical gaps", () => {
-  const short = Array.from({ length: 72 }, (_, i) =>
-    candle(source - (72 - i) * 60, 1.1 + 0.0001 * i));
-  const live = liveAt(1.1072);
-  assert.equal(analyzeEarlyEntryEngine4([...short, live], { liveCandle: live }).status,
-    "INSUFFICIENT_MACD_HISTORY");
-  assert.equal(analyzeEarlyEntryEngine4([], { liveCandle: { ...live, provisional: false } }).status,
-    "LIVE_M1_PREVIEW_NOT_READY");
+test("flat/missing/stale EMA and stale live price fail closed", () => {
+  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [] }).status, "EMA5_API_NOT_READY");
+  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [
+    { epoch: source - 120, ema: 1.1 }, { epoch: source - 60, ema: 1.1 }
+  ] }).status, "EMA5_SLOPE_FLAT");
+  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), emaValues: [
+    { epoch: source - 600, ema: 1.1 }, { epoch: source - 540, ema: 1.1001 }
+  ] }).status, "EMA5_API_STALE");
+  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1), tickAt: now - 6000, emaValues: emaUp }).status, "LIVE_PRICE_STALE");
 });
 
-test("retains T-5 finalization window and fresh-tick guard", () => {
-  assert.equal(isSignalFinalizeWindow(source, source * 1000 + 54999), false);
-  assert.equal(isSignalFinalizeWindow(source, source * 1000 + 55000), true);
-  assert.equal(isSignalFinalizeWindow(source, source * 1000 + 59999), true);
-  assert.equal(isSignalFinalizeWindow(source, source * 1000 + 60000), false);
-  assert.equal(canFinalizeSignal({ candleEpoch: source, tickAt: source * 1000 + 55100,
-    now: source * 1000 + 55200, lastDispatchedCandle: null }), true);
-  assert.equal(canFinalizeSignal({ candleEpoch: source, tickAt: source * 1000 + 55100,
-    now: source * 1000 + 55200, lastDispatchedCandle: source }), false);
+test("only one Engine 4 signal is permitted per M1 candle", () => {
+  const state = { direction: "CALL", emaEpoch: source - 60, phase: "TRIGGERED",
+    extremePrice: 1.1, triggeredCandleEpoch: source };
+  assert.equal(analyzeEarlyEntryEngine4({ ...tick(1.1002), emaValues: emaUp, state }).status,
+    "EMA5_ALREADY_TRIGGERED_THIS_CANDLE");
 });
