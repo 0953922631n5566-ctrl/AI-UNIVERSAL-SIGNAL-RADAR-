@@ -1,5 +1,5 @@
-/** Engine 4: AO 5/34 with strict, ATR-normalized momentum expansion gate. */
-export const ENGINE4_STRATEGY = "AWESOME_OSCILLATOR_5_34_STRONG_MOMENTUM_ATR_EXPANSION_T5_NEXT_M1";
+/** Engine 4: MACD 12/26/9 crossover only. No scoring or additional filters. */
+export const ENGINE4_STRATEGY = "MACD_12_26_9_CROSSOVER_T5_NEXT_M1";
 
 function validCandle(c, provisional = false) {
   return c && c.live === false && (!provisional || c.provisional === true) &&
@@ -12,26 +12,44 @@ function notReady(status, reason, extra = {}) {
   return { ready: false, decisionMade: false, signal: null, candidateSignal: null,
     status, strategy: ENGINE4_STRATEGY, reason, ...extra };
 }
-function smaLast(values, period) {
-  if (!Array.isArray(values) || values.length < period) return null;
-  const slice = values.slice(-period);
-  return slice.reduce((sum, value) => sum + value, 0) / period;
-}
-function atrLast(candles, period = 14) {
-  if (!Array.isArray(candles) || candles.length < period + 1) return null;
-  const ranges = [];
-  for (let i = candles.length - period; i < candles.length; i++) {
-    const current = candles[i], previous = candles[i - 1];
-    ranges.push(Math.max(current.high - current.low,
-      Math.abs(current.high - previous.close), Math.abs(current.low - previous.close)));
+function emaSeries(values, period) {
+  const result = Array(values.length).fill(null);
+  if (values.length < period) return result;
+  let current = values.slice(0, period).reduce((sum, value) => sum + value, 0) / period;
+  result[period - 1] = current;
+  const alpha = 2 / (period + 1);
+  for (let i = period; i < values.length; i++) {
+    current = alpha * values[i] + (1 - alpha) * current;
+    result[i] = current;
   }
-  return ranges.reduce((sum, value) => sum + value, 0) / ranges.length;
+  return result;
+}
+function macdSeries(closes) {
+  const fast = emaSeries(closes, 12);
+  const slow = emaSeries(closes, 26);
+  const line = closes.map((_, i) =>
+    fast[i] === null || slow[i] === null ? null : fast[i] - slow[i]);
+  const signal = Array(closes.length).fill(null);
+  const validIndices = line.map((value, i) => value === null ? -1 : i).filter(i => i >= 0);
+  if (validIndices.length < 9) return { line, signal };
+  const seedIndices = validIndices.slice(0, 9);
+  let current = seedIndices.reduce((sum, i) => sum + line[i], 0) / 9;
+  const seedIndex = seedIndices.at(-1);
+  signal[seedIndex] = current;
+  const alpha = 2 / (9 + 1);
+  for (let i = seedIndex + 1; i < line.length; i++) {
+    if (line[i] === null) continue;
+    current = alpha * line[i] + (1 - alpha) * current;
+    signal[i] = current;
+  }
+  return { line, signal };
 }
 
 /**
- * Signal only when the latest 3 AO values stay on one side of zero,
- * absolute AO expands twice in succession, and |AO| >= 0.12 x ATR(14).
- * Otherwise return STANDBY. No percentage, score, or confidence output.
+ * Use standard close-based MACD: EMA(12)-EMA(26), signal EMA(9).
+ * CALL only on MACD crossing above its signal line; PUT only on crossing below.
+ * The live M1 candle is compared with the previous closed M1 candle so a crossover
+ * occurring during the current candle remains detectable at the T-5 dispatch window.
  */
 export function analyzeEarlyEntryEngine4(candles, options = {}) {
   const liveCandle = options.liveCandle || (Array.isArray(candles) ? candles.at(-1) : null);
@@ -39,76 +57,52 @@ export function analyzeEarlyEntryEngine4(candles, options = {}) {
     return notReady("LIVE_M1_PREVIEW_NOT_READY", "Engine 4 ต้องใช้แท่ง M1 ที่กำลังวิ่งและราคา Streaming สด");
   }
   const history = (Array.isArray(candles) ? candles : [])
-    .filter(c => c && c.epoch < liveCandle.epoch && validCandle(c)).slice(-60);
+    .filter(c => c && c.epoch < liveCandle.epoch && validCandle(c)).slice(-80);
   const series = [...history, liveCandle];
-  if (series.length < 36) {
-    return notReady("INSUFFICIENT_MOMENTUM_HISTORY", "ต้องมีข้อมูล M1 อย่างน้อย 36 แท่งเพื่อยืนยันแรงส่ง AO");
+  if (series.length < 35) {
+    return notReady("INSUFFICIENT_MACD_HISTORY", "ต้องมีข้อมูล M1 อย่างน้อย 35 แท่งเพื่อคำนวณ MACD 12/26/9");
   }
-  const medianPrices = series.map(c => (c.high + c.low) / 2);
-  const aoSeries = [];
-  for (let end = 33; end < medianPrices.length; end++) {
-    const sample = medianPrices.slice(0, end + 1);
-    aoSeries.push(smaLast(sample, 5) - smaLast(sample, 34));
+  const { line, signal } = macdSeries(series.map(c => c.close));
+  const index = series.length - 1;
+  const previousMacd = line[index - 1], previousSignal = signal[index - 1];
+  const currentMacd = line[index], currentSignal = signal[index];
+  if (![previousMacd, previousSignal, currentMacd, currentSignal].every(Number.isFinite)) {
+    return notReady("MACD_NOT_READY", "ข้อมูล MACD 12/26/9 ยังไม่ครบ");
   }
-  const recentAo = aoSeries.slice(-3);
-  const ao = recentAo.at(-1);
-  const atr14 = atrLast(series, 14);
-  const zeroTolerance = 1e-12;
-  if (recentAo.length !== 3 || !Number.isFinite(ao) || !Number.isFinite(atr14) || atr14 <= zeroTolerance) {
-    return notReady("AO_MOMENTUM_NOT_READY", "ข้อมูล AO หรือ ATR(14) ยังไม่ครบสำหรับยืนยันแรงส่ง");
-  }
-  const directionSign = Math.sign(ao);
-  const sameDirection = directionSign !== 0 && recentAo.every(value => Math.sign(value) === directionSign);
-  const expanding = Math.abs(recentAo[2]) > Math.abs(recentAo[1]) &&
-    Math.abs(recentAo[1]) > Math.abs(recentAo[0]);
-  const strengthRatio = Math.abs(ao) / atr14;
-  const strongEnough = strengthRatio >= 0.12;
-  const metrics = {
-    awesomeOscillator: ao,
-    aoFastSma: smaLast(medianPrices, 5),
-    aoSlowSma: smaLast(medianPrices, 34),
-    aoPeriod: { fast: 5, slow: 34 },
-    medianPrice: medianPrices.at(-1),
-    atr14,
-    aoAtrRatio: strengthRatio,
-    aoExpanding: expanding,
-    aoSameDirection: sameDirection,
-    recentAo: recentAo.slice(),
-    minimumAoAtrRatio: 0.12,
-    sourceCandleEpoch: liveCandle.epoch,
-    targetCandleEpoch: liveCandle.epoch + 60
-  };
+  const crossedUp = previousMacd <= previousSignal && currentMacd > currentSignal;
+  const crossedDown = previousMacd >= previousSignal && currentMacd < currentSignal;
   const sourceCandleEpoch = liveCandle.epoch;
   const targetCandleEpoch = sourceCandleEpoch + 60;
-  const signal = ao > zeroTolerance ? "CALL" : ao < -zeroTolerance ? "PUT" : null;
-  if (!signal) {
-    return { ...notReady("AO_ZERO_LINE", "AO อยู่ใกล้เส้นศูนย์ · ยังไม่มีทิศทางและแรงส่ง"),
-      sourceCandleEpoch, targetCandleEpoch, candleEpoch: sourceCandleEpoch,
-      analysisMode: "AO_STRONG_MOMENTUM", metrics, evidenceSummary: "AO ใกล้ศูนย์ · STANDBY" };
-  }
-  if (!sameDirection || !expanding || !strongEnough) {
-    const missing = [
-      !sameDirection ? "ทิศทาง AO ยังไม่ต่อเนื่อง" : null,
-      !expanding ? "AO ยังไม่เร่งตัวต่อเนื่อง 2 ช่วง" : null,
-      !strongEnough ? "แรง AO ยังต่ำกว่า 0.12 ATR(14)" : null
-    ].filter(Boolean).join(" · ");
+  const metrics = {
+    macdLine: currentMacd,
+    signalLine: currentSignal,
+    histogram: currentMacd - currentSignal,
+    previousMacdLine: previousMacd,
+    previousSignalLine: previousSignal,
+    periods: { fast: 12, slow: 26, signal: 9 },
+    sourceCandleEpoch,
+    targetCandleEpoch
+  };
+  if (!crossedUp && !crossedDown) {
     return {
-      ...notReady("AO_MOMENTUM_WEAK", "STANDBY · " + missing),
+      ...notReady("MACD_NO_CROSS", "MACD ยังไม่ตัดเส้น Signal · STANDBY"),
       sourceCandleEpoch, targetCandleEpoch, candleEpoch: sourceCandleEpoch,
-      analysisMode: "AO_STRONG_MOMENTUM", metrics, evidenceSummary: missing
+      analysisMode: "MACD_12_26_9_CROSSOVER", metrics,
+      evidenceSummary: "รอ MACD ตัดเส้น Signal"
     };
   }
-  const direction = signal === "CALL" ? "เหนือ" : "ใต้";
-  const reason = "แรงส่ง AO ยืนยันแล้ว · AO " + direction + "เส้นศูนย์ (" + ao.toFixed(8) +
-    ") · ขยายตัวต่อเนื่อง 2 ช่วง · แรงเทียบ ATR(14) " + strengthRatio.toFixed(2) + "x";
+  const signalName = crossedUp ? "CALL" : "PUT";
+  const reason = crossedUp
+    ? "MACD 12/26 ตัดขึ้นเหนือเส้น Signal 9"
+    : "MACD 12/26 ตัดลงใต้เส้น Signal 9";
   return {
-    ready: true, decisionMade: true, signal, candidateSignal: signal,
+    ready: true, decisionMade: true, signal: signalName, candidateSignal: signalName,
     sourceCandleEpoch, candleEpoch: sourceCandleEpoch, targetCandleEpoch,
     targetCandleAt: new Date(targetCandleEpoch * 1000).toISOString(),
-    strategy: ENGINE4_STRATEGY, analysisMode: "AO_STRONG_MOMENTUM",
-    status: signal === "CALL" ? "AO_STRONG_CALL" : "AO_STRONG_PUT",
+    strategy: ENGINE4_STRATEGY, analysisMode: "MACD_12_26_9_CROSSOVER",
+    status: crossedUp ? "MACD_BULLISH_CROSS" : "MACD_BEARISH_CROSS",
     metrics, evidenceSummary: reason,
-    alertId: "ENGINE_4:" + targetCandleEpoch + ":" + signal + ":AO_STRONG_5_34",
-    reason: signal + " · " + reason + " · ยืนยันที่ T-5 สำหรับแท่ง M1 ถัดไป"
+    alertId: "ENGINE_4:" + targetCandleEpoch + ":" + signalName + ":MACD_12_26_9",
+    reason: signalName + " · " + reason + " · ยืนยันที่ T-5 สำหรับแท่ง M1 ถัดไป"
   };
 }
