@@ -36,3 +36,15 @@ test("Backend contains a single Engine 3 analysis path with native indicator end
  assert.match(serverJs,/decisionEngine: "ENGINE_3_TREND_RIDER_ONLY"/);
  for(const legacy of [/analyzeMarket\(/,/analyzeBBPureScalper\(/,/analyzeEarlyEntryEngine4\(/,/ENGINE4_STRATEGY/,/selectRecoveryCandidate\(/,/evaluateM1Outcome\(/])assert.doesNotMatch(serverJs,legacy);
 });
+
+test("Mini App keeps only EUR/USD price, live API status, signal lamp and countdown on the main screen",()=>{
+ const body=html.slice(html.indexOf("<body>"),html.indexOf("<script>"));
+ const menuStart=body.indexOf('<details class="menu-drawer" id="settingsMenu">');
+ const menuEnd=body.indexOf("</div></details>",menuStart);
+ assert.ok(menuStart>0&&menuEnd>menuStart);
+ const mainScreen=body.slice(0,menuStart),menu=body.slice(menuStart,menuEnd);
+ for(const id of ["api","price","panel","signal","candle","expiry"])assert.match(mainScreen,new RegExp('id="'+id+'"'));
+ for(const id of ["soundEnable","monitorToggle","trendCard","ema5Value","manualLampToggle","apiKeys"])assert.match(menu,new RegExp('id="'+id+'"'));
+ assert.match(mainScreen,/EUR \/ USD/);assert.match(mainScreen,/LIVE PRICE/);
+ assert.doesNotMatch(mainScreen,/ENGINE 3|SOUND & ALERT|SYSTEM CONTROL|EMA 5|MANUAL LIGHT SWITCH/);
+});
