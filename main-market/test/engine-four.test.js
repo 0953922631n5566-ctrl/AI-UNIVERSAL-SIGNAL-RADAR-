@@ -69,7 +69,7 @@ test("returns no signal when neither regime has a valid entry", () => {
   const previous = history.at(-1).close;
   const live = liveCandle({
     open: previous, close: previous + 0.00001,
-    low: previous + 0.000005, high: previous + 0.00002
+    low: previous - 0.00001, high: previous + 0.00002
   });
   const result = analyzeEarlyEntryEngine4([...history, live], { liveCandle: live });
   assert.equal(result.ready, false);
