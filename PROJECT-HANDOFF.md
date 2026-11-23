@@ -2310,3 +2310,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 
 - Runtime isolation pass: the Main Market server no longer imports the V1, BB, Engine 4 analyzers or the old signal-release gate. ENGINE_KEYS is restricted to TREND_RIDER and the API toggle route cannot re-enable the other engines. Legacy source/test files are still present in the repository for now; remove them only after a successful full test run confirms no remaining dependencies.
 - A new ATR14 failover test was added. GitHub workflow/status queries still return no runs, so no claim of passing tests is made.
+
+
+### Latest continuation — Engine 3 / Telegram Mini App only (2026-11-23)
+
+- Feature branch remains `feature/engine3-twelvedata-only-single-engine-20261123`; PR #227 remains separate from production `main-market`. Production Render service `ai-signal-radar-main-market` has not been changed by this work.
+- Server execution path was refactored to a single Trend Rider evaluation/dispatch path. V1, BB, Engine 4, Momentum 9, multi-engine aggregation, cross-engine recovery, historical analogue, Gemini analyzer/quota modules, unused push/entry helpers, and the old original-ai multi-engine subtree were removed from the Main Market feature branch.
+- Native Twelve Data indicator path remains EMA5, EMA20, and ATR14 only. Indicator values are refreshed once per minute through the existing 10-key pool; the Trend Rider uses those provider values plus raw M1 OHLC structure. Missing/stale/misaligned values fail closed.
+- Telegram Mini App is now the only client surface in the active runtime. Android auth/control routes, the old control dashboard assets, and APK build workflows were removed from this branch.
+- Added a real Mini App Start/Stop control backed by `POST /api/telegram/control`. Monitoring no longer auto-starts on server boot; the user must tap Start in the Mini App. Stop shuts down the stream/timers and clears the active signal.
+- Mini App retains T-10 PREPARE, T-5 final signal, 30-second display, sound/vibration, EMA5/EMA20/ATR14 and analysis evidence, API pool status, and the independent manual RED/GREEN lamp.
+- Test contracts were rewritten for the single-engine architecture. A prior run on an intermediate commit reported the full Node test suite passing but failed a syntax-check step because CI still referenced deleted Android modules; CI workflow references were corrected. New end-to-end CI runs for the latest commits are pending.
+- Do not merge or deploy until all relevant GitHub Actions jobs pass, the server and inline Mini App scripts pass syntax checks, and the deployed endpoints are verified. Do not invite the user to test the production Mini App before deployment and health/API checks.
+- Signal quality/profitability remains unvalidated out-of-sample; this is a functional implementation/test task, not a profitability guarantee.
