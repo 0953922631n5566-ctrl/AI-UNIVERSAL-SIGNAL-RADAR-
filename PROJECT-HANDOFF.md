@@ -2272,3 +2272,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - EMA5 is refreshed once per M1 minute (one API credit per selected symbol per request); the live Twelve Data Streaming price is evaluated locally between refreshes. Engine 4 fires immediately in the current M1 candle after the rebound confirms, captures the live trigger price, holds for 30 seconds, and is limited to one signal per candle.
 - Engines 1–3, their analysis/timing/thresholds, Mini App controls, shared sound/vibration, manual-only/no-broker behavior, and other projects are not intended to change.
 - Isolated branch: `feature/engine4-twelvedata-ema5-pullback-20261123`. CI, full test/build, PR review, Render deployment, health/API and Telegram Mini App verification remain pending. Do not call this production-ready until the PR is merged and the new Render version is live.
+
+
+## 2026-11-23 — Engine 4 native Twelve Data EMA5 + Momentum9
+- User confirmed Engine 4 uses only native Twelve Data EMA 5 and Momentum 9; no locally calculated indicators.
+- Implementation branch: `feature/engine4-twelvedata-ema5-momentum9-20261123`, based on production `main-market`.
+- EMA5: Twelve Data `/ema`, period 5, close, 1min. Momentum9: Twelve Data `/mom`, period 9, close, 1min; response field `mom`.
+- CALL when live Twelve Data Streaming price is above EMA5 and native MOM9 is positive; PUT when below EMA5 and MOM9 is negative; otherwise STANDBY.
+- Both indicators refresh once per selected M1 minute (2 indicator credits/minute); streaming alignment is evaluated on live ticks. One signal per candle, 30-second hold, shared sound/vibration and manual-only/no-broker behavior retained.
+- Only Engine 4 code, UI label, metadata and tests are intended to change. Engines 1–3 remain unchanged.
+- CI, Render deployment, health, public signal endpoint and Telegram Mini App verification pending. Paper-test first; no profitability claim.

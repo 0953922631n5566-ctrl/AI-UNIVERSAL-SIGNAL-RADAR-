@@ -19,7 +19,7 @@ test("Mini App is restricted to EUR/USD and keeps API details inside a collapsib
   assert.match(html, /apiKeys/);
 });
 
-test("Mini App presents immediate EMA5 pullback signals and preserves shared sound, vibration and 30-second alert UI", () => {
+test("Mini App presents immediate EMA5 and Momentum9 signals and preserves shared sound, vibration and 30-second alert UI", () => {
   assert.match(html, /id="soundEnable"/);
   assert.match(html, /PREPARE \/ เฝ้าระวัง/);
   assert.match(html, /m\.preAlertStatus==="PREPARE_ALERT"/);
@@ -29,7 +29,7 @@ test("Mini App presents immediate EMA5 pullback signals and preserves shared sou
   assert.match(html, /holdMs/);
   assert.match(html, /alert-flash-call/);
   assert.match(html, /alert-flash-put/);
-  assert.ok(html.includes("Twelve Data EMA 5 เท่านั้น"));
+  assert.ok(html.includes("Twelve Data EMA 5 + Momentum 9"));
   assert.ok(html.includes("ส่งสัญญาณทันที"));
   assert.ok(html.includes("V1 + BB + TREND RIDER AI"));
   assert.match(html, /id="reversal"/);
@@ -39,9 +39,9 @@ test("Mini App presents immediate EMA5 pullback signals and preserves shared sou
   for (const id of ["v1Card","bbCard","trendCard","trendSignal","engine4Card","engine4Signal","engine4Reason"]) {
     assert.match(html, new RegExp('id="' + id + '"'));
   }
-  assert.ok(html.includes('<div class="engine-title">04 · TWELVE DATA EMA 5</div>'));
-  assert.ok(html.includes("Engine 4 · EMA5 Pullback → CALL ทันที"));
-  assert.ok(html.includes("Engine 4 · EMA5 Pullback → PUT ทันที"));
+  assert.ok(html.includes('<div class="engine-title">04 · EMA 5 + MOMENTUM 9</div>'));
+  assert.ok(html.includes("Engine 4 · EMA5 + Momentum9 → CALL"));
+  assert.ok(html.includes("Engine 4 · EMA5 + Momentum9 → PUT"));
   assert.doesNotMatch(html, /ACCUMULATED PRESSURE/);
   assert.doesNotMatch(html, /Engine 4 · Price Action/);
   assert.match(html, /\.engine-card\.call\{border-color:var\(--call-color\)\}/);
@@ -109,7 +109,7 @@ test("V1 PREPARE candidates cannot be promoted into final T-5 signals below 65",
 
 test("Engine 4 is exposed as an independent Twelve Data EMA5 analyzer", () => {
   assert.match(serverJs, /engine4: engineResults\.ENGINE_4/);
-  assert.match(serverJs, /provider: "TWELVE_DATA_OHLC_EMA5_STREAM"/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING"/);
   assert.match(serverJs, /const engineResults = \{\}/);
   assert.match(serverJs, /for \(const engine of ENGINE_KEYS\)/);
   assert.match(serverJs, /engineRecoveryStates\[engine\]/);
@@ -121,6 +121,7 @@ test("Engine 4 is exposed as an independent Twelve Data EMA5 analyzer", () => {
   assert.match(serverJs, /engine4Candidate/);
   assert.match(serverJs, /analyzeEarlyEntryEngine4\(\{/);
   assert.match(serverJs, /emaValues: feed\.engine4Ema\?\.values/);
+  assert.match(serverJs, /momentumValues: feed\.engine4Momentum\?\.values/);
   assert.match(serverJs, /const engineWindow = finalizeWindow/);
   assert.match(serverJs, /canFinalizeSignal\(\{ candleEpoch: sourceCandleEpoch/);
   assert.match(serverJs, /engine4DecisionMode: ENGINE4_STRATEGY/);
@@ -144,7 +145,7 @@ test("Engine 4 immediate signal shares existing sound, vibration and 30-second h
   assert.doesNotMatch(html, /triggerEngine4SoundAndVibration/);
 });
 
-test("four engine cards remain independently toggleable and Engine 4 uses adaptive Twelve Data inputs", () => {
+test("four engine cards remain independently toggleable and Engine 4 uses native Twelve Data EMA5 plus Momentum9", () => {
   for (const id of ["v1Card", "bbCard", "trendCard", "engine4Card"]) {
     assert.match(html, new RegExp('id="' + id + '" class="engine-card engine-enabled" role="button"'));
   }
@@ -164,26 +165,23 @@ test("four engine cards remain independently toggleable and Engine 4 uses adapti
   assert.match(serverJs, /app\.post\("\/api\/telegram\/engines"/);
   assert.match(serverJs, /if \(!engineEnabled\[engine\]\)/);
   assert.match(serverJs, /strategy: ENGINE4_STRATEGY/);
-  assert.match(serverJs, /provider: "TWELVE_DATA_M1_OHLC_EMA5_AND_STREAMING"/);
-  assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
+  assert.match(serverJs, /provider: "TWELVE_DATA_NATIVE_EMA_MOM_ENDPOINTS_PLUS_STREAMING"/);
+  assert.match(serverJs, /indicatorEndpoints: \["EMA time_period=5", "MOM time_period=9"\]/);
   assert.match(serverJs, /refreshSeconds: ENGINE4_EMA_REFRESH_SECONDS/);
-  assert.match(serverJs, /estimatedEmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
-  assert.match(serverJs, /estimatedEngine4EmaCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\)/);
+  assert.match(serverJs, /estimatedIndicatorCreditsPerDay: Math\.ceil\(86400 \/ ENGINE4_EMA_REFRESH_SECONDS\) \* 2/);
+  
   assert.match(serverJs, /keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER"/);
   assert.match(serverJs, /twelveDataKeyPool\.nextAvailableInMs\(\)/);
-  assert.match(serverJs, /nextAttemptAt: failedAt \+ retryMs/);
-  assert.match(serverJs, /Do not clear the armed pullback or active alert/);
+  
   assert.match(serverJs, /ENGINE4_EMA_RETRY_MIN_MS/);
-  assert.match(serverJs, /indicatorEndpoints: \["EMA5"\]/);
-  assert.match(serverJs, /derivedIndicators: \["EMA8", "EMA21", "RSI7", "MACD_5_13_4", "ADX14", "ATR14", "BOLLINGER20_2"\]/);
-  assert.match(serverJs, /trendAdxMin: 14/);
-  assert.match(serverJs, /rangeEntries: \["BOLLINGER_EDGE_REJECTION_WITH_RSI"\]/);
+  assert.match(serverJs, /indicatorEndpoints: \["EMA time_period=5", "MOM time_period=9"\]/);
+  assert.match(serverJs, /derivedIndicators: \[\]/);
   assert.match(serverJs, /decisionWindow: "IMMEDIATE_ON_CONFIRMED_SETUP"/);
   assert.match(serverJs, /target: "CURRENT_M1_CANDLE_AT_TRIGGER"/);
   assert.match(serverJs, /signalHoldSeconds: 30/);
   assert.match(serverJs, /scoring: "DISABLED"/);
-  assert.match(serverJs, /engine4LookbackClosedCandles: 50/);
-  assert.match(engineFourJs, /TWELVE_DATA_LIVE_STREAM_TRIGGER_PRICE/);
+  assert.match(serverJs, /engine4DirectionSource: "TWELVE_DATA_NATIVE_EMA5_AND_MOMENTUM9_PLUS_LIVE_STREAM"/);
+  assert.match(engineFourJs, /TWELVE_DATA_STREAMING_PRICE/);
   assert.doesNotMatch(serverJs, /MULTI_DIMENSION_ADAPTIVE|TREND_EMA8_21|BOLLINGER_RSI_REVERSAL/);
 });
 
@@ -196,7 +194,7 @@ test("Engine 4 API result omits score and confidence fields", () => {
   assert.match(serverJs, /delete disabledResult\.confidence/);
 });
 
-test("Streaming Tick re-analysis stays local while Engine 4 detects live EMA5 pullbacks", () => {
+test("Streaming Tick re-analysis stays local while Engine 4 checks EMA5 and Momentum9", () => {
   assert.ok(configJs.includes("LIVE_ANALYSIS_INTERVAL_SECONDS = 0.25"));
   assert.match(configJs, /LIVE_PRICE_CHECK_SECONDS = 5/);
   assert.match(configJs, /REST_SYNC_SECONDS = 180/);

@@ -209,3 +209,17 @@ export async function fetchEma5({
     period: 5, seriesType: "close", values, receivedAt: now, source: "Twelve Data /ema"
   };
 }
+
+
+/** Native Twelve Data Momentum(9); no local indicator calculation. */
+export async function fetchMomentum9({keyPool=twelveDataKeyPool,symbol="EUR/USD",interval="1min",outputsize=4,fetchImpl=fetch,now=Date.now()}={}){
+ const normalized=normalizeSymbol(symbol);if(!SYMBOLS.some(item=>normalizeSymbol(item)===normalized))throw new Error(`Pair is not enabled: ${symbol}`);
+ const keys=keyPool.getRestCandidates?.()||keyPool.getCandidates();if(!keys.length){const e=new Error("No Twelve Data API keys are currently available for Momentum 9");e.kind="RATE_LIMIT";throw e;}
+ const url=new URL("/mom",API_BASE);for(const [k,v] of Object.entries({symbol,interval,time_period:"9",series_type:"close",outputsize:String(outputsize),order:"desc",timezone:"UTC"}))url.searchParams.set(k,v);
+ let body,success=null,last=null;
+ for(const key of keys){try{const res=await fetchImpl(url,{headers:{Authorization:`apikey ${key}`},signal:AbortSignal.timeout(REQUEST_TIMEOUT_MS)});try{body=await res.json();}catch{const e=new Error("Twelve Data returned invalid Momentum JSON");e.kind="INVALID_RESPONSE";throw e;}if(!res.ok||body?.status==="error"||!Array.isArray(body?.values))throw providerError(symbol,body,res.status);success=key;break;}catch(c){const e=c?.kind?c:(()=>{const x=new Error(`Twelve Data Momentum network error: ${c.message}`);x.kind="NETWORK_ERROR";return x;})();last=e;if(e.kind==="PAIR_UNAVAILABLE"||e.kind==="INSUFFICIENT_HISTORY")throw e;keyPool.markFailure(key,e);}}
+ if(!success)throw last||new Error("Twelve Data Momentum API pool failed");if(typeof keyPool.markRestSuccess==="function")keyPool.markRestSuccess(success);else keyPool.markSuccess(success);
+ const current=Math.floor(now/60000)*60,map=new Map();for(const raw of body.values){const epoch=Date.parse(String(raw?.datetime||"").replace(" ","T")+"Z")/1000,momentum=Number(raw?.mom);if(Number.isFinite(epoch)&&Number.isFinite(momentum)&&epoch<current)map.set(epoch,{epoch,momentum});}
+ const values=[...map.values()].sort((a,b)=>a.epoch-b.epoch).slice(-2);if(values.length!==2||values[1].epoch-values[0].epoch!==60){const e=new Error(`${symbol}: Momentum 9 needs two consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;}
+ return{symbol:body.meta?.symbol||symbol,interval:body.meta?.interval||interval,period:9,seriesType:"close",values,receivedAt:now,source:"Twelve Data /mom"};
+}
