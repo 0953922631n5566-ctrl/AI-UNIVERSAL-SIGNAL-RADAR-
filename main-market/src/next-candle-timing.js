@@ -19,8 +19,11 @@ export function createNextCandleSignal({ signal, sourceCandleEpoch, now, entryPr
 export function canDispatchNextCandleSignal(active, { now, tickAt, lastDispatchedTargetCandle }) {
   if (!active || !["CALL", "PUT"].includes(active.signal)) return false;
   if (!Number.isFinite(now) || !Number.isFinite(tickAt)) return false;
-  if (now >= active.expiresAt || now - tickAt < 0 || now - tickAt > MAX_TICK_AGE_MS) return false;
-  if (active.targetCandleEpoch !== active.sourceCandleEpoch + 60) return false;
+  if (now >= active.targetOpensAt || now >= active.expiresAt ||
+      now - tickAt < 0 || now - tickAt > MAX_TICK_AGE_MS) return false;
+  if (active.targetCandleEpoch !== active.sourceCandleEpoch + 60 ||
+      active.targetOpensAt !== active.targetCandleEpoch * 1000 ||
+      active.expiresAt !== active.targetOpensAt + SIGNAL_HOLD_MS) return false;
   if (lastDispatchedTargetCandle === active.targetCandleEpoch) return false;
   return true;
 }
