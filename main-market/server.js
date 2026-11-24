@@ -28,7 +28,7 @@ const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
 const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
 const VERSION = "2026-11-24-gemini-primary-next-m1-adaptive-prefilter-v2";
-const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22);
+const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 30);
 const GEMINI_ANALYSIS_WINDOW_MS = (Number.isFinite(configuredGeminiWindowSeconds)
   ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 22) * 1000;
 const app = express();
@@ -269,7 +269,7 @@ async function evaluate(feed) {
       };
     }
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
-      Number(raw.confidence) >= 65 &&
+      Number(raw.confidence) >= 58 &&
       !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
       Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
