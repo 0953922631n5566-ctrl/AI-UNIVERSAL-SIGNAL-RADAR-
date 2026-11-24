@@ -2412,3 +2412,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Signal release gate relaxed from confidence 35 to 20, up to 4 ordinary risk flags, and at least 1 evidence item. Hard data-integrity blockers (stale/missing/insufficient/invalid data) remain blocked.
 - Gemini remains one request per live M1 source candle when manually enabled. Default daily request budget remains 60; this change increases signal acceptance, not API request volume. One request per minute can consume the 60-call budget in about one hour of continuous use.
 - No claim of improved win rate or profitability. Higher signal frequency can increase false positives; paper/demo validation is required before any real-money use.
+
+
+## 2026-11-24 — Gemini removed from Main Market
+
+- User explicitly requested removal of Gemini and no AI analysis.
+- Runtime no longer imports or calls the Gemini analyzer; Gemini on/off control route and Mini App toggle were removed.
+- Twelve Data remains only for market-price OHLC/streaming and API-pool health. No local or external directional analyzer is enabled.
+- Backend forcibly clears pending/active signal state and returns STANDBY / DISABLED. No CALL/PUT signals can be produced until a separate analyzer is explicitly commissioned.
+- Health metadata reports decisionEngine NONE, signalGeneration false, analyzer NONE, externalAiCalls false, and DISABLED_NO_ANALYZER.
+- Mini App labels the signal engine DISABLED and explains that no CALL/PUT analysis is running.
