@@ -50,9 +50,10 @@ test("Mini App retains Engine 3 native Twelve Data diagnostics in the menu",()=>
  assert.match(serverJs,/fetchAtr14/);
 });
 
-test("Mini App preserves M1 countdown, PREPARE, signal alerts, sound and vibration",()=>{
+test("Mini App preserves M1 countdown, immediate signal alerts, sound and vibration",()=>{
  for(const id of ["candle","expiry"])assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/m\.preAlertStatus==="PREPARE_ALERT"/);
+ assert.match(serverJs,/signalTimingMode:"INTRABAR_IMMEDIATE_CURRENT_M1"/);
+ assert.doesNotMatch(serverJs,/isPrepareAlertWindow\(sourceEpoch,now\)/);
  assert.match(html,/function notify\(/);
  assert.match(html,/signalExpiresAt/);
  assert.match(html,/navigator\.vibrate/);

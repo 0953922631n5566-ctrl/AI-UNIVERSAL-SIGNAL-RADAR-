@@ -17,14 +17,14 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Engine 3 Trend Rider · Twelve Data Native Indicators",
-    "displayName": "Single Engine 3 · EMA5 / EMA20 / ATR14",
+    "name": "Engine 3 Trend First Instant Entry · Twelve Data Native Indicators",
+    "displayName": "Single Engine 3 · Native EMA5 / EMA20 / ATR14",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
+    "executionModel": "TREND_FIRST_INTRABAR_ENTRY_USING_TWELVE_DATA_NATIVE_INDICATORS",
     "decisionAuthority": "ENGINE_3_ONLY",
     "indicators": {
-      "provider": "Twelve Data native endpoints",
+      "provider": "Twelve Data native REST endpoints + Twelve Data live price Streaming",
       "emaFast": {
         "endpoint": "/ema",
         "period": 5
@@ -42,16 +42,16 @@
       "estimatedCreditsPerDay": 4320
     },
     "strategy": {
-      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_CONTINUATION",
-      "scoreThreshold": 58,
-      "minimumClosedCandles": 30,
+      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_TREND_FIRST_INSTANT_ENTRY",
+      "minimumClosedCandles": 54,
+      "scoreBasedFiltering": false,
+      "entryRule": "EMA5/EMA20 trend alignment and EMA5 slope; trigger immediately when live M1 price action confirms on the trend side of EMA5",
       "guards": [
-        "SIDEWAYS",
-        "LATE_EXTENSION_1_5_ATR",
-        "ABNORMAL_RANGE_2_8_ATR"
-      ],
-      "scoreLeadThreshold": 8,
-      "sidewaysGapAtrThreshold": 0.08
+        "SIDEWAYS_GAP_LT_0_05_ATR",
+        "LATE_EXTENSION_GT_1_5_ATR",
+        "ABNORMAL_RANGE_GT_2_8_ATR",
+        "LIVE_TICK_MAX_5_SECONDS"
+      ]
     },
     "keyPool": {
       "configuredKeys": 10,

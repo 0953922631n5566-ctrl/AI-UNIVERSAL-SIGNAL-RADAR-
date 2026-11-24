@@ -2356,3 +2356,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Proposed source changes: require the latest closed candle body to agree with CALL/PUT; require the current live M1 candle to confirm the same direction (minimum body displacement 0.05 ATR and close at/beyond the last closed candle close) before allowing a directional signal; otherwise fail closed to STANDBY. Twelve Data freshness, one-candle indicator-lag policy, EMA5/EMA20/ATR14, score thresholds, T-10 finalization, 30-second hold, and manual-only behavior remain unchanged.
 - Added regression tests for counter-directional closed candles, opposing live-candle movement, and valid bearish live confirmation.
 - Pending: GitHub Actions test/syntax checks and code review. Do not merge or deploy until all checks pass. Do not claim predictive accuracy or profitability; paper-trade validation remains required.
+
+
+### 2026-11-24 — Engine 3 redesigned for Twelve Data Trend First / Instant Entry
+
+- User authorized a Main Market strategy redesign focused on earlier, more frequent entries while retaining Twelve Data as the source for all market data and native technical indicators.
+- Isolated feature branch: `feature/engine3-twelvedata-instant-entry-20261124`; production `main-market` remains unchanged until CI, review, and deployment checks pass.
+- Native indicators remain Twelve Data REST: EMA(5), EMA(20), and ATR(14), refreshed once per M1 minute through the existing ten-key round-robin/failover pool. Raw M1 OHLC and live Twelve Data price Streaming are used for price action only; no local EMA/ATR/MACD/RSI calculations.
+- Replaced score-based multi-filter strategy (score threshold 58, lead 8, structure/pullback/breakout requirements) with trend-first rules: EMA5 above EMA20 and rising for CALL; EMA5 below EMA20 and falling for PUT. Entry triggers immediately when the live M1 candle confirms direction on the trend side of EMA5 with a minimum live body of 0.03 ATR.
+- Retained fail-closed guards: native indicator freshness/alignment, live tick freshness <=5 seconds, sideways EMA gap <0.05 ATR, late extension >1.5 ATR, abnormal live range >2.8 ATR, and one signal per M1 candle.
+- Signal dispatch changes from the final ten seconds of the source candle to intrabar immediate dispatch on a valid live tick. Signal remains visible for 30 seconds from trigger. Manual-only behavior and no broker execution remain unchanged.
+- Mini App home countdown label changed from next candle to entry candle; Engine 3 native indicator diagnostics and API pool status remain.
+- Warm-up remains 54 completed M1 candles (50 context + 4 latest entry candles); this is fetched from Twelve Data REST at Start, not a 54-minute wait after opening.
+- Pending at documentation time: CI/test results, PR merge, Render deployment, health/public signal checks, and Telegram Mini App device confirmation. No win-rate or profitability claim; paper-test first.
