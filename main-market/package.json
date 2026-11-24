@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/trend-rider.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/gemini-analyzer.js && node --check src/next-candle-timing.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,34 +17,22 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Gemini Primary Adaptive Next M1 · Twelve Data OHLC",
-    "displayName": "Gemini Primary · Adaptive Next M1",
-    "engineCount": 1,
+    "name": "Twelve Data Feed Only · Signal Engine Disabled",
+    "displayName": "Market Data Only · No Analyzer",
+    "engineCount": 0,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1_WITH_LOCAL_OHLC",
-    "decisionAuthority": "GEMINI_PRIMARY_ONLY",
+    "executionModel": "TWELVE_DATA_OHLC_AND_STREAMING_ONLY",
+    "decisionAuthority": "NONE",
     "indicators": {
-      "provider": "Twelve Data M1 OHLC + Streaming; Gemini Flash for direction",
-      "emaFast": { "source": "LOCAL_OHLC", "period": 9 },
-      "emaTrend": { "source": "LOCAL_OHLC", "period": 21 },
-      "rsi": { "source": "LOCAL_OHLC", "period": 14 },
-      "macd": { "source": "LOCAL_OHLC" },
-      "atr": { "source": "LOCAL_OHLC", "period": 14 },
-      "localTechnicalIndicatorCalculations": true,
+      "provider": "Twelve Data OHLC + Streaming for display only",
+      "localTechnicalIndicatorCalculations": false,
       "refreshSeconds": 0,
       "estimatedCreditsPerDay": 0
     },
     "strategy": {
-      "name": "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
-      "minimumClosedCandles": 54,
-      "scoreBasedFiltering": false,
-      "entryRule": "Gemini analyzes 54 closed M1 candles plus current live candle before next M1 opens",
-      "guards": [
-        "SIDEWAYS_GAP_LT_0_05_ATR",
-        "LATE_EXTENSION_GT_1_5_ATR",
-        "ABNORMAL_RANGE_GT_2_8_ATR",
-        "LIVE_TICK_MAX_5_SECONDS"
-      ]
+      "name": "NO_SIGNAL_ANALYZER",
+      "signalGeneration": false,
+      "entryRule": "No directional analysis or CALL/PUT generation"
     },
     "keyPool": {
       "configuredKeys": 10,
@@ -58,7 +46,6 @@
       ],
       "independentFromRealSignal": true
     },
-    "signalHoldSeconds": 30,
     "manualOnly": true,
     "brokerExecution": false
   }
