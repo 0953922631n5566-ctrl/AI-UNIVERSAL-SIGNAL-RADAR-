@@ -28,6 +28,13 @@ function validateNativeIndicators(candles, indicators) {
   };
 }
 
+export function classifyPartialScore(top,direction,killSwitch=false) {
+  if(killSwitch||!direction)return {signal:"STANDBY",status:"STANDBY"};
+  if(top>=59)return {signal:direction,status:"SIGNAL"};
+  if(top>=45)return {signal:"PREPARE",status:"PREPARE"};
+  return {signal:"STANDBY",status:"STANDBY"};
+}
+
 function componentScore(candles, direction, native) {
   const n=candles.length, i=n-1, c=candles[i], p=candles[i-1];
   const sign=direction==="CALL"?1:-1, bullish=sign===1;
@@ -108,11 +115,8 @@ export function scoreMarket(candles, indicators) {
   const riskFlags=[];
   if(choppy)riskFlags.push("CHOPPY_MARKET_KILL_SWITCH");
   if(atrSpike)riskFlags.push("HIGH_ATR_SPIKE_KILL_SWITCH");
-  let signal="STANDBY",status="STANDBY";
-  if(!choppy&&!atrSpike&&direction){
-    if(top>=59){signal=direction;status="SIGNAL";}
-    else if(top>=45){signal="PREPARE";status="PREPARE";}
-  }
+  const decision=classifyPartialScore(top,direction,choppy||atrSpike);
+  const {signal,status}=decision;
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
