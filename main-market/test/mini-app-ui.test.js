@@ -27,7 +27,7 @@ test("Mini App reuses session and supports manual stop/restart",()=>{
  assert.match(html,/const action=latest\.monitoring\?"stop":"start"/);
 });
 test("Mini App exposes Gemini and local OHLC diagnostics",()=>{
- for(const id of ["engineSignal","regime","ema5","ema20","atr14","candles","reason","apiSummary","apiPool","apiKeys"])assert.match(html,new RegExp('id="'+id+'"'));
+ for(const id of ["engineSignal","regime","ema5","ema20","atr14","candles","geminiQuota","reason","apiSummary","apiPool","apiKeys"])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/GEMINI PRIMARY · NEXT M1/);
  assert.match(html,/EMA 9 · Local OHLC/);
  assert.match(html,/signalRadarManualLampColor/);
