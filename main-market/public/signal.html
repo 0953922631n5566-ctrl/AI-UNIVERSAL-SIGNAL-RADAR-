@@ -51,7 +51,7 @@ button{font:inherit}
   <div id="signal" class="signal-state">STANDBY</div>
   <div id="hint" class="signal-hint">กำลังเริ่มระบบวิเคราะห์อัตโนมัติ</div>
   <div class="timing">
-   <div class="time-card"><span>แท่งปัจจุบัน · M1</span><b id="candle">—</b></div>
+   <div class="time-card"><span id="candleLabel">แท่งถัดไปเริ่มใน · M1</span><b id="candle">—</b></div>
    <div class="time-card"><span>สัญญาณคงเหลือ</span><b id="expiry">—</b></div>
   </div>
  </section>
@@ -74,6 +74,7 @@ button{font:inherit}
  <section class="section" id="trendCard">
   <div class="section-title">GEMINI PRIMARY · NEXT M1</div>
   <div class="row"><span>ผลวิเคราะห์</span><small id="engineSignal">STANDBY</small></div>
+  <div class="row"><span>Gemini วันนี้</span><small id="geminiQuota">—</small></div>
   <div class="row"><span>สภาวะตลาด</span><small id="regime">—</small></div>
   <div class="row"><span>EMA 9 · Local OHLC</span><small id="ema5">—</small></div>
   <div class="row"><span>EMA 21 · Local OHLC</span><small id="ema20">—</small></div>
@@ -117,7 +118,11 @@ const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].include
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
 $("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · แท่ง M1 ถัดไป":"สัญญาณฝั่งขาย · แท่ง M1 ถัดไป"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
-$("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
+const targetAt=timeMs(m.signalTargetCandleAt);const targetOpen=Number.isFinite(targetAt)&&Date.now()>=targetAt;
+$("candleLabel").textContent=dir?(targetOpen?"แท่งเป้าหมายเปิดแล้ว · M1":"เข้าแท่งเป้าหมายใน · M1"):"แท่งถัดไปเริ่มใน · M1";
+$("candle").textContent=dir?(targetOpen?countdown(m.signalExpiresAt):countdown(m.signalTargetCandleAt)):countdown(m.nextCandleAt);
+$("expiry").textContent=countdown(m.signalExpiresAt);
+const quota=m.geminiQuota||{};$("geminiQuota").textContent=(quota.requestsToday??0)+"/"+(quota.dailyBudget??"—")+" · เหลือ "+(quota.remaining??"—");
 const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.indicators?.ema9);$("ema20").textContent=fmt(m.indicators?.ema21);$("atr14").textContent=fmt(m.indicators?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??30);$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
 const active=Array.isArray(m.activeSignals)?m.activeSignals:[];if(active.length){for(const item of active)notify(item.signal,String(item.alertId||item.engine+item.signal));}else if(dir&&m.alertId)notify(dir,String(m.alertId));
