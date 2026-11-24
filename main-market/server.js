@@ -846,6 +846,10 @@ app.get("/api/public/signal", (_req, res) => {
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [42, 60],
       signalTimingMode: state.signalTimingMode || "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+      sourceCandleEpoch: state.sourceCandleEpoch ?? null,
+      targetCandleEpoch: state.targetCandleEpoch ?? null,
+      signalTargetCandleAt: state.signalTargetCandleAt ?? null,
+      geminiQuota: state.geminiQuota || geminiQuotaStatus(),
       engineResults: state.engineResults || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
@@ -916,11 +920,11 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "GEMINI_PRIMARY_WITH_LOCAL_OHLC_AND_SYSTEM_TIMING_GUARDS",
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"] },
-      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Gemini evaluates latest 54 closed M1 candles plus current live M1 snapshot before next candle opens", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
-      engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
+      geminiPrimary: { soleDecisionEngine: true, model: process.env.GEMINI_MODEL || "gemini-2.5-flash", minimumClosedCandles: MIN_CLOSED_CANDLES, currentLiveCandleIncluded: true, localIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], dailyRequestBudget: geminiQuotaStatus().dailyBudget, guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"] },
+      gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Analyze live source candle in final 18 seconds and target the immediately following M1 candle", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      engineToggles: { supported: false, fixedEngine: "GEMINI_PRIMARY" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_LIVE_M1_INTRABAR_ENTRY"
+      signalDecisionPath: "GEMINI_PRIMARY_NEXT_M1_PREOPEN_SIGNAL"
     },
     analyzer: {
       provider: "GEMINI_PRIMARY_WITH_TWELVE_DATA_M1_OHLC",
@@ -928,9 +932,9 @@ app.get("/health", (_req, res) => {
       role: "GEMINI_PRIMARY_ANALYZER_WITH_LOCAL_INDICATORS",
       externalAiCalls: true, localTechnicalIndicatorCalculations: true,
       indicators: { EMA9: "LOCAL_OHLC", EMA21: "LOCAL_OHLC", RSI14: "LOCAL_OHLC", MACD: "LOCAL_OHLC", ATR14: "LOCAL_OHLC" },
-      priceAction: "CURRENT_LIVE_M1_DIRECTIONAL_BODY_CONFIRMATION",
-      scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES,
-      guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"]
+      priceAction: "GEMINI_ANALYZES_LIVE_SOURCE_CANDLE_SNAPSHOT",
+      scoreBasedFiltering: false, minimumClosedCandles: MIN_CLOSED_CANDLES,
+      guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"]
     },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
@@ -952,7 +956,7 @@ app.get("/health", (_req, res) => {
       entryCandles: 4,
       restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true,
-      restFallbackEnabled: true,
+      restFallbackEnabled: false,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
       signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
