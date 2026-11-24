@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, geminiQuotaStatus, hasCriticalRiskFlags } from "../src/gemini-analyzer.js";
+import { analyzeWithGemini, buildTechnicalIndicators, shouldRequestGemini, clearGeminiAnalysisCache, geminiQuotaStatus, hasCriticalRiskFlags } from "../src/gemini-analyzer.js";
 
 function candles(count = 54) {
   const start = Math.floor(Date.now() / 60000) * 60 - count * 60;
@@ -30,6 +30,27 @@ test("technical indicators are calculated locally from Twelve Data OHLC", () => 
   for (const key of ["ema9", "ema21", "ema50", "rsi14", "macd", "atr14", "support20", "resistance20"]) {
     assert.ok(Number.isFinite(values[key]), key);
   }
+});
+
+test("local OHLC prefilter selects a directional setup without spending a Gemini request", () => {
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const result = shouldRequestGemini({ closedCandles: candles(), liveCandle: live(sourceEpoch) });
+  assert.equal(result.eligible, true);
+  assert.equal(result.candidate, "CALL");
+  assert.ok(Number.isFinite(result.indicators.ema9));
+});
+
+test("local OHLC prefilter skips flat market conditions", () => {
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const start = sourceEpoch - 54 * 60;
+  const flat = Array.from({ length: 54 }, (_, i) => ({
+    epoch: start + i * 60, open: 1.08, high: 1.0801, low: 1.0799, close: 1.08, live: false
+  }));
+  const result = shouldRequestGemini({ closedCandles: flat, liveCandle: {
+    epoch: sourceEpoch, open: 1.08, high: 1.0801, low: 1.0799, close: 1.08, live: true
+  } });
+  assert.equal(result.eligible, false);
+  assert.match(result.reason, /EMA แบน/);
 });
 
 test("Gemini analyzes the current live candle and explicitly targets the next M1 candle", async () => {
