@@ -19,7 +19,7 @@ jobs:
           cache-dependency-path: main-market/package.json
       - name: Install and run tests
         run: cd main-market && npm install
-      - name: Verify 50+4 Telegram Mini App wiring
+      - name: Verify 50+4 Gemini next-M1 Telegram Mini App wiring
         run: |
           cd main-market
           grep -Fq 'TELEGRAM_BOT_TOKEN' server.js
@@ -31,8 +31,13 @@ jobs:
           grep -Fq 'export const ENTRY_CANDLES = 4;' src/config.js
           grep -Fq 'export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;' src/config.js
           grep -Fq 'export const HISTORY_CANDLES = 100;' src/config.js
-          grep -Fq 'decisionEngine: "ENGINE_3_TREND_RIDER_ONLY"' server.js
-          grep -Fq 'indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"]' server.js
+          grep -Fq 'decisionEngine: "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1"' server.js
+          grep -Fq 'analyzeWithGemini' server.js
+          grep -Fq 'NEXT_M1_TARGET_PREOPEN_HOLD_30S' server.js
+          grep -Fq 'nativeIndicatorRestCallsDisabled: true' server.js
+          grep -Fq 'geminiDailyRequestBudget' server.js
+          grep -Fq 'createNextCandleSignal' server.js
+          ! grep -E 'fetchTrendEma5|fetchEma20|fetchAtr14' server.js
           grep -Fq 'id="manualLampToggle"' public/signal.html
           grep -Fq 'id="trendCard"' public/signal.html
           ! grep -Fq 'sendSignalPush' server.js
@@ -47,3 +52,5 @@ jobs:
           node --check src/twelve-data-pool.js
           node --check src/signal-timing.js
           node --check src/stream-retry.js
+          node --check src/gemini-analyzer.js
+          node --check src/next-candle-timing.js
