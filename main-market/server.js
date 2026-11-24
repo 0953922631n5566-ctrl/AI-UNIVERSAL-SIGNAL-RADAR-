@@ -5,15 +5,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
-import { fetchCandles } from "./src/twelve-data.js";
+import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
+import { analyzeMarket } from "./src/analyzer.js";
+import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
-  MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS,
+  MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS, SIGNAL_HOLD_SECONDS,
   resolveSymbol
 } from "./src/config.js";
 
@@ -23,9 +25,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "TWELVE DATA LIVE FEED · SIGNAL ENGINE DISABLED";
-const ARCHITECTURE_ID = "TWELVE_DATA_FEED_ONLY_NO_SIGNAL_ANALYZER";
-const VERSION = "2026-11-24-gemini-removed-no-analysis-v1";
+const SYSTEM_NAME = "TWELVE DATA NATIVE PARTIAL SCORING 59";
+const ARCHITECTURE_ID = "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59_45";
+const VERSION = "2026-11-24-twelve-data-native-partial-scoring-59-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -36,7 +38,7 @@ function newFeed(symbol) {
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
-    activeSignal: null, activeUntil: 0, pendingGeminiSignal: null, signalCandle: null,
+    activeSignal: null, activeUntil: 0, pendingSignal: null, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null, lastDiagnosticLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
@@ -135,7 +137,7 @@ function publicFeed(feed) {
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
     indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
-    source: "Twelve Data M1 OHLC + Streaming · feed only · no signal analyzer"
+    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + Streaming · Partial Scoring 59"
   };
 }
 
@@ -160,7 +162,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "DISABLED_NO_ANALYZER",
+    signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -190,7 +192,7 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
-  feed.pendingGeminiSignal = null;
+  feed.pendingSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.engineLastDispatchedCandle = { TREND_RIDER: null };
   feed.engineLastDispatchedAlertId = { TREND_RIDER: null };
@@ -207,7 +209,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
-  feed.pendingGeminiSignal = null;
+  feed.pendingSignal = null;
   feed.activeSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
@@ -223,44 +225,133 @@ function classifyError(error) {
   return "TRANSIENT";
 }
 
+async function refreshNativeIndicators(feed,{force=false}={}) {
+  if(!feed)return;
+  if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
+  const minute=Math.floor(Date.now()/60000)*60;
+  const state=feed.engine3Indicators;
+  if(!force&&state.lastFetchedMinute===minute)return;
+  if(state.nextAttemptAt&&Date.now()<state.nextAttemptAt)return;
+  state.status="FETCHING";
+  state.message="กำลังดึง EMA5 / EMA20 / ATR14 จาก Twelve Data Native";
+  feed.engine3IndicatorsPromise=(async()=>{
+    try{
+      // Sequential requests intentionally rotate the 10-key REST pool between native indicator calls.
+      const common={keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL};
+      const ema5=await fetchTrendEma5(common);
+      const ema20=await fetchEma20(common);
+      const atr14=await fetchAtr14(common);
+      const latestClosed=feed.candles.filter(c=>c&&c.live!==true).at(-1);
+      const epochs=[ema5.values.at(-1)?.epoch,ema20.values.at(-1)?.epoch,atr14.values.at(-1)?.epoch];
+      if(!latestClosed||epochs.some(epoch=>epoch!==latestClosed.epoch)){
+        const error=new Error("เวลา EMA5 / EMA20 / ATR14 ไม่ตรงกับแท่ง M1 ปิดล่าสุด");
+        error.kind="INDICATOR_ALIGNMENT";throw error;
+      }
+      feed.engine3Indicators={
+        status:"READY",ema5:ema5.values,ema20:ema20.values,atr14:atr14.values,
+        receivedAt:Date.now(),lastFetchedMinute:minute,nextAttemptAt:null,lastError:null,
+        sources:{ema5:"Twelve Data /ema time_period=5",ema20:"Twelve Data /ema time_period=20",atr14:"Twelve Data /atr time_period=14"},
+        periods:{ema5:5,ema20:20,atr14:14},message:"EMA5 / EMA20 / ATR14 พร้อม · คำนวณโดย Twelve Data"
+      };
+      console.info("[indicators] Twelve Data native values ready",{symbol:feed.symbol,epoch:latestClosed.epoch,atrSamples:atr14.values.length});
+    }catch(error){
+      feed.engine3Indicators={...state,status:"ERROR",lastError:error.message,nextAttemptAt:Date.now()+15000,
+        message:"โหลด Native Indicator ไม่สำเร็จ: "+error.message};
+      console.error("[indicators] Twelve Data native indicator error",{symbol:feed.symbol,message:error.message});
+    }finally{
+      feed.engine3IndicatorsPromise=null;
+      publish();
+    }
+  })();
+  return feed.engine3IndicatorsPromise;
+}
+
 async function evaluate(feed) {
-  const now = Date.now();
-  const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
-  // Gemini and all directional analysis have been removed at the user's request.
-  // Keep Twelve Data ingestion/health monitoring, but never emit a trading signal.
-  feed.pendingGeminiSignal = null;
-  feed.engineActive = { TREND_RIDER: null };
-  feed.activeSignal = null;
-  feed.activeUntil = 0;
-  feed.signalCandle = null;
-  feed.signalSourceCandle = null;
-  feed.signalTriggeredAt = 0;
-  feed.alertId = null;
-  const raw = {
-    signal: "STANDBY", direction: null, status: "DISABLED",
-    regime: "UNCLEAR", confidence: 0, candidateSignal: null,
-    reason: "ปิดระบบวิเคราะห์สัญญาณแล้ว · ไม่มีการเรียก Gemini หรือ AI วิเคราะห์",
-    summary: "Twelve Data ทำหน้าที่รับข้อมูลราคาเท่านั้น",
-    evidence: [], riskFlags: [], indicators: null, provider: "NONE",
-    strategy: "NO_SIGNAL_ANALYZER", analyzedAt: new Date(now).toISOString()
-  };
-  feed.analysis = {
-    ...raw, active: false, engine: "NONE", engineResults: {},
-    activeSignals: [], trendRider: null,
-    tickAgeSeconds: Number.isFinite(tickAgeMs) ? Math.round(tickAgeMs / 1000) : null,
-    lastTickPrice: feed.lastTick, alertId: null,
-    signalTriggeredAt: null, signalExpiresAt: null, signalTargetCandleAt: null,
-    sourceCandleEpoch: null, targetCandleEpoch: null, entryPrice: null,
-    signalTimingMode: "DISABLED",
-    indicatorSource: "NONE",
-    analysisMode: "NO_ANALYSIS",
-    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-    signalValidationNote: "Gemini ถูกนำออกแล้ว · ไม่มีการวิเคราะห์ทิศทางและไม่มี CALL/PUT · Twelve Data ใช้รับราคาเท่านั้น · Manual only · No broker execution"
+  const now=Date.now();
+  const tickAgeSeconds=feed.tickAt?(now-feed.tickAt)/1000:null;
+  const latestClosed=feed.candles.filter(c=>c&&c.live!==true).at(-1);
+  const indicators=feed.engine3Indicators;
+  if(!latestClosed||indicators?.status!=="READY"||indicators.ema5?.at(-1)?.epoch!==latestClosed.epoch){
+    void refreshNativeIndicators(feed).catch(error=>console.error("[indicators] refresh failed",error.message));
+  }
+  const result=await analyzeMarket(feed.candles,{
+    now,tickAgeSeconds,allowRestFallback:false,indicators:{
+      ema5:indicators?.ema5||[],ema20:indicators?.ema20||[],atr14:indicators?.atr14||[]
+    }
+  });
+  const current=feed.candles.at(-1);
+  const sourceCandleEpoch=current?.live===true?current.epoch:null;
+  const targetCandleEpoch=sourceCandleEpoch===null?null:sourceCandleEpoch+60;
+
+  if(feed.activeSignal&&now>=feed.activeUntil){
+    feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=null;
+    feed.signalSourceCandle=null;feed.signalTriggeredAt=0;feed.alertId=null;
+  }
+  const activeForCurrentOrNext=Boolean(feed.activeSignal&&now<feed.activeUntil&&
+    (feed.signalCandle===sourceCandleEpoch||feed.signalCandle===targetCandleEpoch));
+  feed.preAlertStatus=!activeForCurrentOrNext&&sourceCandleEpoch!==null&&
+    ["PREPARE","CALL","PUT"].includes(result.signal)&&isPrepareAlertWindow(sourceCandleEpoch,now)
+      ?"PREPARE_ALERT":null;
+  feed.preAlertCandle=feed.preAlertStatus?targetCandleEpoch:null;
+  feed.preAlertSignal=null;
+  const finalizeWindow=sourceCandleEpoch!==null&&isSignalFinalizeWindow(sourceCandleEpoch,now);
+  const canFinalize=finalizeWindow&&["CALL","PUT"].includes(result.signal)&&canFinalizeSignal({
+    candleEpoch:sourceCandleEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.lastDispatchedCandle
+  });
+  if(activeForCurrentOrNext){
+    result.signal=feed.activeSignal;
+    result.reason="สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะ 30 วินาทีหลังแท่งใหม่เปิด";
+  }else if(finalizeWindow&&["CALL","PUT"].includes(result.signal)){
+    if(canFinalize){
+      feed.activeSignal=result.signal;feed.signalCandle=targetCandleEpoch;
+      feed.signalSourceCandle=sourceCandleEpoch;feed.signalTriggeredAt=now;
+      feed.activeUntil=signalHoldExpiresAt(targetCandleEpoch);
+      feed.alertId=`${targetCandleEpoch}:${result.signal}`;
+      result.reason="ยืนยันสัญญาณ T-5 จาก Partial Score 59 สำหรับแท่ง M1 ถัดไป";
+    }else{
+      result.signal="STANDBY";
+      result.reason=tickAgeSeconds===null||tickAgeSeconds>5
+        ?"ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในช่วง T-5"
+        :"ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
+    }
+  }else if(feed.activeSignal&&now<feed.activeUntil){
+    result.signal="STANDBY";result.reason="รอแท่ง M1 เป้าหมาย";
+  }else if(feed.preAlertStatus==="PREPARE_ALERT"){
+    result.signal="STANDBY";result.reason="PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5";
+  }else{
+    result.signal="STANDBY";
+    if(sourceCandleEpoch!==null&&now<sourceCandleEpoch*1000+50_000)
+      result.reason="รอช่วง PREPARE T-10 และยืนยัน CALL/PUT ที่ T-5";
+    else if(sourceCandleEpoch!==null&&now>=sourceCandleEpoch*1000+60_000)
+      result.reason="รอแท่ง M1 ใหม่และข้อมูล Streaming";
+  }
+  feed.analysis={
+    ...result,preAlertStatus:feed.preAlertStatus,preAlertCandle:feed.preAlertCandle,
+    tickAgeSeconds:tickAgeSeconds===null?null:Math.round(tickAgeSeconds),
+    lastTickPrice:feed.lastTick,alertId:feed.alertId,
+    signalTriggeredAt:feed.signalTriggeredAt?new Date(feed.signalTriggeredAt).toISOString():null,
+    signalExpiresAt:feed.activeSignal?new Date(feed.activeUntil).toISOString():null,
+    signalTargetCandleAt:feed.signalCandle?new Date(feed.signalCandle*1000).toISOString():null,
+    signalTimingWindowSeconds:[5,0],signalTimingMode:"NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+    indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
+    indicators:{status:feed.engine3Indicators.status,ema5:feed.engine3Indicators.ema5?.at(-1)||null,
+      ema20:feed.engine3Indicators.ema20?.at(-1)||null,atr14:feed.engine3Indicators.atr14?.at(-1)||null,
+      sources:feed.engine3Indicators.sources||null,periods:feed.engine3Indicators.periods||{ema5:5,ema20:20,atr14:14},
+      message:feed.engine3Indicators.message}
   };
   return feed.analysis;
 }
-function dispatchSignalIfReady(_feed) {
-  // No signal engine is installed; nothing can be dispatched.
+function dispatchSignalIfReady(feed) {
+  const signal=feed.activeSignal,sourceCandleEpoch=feed.signalSourceCandle;
+  if(!signal||!["CALL","PUT"].includes(signal)||!feed.alertId||!Number.isFinite(sourceCandleEpoch))return;
+  const now=Date.now();
+  if(!canFinalizeSignal({candleEpoch:sourceCandleEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.lastDispatchedCandle}))return;
+  if(feed.lastDispatchedAlertId===feed.alertId)return;
+  feed.lastDispatchedAt=now;feed.lastDispatchedCandle=sourceCandleEpoch;feed.lastDispatchedAlertId=feed.alertId;
+  console.info("[signal] T-5 native Partial Scoring signal is available to Mini App polling",{
+    alertId:feed.alertId,signal,sourceCandleEpoch,targetCandleEpoch:feed.signalCandle,
+    expiresAt:new Date(feed.activeUntil).toISOString(),score:feed.analysis?.score
+  });
 }
 
 function applyTick(feed, price, epoch) {
@@ -313,6 +404,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
+      await refreshNativeIndicators(feed,{force:true});
       await evaluate(feed);
       console.info("[radar] REST ready", {
         symbol, candles: response.candles.length,
@@ -383,6 +475,16 @@ function scheduleLiveAnalysis(feed) {
   }, delayMs);
 }
 
+function startIndicatorTimer() {
+  if(emaTimer)clearInterval(emaTimer);
+  // Check locally every 5s, but request each native indicator only once per new M1 minute.
+  emaTimer=setInterval(()=>{
+    if(!monitoring)return;
+    const feed=feeds.get(selectedSymbol);
+    if(feed)void refreshNativeIndicators(feed);
+  },5000);
+}
+
 function startSignalTimer() {
   if (signalTimer) clearInterval(signalTimer);
   // Local safety cadence keeps the single Trend Rider analysis aligned to M1 timing.
@@ -430,7 +532,7 @@ function retrySelectedStream(feed, reason) {
   }
   feed.tickAt = 0;
   feed.lastTick = null;
-  feed.pendingGeminiSignal = null;
+  feed.pendingSignal = null;
   feed.activeSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
@@ -593,7 +695,7 @@ function startStream() {
     upstream = null;
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
-    feed.pendingGeminiSignal = null;
+    feed.pendingSignal = null;
     feed.activeSignal = null;
     feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
@@ -606,7 +708,7 @@ function startStream() {
     upstream = null;
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
-    feed.pendingGeminiSignal = null;
+    feed.pendingSignal = null;
     feed.activeSignal = null;
     feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
@@ -634,6 +736,7 @@ async function start(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
+  startIndicatorTimer();
   startWatchdog();
   startSignalTimer();
   publish();
@@ -837,12 +940,12 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "NONE", engines: 0, decisionAuthority: "NO_AI_OR_DIRECTIONAL_ANALYSIS",
-      signalGeneration: false, gemini: { installedInRuntime: false, enabled: false, calls: false },
-      dataProvider: "TWELVE_DATA_M1_OHLC_AND_STREAMING",
+      decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
+      signalGeneration: true, externalAiCalls: false,
+      dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP"
     },
-    analyzer: { provider: "NONE", configured: false, role: "DISABLED", externalAiCalls: false },
+    analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { callPut: 59, prepare: 45, standbyBelow: 45 } },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: true, telegramInitDataRequired: false, miniAppOpenAccess: true,
@@ -851,10 +954,10 @@ app.get("/health", (_req, res) => {
       minimumClosedCandles: MIN_CLOSED_CANDLES, historyCandles: HISTORY_CANDLES,
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      nativeIndicatorRestCallsDisabled: true, restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
-      restRefreshSeconds: REST_SYNC_SECONDS, streamingRequiredForSignals: false,
-      signalReleaseValidated: false, signalRuntimeLock: true,
-      signalReleaseStatus: "DISABLED_NO_ANALYZER"
+      nativeIndicatorRestCallsDisabled: false, nativeIndicators: { provider: "Twelve Data native REST", periods: { ema5: 5, ema20: 20, atr14: 14 }, refreshSeconds: 60, atrHistoryValues: 34, estimatedCreditsPerDay: 4320 },
+      restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER", restRefreshSeconds: REST_SYNC_SECONDS,
+      streamingRequiredForSignals: true, signalReleaseValidated: false, signalRuntimeLock: false,
+      signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59_MANUAL_ONLY_NOT_OOS_VALIDATED"
     }
   });
 });
