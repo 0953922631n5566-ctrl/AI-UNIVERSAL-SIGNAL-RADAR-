@@ -42,14 +42,16 @@
       "estimatedCreditsPerDay": 4320
     },
     "strategy": {
-      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_PULLBACK",
-      "scoreThreshold": 65,
+      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_CONTINUATION",
+      "scoreThreshold": 58,
       "minimumClosedCandles": 30,
       "guards": [
         "SIDEWAYS",
         "LATE_EXTENSION_1_5_ATR",
         "ABNORMAL_RANGE_2_8_ATR"
-      ]
+      ],
+      "scoreLeadThreshold": 8,
+      "sidewaysGapAtrThreshold": 0.08
     },
     "keyPool": {
       "configuredKeys": 10,
