@@ -27,10 +27,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
 const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
-const VERSION = "2026-11-24-gemini-primary-next-m1-adaptive-prefilter-v2";
-const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22);
-const GEMINI_ANALYSIS_WINDOW_MS = (Number.isFinite(configuredGeminiWindowSeconds)
-  ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 22) * 1000;
+const VERSION = "2026-11-24-gemini-primary-every-m1-manual-toggle-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -330,11 +327,11 @@ async function evaluate(feed) {
     sourceCandleEpoch: isActive ? active.sourceCandleEpoch : sourceEpoch,
     targetCandleEpoch: isActive ? active.targetCandleEpoch : (sourceEpoch === null ? null : sourceEpoch + 60),
     entryPrice: isActive ? active.entryPrice : null,
-    signalTimingWindowSeconds: [60 - GEMINI_ANALYSIS_WINDOW_MS / 1000, 60], signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+    signalTimingWindowSeconds: [0, 60], signalTimingMode: "NEXT_M1_TARGET_EVERY_SOURCE_CANDLE_HOLD_30S",
     indicatorSource: "TWELVE_DATA_M1_OHLC_LOCAL_INDICATORS",
     analysisMode: "GEMINI_PRIMARY_EVERY_M1_CANDLE_NEXT_M1",
     liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-    geminiAnalysisWindowSeconds: GEMINI_ANALYSIS_WINDOW_MS / 1000,
+    geminiAnalysisWindowSeconds: 60,
     geminiQuota: geminiQuotaStatus(now),
     signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution"
   };
@@ -914,7 +911,13 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
       console.info("[mini-app] Gemini enabled for every M1 candle", { symbol: selectedSymbol });
     } else if (action === "gemini_off") {
       geminiEnabled = false;
-      resetSignal(feeds.get(selectedSymbol), "ปิด Gemini แล้ว · ไม่มีการเรียก AI วิเคราะห์");
+      const feed = feeds.get(selectedSymbol);
+      const lastDispatchedCandle = feed.engineLastDispatchedCandle?.TREND_RIDER ?? null;
+      const lastDispatchedAlertId = feed.engineLastDispatchedAlertId?.TREND_RIDER ?? null;
+      resetSignal(feed, "ปิด Gemini แล้ว · ไม่มีการเรียก AI วิเคราะห์");
+      // Preserve per-candle dispatch dedupe so toggling OFF/ON cannot duplicate an order alert.
+      feed.engineLastDispatchedCandle.TREND_RIDER = lastDispatchedCandle;
+      feed.engineLastDispatchedAlertId.TREND_RIDER = lastDispatchedAlertId;
       console.info("[mini-app] Gemini disabled", { symbol: selectedSymbol });
     } else {
       return res.status(400).json({ ok: false, error: "รองรับ start, stop, gemini_on และ gemini_off" });
@@ -942,7 +945,7 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "GEMINI_PRIMARY_WITH_LOCAL_OHLC_AND_SYSTEM_TIMING_GUARDS",
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      geminiPrimary: { soleDecisionEngine: true, model: process.env.GEMINI_MODEL || "gemini-2.5-flash", minimumClosedCandles: MIN_CLOSED_CANDLES, currentLiveCandleIncluded: true, localIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], dailyRequestBudget: geminiQuotaStatus().dailyBudget, guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"] },
+      geminiPrimary: { soleDecisionEngine: true, model: process.env.GEMINI_MODEL || "gemini-2.5-flash", minimumClosedCandles: MIN_CLOSED_CANDLES, currentLiveCandleIncluded: true, localIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], dailyRequestBudget: geminiQuotaStatus().dailyBudget, guards: ["TARGET_NEXT_M1_ONLY", "ONE_GEMINI_CALL_PER_SOURCE_CANDLE", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"] },
       gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "When manually enabled in the Telegram Mini App, Gemini is called once per fresh live M1 candle (deduplicated by candle epoch) and evaluates the immediately following M1 candle; daily request budget applies", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "GEMINI_PRIMARY" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP_GEMINI_TOGGLE",
@@ -956,7 +959,7 @@ app.get("/health", (_req, res) => {
       indicators: { EMA9: "LOCAL_OHLC", EMA21: "LOCAL_OHLC", RSI14: "LOCAL_OHLC", MACD: "LOCAL_OHLC", ATR14: "LOCAL_OHLC" },
       priceAction: "GEMINI_ANALYZES_LIVE_SOURCE_CANDLE_SNAPSHOT",
       scoreBasedFiltering: false, minimumClosedCandles: MIN_CLOSED_CANDLES,
-      guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"]
+      guards: ["TARGET_NEXT_M1_ONLY", "ONE_GEMINI_CALL_PER_SOURCE_CANDLE", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"]
     },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
