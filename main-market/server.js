@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeWithGemini, buildTechnicalIndicators, shouldRequestGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
+import { analyzeWithGemini, shouldRequestGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
 import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
