@@ -2345,3 +2345,14 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Added a regression test verifying the main-screen elements remain outside the collapsed menu and diagnostics stay inside it.
 - GitHub Actions workflow run #1075 passed: install/tests, 50+4 Mini App wiring verification, and application syntax checks all succeeded.
 - Render service `ai-signal-radar-main-market` auto-deploy was observed starting for the merge commit; final live deploy status and actual Telegram device rendering must be checked before claiming production visual confirmation.
+
+
+### 2026-11-24 — Engine 3 bearish-direction failure investigation and isolated fix
+- Production audit confirmed the deployed service is Engine 3 Trend Rider only (not Engine 4); latest production commit before this fix was `6965999370a062893a0d664c52ef5a308dd26804`, deployed live as `dep-dc2etigm7kps73cnu3o0`.
+- Render logs showed real Engine 3 candidate/finalization activity and also diagnostic states including `TREND_WATCH`, `SIDEWAYS_BLOCK`, indicator lag values of 1–2 candles, and one diagnostic record with absent directional score fields. These logs alone do not prove a bad trade result; they identify where more safeguards and better candle-aligned evidence are needed.
+- Source audit found a concrete direction-confirmation gap: Engine 3 made its directional decision from closed candles only; the current live M1 candle was used for freshness/timing, not as a direction veto. Thus a fresh tick could satisfy the T-10 dispatch gate even if the in-progress target candle was moving against the proposed direction.
+- Source audit also found momentum definitions compared the latest close with the previous close without requiring the latest candle body itself to match the proposed direction. Trend/structure scoring could therefore permit a signal while the latest closed candle body was counter-directional.
+- Isolated fix branch: `fix/engine3-live-direction-confirmation-20261124`.
+- Proposed source changes: require the latest closed candle body to agree with CALL/PUT; require the current live M1 candle to confirm the same direction (minimum body displacement 0.05 ATR and close at/beyond the last closed candle close) before allowing a directional signal; otherwise fail closed to STANDBY. Twelve Data freshness, one-candle indicator-lag policy, EMA5/EMA20/ATR14, score thresholds, T-10 finalization, 30-second hold, and manual-only behavior remain unchanged.
+- Added regression tests for counter-directional closed candles, opposing live-candle movement, and valid bearish live confirmation.
+- Pending: GitHub Actions test/syntax checks and code review. Do not merge or deploy until all checks pass. Do not claim predictive accuracy or profitability; paper-trade validation remains required.
