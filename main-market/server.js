@@ -289,7 +289,7 @@ async function evaluate(feed) {
 
 function dispatchSignalIfReady(feed) {
  const active=feed.engineActive?.TREND_RIDER;
- if(!active||![ "CALL","PUT" ].includes(active.signal)||!active.alertId)return;
+ if(!active||!["CALL","PUT"].includes(active.signal)||!active.alertId)return;
  if(feed.engineLastDispatchedAlertId?.TREND_RIDER===active.alertId)return;
  const now=Date.now();
  if(now>=active.expiresAt||!Number.isFinite(feed.tickAt)||now-feed.tickAt>5000)return;
@@ -836,7 +836,142 @@ app.get("/api/public/signal", (_req, res) => {
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
-      analysisMode: state.analysisMode || "CLOSED_M1_NATIVE_INDICATORS",
+      analysisMode: state.analysisMode || "LIVE_M1_INTRABAR_NATIVE_INDICATORS",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],\n      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC_AND_STREAMING", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "EMA5/EMA20 trend plus live M1 price action on trend side of EMA5", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "INTRABAR_IMMEDIATE_CURRENT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],
+      signalTimingMode: state.signalTimingMode || "INTRABAR_IMMEDIATE_CURRENT_M1",
+      engineResults: state.engineResults || null,
+      signalReleaseValidated: state.signalReleaseValidated,
+      signalReleaseStatus: state.signalReleaseStatus,
+      signalValidationNote: state.signalValidationNote,
+      lastPrice: state.lastPrice,
+      lastTickPrice: state.lastTickPrice,
+      monitoring: state.monitoring,
+      apiPool: state.apiPool
+    }
+  });
+});
+app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
+  // Open Mini App access: issue a short-lived server session without requiring Telegram initData or BotFather token.
+  // Access control is intentionally left to the app owner.
+  const token = randomBytes(32).toString("hex");
+  const userId = "open-mini-app";
+  telegramSessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+  noCache(res);
+  console.info("[mini-app] open session created");
+  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000),
+    user: { id: userId, firstName: "Guest" } });
+});
+app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const symbol = resolveSymbol(req.body?.symbol);
+  if (!symbol) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้", symbols: SYMBOLS });
+  try {
+    await select(symbol);
+    noCache(res);
+    res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
+  } catch (error) {
+    console.error("[mini-app] pair selection failed", symbol, error.message);
+    res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
+  }
+});
+app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
+  noCache(res);
+  res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
+});
+app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, async (req, res) => {
+  const action = req.body?.action;
+  try {
+    if (action === "start") {
+      if (!monitoring) await start(selectedSymbol);
+    } else if (action === "stop") {
+      if (monitoring) stop();
+    } else {
+      return res.status(400).json({ ok: false, error: "รองรับเฉพาะคำสั่ง start และ stop" });
+    }
+    noCache(res);
+    res.json({ ok: true, market: snapshot() });
+  } catch (error) {
+    console.error("[mini-app] monitoring control failed", error.message);
+    res.status(500).json({ ok: false, error: error.message || "ควบคุมระบบไม่สำเร็จ" });
+  }
+});
+
+app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
+app.get("/health", (_req, res) => {
+  noCache(res);
+  res.json({
+    ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
+    symbols: SYMBOLS, interval: INTERVAL,
+    authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
+    architecture: {
+      name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
+      decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
+      decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
+
+      safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
+      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC_AND_STREAMING", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "EMA5/EMA20 trend plus live M1 price action on trend side of EMA5", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "INTRABAR_IMMEDIATE_CURRENT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
+      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
+      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_CLOSED_AND_LIVE_M1_DIRECTION_CONFIRMATION"
+    },
+    analyzer: {
+      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
+      model: null, configured: true,
+      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
+      externalAiCalls: false, localTechnicalIndicatorCalculations: false,
+      indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
+      priceAction: "CLOSED_M1_CANDLE_DIRECTION_PLUS_CURRENT_LIVE_M1_DIRECTION_CONFIRMATION",
+      scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30,
+      guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
+    },
+    recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
+    configuration: {
+      telegramMiniAppAuthConfigured: true,
+      telegramInitDataRequired: false,
+      miniAppOpenAccess: true,
+      twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
+      twelveDataApiPool: twelveDataKeyPool.publicStatus(),
+      minimumClosedCandles: MIN_CLOSED_CANDLES,
+      historyCandles: HISTORY_CANDLES,
+      livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
+      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
+      estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
+      engine3IndicatorRefreshSeconds: 60,
+      estimatedEngine3IndicatorCreditsPerDay: 4320,
+      engine3IndicatorKeyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER",
+      restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
+      contextCandles: 50,
+      entryCandles: 4,
+      restRefreshSeconds: REST_SYNC_SECONDS,
+      streamingRequiredForSignals: true,
+      restFallbackEnabled: true,
+      signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
+      signalRuntimeLock: false,
+      signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
+    }
+  });
+});
+
+server.listen(PORT, () => {
+  console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
+  console.info("[radar] startup configuration", {
+    twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
+    twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
+    miniAppOpenAccess: true,
+    signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
+    minimumClosedCandles: MIN_CLOSED_CANDLES,
+    historyCandles: HISTORY_CANDLES,
+    restRefreshSeconds: REST_SYNC_SECONDS
+  });
+  console.info("[radar] monitoring starts only after Telegram Mini App user action");
+});
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of telegramSessions) {
+    if (session.expiresAt <= now) telegramSessions.delete(token);
+  }
+}, 5 * 60 * 1000).unref();
