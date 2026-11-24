@@ -5,12 +5,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
-import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
+import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeTrendRider } from "./src/trend-rider.js";
+import { analyzeWithGemini, geminiQuotaStatus } from "./src/gemini-analyzer.js";
+import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
-import { canTriggerLiveSignal } from "./src/signal-timing.js";
+
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
@@ -24,9 +25,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ENGINE 3 TREND FIRST INSTANT ENTRY · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
-const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
-const VERSION = "2026-11-24-engine3-twelvedata-instant-entry-v2";
+const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
+const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
+const VERSION = "2026-11-24-gemini-primary-next-m1-quota-guard-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -136,7 +137,7 @@ function publicFeed(feed) {
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
     indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
-    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + live-price Streaming"
+    source: "Twelve Data M1 OHLC + Streaming · Local indicators · Gemini primary analyzer"
   };
 }
 
@@ -161,7 +162,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
+    signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -223,82 +224,124 @@ function classifyError(error) {
 }
 
 async function evaluate(feed) {
- const now=Date.now();
- const tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
- const current=feed.candles.at(-1);
- const sourceEpoch=current?.live===true?current.epoch:null;
- const closed=feed.candles.filter(c=>c&&c.live!==true&&Number.isFinite(c.epoch)&&c.epoch<Math.floor(now/60000)*60).slice(-MIN_CLOSED_CANDLES);
- const latest=closed.at(-1);
- const latestAge=latest?now/1000-(latest.epoch+60):Infinity;
- const freshTick=Number.isFinite(tickAge)&&tickAge>=0&&tickAge<=MAX_STREAM_AGE_SECONDS;
- const restFallback=feed.restStatus==="READY"&&!freshTick;
- const sourceReady=closed.length>=MIN_CLOSED_CANDLES&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
- const raw=sourceReady
-  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14,liveCandle:current?.live===true?current:null})
-  : {ready:false,signal:null,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีข้อมูล M1 OHLC ครบ "+MIN_CLOSED_CANDLES+" แท่งและข้อมูลตลาดพร้อม"};
- const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
- if(!candidate&&sourceEpoch!==null&&feed.lastDiagnosticLoggedCandle!==sourceEpoch){
-  feed.lastDiagnosticLoggedCandle=sourceEpoch;
-  console.info("[engine3] instant entry waiting",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,status:raw.status,regime:raw.regime,blockers:raw.blockers||[],indicatorLagCandles:raw.metrics?.indicatorLagCandles??null});
- }
- feed.preAlertStatus=null;
- feed.preAlertCandle=null;
- feed.preAlertSignal=null;
- let active=feed.engineActive?.TREND_RIDER||null;
- if(active&&now>=active.expiresAt){active=null;feed.engineActive.TREND_RIDER=null;}
- const timingReady=sourceEpoch!==null&&canTriggerLiveSignal({candleEpoch:sourceEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER});
- if(!active&&sourceEpoch!==null&&candidate&&timingReady){
-  active={engine:"TREND_RIDER",signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:sourceEpoch,
-   triggeredAt:now,expiresAt:now+30_000,sourceReason:raw.reason||null,
-   alertId:"TREND_RIDER:"+sourceEpoch+":"+candidate,entryPrice:feed.lastTick??current.close,
-   entryPriceBasis:"TWELVE_DATA_LIVE_STREAMING"};
-  feed.engineActive.TREND_RIDER=active;
-  console.info("[signal] Engine 3 instant entry",{symbol:feed.symbol,signal:candidate,sourceCandleEpoch:sourceEpoch,
-   entryPrice:active.entryPrice,expiresAt:new Date(active.expiresAt).toISOString()});
- }
- const isActive=Boolean(active&&now<active.expiresAt);
- const signal=isActive?active.signal:"STANDBY";
- const reason=isActive?("สัญญาณ "+active.signal+" · เข้าได้ทันทีจากราคา Streaming · แสดง 30 วินาที"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
- const engineResult={...raw,engine:"TREND_RIDER",candidateSignal:candidate,active:isActive,signal,
-  status:isActive?"SIGNAL":candidate?"WATCH":raw.status,reason:isActive?reason:raw.reason,
-  alertId:isActive?active.alertId:null,signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
-  signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null};
- const activeSignals=isActive?[{engine:"TREND_RIDER",signal:active.signal,reason,
-  alertId:active.alertId,entryPrice:active.entryPrice,expiresAt:new Date(active.expiresAt).toISOString(),
-  targetCandleAt:new Date(active.targetCandleEpoch*1000).toISOString(),targetCandleEpoch:active.targetCandleEpoch}]:[];
- feed.activeSignal=isActive?active.signal:null;
- feed.signalCandle=isActive?active.targetCandleEpoch:null;
- feed.signalSourceCandle=isActive?active.sourceCandleEpoch:null;
- feed.signalTriggeredAt=isActive?active.triggeredAt:0;
- feed.activeUntil=isActive?active.expiresAt:0;
- feed.alertId=isActive?active.alertId:null;
- feed.analysis={...raw,signal,direction:isActive?signal:null,status:isActive?"SIGNAL":"STANDBY",
-  prepareSignal:null,reason,summary:reason,active:isActive,engine:"TREND_RIDER",
-  engineResults:{TREND_RIDER:engineResult},activeSignals,trendRider:raw,
-  preAlertStatus:null,preAlertCandle:null,preAlertSignal:null,
-  tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,
-  signalTriggeredAt:isActive?new Date(active.triggeredAt).toISOString():null,
-  signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
-  signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null,
-  entryPrice:isActive?active.entryPrice:null,
-  signalTimingWindowSeconds:[0,60],signalTimingMode:"INTRABAR_IMMEDIATE_CURRENT_M1",
-  indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
-  analysisMode:"LIVE_M1_INTRABAR_NATIVE_INDICATORS",liveAnalysisIntervalSeconds:LIVE_ANALYSIS_INTERVAL_SECONDS,
-  signalValidationNote:"Engine 3 เท่านั้น · EMA5/EMA20/ATR14 จาก Twelve Data native endpoints · ใช้ราคา Streaming จับจังหวะเข้าในแท่ง M1 ทันที · Manual only · No broker execution"};
-}
+  const now = Date.now();
+  const tickAgeMs = feed.tickAt ? now - feed.tickAt : Infinity;
+  const current = feed.candles.at(-1);
+  const sourceEpoch = current?.live === true ? current.epoch : null;
+  const closed = feed.candles.filter(c => c && c.live !== true &&
+    Number.isFinite(c.epoch) && c.epoch < Math.floor(now / 60000) * 60).slice(-MIN_CLOSED_CANDLES);
+  const freshTick = Number.isFinite(tickAgeMs) && tickAgeMs >= 0 && tickAgeMs <= MAX_STREAM_AGE_SECONDS * 1000;
+  const remainingMs = sourceEpoch === null ? Infinity : (sourceEpoch + 60) * 1000 - now;
+  const sourceReady = closed.length >= MIN_CLOSED_CANDLES && freshTick && current?.live === true && remainingMs > 0;
 
+  let active = feed.engineActive?.TREND_RIDER || null;
+  if (active && now >= active.expiresAt) {
+    active = null;
+    feed.engineActive.TREND_RIDER = null;
+  }
+  let raw = { signal: "STANDBY", regime: "UNCLEAR", confidence: 0,
+    reason: !sourceReady ? "รอข้อมูล Twelve Data M1 สดและแท่งปิดครบ 54 แท่ง"
+      : remainingMs > 18_000 ? "กำลังเฝ้าดูแท่งปัจจุบัน · จะวิเคราะห์ก่อนเริ่มแท่งถัดไป"
+      : "รอผลวิเคราะห์ Gemini", evidence: [], riskFlags: [], indicators: null,
+    provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1" };
+
+  // One Gemini request per source candle, launched in the final 18 seconds.
+  if (!active && sourceReady && remainingMs <= 18_000 && remainingMs > 0) {
+    raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
+    if (raw.indicators) {
+      feed.engine3Indicators = {
+        status: "LOCAL_READY", ema5: [raw.indicators.ema9], ema20: [raw.indicators.ema21], atr14: [raw.indicators.atr14],
+        receivedAt: now, lastFetchedMinute: sourceEpoch, nextAttemptAt: null, lastError: null,
+        sources: { ema5: "LOCAL_OHLC_EMA9", ema20: "LOCAL_OHLC_EMA21", atr14: "LOCAL_OHLC_ATR14" },
+        periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
+      };
+    }
+    const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
+      Number(raw.confidence) >= 65 &&
+      !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
+      Array.isArray(raw.riskFlags) && raw.riskFlags.length === 0 &&
+      Array.isArray(raw.evidence) && raw.evidence.length >= 2;
+    if (qualityPass) {
+      const targetEpoch = sourceEpoch + 60;
+      if (now < targetEpoch * 1000 && feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
+        active = createNextCandleSignal({
+          signal: raw.signal, sourceCandleEpoch: sourceEpoch, now,
+          entryPrice: feed.lastTick ?? current.close,
+          alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + targetEpoch + ":" + raw.signal
+        });
+        if (active) {
+          active.engine = "GEMINI"; active.sourceReason = raw.reason;
+          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence;
+          feed.engineActive.TREND_RIDER = active;
+          console.info("[signal] Gemini next-M1 candidate", {
+            symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
+            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence,
+            expiresAt: new Date(active.expiresAt).toISOString()
+          });
+        }
+      }
+    }
+  }
+
+  const isActive = Boolean(active && now < active.expiresAt);
+  const signal = isActive ? active.signal : "STANDBY";
+  const reason = isActive
+    ? "GEMINI " + active.signal + " · สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาทีหลังแท่งเป้าหมายเปิด"
+    : raw.reason || "รอจังหวะวิเคราะห์ก่อนแท่ง M1 ถัดไป";
+  const engineResult = { ...raw, engine: "GEMINI", candidateSignal: raw.signal,
+    active: isActive, signal, status: isActive ? "SIGNAL" : raw.signal === "STANDBY" ? "WATCH" : "FILTERED",
+    reason, alertId: isActive ? active.alertId : null,
+    signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
+    signalTargetCandleAt: isActive ? new Date(active.targetOpensAt).toISOString() : null,
+    sourceCandleEpoch: isActive ? active.sourceCandleEpoch : sourceEpoch,
+    targetCandleEpoch: isActive ? active.targetCandleEpoch : (sourceEpoch === null ? null : sourceEpoch + 60) };
+  const activeSignals = isActive ? [{
+    engine: "GEMINI", signal: active.signal, reason, alertId: active.alertId,
+    entryPrice: active.entryPrice, expiresAt: new Date(active.expiresAt).toISOString(),
+    targetCandleAt: new Date(active.targetOpensAt).toISOString(),
+    targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence
+  }] : [];
+  feed.activeSignal = isActive ? active.signal : null;
+  feed.signalCandle = isActive ? active.targetCandleEpoch : null;
+  feed.signalSourceCandle = isActive ? active.sourceCandleEpoch : null;
+  feed.signalTriggeredAt = isActive ? active.triggeredAt : 0;
+  feed.activeUntil = isActive ? active.expiresAt : 0;
+  feed.alertId = isActive ? active.alertId : null;
+  feed.analysis = {
+    ...raw, signal, direction: isActive ? signal : null, status: isActive ? "SIGNAL" : raw.signal === "STANDBY" ? "WATCH" : "FILTERED",
+    reason, summary: isActive ? reason : raw.summary || reason, active: isActive, engine: "GEMINI",
+    engineResults: { TREND_RIDER: engineResult }, activeSignals, trendRider: raw,
+    tickAgeSeconds: Number.isFinite(tickAgeMs) ? Math.round(tickAgeMs / 1000) : null,
+    lastTickPrice: feed.lastTick, alertId: feed.alertId,
+    signalTriggeredAt: isActive ? new Date(active.triggeredAt).toISOString() : null,
+    signalExpiresAt: isActive ? new Date(active.expiresAt).toISOString() : null,
+    signalTargetCandleAt: isActive ? new Date(active.targetOpensAt).toISOString() : null,
+    sourceCandleEpoch: isActive ? active.sourceCandleEpoch : sourceEpoch,
+    targetCandleEpoch: isActive ? active.targetCandleEpoch : (sourceEpoch === null ? null : sourceEpoch + 60),
+    entryPrice: isActive ? active.entryPrice : null,
+    signalTimingWindowSeconds: [42, 60], signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+    indicatorSource: "TWELVE_DATA_M1_OHLC_LOCAL_INDICATORS",
+    analysisMode: "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
+    liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
+    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution",
+    geminiQuota: geminiQuotaStatus(now)
+  };
+}
 function dispatchSignalIfReady(feed) {
- const active=feed.engineActive?.TREND_RIDER;
- if(!active||!["CALL","PUT"].includes(active.signal)||!active.alertId)return;
- if(feed.engineLastDispatchedAlertId?.TREND_RIDER===active.alertId)return;
- const now=Date.now();
- if(now>=active.expiresAt||!Number.isFinite(feed.tickAt)||now-feed.tickAt>5000)return;
- feed.engineLastDispatchedAt=now;
- feed.engineLastDispatchedCandle.TREND_RIDER=active.sourceCandleEpoch;
- feed.engineLastDispatchedAlertId.TREND_RIDER=active.alertId;
- console.info("[signal] Engine 3 instant signal available to Telegram Mini App",{engine:"TREND_RIDER",
-  alertId:active.alertId,signal:active.signal,symbol:feed.symbol,entryPrice:active.entryPrice,
-  candleEpoch:active.sourceCandleEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
+  const active = feed.engineActive?.TREND_RIDER;
+  if (!active || !active.alertId) return;
+  const now = Date.now();
+  if (!canDispatchNextCandleSignal(active, { now, tickAt: feed.tickAt,
+    lastDispatchedTargetCandle: feed.engineLastDispatchedCandle?.TREND_RIDER })) return;
+  feed.engineLastDispatchedAt = now;
+  feed.engineLastDispatchedCandle.TREND_RIDER = active.targetCandleEpoch;
+  feed.engineLastDispatchedAlertId.TREND_RIDER = active.alertId;
+  console.info("[signal] Gemini next-M1 signal available to Telegram Mini App", {
+    alertId: active.alertId, signal: active.signal, symbol: feed.symbol,
+    sourceCandleEpoch: active.sourceCandleEpoch, targetCandleEpoch: active.targetCandleEpoch,
+    targetOpensAt: new Date(active.targetOpensAt).toISOString(),
+    expiresAt: new Date(active.expiresAt).toISOString()
+  });
 }
 
 function applyTick(feed, price, epoch) {
@@ -377,41 +420,6 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
     }
   })();
   return feed.restSyncPromise;
-}
-
-async function syncEngine3Indicators(feed,{force=false}={}) {
- if(!feed||!monitoring||selectedSymbol!==feed.symbol)return;
- if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
- const now=Date.now(),minute=Math.floor(now/60000)*60;
- if(!force&&feed.engine3Indicators?.lastFetchedMinute===minute)return;
- if(!force&&Number.isFinite(feed.engine3Indicators?.nextAttemptAt)&&now<feed.engine3Indicators.nextAttemptAt)return;
- feed.engine3IndicatorsPromise=(async()=>{
-  try{
-   const [ema5,ema20,atr14]=await Promise.all([
-    fetchTrendEma5({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
-    fetchEma20({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()}),
-    fetchAtr14({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,now:Date.now()})
-   ]);
-   feed.engine3Indicators={status:"READY",ema5:ema5.values,ema20:ema20.values,atr14:atr14.values,
-    receivedAt:Date.now(),lastFetchedMinute:minute,nextAttemptAt:null,lastError:null,
-    sources:{ema5:ema5.source,ema20:ema20.source,atr14:atr14.source},
-    periods:{ema5:5,ema20:20,atr14:14},message:"Twelve Data EMA5 / EMA20 / ATR14 พร้อม"};
-  }catch(error){
-   const retry=error?.kind==="RATE_LIMIT"?15*60*1000:30000;
-   feed.engine3Indicators={...(feed.engine3Indicators||{}),status:"ERROR",lastError:error.message,
-    nextAttemptAt:Date.now()+retry,message:"Twelve Data Indicator ขัดข้อง: "+error.message};
-   console.error("[engine3] native indicator request failed",feed.symbol,{kind:error?.kind||"UNKNOWN",retryInMs:retry,message:error.message});
-  }finally{feed.engine3IndicatorsPromise=null;}
-  await evaluate(feed);dispatchSignalIfReady(feed);publish();
- })();
- return feed.engine3IndicatorsPromise;
-}
-function startEngine3IndicatorTimer() {
- if(emaTimer)clearInterval(emaTimer);
- emaTimer=setInterval(()=>{
-  const feed=feeds.get(selectedSymbol);
-  if(feed)syncEngine3Indicators(feed).catch(error=>console.error("[engine3] refresh loop failed",error.message));
- },5000);
 }
 
 function startRestTimer() {
@@ -704,12 +712,10 @@ async function start(symbolValue) {
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
   startRestTimer();
-  startEngine3IndicatorTimer();
   startWatchdog();
   startSignalTimer();
   publish();
   await syncSelected({ force: true, symbol });
-  await syncEngine3Indicators(feed, { force: true });
   if (monitoring) startStream();
   publish();
 }
@@ -734,7 +740,6 @@ async function select(symbolValue) {
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
   await syncSelected({ force: true, symbol });
-  if (wasMonitoring && monitoring) await syncEngine3Indicators(feed, { force: true });
   if (wasMonitoring && monitoring) startStream();
   return true;
 }
@@ -836,11 +841,11 @@ app.get("/api/public/signal", (_req, res) => {
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
-      analysisMode: state.analysisMode || "LIVE_M1_INTRABAR_NATIVE_INDICATORS",
+      analysisMode: state.analysisMode || "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],
-      signalTimingMode: state.signalTimingMode || "INTRABAR_IMMEDIATE_CURRENT_M1",
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [42, 60],
+      signalTimingMode: state.signalTimingMode || "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
       engineResults: state.engineResults || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
@@ -907,22 +912,22 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
-      decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
+      decisionEngine: "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1", engines: 1,
+      decisionAuthority: "GEMINI_PRIMARY_WITH_LOCAL_OHLC_AND_SYSTEM_TIMING_GUARDS",
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"] },
-      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC_AND_STREAMING", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "EMA5/EMA20 trend plus live M1 price action on trend side of EMA5", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "INTRABAR_IMMEDIATE_CURRENT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Gemini evaluates latest 54 closed M1 candles plus current live M1 snapshot before next candle opens", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_LIVE_M1_INTRABAR_ENTRY"
     },
     analyzer: {
-      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
-      model: null, configured: true,
-      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
-      externalAiCalls: false, localTechnicalIndicatorCalculations: false,
-      indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
+      provider: "GEMINI_PRIMARY_WITH_TWELVE_DATA_M1_OHLC",
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash", configured: Boolean(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEYS),
+      role: "GEMINI_PRIMARY_ANALYZER_WITH_LOCAL_INDICATORS",
+      externalAiCalls: true, localTechnicalIndicatorCalculations: true,
+      indicators: { EMA9: "LOCAL_OHLC", EMA21: "LOCAL_OHLC", RSI14: "LOCAL_OHLC", MACD: "LOCAL_OHLC", ATR14: "LOCAL_OHLC" },
       priceAction: "CURRENT_LIVE_M1_DIRECTIONAL_BODY_CONFIRMATION",
       scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES,
       guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"]
@@ -939,9 +944,9 @@ app.get("/health", (_req, res) => {
       livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
       liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      engine3IndicatorRefreshSeconds: 60,
-      estimatedEngine3IndicatorCreditsPerDay: 4320,
-      engine3IndicatorKeyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER",
+      geminiQuota: geminiQuotaStatus(),
+      geminiDailyRequestBudget: Number(process.env.GEMINI_MAX_REQUESTS_PER_DAY || 60),
+      nativeIndicatorRestCallsDisabled: true,
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
       entryCandles: 4,
@@ -950,7 +955,7 @@ app.get("/health", (_req, res) => {
       restFallbackEnabled: true,
       signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
       signalRuntimeLock: false,
-      signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
+      signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
     }
   });
 });
