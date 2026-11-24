@@ -212,6 +212,7 @@ function resetSignal(feed, reason = "รีเซ็ตบริบทสัญ�
 
 function lockFeed(feed, reason) {
   feed.dataLocked = true;
+  feed.pendingGeminiSignal = null;
   feed.activeSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
@@ -534,6 +535,7 @@ function retrySelectedStream(feed, reason) {
   }
   feed.tickAt = 0;
   feed.lastTick = null;
+  feed.pendingGeminiSignal = null;
   feed.activeSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.activeUntil = 0;
@@ -696,6 +698,7 @@ function startStream() {
     upstream = null;
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     try { socket.close(); } catch {}
+    feed.pendingGeminiSignal = null;
     feed.activeSignal = null;
     feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
@@ -708,6 +711,7 @@ function startStream() {
     upstream = null;
     clearInterval(heartbeatTimer); heartbeatTimer = null;
     feed.tickAt = 0;
+    feed.pendingGeminiSignal = null;
     feed.activeSignal = null;
     feed.engineActive = { TREND_RIDER: null };
     feed.activeUntil = 0;
