@@ -911,11 +911,11 @@ app.get("/health", (_req, res) => {
       decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
+      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"] },
       engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC_AND_STREAMING", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "EMA5/EMA20 trend plus live M1 price action on trend side of EMA5", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "INTRABAR_IMMEDIATE_CURRENT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_CLOSED_AND_LIVE_M1_DIRECTION_CONFIRMATION"
+      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_LIVE_M1_INTRABAR_ENTRY"
     },
     analyzer: {
       provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
@@ -923,9 +923,9 @@ app.get("/health", (_req, res) => {
       role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
       externalAiCalls: false, localTechnicalIndicatorCalculations: false,
       indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
-      priceAction: "CLOSED_M1_CANDLE_DIRECTION_PLUS_CURRENT_LIVE_M1_DIRECTION_CONFIRMATION",
-      scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30,
-      guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
+      priceAction: "CURRENT_LIVE_M1_DIRECTIONAL_BODY_CONFIRMATION",
+      scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, minimumClosedCandles: MIN_CLOSED_CANDLES,
+      guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"]
     },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
