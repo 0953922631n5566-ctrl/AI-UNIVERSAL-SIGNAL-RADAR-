@@ -77,3 +77,28 @@ test("Engine 3 can trigger trend continuation momentum without waiting for a new
  assert.equal(r.metrics.risingStructure,false);assert.equal(r.metrics.upBreak,false);
  assert.equal(r.metrics.upPullback,false);assert.equal(r.metrics.upContinuation,true);assert.ok(r.score>=58);
 });
+
+test("Engine 3 never emits PUT from a bullish latest closed candle in a falling regime",()=>{
+ const candles=Array.from({length:54},(_,i)=>{const close=1.2-i*.00005;return{epoch:baseEpoch+i*60,open:close+.00008,close,high:close+.00012,low:close-.00004,live:false};});
+ const last=candles.at(-1),previous=candles.at(-2);last.open=last.close-.00008;last.close=previous.close-.00002;last.high=last.close+.00002;last.low=last.open-.00002;
+ const rows=candles.slice(-4),end=rows.at(-1).close;
+ const values={ema5Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00001+(3-i)*.00001})),ema20Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00022+(3-i)*.00001})),atrValues:rows.map(c=>({epoch:c.epoch,atr:.00016}))};
+ const r=analyzeTrendRider(candles,values);
+ assert.equal(r.metrics.bearishCandle,false);assert.notEqual(r.signal,"PUT");
+});
+test("Engine 3 blocks a PUT when the current live M1 candle is bullish",()=>{
+ const candles=Array.from({length:54},(_,i)=>{const close=1.2-i*.00005;return{epoch:baseEpoch+i*60,open:close+.00008,close,high:close+.00012,low:close-.00004,live:false};});
+ const rows=candles.slice(-4),end=rows.at(-1).close;
+ const values={ema5Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00001+(3-i)*.00001})),ema20Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00022+(3-i)*.00001})),atrValues:rows.map(c=>({epoch:c.epoch,atr:.00016}))};
+ const live={epoch:candles.at(-1).epoch+60,open:end-.00001,close:end+.00012,high:end+.00014,low:end-.00002,live:true};
+ const r=analyzeTrendRider(candles,{...values,liveCandle:live,requireLiveConfirmation:true});
+ assert.equal(r.signal,null);assert.equal(r.status,"LIVE_DIRECTION_CONFLICT");assert.ok(r.blockers.includes("LIVE_DIRECTION_CONFLICT"));
+});
+test("Engine 3 accepts PUT only when the current live M1 candle confirms bearish continuation",()=>{
+ const candles=Array.from({length:54},(_,i)=>{const close=1.2-i*.00005;return{epoch:baseEpoch+i*60,open:close+.00008,close,high:close+.00012,low:close-.00004,live:false};});
+ const rows=candles.slice(-4),end=rows.at(-1).close;
+ const values={ema5Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00001+(3-i)*.00001})),ema20Values:rows.map((c,i)=>({epoch:c.epoch,ema:end+.00022+(3-i)*.00001})),atrValues:rows.map(c=>({epoch:c.epoch,atr:.00016}))};
+ const live={epoch:candles.at(-1).epoch+60,open:end+.00012,close:end-.00002,high:end+.00014,low:end-.00004,live:true};
+ const r=analyzeTrendRider(candles,{...values,liveCandle:live,requireLiveConfirmation:true});
+ assert.equal(r.signal,"PUT");assert.equal(r.metrics.liveBearish,true);
+});
