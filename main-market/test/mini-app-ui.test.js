@@ -10,7 +10,7 @@ test("Mini App is minimal on the home screen and keeps controls in the menu",()=
  const drawerStart=body.indexOf('<aside id="drawer"');
  assert.ok(drawerStart>0);
  const home=body.slice(0,drawerStart),drawer=body.slice(drawerStart);
- for(const id of ["api","price","age","lampShell","signal","hint","candle","expiry","menuButton"])assert.match(home,new RegExp('id="'+id+'"'));
+ for(const id of ["api","price","age","lampShell","signal","hint","candle","candleLabel","expiry","menuButton"])assert.match(home,new RegExp('id="'+id+'"'));
  for(const id of ["monitorToggle","soundEnable","engineSignal","ema5","ema20","atr14","apiKeys","reason","trendCard","manualLampToggle","manualLampStatus"])assert.match(drawer,new RegExp('id="'+id+'"'));
  assert.match(home,/EUR \/ USD/);
  assert.doesNotMatch(home,/GEMINI PRIMARY|EMA 9|SOUND & HAPTICS|CONTROL CENTER|API POOL STATUS/);
@@ -39,6 +39,9 @@ test("Mini App displays next-M1 target and retains sound/haptics",()=>{
  assert.match(serverJs,/targetCandleEpoch: active\.targetCandleEpoch/);
  assert.match(html,/function notify\(/);
  assert.match(html,/signalExpiresAt/);
+ assert.match(html,/signalTargetCandleAt/);
+ assert.match(html,/id="geminiQuota"/);
+ assert.match(html,/setInterval\(poll,500\)/);
  assert.match(html,/navigator\.vibrate/);
  assert.match(html,/function countdown\(/);
 });
