@@ -72,14 +72,14 @@ button{font:inherit}
   <div id="soundStatus" class="note">การเปิดเสียงต้องอนุญาตด้วยการแตะหนึ่งครั้งตามข้อจำกัดของ Telegram / Android</div>
  </section>
  <section class="section" id="trendCard">
-  <div class="section-title">ENGINE 3 · TREND RIDER</div>
+  <div class="section-title">GEMINI PRIMARY · NEXT M1</div>
   <div class="row"><span>ผลวิเคราะห์</span><small id="engineSignal">STANDBY</small></div>
   <div class="row"><span>สภาวะตลาด</span><small id="regime">—</small></div>
-  <div class="row"><span>EMA 5 · Twelve Data</span><small id="ema5">—</small></div>
-  <div class="row"><span>EMA 20 · Twelve Data</span><small id="ema20">—</small></div>
-  <div class="row"><span>ATR 14 · Twelve Data</span><small id="atr14">—</small></div>
+  <div class="row"><span>EMA 9 · Local OHLC</span><small id="ema5">—</small></div>
+  <div class="row"><span>EMA 21 · Local OHLC</span><small id="ema20">—</small></div>
+  <div class="row"><span>ATR 14 · Local OHLC</span><small id="atr14">—</small></div>
   <div class="row"><span>แท่งปิดที่พร้อม</span><small id="candles">—</small></div>
-  <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div><p class="note">Trend First · สัญญาณออกทันทีเมื่อราคา Streaming ยืนยันแนวโน้ม · แสดง 30 วินาที</p>
+  <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div><p class="note">Gemini วิเคราะห์ก่อนแท่ง M1 ถัดไป · สัญญาณคงอยู่ 30 วินาทีหลังแท่งเป้าหมายเปิด</p>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
  </section>
@@ -103,7 +103,7 @@ function countdown(v){const t=timeMs(v);if(!Number.isFinite(t))return "—";cons
 function soundPattern(freqs){if(!soundEnabled||!audio||audio.state!=="running")return;const start=audio.currentTime+.02;freqs.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),at=start+i*.22;o.type="sine";o.frequency.setValueAtTime(f,at);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.13,at+.02);g.gain.exponentialRampToValueAtTime(.0001,at+.15);o.connect(g);g.connect(audio.destination);o.start(at);o.stop(at+.18);});}
 async function enableSound(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error("อุปกรณ์ไม่รองรับเสียง");if(!audio)audio=new C();await audio.resume();soundEnabled=audio.state==="running";if(!soundEnabled)throw Error("ยังเปิดเสียงไม่ได้");$("soundEnable").textContent="เสียงแจ้งเตือนเปิดแล้ว";$("soundStatus").textContent="เปิดเสียงเรียบร้อย · ระบบจะส่งเสียงเมื่อมี PREPARE / CALL / PUT";soundPattern([660,880]);}catch(e){$("soundStatus").textContent=e.message||"เปิดเสียงไม่สำเร็จ";}}
 $("soundEnable").addEventListener("click",enableSound);
-function notify(signal,id){if(!id||id===lastAlertId)return;lastAlertId=id;const call=signal==="CALL";soundPattern(call?[660,880,1100]:[880,660,440]);try{navigator.vibrate?.(call?[220,90,220,90,380]:[380,100,220,100,380]);tg?.HapticFeedback?.notificationOccurred(call?"success":"error");}catch{}$("toast").className="toast "+(call?"call":"put");$("toastTitle").textContent="ENGINE 3 · "+signal;$("toastText").textContent="สัญญาณสำหรับแท่ง M1 ถัดไป · ตรวจสอบก่อนตัดสินใจด้วยตนเอง";$("toast").hidden=false;if(toastTimer)clearTimeout(toastTimer);const expires=timeMs(latest.signalExpiresAt);toastTimer=setTimeout(()=>$("toast").hidden=true,Number.isFinite(expires)?Math.max(1200,expires-Date.now()):30000);}
+function notify(signal,id){if(!id||id===lastAlertId)return;lastAlertId=id;const call=signal==="CALL";soundPattern(call?[660,880,1100]:[880,660,440]);try{navigator.vibrate?.(call?[220,90,220,90,380]:[380,100,220,100,380]);tg?.HapticFeedback?.notificationOccurred(call?"success":"error");}catch{}$("toast").className="toast "+(call?"call":"put");$("toastTitle").textContent="GEMINI · "+signal;$("toastText").textContent="สัญญาณสำหรับแท่ง M1 ถัดไป · ตรวจสอบก่อนตัดสินใจด้วยตนเอง";$("toast").hidden=false;if(toastTimer)clearTimeout(toastTimer);const expires=timeMs(latest.signalExpiresAt);toastTimer=setTimeout(()=>$("toast").hidden=true,Number.isFinite(expires)?Math.max(1200,expires-Date.now()):30000);}
 function setApi(status,label){$("api").className="api "+(status==="ONLINE"?"live":status==="CONNECTING"?"wait":"off");$("api").textContent=label||status;}
 async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const r=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const b=await r.json().catch(()=>({}));if(!r.ok||!b.sessionToken){if(r.status===429){const retry=Math.max(60,Number(r.headers.get("Retry-After"))||60);authRetryAfter=Date.now()+retry*1000;}else{authFailureCount++;authRetryAfter=Date.now()+Math.min(30000,1000*2**Math.min(authFailureCount,5));}throw Error(b.error||"เปิด Session ไม่สำเร็จ");}token=b.sessionToken;authRetryAfter=0;authFailureCount=0;}
 function ensureAuth(){if(token)return Promise.resolve();if(Date.now()<authRetryAfter)return Promise.reject(Error("ยืนยันตัวตนถูกจำกัดชั่วคราว กรุณารอ "+Math.ceil((authRetryAfter-Date.now())/1000)+" วินาที"));if(!authBusy)authBusy=authenticate().finally(()=>authBusy=null);return authBusy;}
@@ -118,7 +118,7 @@ $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
 $("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · แท่ง M1 ถัดไป":"สัญญาณฝั่งขาย · แท่ง M1 ถัดไป"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.metrics?.ema5);$("ema20").textContent=fmt(m.metrics?.ema20);$("atr14").textContent=fmt(m.metrics?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??30);$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
+const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.indicators?.ema9);$("ema20").textContent=fmt(m.indicators?.ema21);$("atr14").textContent=fmt(m.indicators?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??30);$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
 const active=Array.isArray(m.activeSignals)?m.activeSignals:[];if(active.length){for(const item of active)notify(item.signal,String(item.alertId||item.engine+item.signal));}else if(dir&&m.alertId)notify(dir,String(m.alertId));
 $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
