@@ -28,8 +28,9 @@ const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
 const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
 const VERSION = "2026-11-24-gemini-primary-next-m1-adaptive-prefilter-v2";
-const GEMINI_ANALYSIS_WINDOW_MS = Math.max(18_000, Math.min(30_000,
-  Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22) * 1000));
+const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22);
+const GEMINI_ANALYSIS_WINDOW_MS = (Number.isFinite(configuredGeminiWindowSeconds)
+  ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 22) * 1000;
 const app = express();
 const server = http.createServer(app);
 
@@ -336,8 +337,7 @@ async function evaluate(feed) {
     liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
     geminiAnalysisWindowSeconds: GEMINI_ANALYSIS_WINDOW_MS / 1000,
     geminiQuota: geminiQuotaStatus(now),
-    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution",
-    geminiQuota: geminiQuotaStatus(now)
+    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution"
   };
 }
 function dispatchSignalIfReady(feed) {
