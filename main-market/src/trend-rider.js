@@ -31,11 +31,18 @@ export function analyzeTrendRider(candles, options = {}) {
   const volatility=atrValues.at(-1).atr;
   const sourceEpoch=last.epoch;
   const indicatorEpochs=[ema5Values.at(-1).epoch,ema20Values.at(-1).epoch,atrValues.at(-1).epoch];
-  if(!Number.isFinite(volatility)||volatility<=0||indicatorEpochs.some(epoch=>epoch!==sourceEpoch)){
+  const indicatorEpoch=indicatorEpochs[0];
+  const indicatorLagSeconds=sourceEpoch-indicatorEpoch;
+  const indicatorLagCandles=indicatorLagSeconds/60;
+  // Twelve Data native indicator endpoints can publish the latest completed M1 value one candle late.
+  // Permit exactly one completed-candle lag; never analyze with indicators that are ahead or >=2 candles stale.
+  if(!Number.isFinite(volatility)||volatility<=0||indicatorEpochs.some(epoch=>epoch!==indicatorEpoch)||
+    indicatorLagSeconds<0||!Number.isInteger(indicatorLagCandles)||indicatorLagCandles>1){
     return {ready:false,signal:null,score:0,status:"TWELVE_DATA_INDICATORS_STALE",
-      reason:"ค่า EMA/ATR ไม่ตรงกับแท่ง M1 ปิดล่าสุดจาก Twelve Data",
+      reason:"ค่า EMA/ATR จาก Twelve Data ล่าช้ากว่าแท่ง M1 ล่าสุดเกิน 1 แท่งหรือเวลาไม่ตรงกัน",
       indicatorStatus:{ema5:"STALE",ema20:"STALE",atr14:"STALE"},
-      strategy:"TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_PULLBACK"};
+      metrics:{indicatorEpoch,sourceCandleEpoch:sourceEpoch,indicatorLagCandles:Number.isFinite(indicatorLagCandles)?indicatorLagCandles:null},
+      strategy:"TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_CONTINUATION"};
   }
   const range=Math.max(last.high-last.low,Number.EPSILON);
   const bodyRatio=Math.abs(last.close-last.open)/range;
@@ -53,25 +60,41 @@ export function analyzeTrendRider(candles, options = {}) {
   const upBreak=last.close>priorHigh,downBreak=last.close<priorLow;
   const upMomentum=last.close>previous.close&&bodyRatio>=.35;
   const downMomentum=last.close<previous.close&&bodyRatio>=.35;
+  // In a clearly aligned trend, a strong candle continuing beyond EMA5 is a valid trigger
+  // even when the latest swing has not yet printed a fresh higher-low/lower-high or breakout.
+  const upContinuation=upAligned&&last.close>fastNow&&upMomentum;
+  const downContinuation=downAligned&&last.close<fastNow&&downMomentum;
   const scoreUp=Math.round(30*Number(upAligned)+20*clamp(gapAtr/.55)+20*Number(risingStructure)+15*Number(upPullback||upBreak)+15*Number(upMomentum));
   const scoreDown=Math.round(30*Number(downAligned)+20*clamp(gapAtr/.55)+20*Number(fallingStructure)+15*Number(downPullback||downBreak)+15*Number(downMomentum));
   const sideways=gapAtr<.08,late=extensionAtr>1.5,volatilitySpike=range>volatility*2.8;
-  let signal=null,score=Math.max(scoreUp,scoreDown),status="TREND_NOT_CONFIRMED",reason="EMA5/EMA20 และโครงสร้างราคาไม่สอดคล้องพอ";
+  let signal=null,score=Math.max(scoreUp,scoreDown),status="TREND_NOT_CONFIRMED",reason="EMA5/EMA20 และแรงส่งยังไม่ยืนยันไปทางเดียวกัน";
   if(sideways){status="SIDEWAYS_BLOCK";reason="EMA5/EMA20 พันกัน · งดสัญญาณในตลาดออกข้าง";}
   else if(late){status="LATE_ENTRY_BLOCK";reason="ราคาออกห่าง EMA5 เกิน 1.5 ATR · ไม่ไล่ตามเทรนด์";}
   else if(volatilitySpike){status="VOLATILITY_BLOCK";reason="แท่งล่าสุดกว้างผิดปกติเมื่อเทียบกับ ATR14";}
-  else if(scoreUp>=58&&scoreUp-scoreDown>=8&&upAligned&&(risingStructure||upBreak)){signal="CALL";score=scoreUp;status="UPTREND_CONTINUATION";reason="EMA5 เหนือ EMA20 · โครงสร้างขาขึ้น · มีแรงต่อเนื่องหรือย่อแล้วกลับขึ้น";}
-  else if(scoreDown>=58&&scoreDown-scoreUp>=8&&downAligned&&(fallingStructure||downBreak)){signal="PUT";score=scoreDown;status="DOWNTREND_CONTINUATION";reason="EMA5 ใต้ EMA20 · โครงสร้างขาลง · มีแรงต่อเนื่องหรือย่อแล้วกลับลง";}
-  else if(score>=45){status="TREND_WATCH";reason="เริ่มเห็นแนวโน้ม แต่หลักฐานต่อเนื่องยังไม่ครบ";}
-  return {ready:true,signal,direction:signal,score,scoreUp,scoreDown,status,reason,
-    strategy:"TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_PULLBACK",provider:"TWELVE_DATA_NATIVE_INDICATORS",
+  else if(scoreUp>=58&&scoreUp-scoreDown>=8&&upAligned&&(risingStructure||upBreak||upContinuation)){signal="CALL";score=scoreUp;status=upContinuation&&!risingStructure&&!upBreak?"UPTREND_MOMENTUM_CONTINUATION":"UPTREND_CONTINUATION";reason=upContinuation&&!risingStructure&&!upBreak?"EMA5 เหนือ EMA20 และแท่งล่าสุดยืนยันแรงซื้อเหนือ EMA5":"EMA5 เหนือ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาขึ้น";}
+  else if(scoreDown>=58&&scoreDown-scoreUp>=8&&downAligned&&(fallingStructure||downBreak||downContinuation)){signal="PUT";score=scoreDown;status=downContinuation&&!fallingStructure&&!downBreak?"DOWNTREND_MOMENTUM_CONTINUATION":"DOWNTREND_CONTINUATION";reason=downContinuation&&!fallingStructure&&!downBreak?"EMA5 ใต้ EMA20 และแท่งล่าสุดยืนยันแรงขายใต้ EMA5":"EMA5 ใต้ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาลง";}
+  else if(score>=45){status="TREND_WATCH";reason="เริ่มเห็นแนวโน้ม แต่คะแนนหรือแรงยืนยันยังไม่ครบ";}
+  const blockers=[];
+  if(sideways)blockers.push("SIDEWAYS");
+  if(late)blockers.push("LATE_ENTRY");
+  if(volatilitySpike)blockers.push("ABNORMAL_RANGE");
+  if(!upAligned&&!downAligned)blockers.push("EMA_ALIGNMENT");
+  if(upAligned&&!risingStructure&&!upBreak&&!upContinuation)blockers.push("CALL_TRIGGER");
+  if(downAligned&&!fallingStructure&&!downBreak&&!downContinuation)blockers.push("PUT_TRIGGER");
+  if(Math.max(scoreUp,scoreDown)<58)blockers.push("SCORE_BELOW_58");
+  if(Math.abs(scoreUp-scoreDown)<8)blockers.push("SCORE_LEAD_BELOW_8");
+  return {ready:true,signal,direction:signal,score,scoreUp,scoreDown,status,reason,blockers,
+    strategy:"TWELVE_DATA_EMA5_EMA20_ATR14_STRUCTURE_CONTINUATION",provider:"TWELVE_DATA_NATIVE_INDICATORS",
     regime:upAligned?"UPTREND":downAligned?"DOWNTREND":"UNCLEAR",
     metrics:{ema5:fastNow,ema20:slowNow,atr14:volatility,emaGapAtr:Number(gapAtr.toFixed(3)),
       extensionAtr:Number(extensionAtr.toFixed(3)),bodyRatio:Number(bodyRatio.toFixed(3)),priorHigh,priorLow,
+      indicatorEpoch,sourceCandleEpoch:sourceEpoch,indicatorLagCandles,
+      upAligned,downAligned,risingStructure,fallingStructure,upBreak,downBreak,
+      upPullback,downPullback,upMomentum,downMomentum,upContinuation,downContinuation,
       ema5Source:"Twelve Data /ema time_period=5",ema20Source:"Twelve Data /ema time_period=20",atr14Source:"Twelve Data /atr time_period=14"},
     indicatorStatus:{ema5:"READY",ema20:"READY",atr14:"READY"},
     evidence:[upAligned||downAligned?"EMA5/EMA20 alignment and slope agree":"EMA alignment incomplete",
       risingStructure||fallingStructure?"Recent swing structure supports trend":"Swing structure not confirmed",
-      upPullback||downPullback?"Pullback reclaimed EMA5":upBreak||downBreak?"Recent structure breakout":"No clean continuation trigger",
+      upPullback||downPullback?"Pullback reclaimed EMA5":upBreak||downBreak?"Recent structure breakout":upContinuation||downContinuation?"Trend continuation momentum confirmed":"No clean continuation trigger",
       sideways?"Sideways guard active":late?"Late-extension guard active":"No late-entry guard"]};
 }

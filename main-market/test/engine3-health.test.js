@@ -10,7 +10,7 @@ test("health metadata declares one fixed Engine 3 Trend Rider analyzer",()=>{
 });
 test("health metadata identifies native Twelve Data indicators and manual-only timing",()=>{
  assert.match(server,/indicatorEndpoints: \["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"\]/);
- assert.match(server,/signalTiming: "T_MINUS_5_NEXT_M1"/);
+ assert.match(server,/signalTiming: "T_MINUS_10_NEXT_M1"/);
  assert.match(server,/signalHoldSeconds: 30/);
  assert.match(server,/manualOnly: true/);
  assert.match(server,/brokerExecution: false/);

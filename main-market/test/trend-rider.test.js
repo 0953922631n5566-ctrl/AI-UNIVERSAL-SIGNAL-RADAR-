@@ -43,3 +43,37 @@ test("Engine 3 rejects stale or misaligned Twelve Data indicator values",()=>{
  const candles=risingCandles(),values=indicators(candles);values.atrValues=values.atrValues.map(v=>({...v,epoch:v.epoch-60}));
  const r=analyzeTrendRider(candles,values);assert.equal(r.ready,false);assert.equal(r.status,"TWELVE_DATA_INDICATORS_STALE");
 });
+
+test("Engine 3 accepts native indicators delayed by exactly one closed M1 candle",()=>{
+ const candles=risingCandles(),values=indicators(candles);
+ for(const key of ["ema5Values","ema20Values","atrValues"])values[key]=values[key].map(v=>({...v,epoch:v.epoch-60}));
+ const r=analyzeTrendRider(candles,values);
+ assert.equal(r.ready,true);assert.equal(r.signal,"CALL");assert.equal(r.metrics.indicatorLagCandles,1);
+});
+test("Engine 3 still blocks native indicators delayed by two M1 candles",()=>{
+ const candles=risingCandles(),values=indicators(candles);
+ for(const key of ["ema5Values","ema20Values","atrValues"])values[key]=values[key].map(v=>({...v,epoch:v.epoch-120}));
+ const r=analyzeTrendRider(candles,values);
+ assert.equal(r.ready,false);assert.equal(r.signal,null);assert.equal(r.status,"TWELVE_DATA_INDICATORS_STALE");
+});
+test("Engine 3 can trigger trend continuation momentum without waiting for a new swing or breakout",()=>{
+ const candles=risingCandles();
+ for(let j=0;j<5;j++){
+  const c=candles.at(-5+j);
+  const offset=.00003+j*.00006;
+  c.open=c.close-.00002;
+  c.low=c.close-offset;
+  c.high=c.close+.00010;
+ }
+ const last=candles.at(-1),rows=candles.slice(-4);
+ last.open=last.close-.00015;last.low=last.close-.00027;last.high=last.close+.00003;
+ const values={
+  ema5Values:rows.map((c,i)=>({epoch:c.epoch,ema:last.close-.00036-(3-i)*.00001})),
+  ema20Values:rows.map((c,i)=>({epoch:c.epoch,ema:last.close-.00076-(3-i)*.00001})),
+  atrValues:rows.map(c=>({epoch:c.epoch,atr:.00030}))
+ };
+ const r=analyzeTrendRider(candles,values);
+ assert.equal(r.signal,"CALL");assert.equal(r.status,"UPTREND_MOMENTUM_CONTINUATION");
+ assert.equal(r.metrics.risingStructure,false);assert.equal(r.metrics.upBreak,false);
+ assert.equal(r.metrics.upPullback,false);assert.equal(r.metrics.upContinuation,true);assert.ok(r.score>=58);
+});
