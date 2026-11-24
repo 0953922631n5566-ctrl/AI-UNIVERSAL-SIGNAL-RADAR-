@@ -28,10 +28,10 @@ function setup(direction = "UP") {
     atrValues: history.slice(-4).map(c => ({ epoch: c.epoch, atr: 0.0002 }))
   };
   const live = direction === "UP"
-    ? { epoch: last.epoch + 60, open: last.close - 0.00003, close: ema5 + 0.00002,
-        high: ema5 + 0.00003, low: last.close - 0.00004, live: true }
-    : { epoch: last.epoch + 60, open: last.close + 0.00003, close: ema5 - 0.00002,
-        high: last.close + 0.00004, low: ema5 - 0.00003, live: true };
+    ? { epoch: last.epoch + 60, open: last.close - 0.00010, close: ema5 + 0.00002,
+        high: ema5 + 0.00003, low: last.close - 0.00012, live: true }
+    : { epoch: last.epoch + 60, open: last.close + 0.00010, close: ema5 - 0.00002,
+        high: last.close + 0.00012, low: ema5 - 0.00003, live: true };
   return { history, values, live };
 }
 
