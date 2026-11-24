@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeWithGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
+import { analyzeWithGemini, buildTechnicalIndicators, shouldRequestGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
 import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
@@ -164,6 +164,7 @@ function snapshot() {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
+    geminiQuota: geminiQuotaStatus(),
   };
 }
 
@@ -235,7 +236,9 @@ async function evaluate(feed) {
   const sourceReady = closed.length >= MIN_CLOSED_CANDLES && freshTick && current?.live === true && remainingMs > 0;
 
   let active = feed.engineActive?.TREND_RIDER || null;
-  if (active && now >= active.expiresAt) {
+  // An undelivered candidate is discarded at target open; a delivered signal remains visible
+  // until 30 seconds after that target candle opens.
+  if (active && (now >= active.expiresAt || (!active.dispatchedAt && now >= active.targetOpensAt))) {
     active = null;
     feed.engineActive.TREND_RIDER = null;
   }
@@ -245,45 +248,82 @@ async function evaluate(feed) {
       : "รอผลวิเคราะห์ Gemini", evidence: [], riskFlags: [], indicators: null,
     provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1" };
 
-  // One Gemini request per source candle, launched in the final 18 seconds.
-  if (!active && sourceReady && remainingMs <= 18_000 && remainingMs > 0) {
+  // Evaluate local OHLC on every fresh tick, but spend a Gemini request only on a directional setup.
+  const prefilter = sourceReady && remainingMs <= 18_000 && remainingMs > 0
+    ? shouldRequestGemini({ closedCandles: closed, liveCandle: current }) : null;
+  if (!active && sourceReady && remainingMs <= 18_000 && remainingMs > 0 && prefilter?.eligible) {
     raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
     if (raw.indicators) {
       feed.engine3Indicators = {
         status: "LOCAL_READY", ema5: [raw.indicators.ema9], ema20: [raw.indicators.ema21], atr14: [raw.indicators.atr14],
-        receivedAt: now, lastFetchedMinute: sourceEpoch, nextAttemptAt: null, lastError: null,
+        receivedAt: Date.now(), lastFetchedMinute: sourceEpoch, nextAttemptAt: null, lastError: null,
+        sources: { ema5: "LOCAL_OHLC_EMA9", ema20: "LOCAL_OHLC_EMA21", atr14: "LOCAL_OHLC_ATR14" },
+        periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
+      };
+    } else if (prefilter.indicators) {
+      feed.engine3Indicators = {
+        status: "LOCAL_READY", ema5: [prefilter.indicators.ema9], ema20: [prefilter.indicators.ema21],
+        atr14: [prefilter.indicators.atr14], receivedAt: Date.now(), lastFetchedMinute: sourceEpoch,
+        nextAttemptAt: null, lastError: null,
         sources: { ema5: "LOCAL_OHLC_EMA9", ema20: "LOCAL_OHLC_EMA21", atr14: "LOCAL_OHLC_ATR14" },
         periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
       };
     }
+
+    // Re-check the live source and tick after Gemini returns. A slow response must never
+    // turn into a late entry or a signal for a candle that has already changed.
+    const decisionAt = Date.now();
+    const latest = feed.candles.at(-1);
+    const targetOpensAt = (sourceEpoch + 60) * 1000;
+    const decisionTickAgeMs = feed.tickAt ? decisionAt - feed.tickAt : Infinity;
+    const sourceStillLive = latest?.live === true && latest.epoch === sourceEpoch;
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
-      Number(raw.confidence) >= 65 &&
+      Number(raw.confidence) >= 60 &&
       !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
       Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
-    if (qualityPass) {
-      const targetEpoch = sourceEpoch + 60;
-      if (now < targetEpoch * 1000 && feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
-        active = createNextCandleSignal({
-          signal: raw.signal, sourceCandleEpoch: sourceEpoch, now,
-          entryPrice: feed.lastTick ?? current.close,
-          alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + targetEpoch + ":" + raw.signal
+    const timingPass = sourceStillLive && decisionTickAgeMs >= 0 &&
+      decisionTickAgeMs <= MAX_STREAM_AGE_SECONDS * 1000 &&
+      targetOpensAt - decisionAt >= 1_200;
+    if (qualityPass && timingPass && feed.engineLastDispatchedCandle?.TREND_RIDER !== sourceEpoch + 60) {
+      active = createNextCandleSignal({
+        signal: raw.signal, sourceCandleEpoch: sourceEpoch, now: decisionAt,
+        entryPrice: feed.lastTick ?? latest.close,
+        alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + (sourceEpoch + 60) + ":" + raw.signal
+      });
+      if (active) {
+        active.engine = "GEMINI"; active.sourceReason = raw.reason;
+        active.confidence = raw.confidence; active.regime = raw.regime;
+        active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
+        active.analysisLatencyMs = decisionAt - now;
+        feed.engineActive.TREND_RIDER = active;
+        console.info("[signal] Gemini next-M1 candidate", {
+          symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
+          targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence,
+          analysisLatencyMs: active.analysisLatencyMs, riskFlags: active.riskFlags || [],
+          expiresAt: new Date(active.expiresAt).toISOString()
         });
-        if (active) {
-          active.engine = "GEMINI"; active.sourceReason = raw.reason;
-          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
-          feed.engineActive.TREND_RIDER = active;
-          console.info("[signal] Gemini next-M1 candidate", {
-            symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
-            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence, riskFlags: active.riskFlags || [],
-            expiresAt: new Date(active.expiresAt).toISOString()
-          });
-        }
       }
+    } else if (["CALL", "PUT"].includes(raw.signal) && !timingPass) {
+      raw = { ...raw, signal: "STANDBY", reason: "Gemini ตอบกลับช้าเกินไปหรือราคา Streaming ไม่สด · ยกเลิกสัญญาณเพื่อไม่ให้เข้าแท่งผิด" };
+    }
+  } else if (!active && sourceReady && remainingMs <= 18_000 && remainingMs > 0 && prefilter && !prefilter.eligible) {
+    raw = {
+      ...raw, indicators: prefilter.indicators || null,
+      reason: prefilter.reason || "รอจังหวะที่เหมาะสมก่อนเรียก Gemini",
+      localPrefilter: { eligible: false, candidate: prefilter.candidate || null, votes: prefilter.votes || null }
+    };
+    if (prefilter.indicators) {
+      feed.engine3Indicators = {
+        status: "LOCAL_READY", ema5: [prefilter.indicators.ema9], ema20: [prefilter.indicators.ema21],
+        atr14: [prefilter.indicators.atr14], receivedAt: now, lastFetchedMinute: sourceEpoch,
+        nextAttemptAt: null, lastError: null,
+        sources: { ema5: "LOCAL_OHLC_EMA9", ema20: "LOCAL_OHLC_EMA21", atr14: "LOCAL_OHLC_ATR14" },
+        periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
+      };
     }
   }
-
-  const isActive = Boolean(active && now < active.expiresAt);
+  const isActive = Boolean(active && active.dispatchedAt && now < active.expiresAt);
   const signal = isActive ? active.signal : "STANDBY";
   const reason = isActive
     ? "GEMINI " + active.signal + " · สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาทีหลังแท่งเป้าหมายเปิด" + (active.riskFlags?.length ? " · ระวัง: " + active.riskFlags.join(" / ") : "")
@@ -333,6 +373,7 @@ function dispatchSignalIfReady(feed) {
   const now = Date.now();
   if (!canDispatchNextCandleSignal(active, { now, tickAt: feed.tickAt,
     lastDispatchedTargetCandle: feed.engineLastDispatchedCandle?.TREND_RIDER })) return;
+  active.dispatchedAt = now;
   feed.engineLastDispatchedAt = now;
   feed.engineLastDispatchedCandle.TREND_RIDER = active.targetCandleEpoch;
   feed.engineLastDispatchedAlertId.TREND_RIDER = active.alertId;
