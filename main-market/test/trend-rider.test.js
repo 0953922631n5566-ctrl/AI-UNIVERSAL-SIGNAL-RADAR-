@@ -107,6 +107,16 @@ test("stale Twelve Data indicators more than one candle behind fail closed", () 
   assert.equal(result.status, "TWELVE_DATA_INDICATORS_STALE");
 });
 
+test("one-candle-late native Twelve Data indicators remain usable when all three are aligned", () => {
+  const { history, values, live } = setup("UP");
+  for (const key of ["ema5Values", "ema20Values", "atrValues"]) {
+    values[key] = values[key].map(v => ({ ...v, epoch: v.epoch - 60 }));
+  }
+  const result = analyzeTrendRider(history, { ...values, liveCandle: live });
+  assert.equal(result.signal, "CALL");
+  assert.equal(result.metrics.indicatorLagCandles, 1);
+});
+
 test("missing live Streaming candle never produces a directional signal", () => {
   const { history, values } = setup("UP");
   const result = analyzeTrendRider(history, values);
