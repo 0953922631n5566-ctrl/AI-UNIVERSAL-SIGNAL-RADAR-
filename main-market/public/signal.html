@@ -49,7 +49,7 @@ button{font:inherit}
  <section class="signal-wrap" aria-live="polite">
   <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
   <div id="signal" class="signal-state">STANDBY</div>
-  <div id="hint" class="signal-hint">กำลังเริ่มระบบวิเคราะห์อัตโนมัติ</div>
+  <div id="hint" class="signal-hint">ปิดการวิเคราะห์สัญญาณแล้ว · แสดงข้อมูลราคาเท่านั้น</div>
   <div class="timing">
    <div class="time-card"><span>แท่งเป้าหมายถัดไป · M1</span><b id="candle">—</b></div>
    <div class="time-card"><span>สัญญาณคงเหลือ</span><b id="expiry">—</b></div>
@@ -62,8 +62,8 @@ button{font:inherit}
  <div class="drawer-head"><strong>CONTROL CENTER</strong><button id="closeMenu" class="close" aria-label="ปิดเมนู">×</button></div>
  <section class="section">
   <div class="section-title">MONITORING</div>
-  <div class="row"><span>สถานะการวิเคราะห์</span><small id="monitorStatus">กำลังเริ่มต้น</small></div>
-  <button id="monitorToggle" class="control secondary">หยุดการวิเคราะห์</button>
+  <div class="row"><span>สถานะรับข้อมูลตลาด</span><small id="monitorStatus">กำลังเริ่มต้น</small></div>
+  <button id="monitorToggle" class="control secondary">หยุดรับข้อมูล</button>
   <p class="note">เปิด Mini App แล้วระบบเชื่อมต่อข้อมูลอัตโนมัติ ระบบรับข้อมูล Twelve Data เท่านั้น · ไม่มี AI วิเคราะห์หรือสร้างสัญญาณ</p>
  </section>
  <section class="section">
@@ -103,16 +103,16 @@ function setApi(status,label){$("api").className="api "+(status==="ONLINE"?"live
 async function authenticate(){try{tg?.ready?.();tg?.expand?.();}catch{}const r=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",body:JSON.stringify({})});const b=await r.json().catch(()=>({}));if(!r.ok||!b.sessionToken){if(r.status===429){const retry=Math.max(60,Number(r.headers.get("Retry-After"))||60);authRetryAfter=Date.now()+retry*1000;}else{authFailureCount++;authRetryAfter=Date.now()+Math.min(30000,1000*2**Math.min(authFailureCount,5));}throw Error(b.error||"เปิด Session ไม่สำเร็จ");}token=b.sessionToken;authRetryAfter=0;authFailureCount=0;}
 function ensureAuth(){if(token)return Promise.resolve();if(Date.now()<authRetryAfter)return Promise.reject(Error("ยืนยันตัวตนถูกจำกัดชั่วคราว กรุณารอ "+Math.ceil((authRetryAfter-Date.now())/1000)+" วินาที"));if(!authBusy)authBusy=authenticate().finally(()=>authBusy=null);return authBusy;}
 async function control(action){if(controlBusy)return;controlBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/control",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+token},cache:"no-store",body:JSON.stringify({action})});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"สั่งงานไม่สำเร็จ");paint(b.market||{});return true;}catch(e){$("monitorStatus").textContent=e.message||"เชื่อมต่อไม่สำเร็จ";setApi("OFFLINE","API OFFLINE");return false;}finally{controlBusy=false;}}
-async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเริ่มอัตโนมัติ";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
+async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเชื่อมต่อข้อมูล";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
-$("monitorStatus").textContent=monitoring?"กำลังทำงาน":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดการวิเคราะห์":"เริ่มวิเคราะห์";
+$("monitorStatus").textContent=monitoring?"กำลังรับข้อมูล":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดรับข้อมูล":"เริ่มรับข้อมูล";
 $("engineSignal").textContent="DISABLED";$("reason").textContent="Gemini ถูกนำออกแล้ว · ไม่มีการวิเคราะห์หรือสัญญาณ CALL/PUT";
 $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
 const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir|| (preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
-$("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · เข้าแท่งเป้าหมาย M1":"สัญญาณฝั่งขาย · เข้าแท่งเป้าหมาย M1"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
+$("hint").textContent="ปิดการวิเคราะห์สัญญาณแล้ว · แสดงข้อมูลราคาเท่านั้น";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
 $("engineSignal").textContent="DISABLED";$("reason").textContent=m.reason||"ปิดระบบวิเคราะห์สัญญาณแล้ว";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
