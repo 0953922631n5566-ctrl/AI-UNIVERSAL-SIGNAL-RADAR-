@@ -299,7 +299,7 @@ async function evaluate(feed) {
     engine: "GEMINI", signal: active.signal, reason, alertId: active.alertId,
     entryPrice: active.entryPrice, expiresAt: new Date(active.expiresAt).toISOString(),
     targetCandleAt: new Date(active.targetOpensAt).toISOString(),
-    targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence
+    targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence, riskFlags: active.riskFlags || []
   }] : [];
   feed.activeSignal = isActive ? active.signal : null;
   feed.signalCandle = isActive ? active.targetCandleEpoch : null;
