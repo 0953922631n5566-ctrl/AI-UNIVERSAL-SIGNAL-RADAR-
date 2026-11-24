@@ -75,7 +75,7 @@ button{font:inherit}
   <div class="section-title">SIGNAL ENGINE</div>
   <div class="row"><span>สถานะเครื่องวิเคราะห์</span><small id="engineSignal">WAITING</small></div>
   <div class="row"><span>คะแนน CALL / PUT</span><small id="scoreStatus">—</small></div>
-  <div class="row"><span>เกณฑ์สัญญาณ</span><small>CALL/PUT ≥ 59 · PREPARE ≥ 45</small></div>
+  <div class="row"><span>เกณฑ์สัญญาณ</span><small>CALL/PUT ≥ 54 · PREPARE 45–53</small></div>
   <div id="indicatorStatus" class="note">รอ EMA5 / EMA20 / ATR14 จาก Twelve Data</div>
   <div id="reason" class="note">รอข้อมูลอินดิเคเตอร์จาก Twelve Data เพื่อวิเคราะห์</div>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
@@ -115,9 +115,9 @@ const indicator=m.indicators||{},ready=indicator.status==="READY";const usable=a
 const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir||(preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
-$("hint").textContent=state==="CALL"?"คะแนนผ่านเกณฑ์ 59 · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"คะแนนผ่านเกณฑ์ 59 · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอข้อมูลสดหรือเงื่อนไข Partial Score ที่ผ่านเกณฑ์";
+$("hint").textContent=state==="CALL"?"คะแนนผ่านเกณฑ์ 54 · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"คะแนนผ่านเกณฑ์ 54 · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอข้อมูลสดหรือเงื่อนไข Partial Score ที่ผ่านเกณฑ์";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-$("engineSignal").textContent=ready?"PARTIAL SCORING 59/45":indicator.status||"WAITING";
+$("engineSignal").textContent=ready?"PARTIAL SCORING 54/45":indicator.status||"WAITING";
 $("scoreStatus").textContent="CALL "+(m.scores?.CALL??"—")+" · PUT "+(m.scores?.PUT??"—");
 const metrics=m.metrics||{};$("indicatorStatus").textContent=ready
 ?"Twelve Data Native · EMA5 "+fmt(indicator.ema5?.ema??metrics.ema5)+" · EMA20 "+fmt(indicator.ema20?.ema??metrics.ema20)+" · ATR14 "+fmt(indicator.atr14?.atr??metrics.atr14)
