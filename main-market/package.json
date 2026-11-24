@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/trend-rider.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/trend-rider.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/gemini-analyzer.js && node --check src/next-candle-timing.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,14 +17,14 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Engine 3 Trend First Instant Entry · Twelve Data Native Indicators",
-    "displayName": "Single Engine 3 · Native EMA5 / EMA20 / ATR14",
+    "name": "Gemini Primary Adaptive Next M1 · Twelve Data OHLC",
+    "displayName": "Gemini Primary · Adaptive Next M1",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "TREND_FIRST_INTRABAR_ENTRY_USING_TWELVE_DATA_NATIVE_INDICATORS",
-    "decisionAuthority": "ENGINE_3_ONLY",
+    "executionModel": "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1_WITH_LOCAL_OHLC",
+    "decisionAuthority": "GEMINI_PRIMARY_ONLY",
     "indicators": {
-      "provider": "Twelve Data native REST endpoints + Twelve Data live price Streaming",
+      "provider": "Twelve Data M1 OHLC + Streaming; Gemini Flash for direction",
       "emaFast": {
         "endpoint": "/ema",
         "period": 5
@@ -37,15 +37,15 @@
         "endpoint": "/atr",
         "period": 14
       },
-      "localTechnicalIndicatorCalculations": false,
-      "refreshSeconds": 60,
-      "estimatedCreditsPerDay": 4320
+      "localTechnicalIndicatorCalculations": true,
+      "refreshSeconds": 0,
+      "estimatedCreditsPerDay": 0
     },
     "strategy": {
-      "name": "TWELVE_DATA_EMA5_EMA20_ATR14_TREND_FIRST_INSTANT_ENTRY",
+      "name": "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
       "minimumClosedCandles": 54,
       "scoreBasedFiltering": false,
-      "entryRule": "EMA5/EMA20 trend alignment and EMA5 slope; trigger immediately when live M1 price action confirms on the trend side of EMA5",
+      "entryRule": "Gemini analyzes 54 closed M1 candles plus current live candle before next M1 opens",
       "guards": [
         "SIDEWAYS_GAP_LT_0_05_ATR",
         "LATE_EXTENSION_GT_1_5_ATR",
