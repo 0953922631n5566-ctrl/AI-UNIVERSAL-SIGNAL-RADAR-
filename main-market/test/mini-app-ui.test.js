@@ -6,9 +6,9 @@ const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8")
 const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Mini App clearly shows signal engine disabled and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
- assert.match(html,/Gemini ถูกนำออกแล้ว/);
+ assert.doesNotMatch(html,/gemini/i);
  assert.match(html,/ปิดการวิเคราะห์สัญญาณแล้ว/);
- assert.doesNotMatch(html,/geminiToggle|geminiStatus|geminiQuota|GEMINI PRIMARY/);
+ assert.doesNotMatch(html,/geminiToggle|geminiStatus|geminiQuota|GEMINI PRIMARY|GEMINI ·/i);
  assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini/);
 });
 test("Mini App still controls Twelve Data monitoring and retains manual lamp",()=>{
