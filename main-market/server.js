@@ -38,7 +38,7 @@ function newFeed(symbol) {
     streamStatus: "WAITING", streamMessage: "รอเชื่อมต่อ Streaming",
     lastRestSyncAt: 0, restSyncPromise: null,
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
-    activeSignal: null, activeUntil: 0, signalCandle: null,
+    activeSignal: null, activeUntil: 0, pendingGeminiSignal: null, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null, lastDiagnosticLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
@@ -195,6 +195,7 @@ function closeUpstream() {
 
 function resetSignal(feed, reason = "รีเซ็ตบริบทสัญญาณ") {
   feed.activeSignal = null;
+  feed.pendingGeminiSignal = null;
   feed.engineActive = { TREND_RIDER: null };
   feed.engineLastDispatchedCandle = { TREND_RIDER: null };
   feed.engineLastDispatchedAlertId = { TREND_RIDER: null };
@@ -242,6 +243,13 @@ async function evaluate(feed) {
     active = null;
     feed.engineActive.TREND_RIDER = null;
   }
+  if (!active && feed.pendingGeminiSignal && now < feed.pendingGeminiSignal.expiresAt) {
+    active = feed.pendingGeminiSignal;
+    feed.pendingGeminiSignal = null;
+    feed.engineActive.TREND_RIDER = active;
+  } else if (feed.pendingGeminiSignal && now >= feed.pendingGeminiSignal.expiresAt) {
+    feed.pendingGeminiSignal = null;
+  }
   const quota = geminiQuotaStatus(now);
   let raw = { signal: "STANDBY", regime: "UNCLEAR", confidence: 0,
     reason: !geminiEnabled ? "Gemini ปิดอยู่ · เปิดสวิตช์ Gemini เพื่อเริ่มวิเคราะห์ทุกแท่ง M1"
@@ -252,9 +260,10 @@ async function evaluate(feed) {
     provider: "GEMINI", strategy: "GEMINI_PRIMARY_EVERY_M1_CANDLE",
     candidateSignal: null, geminiQuota: quota };
 
-  // Opt-in mode: call Gemini on the first fresh live tick of every M1 candle.
+  // Opt-in mode: analyze each source candle even while the prior signal is held.
+  // Keep the prior 30-second display active and queue the next-candle decision separately.
   // analyzeWithGemini deduplicates repeated ticks by source-candle epoch.
-  if (!active && geminiEnabled && sourceReady && remainingMs > 0 && quota.remaining > 0) {
+  if (geminiEnabled && sourceReady && remainingMs > 0 && quota.remaining > 0) {
     raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
     if (raw.indicators) {
       feed.engine3Indicators = {
@@ -271,20 +280,25 @@ async function evaluate(feed) {
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
     if (qualityPass) {
       const targetEpoch = sourceEpoch + 60;
-      if (now < targetEpoch * 1000 && feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
-        active = createNextCandleSignal({
+      const alreadyActiveForTarget = active?.targetCandleEpoch === targetEpoch;
+      const alreadyQueuedForTarget = feed.pendingGeminiSignal?.targetCandleEpoch === targetEpoch;
+      if (now < targetEpoch * 1000 && !alreadyActiveForTarget && !alreadyQueuedForTarget &&
+          feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
+        const candidate = createNextCandleSignal({
           signal: raw.signal, sourceCandleEpoch: sourceEpoch, now,
           entryPrice: feed.lastTick ?? current.close,
           alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + targetEpoch + ":" + raw.signal
         });
-        if (active) {
-          active.engine = "GEMINI"; active.sourceReason = raw.reason;
-          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
-          feed.engineActive.TREND_RIDER = active;
+        if (candidate) {
+          candidate.engine = "GEMINI"; candidate.sourceReason = raw.reason;
+          candidate.confidence = raw.confidence; candidate.regime = raw.regime; candidate.evidence = raw.evidence; candidate.riskFlags = raw.riskFlags;
+          if (active) feed.pendingGeminiSignal = candidate;
+          else { active = candidate; feed.engineActive.TREND_RIDER = active; }
           console.info("[signal] Gemini next-M1 candidate", {
-            symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
-            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence, riskFlags: active.riskFlags || [],
-            expiresAt: new Date(active.expiresAt).toISOString()
+            symbol: feed.symbol, signal: candidate.signal, sourceCandleEpoch: sourceEpoch,
+            targetCandleEpoch: candidate.targetCandleEpoch, queuedBehindActive: Boolean(active && feed.pendingGeminiSignal === candidate),
+            confidence: candidate.confidence, riskFlags: candidate.riskFlags || [],
+            expiresAt: new Date(candidate.expiresAt).toISOString()
           });
         }
       }
@@ -337,7 +351,7 @@ async function evaluate(feed) {
   };
 }
 function dispatchSignalIfReady(feed) {
-  const active = feed.engineActive?.TREND_RIDER;
+  const active = feed.pendingGeminiSignal || feed.engineActive?.TREND_RIDER;
   if (!active || !active.alertId) return;
   const now = Date.now();
   if (!canDispatchNextCandleSignal(active, { now, tickAt: feed.tickAt,
