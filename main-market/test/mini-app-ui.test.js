@@ -7,7 +7,7 @@ const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Mini App exposes native Partial Scoring 54/45 and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
  assert.doesNotMatch(html,/gemini/i);
- assert.match(html,/CALL\/PUT ≥ 59/);
+ assert.match(html,/CALL\/PUT ≥ 54/);
  assert.match(html,/id="scoreStatus"/);
  assert.match(html,/id="indicatorStatus"/);
  assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini|Gemini/);
