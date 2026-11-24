@@ -2387,3 +2387,9 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - This restores the prior 65% evidence threshold, 22-second analysis window, and original candidate prefilter behavior.
 - No changes to Twelve Data source, Gemini primary decision authority, next-M1 targeting, 30-second signal hold, or manual-only/no-broker execution.
 - Rollback is isolated in branch `revert/gemini-frequency-tuning-65-20261124`; merge only after CI passes.
+
+
+## 2026-11-24 — Gemini confidence gate lowered to 35%
+- User requested more frequent CALL/PUT opportunities. On isolated branch `feature/gemini-confidence-35-20261124`, the Gemini release confidence threshold in `main-market/server.js` is changed from 65 to 35.
+- All other release guards remain unchanged: CALL/PUT only, block SIDEWAY/HIGH_VOLATILITY/UNCLEAR, no critical risk flags, maximum two risk flags, and at least two evidence items. Local OHLC prefilter, Twelve Data freshness/data locks, next-M1 timing, per-candle dedupe, 30-second signal hold, Gemini request budget/cache remain unchanged.
+- A 35% confidence threshold is an evidence-strength gate, not a win probability. More frequent releases may increase false positives. Require automated tests/build and Demo/paper-trading observation before real-money use; `SIGNAL_RELEASE_VALIDATED` remains false until out-of-sample validation.
