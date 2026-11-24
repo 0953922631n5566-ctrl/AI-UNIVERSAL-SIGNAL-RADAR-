@@ -166,7 +166,7 @@ async function fetchNativeIndicator({endpoint,field,period,symbol="EUR/USD",inte
  }
  const values=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-requiredValues);
  if(values.length!==requiredValues||values.some((v,i)=>i>0&&v.epoch-values[i-1].epoch!==60)){
-  const e=new Error(`${symbol}: Twelve Data ${endpoint}(${period}) needs four consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;
+  const e=new Error(`${symbol}: Twelve Data ${endpoint}(${period}) needs ${requiredValues} consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;
  }
  return{symbol:body.meta?.symbol||symbol,interval:body.meta?.interval||interval,endpoint,period,values:values.map(v=>({epoch:v.epoch,[field]:v.value})),receivedAt:now,source:`Twelve Data /${endpoint}`};
 }
