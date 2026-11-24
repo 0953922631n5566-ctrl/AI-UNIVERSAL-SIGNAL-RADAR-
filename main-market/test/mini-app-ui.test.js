@@ -27,7 +27,7 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
 test("Backend health metadata declares native scoring with no external AI",()=>{
- assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59"/);
+ assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54"/);
  assert.match(serverJs,/signalGeneration: true/);
  assert.match(serverJs,/externalAiCalls: false/);
  assert.match(serverJs,/callPut: 54/);
