@@ -16,10 +16,12 @@ test("signal cannot be created after the target candle has opened", () => {
   assert.equal(createNextCandleSignal({ signal: "PUT", sourceCandleEpoch: source, now: (source + 60) * 1000 }), null);
 });
 
-test("dispatch is fresh, pre-expiry and deduplicated by target candle", () => {
+test("dispatch is fresh, pre-open and deduplicated by target candle", () => {
   const source = 1_800_000_000, now = source * 1000 + 55_000;
   const active = createNextCandleSignal({ signal: "PUT", sourceCandleEpoch: source, now });
   assert.equal(canDispatchNextCandleSignal(active, { now, tickAt: now - 1000 }), true);
+  assert.equal(canDispatchNextCandleSignal(active, { now: active.targetOpensAt, tickAt: active.targetOpensAt }), false);
+  assert.equal(canDispatchNextCandleSignal(active, { now: active.targetOpensAt - 1, tickAt: active.targetOpensAt - 1 }), true);
   assert.equal(canDispatchNextCandleSignal(active, { now, tickAt: now - 6000 }), false);
   assert.equal(canDispatchNextCandleSignal(active, { now, tickAt: now - 1000, lastDispatchedTargetCandle: source + 60 }), false);
   assert.equal(canDispatchNextCandleSignal(active, { now: active.expiresAt, tickAt: active.expiresAt }), false);
