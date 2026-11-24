@@ -160,7 +160,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
+    signalReleaseStatus: "DISABLED_NO_ANALYZER",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -259,21 +259,8 @@ async function evaluate(feed) {
   };
   return feed.analysis;
 }
-function dispatchSignalIfReady(feed) {
-  const active = feed.pendingGeminiSignal || feed.engineActive?.TREND_RIDER;
-  if (!active || !active.alertId) return;
-  const now = Date.now();
-  if (!canDispatchNextCandleSignal(active, { now, tickAt: feed.tickAt,
-    lastDispatchedTargetCandle: feed.engineLastDispatchedCandle?.TREND_RIDER })) return;
-  feed.engineLastDispatchedAt = now;
-  feed.engineLastDispatchedCandle.TREND_RIDER = active.targetCandleEpoch;
-  feed.engineLastDispatchedAlertId.TREND_RIDER = active.alertId;
-  console.info("[signal] Gemini next-M1 signal available to Telegram Mini App", {
-    alertId: active.alertId, signal: active.signal, symbol: feed.symbol,
-    sourceCandleEpoch: active.sourceCandleEpoch, targetCandleEpoch: active.targetCandleEpoch,
-    targetOpensAt: new Date(active.targetOpensAt).toISOString(),
-    expiresAt: new Date(active.expiresAt).toISOString()
-  });
+function dispatchSignalIfReady(_feed) {
+  // No signal engine is installed; nothing can be dispatched.
 }
 
 function applyTick(feed, price, epoch) {
@@ -776,7 +763,7 @@ app.get("/api/public/signal", (_req, res) => {
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
-      analysisMode: state.analysisMode || "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
+      analysisMode: state.analysisMode || "NO_ANALYSIS",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [42, 60],
@@ -784,7 +771,6 @@ app.get("/api/public/signal", (_req, res) => {
       sourceCandleEpoch: state.sourceCandleEpoch ?? null,
       targetCandleEpoch: state.targetCandleEpoch ?? null,
       signalTargetCandleAt: state.signalTargetCandleAt ?? null,
-      geminiQuota: state.geminiQuota || geminiQuotaStatus(),
       engineResults: state.engineResults || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
