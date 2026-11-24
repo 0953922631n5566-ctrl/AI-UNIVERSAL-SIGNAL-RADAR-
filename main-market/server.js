@@ -43,7 +43,7 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null, lastDiagnosticLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
+    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอคำนวณ EMA9 / EMA21 / ATR14 จาก Twelve Data OHLC" },
     engine3IndicatorsPromise: null,
     engineActive: { TREND_RIDER: null },
     engineLastDispatchedCandle: { TREND_RIDER: null },
@@ -136,7 +136,7 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
-    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
+    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 9, ema20: 21, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
     source: "Twelve Data M1 OHLC + Streaming · Local indicators · Gemini primary analyzer"
   };
 }
@@ -284,7 +284,7 @@ async function evaluate(feed) {
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
     const timingPass = sourceStillLive && decisionTickAgeMs >= 0 &&
       decisionTickAgeMs <= MAX_STREAM_AGE_SECONDS * 1000 &&
-      targetOpensAt - decisionAt >= 1_200;
+      targetOpensAt - decisionAt >= 2_500;
     if (qualityPass && timingPass && feed.engineLastDispatchedCandle?.TREND_RIDER !== sourceEpoch + 60) {
       active = createNextCandleSignal({
         signal: raw.signal, sourceCandleEpoch: sourceEpoch, now: decisionAt,
