@@ -2369,3 +2369,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Mini App home countdown label changed from next candle to entry candle; Engine 3 native indicator diagnostics and API pool status remain.
 - Warm-up remains 54 completed M1 candles (50 context + 4 latest entry candles); this is fetched from Twelve Data REST at Start, not a 54-minute wait after opening.
 - Pending at documentation time: CI/test results, PR merge, Render deployment, health/public signal checks, and Telegram Mini App device confirmation. No win-rate or profitability claim; paper-test first.
+
+
+### 2026-11-24 — Gemini signal-frequency tuning (isolated pending validation)
+- User requested more frequent CALL/PUT opportunities on Main Market.
+- Isolated branch: `tune/gemini-signal-frequency-20261124`; production branch `main-market` remains unchanged until CI/review.
+- Loosened only the inexpensive candidate prefilter: EMA trend + live-price side remain required, but MACD or RSI momentum may confirm (rather than requiring both); EMA gap minimum 0.015 ATR; live body minimum 0.04; extension cap 1.7 ATR; abnormal-range guard remains (3.0 ATR).
+- Expanded Gemini pre-open analysis window from 22s to 30s and lowered the evidence-strength qualification threshold from 65 to 58. Critical risk flags, valid OHLC, fresh live tick, 54-candle warmup, one request per source candle, 30s hold, next-M1 targeting, and manual-only/no-broker execution remain.
+- Gemini daily request budget remains 60; no repeated per-tick requests are added. This caps cost but also limits maximum signal opportunities.
+- Added regression coverage for a moderate trend setup accepted by the adaptive prefilter.
+- Pending: run complete tests/syntax checks, inspect CI, review PR, deploy only after checks pass, then compare signal frequency and false positives in Demo/paper testing. No accuracy/profitability claim.
