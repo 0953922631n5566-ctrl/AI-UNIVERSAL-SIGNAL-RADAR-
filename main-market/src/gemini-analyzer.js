@@ -71,6 +71,46 @@ export function buildTechnicalIndicators(candles, liveCandle = null) {
     fourCandleNetChange: recent.length > 1 ? recent.at(-1).close - recent[0].open : null
   };
 }
+/**
+ * Cheap local OHLC prefilter. It does not choose the signal; it only decides
+ * whether the current M1 snapshot is worth spending one Gemini request on.
+ */
+export function shouldRequestGemini({ closedCandles, liveCandle } = {}) {
+  if (!Array.isArray(closedCandles) || closedCandles.length < 54 ||
+      !liveCandle || liveCandle.live !== true) {
+    return { eligible: false, reason: "ข้อมูลแท่ง M1 ไม่ครบหรือไม่มีแท่ง Streaming ปัจจุบัน", indicators: null };
+  }
+  const indicators = buildTechnicalIndicators(closedCandles, liveCandle);
+  const { ema9, ema21, rsi14, macd, atr14 } = indicators;
+  if (![ema9, ema21, rsi14, macd, atr14].every(Number.isFinite) || atr14 <= 0) {
+    return { eligible: false, reason: "Indicator ในเครื่องยังไม่พร้อม", indicators };
+  }
+  const gapAtr = Math.abs(ema9 - ema21) / atr14;
+  const liveRange = liveCandle.high - liveCandle.low;
+  if (gapAtr < 0.015) return { eligible: false, reason: "กรองช่วง EMA แบน/ตลาดไร้ทิศทาง", indicators, gapAtr };
+  if (liveRange > atr14 * 2.8) return { eligible: false, reason: "กรองแท่งผิดปกติและความผันผวนสูง", indicators, gapAtr };
+
+  const upTrend = ema9 > ema21;
+  const downTrend = ema9 < ema21;
+  const bullishPrice = liveCandle.close >= liveCandle.open ||
+    liveCandle.close > (indicators.previousClose ?? liveCandle.open);
+  const bearishPrice = liveCandle.close <= liveCandle.open ||
+    liveCandle.close < (indicators.previousClose ?? liveCandle.open);
+  const bullishMomentum = (macd >= 0 ? 1 : 0) + (rsi14 >= 47 && rsi14 <= 76 ? 1 : 0);
+  const bearishMomentum = (macd <= 0 ? 1 : 0) + (rsi14 >= 24 && rsi14 <= 53 ? 1 : 0);
+  const bullishVotes = (upTrend ? 1 : 0) + (bullishPrice ? 1 : 0) + bullishMomentum;
+  const bearishVotes = (downTrend ? 1 : 0) + (bearishPrice ? 1 : 0) + bearishMomentum;
+  const eligible = (upTrend && bullishVotes >= 3) || (downTrend && bearishVotes >= 3);
+  return {
+    eligible,
+    candidate: bullishVotes > bearishVotes ? "CALL" : bearishVotes > bullishVotes ? "PUT" : null,
+    reason: eligible ? "พบแนวโน้มและโมเมนตัมเบื้องต้นตรงกัน" : "ยังไม่พบจังหวะที่คุ้มค่าเรียก Gemini",
+    indicators,
+    votes: { bullish: bullishVotes, bearish: bearishVotes },
+    gapAtr
+  };
+}
+
 export function hasCriticalRiskFlags(flags = []) {
   const critical = /high[\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
   return Array.isArray(flags) && flags.some(flag => typeof flag === "string" && critical.test(flag));
