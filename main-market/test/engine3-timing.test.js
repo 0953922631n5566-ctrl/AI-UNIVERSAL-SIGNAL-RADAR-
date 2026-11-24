@@ -11,8 +11,10 @@ test("Gemini analyzes the live source M1 candle and targets the following candle
   assert.match(server, /active\.targetOpensAt/);
   assert.match(server, /active\.expiresAt/);
 });
-test("Gemini requests are scheduled in the final 18 seconds and use one signal per target M1", () => {
+test("Gemini requests are scheduled in the final 18 seconds only after local setup filtering", () => {
   assert.match(server, /remainingMs <= 18_000 && remainingMs > 0/);
+  assert.match(server, /shouldRequestGemini\(\{ closedCandles: closed, liveCandle: current \}\)/);
+  assert.match(server, /targetOpensAt - decisionAt >= 1_200/);
   assert.match(server, /engineLastDispatchedCandle\?\.TREND_RIDER !== targetEpoch/);
   assert.match(server, /lastDispatchedTargetCandle: feed\.engineLastDispatchedCandle\?\.TREND_RIDER/);
   assert.match(server, /feed\.engineLastDispatchedCandle\.TREND_RIDER = active\.targetCandleEpoch/);
