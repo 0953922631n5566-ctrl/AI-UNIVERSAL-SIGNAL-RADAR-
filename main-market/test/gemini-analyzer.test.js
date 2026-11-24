@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, geminiQuotaStatus } from "../src/gemini-analyzer.js";
+import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, geminiQuotaStatus, hasCriticalRiskFlags } from "../src/gemini-analyzer.js";
 
 function candles(count = 54) {
   const start = Math.floor(Date.now() / 60000) * 60 - count * 60;
@@ -74,6 +74,12 @@ test("missing API key fails closed and does not invent a direction", async () =>
   const result = await analyzeWithGemini({ symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(Math.floor(Date.now() / 60000) * 60) });
   assert.equal(result.signal, "STANDBY");
   assert.match(result.reason, /GEMINI_API_KEY/);
+});
+
+test("risk gate allows ordinary caution flags but blocks critical market/data risks", () => {
+  assert.equal(hasCriticalRiskFlags(["price near resistance", "minor pullback"]), false);
+  assert.equal(hasCriticalRiskFlags(["high volatility"]), true);
+  assert.equal(hasCriticalRiskFlags(["ข้อมูลไม่ครบ"]), true);
 });
 
 test("one request budget is tracked per UTC day and can be configured", () => {
