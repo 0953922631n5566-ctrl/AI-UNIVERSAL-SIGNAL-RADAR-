@@ -38,11 +38,11 @@ function ema(values, period) {
 function rsi(values, period = 14) {
   if (values.length <= period) return null;
   let gain = 0, loss = 0;
-  for (let i = 1; i < values.length; i++) {
+  const start = Math.max(1, values.length - period);
+  for (let i = start; i < values.length; i++) {
     const delta = values[i] - values[i - 1];
-    const weight = i <= period ? 1 / period : 1 / period;
-    gain += Math.max(delta, 0) * weight;
-    loss += Math.max(-delta, 0) * weight;
+    gain += Math.max(delta, 0);
+    loss += Math.max(-delta, 0);
   }
   if (loss === 0) return gain === 0 ? 50 : 100;
   return 100 - 100 / (1 + gain / loss);
@@ -155,7 +155,7 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
       status: error.status || null, message: error.message });
     const result = standby("Gemini วิเคราะห์ไม่สำเร็จ: " + error.message, { providerStatus: error.status === 429 ? "RATE_LIMIT" : "ERROR",
       indicators, sourceCandleEpoch: sourceEpoch, targetCandleEpoch: sourceEpoch + 60 });
-    cache.set(cacheKey, { result, expiresAt: Date.now() + 15_000 });
+    cache.set(cacheKey, { result, expiresAt: Date.now() + SUCCESS_CACHE_MS });
     return result;
   }).finally(() => inFlight.delete(cacheKey));
   inFlight.set(cacheKey, promise);
