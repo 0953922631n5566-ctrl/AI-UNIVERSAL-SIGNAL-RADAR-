@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { scoreMarket } from "../src/advanced-scoring.js";
+import { scoreMarket, classifyPartialScore } from "../src/advanced-scoring.js";
 function fixture(count=54){
  const start=Math.floor(Date.now()/60000)*60-count*60;const candles=[];let previous=1.08;
  for(let i=0;i<count;i++){const open=previous,close=open+0.0001,epoch=start+i*60;candles.push({epoch,open,high:close+0.00005,low:open-0.00005,close,live:false});previous=close;}
@@ -28,4 +28,12 @@ test("choppy kill switch suppresses CALL/PUT",()=>{
 });
 test("abnormal ATR range suppresses CALL/PUT",()=>{
  const c=fixture();c.at(-1).high+=0.002;const r=scoreMarket(c,native(c));assert.equal(r.signal,"STANDBY");assert.ok(r.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
+});
+
+test("59 is the exact CALL/PUT release boundary; 45-58 stays PREPARE",()=>{
+ assert.deepEqual(classifyPartialScore(58,"CALL"),{signal:"PREPARE",status:"PREPARE"});
+ assert.deepEqual(classifyPartialScore(59,"CALL"),{signal:"CALL",status:"SIGNAL"});
+ assert.deepEqual(classifyPartialScore(59,"PUT"),{signal:"PUT",status:"SIGNAL"});
+ assert.deepEqual(classifyPartialScore(100,"CALL",true),{signal:"STANDBY",status:"STANDBY"});
+ assert.deepEqual(classifyPartialScore(44,"PUT"),{signal:"STANDBY",status:"STANDBY"});
 });
