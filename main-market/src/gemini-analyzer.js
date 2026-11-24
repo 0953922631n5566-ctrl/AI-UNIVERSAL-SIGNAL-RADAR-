@@ -108,59 +108,19 @@ export function assessGeminiSetup(closedCandles, liveCandle) {
   const gapAtr = Math.abs(indicators.ema9 - indicators.ema21) / atr;
   const extensionAtr = Math.abs(liveCandle.close - indicators.ema9) / atr;
   const metrics = { gapAtr, extensionAtr, bodyRatio };
-  if (gapAtr < 0.025) return { eligible: false, direction: null, reason: "ตลาดแคบ · EMA9/21 ยังไม่แยกทิศทาง", indicators, metrics };
+  if (gapAtr < 0.018) return { eligible: false, direction: null, reason: "ตลาดแคบ · EMA9/21 ยังไม่แยกทิศทาง", indicators, metrics };
   if (range > atr * 2.8) return { eligible: false, direction: null, reason: "แท่งปัจจุบันผันผวนเกิน ATR · รอจังหวะใหม่", indicators, metrics };
-  if (extensionAtr > 1.5) return { eligible: false, direction: null, reason: "ราคาออกห่าง EMA9 มากเกินไป · ไม่ไล่ราคา", indicators, metrics };
-  if (bodyRatio < 0.08) return { eligible: false, direction: null, reason: "แรงของแท่งปัจจุบันยังไม่ชัด", indicators, metrics };
+  if (extensionAtr > 1.8) return { eligible: false, direction: null, reason: "ราคาออกห่าง EMA9 มากเกินไป · ไม่ไล่ราคา", indicators, metrics };
+  if (bodyRatio < 0.05) return { eligible: false, direction: null, reason: "แรงของแท่งปัจจุบันยังไม่ชัด", indicators, metrics };
   const call = indicators.ema9 > indicators.ema21 && liveCandle.close > indicators.ema9 &&
-    indicators.macdHistogram > 0 && indicators.rsi14 >= 50 && indicators.rsi14 <= 76;
+    indicators.macdHistogram > 0 && indicators.rsi14 >= 48 && indicators.rsi14 <= 78;
   const put = indicators.ema9 < indicators.ema21 && liveCandle.close < indicators.ema9 &&
-    indicators.macdHistogram < 0 && indicators.rsi14 <= 50 && indicators.rsi14 >= 24;
+    indicators.macdHistogram < 0 && indicators.rsi14 <= 52 && indicators.rsi14 >= 22;
   const direction = call ? "CALL" : put ? "PUT" : null;
   return {
     eligible: Boolean(direction), direction, indicators,
     reason: direction ? "พบจังหวะ " + direction + " เบื้องต้น · ส่งให้ Gemini ตรวจยืนยัน" : "ทิศทาง EMA, MACD, RSI ยังไม่สอดคล้อง",
     metrics
-  };
-}
-
-/**
- * Cheap local OHLC prefilter. It does not choose the signal; it only decides
- * whether the current M1 snapshot is worth spending one Gemini request on.
- */
-export function shouldRequestGemini({ closedCandles, liveCandle } = {}) {
-  if (!Array.isArray(closedCandles) || closedCandles.length < 54 ||
-      !liveCandle || liveCandle.live !== true) {
-    return { eligible: false, reason: "ข้อมูลแท่ง M1 ไม่ครบหรือไม่มีแท่ง Streaming ปัจจุบัน", indicators: null };
-  }
-  const indicators = buildTechnicalIndicators(closedCandles, liveCandle);
-  const { ema9, ema21, rsi14, macd, atr14 } = indicators;
-  if (![ema9, ema21, rsi14, macd, atr14].every(Number.isFinite) || atr14 <= 0) {
-    return { eligible: false, reason: "Indicator ในเครื่องยังไม่พร้อม", indicators };
-  }
-  const gapAtr = Math.abs(ema9 - ema21) / atr14;
-  const liveRange = liveCandle.high - liveCandle.low;
-  if (gapAtr < 0.015) return { eligible: false, reason: "กรองช่วง EMA แบน/ตลาดไร้ทิศทาง", indicators, gapAtr };
-  if (liveRange > atr14 * 2.8) return { eligible: false, reason: "กรองแท่งผิดปกติและความผันผวนสูง", indicators, gapAtr };
-
-  const upTrend = ema9 > ema21;
-  const downTrend = ema9 < ema21;
-  const bullishPrice = liveCandle.close >= liveCandle.open ||
-    liveCandle.close > (indicators.previousClose ?? liveCandle.open);
-  const bearishPrice = liveCandle.close <= liveCandle.open ||
-    liveCandle.close < (indicators.previousClose ?? liveCandle.open);
-  const bullishMomentum = (macd >= 0 ? 1 : 0) + (rsi14 >= 47 && rsi14 <= 76 ? 1 : 0);
-  const bearishMomentum = (macd <= 0 ? 1 : 0) + (rsi14 >= 24 && rsi14 <= 53 ? 1 : 0);
-  const bullishVotes = (upTrend ? 1 : 0) + (bullishPrice ? 1 : 0) + bullishMomentum;
-  const bearishVotes = (downTrend ? 1 : 0) + (bearishPrice ? 1 : 0) + bearishMomentum;
-  const eligible = (upTrend && bullishVotes >= 3) || (downTrend && bearishVotes >= 3);
-  return {
-    eligible,
-    candidate: bullishVotes > bearishVotes ? "CALL" : bearishVotes > bullishVotes ? "PUT" : null,
-    reason: eligible ? "พบแนวโน้มและโมเมนตัมเบื้องต้นตรงกัน" : "ยังไม่พบจังหวะที่คุ้มค่าเรียก Gemini",
-    indicators,
-    votes: { bullish: bullishVotes, bearish: bearishVotes },
-    gapAtr
   };
 }
 
