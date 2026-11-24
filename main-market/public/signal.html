@@ -137,7 +137,7 @@ function closeMenu(){ $("drawer").hidden=true;$("backdrop").hidden=true; }
 $("menuButton").addEventListener("click",openMenu);$("closeMenu").addEventListener("click",closeMenu);$("backdrop").addEventListener("click",closeMenu);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")poll();});
 try{tg?.ready?.();tg?.expand?.();}catch{}
-autoStart();setInterval(()=>{if(!bootStartCompleted)autoStart();},5000);setInterval(poll,1200);setInterval(()=>{if(latest.nextCandleAt)$("candle").textContent=countdown(latest.nextCandleAt);if(latest.signalExpiresAt)$("expiry").textContent=countdown(latest.signalExpiresAt);},250);
+autoStart();setInterval(()=>{if(!bootStartCompleted)autoStart();},5000);setInterval(poll,500);setInterval(()=>{const isSignal=["CALL","PUT"].includes(latest.signal)&&latest.signalTargetCandleAt;const target=timeMs(latest.signalTargetCandleAt);if(isSignal){const opened=Number.isFinite(target)&&Date.now()>=target;$("candleLabel").textContent=opened?"แท่งเป้าหมายเปิดแล้ว · M1":"เข้าแท่งเป้าหมายใน · M1";$("candle").textContent=countdown(opened?latest.signalExpiresAt:latest.signalTargetCandleAt);}else if(latest.nextCandleAt){$("candleLabel").textContent="แท่งถัดไปเริ่มใน · M1";$("candle").textContent=countdown(latest.nextCandleAt);}if(latest.signalExpiresAt)$("expiry").textContent=countdown(latest.signalExpiresAt);},250);
 </script>
 </body>
 </html>
