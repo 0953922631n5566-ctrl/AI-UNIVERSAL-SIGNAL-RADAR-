@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeWithGemini, geminiQuotaStatus } from "./src/gemini-analyzer.js";
+import { analyzeWithGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
 import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
@@ -259,7 +259,7 @@ async function evaluate(feed) {
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
       Number(raw.confidence) >= 65 &&
       !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
-      Array.isArray(raw.riskFlags) && raw.riskFlags.length === 0 &&
+      Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
     if (qualityPass) {
       const targetEpoch = sourceEpoch + 60;
@@ -271,11 +271,11 @@ async function evaluate(feed) {
         });
         if (active) {
           active.engine = "GEMINI"; active.sourceReason = raw.reason;
-          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence;
+          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
           feed.engineActive.TREND_RIDER = active;
           console.info("[signal] Gemini next-M1 candidate", {
             symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
-            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence,
+            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence, riskFlags: active.riskFlags || [],
             expiresAt: new Date(active.expiresAt).toISOString()
           });
         }
@@ -286,7 +286,7 @@ async function evaluate(feed) {
   const isActive = Boolean(active && now < active.expiresAt);
   const signal = isActive ? active.signal : "STANDBY";
   const reason = isActive
-    ? "GEMINI " + active.signal + " · สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาทีหลังแท่งเป้าหมายเปิด"
+    ? "GEMINI " + active.signal + " · สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาทีหลังแท่งเป้าหมายเปิด" + (active.riskFlags?.length ? " · ระวัง: " + active.riskFlags.join(" / ") : "")
     : raw.reason || "รอจังหวะวิเคราะห์ก่อนแท่ง M1 ถัดไป";
   const engineResult = { ...raw, engine: "GEMINI", candidateSignal: raw.signal,
     active: isActive, signal, status: isActive ? "SIGNAL" : raw.signal === "STANDBY" ? "WATCH" : "FILTERED",
