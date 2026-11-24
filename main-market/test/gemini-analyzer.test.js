@@ -116,10 +116,12 @@ test("missing API key fails closed and does not invent a direction", async () =>
   assert.match(result.reason, /GEMINI_API_KEY/);
 });
 
-test("risk gate allows ordinary caution flags but blocks critical market/data risks", () => {
+test("higher-frequency policy treats market regime and ordinary cautions as advisory, but blocks bad data", () => {
   assert.equal(hasCriticalRiskFlags(["price near resistance", "minor pullback"]), false);
-  assert.equal(hasCriticalRiskFlags(["high volatility"]), true);
+  assert.equal(hasCriticalRiskFlags(["high volatility", "sideways"]), false);
+  assert.equal(hasCriticalRiskFlags(["late entry", "overextended"]), false);
   assert.equal(hasCriticalRiskFlags(["ข้อมูลไม่ครบ"]), true);
+  assert.equal(hasCriticalRiskFlags(["stale price"]), true);
 });
 
 test("one request budget is tracked per UTC day and can be configured", () => {
