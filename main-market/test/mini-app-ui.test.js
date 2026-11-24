@@ -11,7 +11,7 @@ test("Mini App is minimal on the home screen and keeps controls in the menu",()=
  assert.ok(drawerStart>0);
  const home=body.slice(0,drawerStart),drawer=body.slice(drawerStart);
  for(const id of ["api","price","age","lampShell","signal","hint","candle","expiry","menuButton"])assert.match(home,new RegExp('id="'+id+'"'));
- for(const id of ["monitorToggle","soundEnable","engineSignal","ema5","ema20","atr14","apiKeys","reason","trendCard","manualLampToggle","manualLampStatus"])assert.match(drawer,new RegExp('id="'+id+'"'));
+ for(const id of ["monitorToggle","soundEnable","engineSignal","ema5","ema20","atr14","geminiQuota","geminiStatus","geminiToggle","apiKeys","reason","trendCard","manualLampToggle","manualLampStatus"])assert.match(drawer,new RegExp('id="'+id+'"'));
  assert.match(home,/EUR \/ USD/);
  assert.doesNotMatch(home,/GEMINI PRIMARY|EMA 9|SOUND & HAPTICS|CONTROL CENTER|API POOL STATUS/);
 });
@@ -19,7 +19,7 @@ test("Mini App automatically authenticates and starts monitoring",()=>{
  assert.match(html,/async function autoStart\(\)/);
  assert.match(html,/await control\("start"\)/);
  assert.match(html,/\/api\/telegram\/session/);
- assert.match(serverJs,/if \(action === "start"\)/);
+ assert.match(serverJs,/if \(action === "start"\)/);\n assert.match(serverJs,/action === "gemini_on"/);\n assert.match(serverJs,/action === "gemini_off"/);
 });
 test("Mini App reuses session and supports manual stop/restart",()=>{
  assert.match(html,/function ensureAuth\(\)\{if\(token\)return Promise\.resolve\(\)/);
@@ -31,11 +31,11 @@ test("Mini App exposes Gemini and local OHLC diagnostics",()=>{
  assert.match(html,/GEMINI PRIMARY · NEXT M1/);
  assert.match(html,/EMA 9 · Local OHLC/);
  assert.match(html,/signalRadarManualLampColor/);
- assert.match(serverJs,/analyzeWithGemini/);
+ assert.match(serverJs,/analyzeWithGemini/);\n assert.match(html,/id="geminiToggle"/);\n assert.match(html,/id="geminiStatus"/);\n assert.match(html,/const action=latest\.geminiEnabled\?"gemini_off":"gemini_on"/);
  assert.doesNotMatch(serverJs,/fetchTrendEma5|fetchEma20|fetchAtr14/);
 });
 test("Mini App displays next-M1 target and retains sound/haptics",()=>{
- assert.match(serverJs,/signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S"/);
+ assert.match(serverJs,/signalTimingMode: "NEXT_M1_TARGET_EVERY_SOURCE_CANDLE_HOLD_30S"/);
  assert.match(serverJs,/targetCandleEpoch: active\.targetCandleEpoch/);
  assert.match(html,/function notify\(/);
  assert.match(html,/signalExpiresAt/);
