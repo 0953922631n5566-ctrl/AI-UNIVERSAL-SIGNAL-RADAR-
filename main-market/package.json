@@ -25,18 +25,11 @@
     "decisionAuthority": "GEMINI_PRIMARY_ONLY",
     "indicators": {
       "provider": "Twelve Data M1 OHLC + Streaming; Gemini Flash for direction",
-      "emaFast": {
-        "endpoint": "/ema",
-        "period": 5
-      },
-      "emaTrend": {
-        "endpoint": "/ema",
-        "period": 20
-      },
-      "atr": {
-        "endpoint": "/atr",
-        "period": 14
-      },
+      "emaFast": { "source": "LOCAL_OHLC", "period": 9 },
+      "emaTrend": { "source": "LOCAL_OHLC", "period": 21 },
+      "rsi": { "source": "LOCAL_OHLC", "period": 14 },
+      "macd": { "source": "LOCAL_OHLC" },
+      "atr": { "source": "LOCAL_OHLC", "period": 14 },
       "localTechnicalIndicatorCalculations": true,
       "refreshSeconds": 0,
       "estimatedCreditsPerDay": 0
