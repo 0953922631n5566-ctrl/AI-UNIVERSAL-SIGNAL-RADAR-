@@ -2402,3 +2402,13 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - The Mini App shows Gemini ON/OFF state, a dedicated toggle, and remaining daily quota. Default daily Gemini budget remains 60 requests (configurable with `GEMINI_MAX_REQUESTS_PER_DAY`); enabling Gemini does not override provider quota/rate limits. If quota is exhausted or Gemini errors, the system stays STANDBY and does not fabricate CALL/PUT.
 - Turning Gemini OFF clears any pending active signal and prevents further Gemini calls. Turning it ON schedules analysis immediately for the current live candle when monitoring is already running.
 - Pending: full tests, syntax checks, PR review, Render deployment and live verification. Do not tell the user it is available until the production deploy and API/UI checks pass.
+
+
+## 2026-11-24 — Higher-frequency Gemini signal release policy
+
+- User requested more frequent CALL/PUT opportunities, potentially on most M1 candles.
+- Isolated implementation branch: `feature/gemini-higher-frequency-signals-20261124` (PR and deployment status to be recorded after CI/merge).
+- Gemini prompt now evaluates trend, range and reversal setups and does not treat SIDEWAY/HIGH_VOLATILITY or ordinary caution flags as automatic reasons for STANDBY.
+- Signal release gate relaxed from confidence 35 to 20, up to 4 ordinary risk flags, and at least 1 evidence item. Hard data-integrity blockers (stale/missing/insufficient/invalid data) remain blocked.
+- Gemini remains one request per live M1 source candle when manually enabled. Default daily request budget remains 60; this change increases signal acceptance, not API request volume. One request per minute can consume the 60-call budget in about one hour of continuous use.
+- No claim of improved win rate or profitability. Higher signal frequency can increase false positives; paper/demo validation is required before any real-money use.
