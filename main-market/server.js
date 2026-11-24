@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeWithGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
+import { analyzeWithGemini, assessGeminiSetup, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
 import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
@@ -27,7 +27,10 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
 const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
-const VERSION = "2026-11-24-gemini-primary-next-m1-quota-guard-v1";
+const VERSION = "2026-11-24-gemini-primary-next-m1-adaptive-prefilter-v2";
+const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22);
+const GEMINI_ANALYSIS_WINDOW_MS = (Number.isFinite(configuredGeminiWindowSeconds)
+  ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 22) * 1000;
 const app = express();
 const server = http.createServer(app);
 
@@ -239,14 +242,23 @@ async function evaluate(feed) {
     active = null;
     feed.engineActive.TREND_RIDER = null;
   }
+  const setup = sourceReady ? assessGeminiSetup(closed, current)
+    : { eligible: false, direction: null, reason: "รอข้อมูล Twelve Data M1 สดและแท่งปิดครบ 54 แท่ง", indicators: null };
+  const quota = geminiQuotaStatus(now);
   let raw = { signal: "STANDBY", regime: "UNCLEAR", confidence: 0,
-    reason: !sourceReady ? "รอข้อมูล Twelve Data M1 สดและแท่งปิดครบ 54 แท่ง"
-      : remainingMs > 18_000 ? "กำลังเฝ้าดูแท่งปัจจุบัน · จะวิเคราะห์ก่อนเริ่มแท่งถัดไป"
-      : "รอผลวิเคราะห์ Gemini", evidence: [], riskFlags: [], indicators: null,
-    provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1" };
+    reason: !sourceReady ? setup.reason
+      : !setup.eligible ? setup.reason
+      : remainingMs > GEMINI_ANALYSIS_WINDOW_MS ? "พบจังหวะเบื้องต้น · รอหน้าต่างยืนยัน Gemini ก่อนแท่งถัดไป"
+      : quota.remaining <= 0 ? "ถึงงบ Gemini รายวันที่กำหนด · รอรีเซ็ต UTC"
+      : "กำลังรอผลยืนยันจาก Gemini",
+    evidence: [], riskFlags: [], indicators: setup.indicators || null,
+    provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1",
+    candidateSignal: setup.direction, geminiQuota: quota, setupMetrics: setup.metrics || null };
 
-  // One Gemini request per source candle, launched in the final 18 seconds.
-  if (!active && sourceReady && remainingMs <= 18_000 && remainingMs > 0) {
+  // Local calculations reuse the existing Twelve Data stream. Gemini is called
+  // only for a plausible setup, once per source candle, inside the pre-open window.
+  if (!active && sourceReady && setup.eligible &&
+      remainingMs <= GEMINI_ANALYSIS_WINDOW_MS && remainingMs > 0 && quota.remaining > 0) {
     raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
     if (raw.indicators) {
       feed.engine3Indicators = {
@@ -319,12 +331,13 @@ async function evaluate(feed) {
     sourceCandleEpoch: isActive ? active.sourceCandleEpoch : sourceEpoch,
     targetCandleEpoch: isActive ? active.targetCandleEpoch : (sourceEpoch === null ? null : sourceEpoch + 60),
     entryPrice: isActive ? active.entryPrice : null,
-    signalTimingWindowSeconds: [42, 60], signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+    signalTimingWindowSeconds: [60 - GEMINI_ANALYSIS_WINDOW_MS / 1000, 60], signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
     indicatorSource: "TWELVE_DATA_M1_OHLC_LOCAL_INDICATORS",
     analysisMode: "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
     liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution",
-    geminiQuota: geminiQuotaStatus(now)
+    geminiAnalysisWindowSeconds: GEMINI_ANALYSIS_WINDOW_MS / 1000,
+    geminiQuota: geminiQuotaStatus(now),
+    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution"
   };
 }
 function dispatchSignalIfReady(feed) {
@@ -921,7 +934,7 @@ app.get("/health", (_req, res) => {
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       geminiPrimary: { soleDecisionEngine: true, model: process.env.GEMINI_MODEL || "gemini-2.5-flash", minimumClosedCandles: MIN_CLOSED_CANDLES, currentLiveCandleIncluded: true, localIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], dailyRequestBudget: geminiQuotaStatus().dailyBudget, guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"] },
-      gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Analyze live source candle in final 18 seconds and target the immediately following M1 candle", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Local OHLC prefilter runs on stream ticks; Gemini is called only for aligned EMA/MACD/RSI/live-candle setups during the final configurable pre-open window and targets the immediately following M1 candle", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "GEMINI_PRIMARY" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       signalDecisionPath: "GEMINI_PRIMARY_NEXT_M1_PREOPEN_SIGNAL"

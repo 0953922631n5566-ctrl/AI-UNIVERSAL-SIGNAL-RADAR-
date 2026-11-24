@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeWithGemini, buildTechnicalIndicators, clearGeminiAnalysisCache, geminiQuotaStatus, hasCriticalRiskFlags } from "../src/gemini-analyzer.js";
+import { analyzeWithGemini, assessGeminiSetup, buildTechnicalIndicators, clearGeminiAnalysisCache, geminiQuotaStatus, hasCriticalRiskFlags } from "../src/gemini-analyzer.js";
 
 function candles(count = 54) {
   const start = Math.floor(Date.now() / 60000) * 60 - count * 60;
@@ -27,9 +27,37 @@ function mockFetch(signal = "CALL", confidence = 77) {
 
 test("technical indicators are calculated locally from Twelve Data OHLC", () => {
   const values = buildTechnicalIndicators(candles(), live(Math.floor(Date.now() / 60000) * 60));
-  for (const key of ["ema9", "ema21", "ema50", "rsi14", "macd", "atr14", "support20", "resistance20"]) {
+  for (const key of ["ema9", "ema21", "ema50", "rsi14", "macd", "macdSignal", "macdHistogram", "atr14", "support20", "resistance20"]) {
     assert.ok(Number.isFinite(values[key]), key);
   }
+});
+
+test("local prefilter suppresses weak or sideways setups before any Gemini request", () => {
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const flat = Array.from({ length: 54 }, (_, i) => ({
+    epoch: sourceEpoch - (54 - i) * 60, open: 1.08, high: 1.0801, low: 1.0799, close: 1.08, live: false
+  }));
+  const result = assessGeminiSetup(flat, { epoch: sourceEpoch, open: 1.08, high: 1.0801, low: 1.0799, close: 1.08, live: true });
+  assert.equal(result.eligible, false);
+  assert.equal(result.direction, null);
+});
+
+test("local prefilter marks a candidate only when trend, momentum and live candle align", () => {
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const history = [];
+  let close = 1.08;
+  for (let i = 0; i < 54; i++) {
+    const open = close;
+    close = 1.08 + i * 0.00001 + Math.sin(i * 1.1) * 0.00008;
+    history.push({ epoch: sourceEpoch - (54 - i) * 60, open, high: Math.max(open, close) + 0.00001, low: Math.min(open, close) - 0.00001, close, live: false });
+  }
+  const open = close;
+  const liveClose = open + 0.00002;
+  const liveCandle = { epoch: sourceEpoch, open, high: liveClose + 0.00001, low: open - 0.00001, close: liveClose, live: true };
+  const result = assessGeminiSetup(history, liveCandle);
+  assert.equal(result.eligible, true);
+  assert.equal(result.direction, "CALL");
+  assert.ok(Number.isFinite(result.indicators.macdHistogram));
 });
 
 test("Gemini analyzes the current live candle and explicitly targets the next M1 candle", async () => {
