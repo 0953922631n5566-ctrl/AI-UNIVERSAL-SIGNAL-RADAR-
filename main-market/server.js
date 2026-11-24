@@ -235,7 +235,7 @@ async function evaluate(feed) {
  const restFallback=feed.restStatus==="READY"&&!freshTick;
  const sourceReady=closed.length>=30&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
  const raw=sourceReady
-  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14})
+  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14,liveCandle:current?.live===true?current:null,requireLiveConfirmation:true})
   : {ready:false,signal:null,score:0,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด"};
  const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
  if(!candidate&&sourceEpoch!==null&&feed.lastDiagnosticLoggedCandle!==sourceEpoch){
