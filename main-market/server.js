@@ -26,7 +26,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
 const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
-const VERSION = "2026-11-23-engine3-twelvedata-native-indicators-v1";
+const VERSION = "2026-11-24-engine3-lag-aware-continuation-t10-v2";
 const app = express();
 const server = http.createServer(app);
 
@@ -39,7 +39,7 @@ function newFeed(symbol) {
     analysis: standby("กดเริ่มสแกนเพื่อเชื่อมต่อข้อมูล"),
     activeSignal: null, activeUntil: 0, signalCandle: null,
     signalSourceCandle: null, signalTriggeredAt: 0, preAlertStatus: null,
-    lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null,
+    lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null, lastDiagnosticLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
     engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
@@ -238,6 +238,10 @@ async function evaluate(feed) {
   ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14})
   : {ready:false,signal:null,score:0,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด"};
  const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
+ if(!candidate&&sourceEpoch!==null&&feed.lastDiagnosticLoggedCandle!==sourceEpoch){
+  feed.lastDiagnosticLoggedCandle=sourceEpoch;
+  console.info("[engine3] candidate blocked",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,status:raw.status,score:raw.score,scoreUp:raw.scoreUp,scoreDown:raw.scoreDown,blockers:raw.blockers||[],indicatorLagCandles:raw.metrics?.indicatorLagCandles??null});
+ }
  const prepare=sourceEpoch!==null&&isPrepareAlertWindow(sourceEpoch,now)&&Boolean(candidate);
  feed.preAlertStatus=prepare?"PREPARE_ALERT":null;
  feed.preAlertCandle=prepare?targetEpoch:null;
@@ -258,7 +262,7 @@ async function evaluate(feed) {
  }
  const isActive=Boolean(active&&now<active.expiresAt);
  const signal=isActive?active.signal:"STANDBY";
- const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-15 · Trend Rider "+candidate+" · รอยืนยัน T-5"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
+ const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-15 · Trend Rider "+candidate+" · รอยืนยัน T-10"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
  const engineResult={...raw,engine:"TREND_RIDER",candidateSignal:candidate,active:isActive,signal,
   status:isActive?"SIGNAL":candidate?"WATCH":raw.status,reason:isActive?reason:raw.reason,
   alertId:isActive?active.alertId:null,signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
@@ -280,7 +284,7 @@ async function evaluate(feed) {
   signalTriggeredAt:isActive?new Date(active.triggeredAt).toISOString():null,
   signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
   signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null,
-  signalTimingWindowSeconds:[5,0],indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
+  signalTimingWindowSeconds:[10,0],indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
   analysisMode:"CLOSED_M1_NATIVE_INDICATORS",liveAnalysisIntervalSeconds:LIVE_ANALYSIS_INTERVAL_SECONDS,
   signalValidationNote:"Engine 3 เท่านั้น · EMA5 / EMA20 / ATR14 ใช้ค่าจาก Twelve Data native endpoints · สูตร Trend Rider ของเรา · Manual only · No broker execution"};
 }
@@ -836,7 +840,7 @@ app.get("/api/public/signal", (_req, res) => {
       analysisMode: state.analysisMode || "CLOSED_M1_NATIVE_INDICATORS",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [5, 0],
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [10, 0],
       engineResults: state.engineResults || null,
       signalReleaseValidated: state.signalReleaseValidated,
       signalReleaseStatus: state.signalReleaseStatus,
@@ -908,7 +912,7 @@ app.get("/health", (_req, res) => {
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_5_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_10_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
