@@ -121,7 +121,9 @@ export function assessGeminiSetup(closedCandles, liveCandle) {
 }
 
 export function hasCriticalRiskFlags(flags = []) {
-  const critical = /high[\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
+  // Only data-integrity / impossible-input risks are hard blockers. Market regimes
+  // (sideways, volatile, reversal) are advisory so Gemini can find more setups.
+  const critical = /stale|missing data|insufficient data|data quality|invalid (?:ohlc|price|candle)|future data|contradictory data|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|ราคา.*ผิดปกติ/iu;
   return Array.isArray(flags) && flags.some(flag => typeof flag === "string" && critical.test(flag));
 }
 function standby(reason, extra = {}) {
@@ -177,7 +179,7 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: "คุณเป็นนักวิเคราะห์ EUR/USD M1 ใช้เฉพาะข้อมูลที่ให้มา วิเคราะห์แนวโน้ม โมเมนตัม EMA RSI MACD ATR โครงสร้างแท่ง แนวรับแนวต้านและความเสี่ยง เลือก CALL หรือ PUT เมื่อหลักฐานหลายด้านสอดคล้อง มิฉะนั้น STANDBY ห้ามฝืนออกสัญญาณ confidence คือระดับหลักฐาน ไม่ใช่โอกาสชนะ ห้ามแต่งข้อมูล ห้ามใช้ข้อมูลแท่งอนาคต ตอบ JSON เท่านั้น" }] },
+        systemInstruction: { parts: [{ text: "คุณเป็นนักวิเคราะห์ EUR/USD M1 ใช้เฉพาะข้อมูลที่ให้มา วิเคราะห์ทั้งแนวโน้ม การแกว่งตัว การกลับตัว โมเมนตัม EMA RSI MACD ATR โครงสร้างแท่ง แนวรับแนวต้าน เลือก CALL หรือ PUT ให้บ่อยขึ้นเมื่อเห็นอคติทิศทางระยะสั้นที่พอมีเหตุผล แม้ตลาด SIDEWAY หรือมีความผันผวนก็ยังประเมินจังหวะสั้นได้และใส่คำเตือนใน riskFlags อย่าตั้ง STANDBY เพียงเพราะตลาดไม่เป็นเทรนด์หรือมีคำเตือนทั่วไป ใช้ STANDBY เมื่อข้อมูลไม่ครบ/ไม่น่าเชื่อถือหรือไม่มีทิศทางที่พอแยกได้จริง confidence คือระดับความชัดของหลักฐาน ไม่ใช่โอกาสชนะ ห้ามแต่งข้อมูล ห้ามใช้ข้อมูลแท่งอนาคต ตอบ JSON เท่านั้น" }] },
         contents: [{ role: "user", parts: [{ text: JSON.stringify(payload) }] }],
         generationConfig: { temperature: 0.1, maxOutputTokens: 500, responseMimeType: "application/json",
           responseSchema: { type: "OBJECT", properties: {

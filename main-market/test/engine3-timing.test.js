@@ -30,3 +30,11 @@ test("dispatch uses one Gemini engine and no broker execution", () => {
   assert.match(server, /brokerExecution: false/);
   assert.doesNotMatch(server, /engine4|ENGINE_4|V1|BB|selectRecoveryCandidate|enginePendingForecasts|engineRecoveryStates/);
 });
+
+
+test("higher-frequency release gate lowers confidence floor and accepts ranging regimes", () => {
+  assert.match(server, /Number\(raw\.confidence\) >= 20/);
+  assert.doesNotMatch(server, /!\["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"\]\.includes\(raw\.regime\)/);
+  assert.match(server, /raw\.riskFlags\.length <= 4/);
+  assert.match(server, /raw\.evidence\.length >= 1/);
+});
