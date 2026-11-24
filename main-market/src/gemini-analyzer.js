@@ -104,14 +104,14 @@ export function assessGeminiSetup(closedCandles, liveCandle) {
   const gapAtr = Math.abs(indicators.ema9 - indicators.ema21) / atr;
   const extensionAtr = Math.abs(liveCandle.close - indicators.ema9) / atr;
   const metrics = { gapAtr, extensionAtr, bodyRatio };
-  if (gapAtr < 0.015) return { eligible: false, direction: null, reason: "ตลาดแคบ · EMA9/21 ยังไม่แยกทิศทาง", indicators, metrics };
-  if (range > atr * 3.0) return { eligible: false, direction: null, reason: "แท่งปัจจุบันผันผวนเกิน ATR · รอจังหวะใหม่", indicators, metrics };
-  if (extensionAtr > 1.7) return { eligible: false, direction: null, reason: "ราคาออกห่าง EMA9 มากเกินไป · ไม่ไล่ราคา", indicators, metrics };
-  if (bodyRatio < 0.04) return { eligible: false, direction: null, reason: "แรงของแท่งปัจจุบันยังไม่ชัด", indicators, metrics };
+  if (gapAtr < 0.025) return { eligible: false, direction: null, reason: "ตลาดแคบ · EMA9/21 ยังไม่แยกทิศทาง", indicators, metrics };
+  if (range > atr * 2.8) return { eligible: false, direction: null, reason: "แท่งปัจจุบันผันผวนเกิน ATR · รอจังหวะใหม่", indicators, metrics };
+  if (extensionAtr > 1.5) return { eligible: false, direction: null, reason: "ราคาออกห่าง EMA9 มากเกินไป · ไม่ไล่ราคา", indicators, metrics };
+  if (bodyRatio < 0.08) return { eligible: false, direction: null, reason: "แรงของแท่งปัจจุบันยังไม่ชัด", indicators, metrics };
   const call = indicators.ema9 > indicators.ema21 && liveCandle.close > indicators.ema9 &&
-    (indicators.macdHistogram > 0 || indicators.rsi14 >= 50) && indicators.rsi14 <= 82;
+    indicators.macdHistogram > 0 && indicators.rsi14 >= 50 && indicators.rsi14 <= 76;
   const put = indicators.ema9 < indicators.ema21 && liveCandle.close < indicators.ema9 &&
-    (indicators.macdHistogram < 0 || indicators.rsi14 <= 50) && indicators.rsi14 >= 18;
+    indicators.macdHistogram < 0 && indicators.rsi14 <= 50 && indicators.rsi14 >= 24;
   const direction = call ? "CALL" : put ? "PUT" : null;
   return {
     eligible: Boolean(direction), direction, indicators,

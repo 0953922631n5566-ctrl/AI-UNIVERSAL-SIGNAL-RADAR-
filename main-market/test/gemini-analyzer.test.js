@@ -60,23 +60,6 @@ test("local prefilter marks a candidate only when trend, momentum and live candl
   assert.ok(Number.isFinite(result.indicators.macdHistogram));
 });
 
-test("adaptive prefilter accepts moderate trend setups when either MACD or RSI confirms", () => {
-  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
-  const history = [];
-  let close = 1.08;
-  for (let i = 0; i < 54; i++) {
-    const open = close;
-    close = 1.08 + i * 0.000012 + Math.sin(i * 0.7) * 0.00004;
-    history.push({ epoch: sourceEpoch - (54 - i) * 60, open, high: Math.max(open, close) + 0.000015, low: Math.min(open, close) - 0.000015, close, live: false });
-  }
-  const open = close;
-  const liveClose = open + 0.00001;
-  const current = { epoch: sourceEpoch, open, high: liveClose + 0.00001, low: open - 0.00001, close: liveClose, live: true };
-  const result = assessGeminiSetup(history, current);
-  assert.equal(result.eligible, true);
-  assert.equal(result.direction, "CALL");
-});
-
 test("Gemini analyzes the current live candle and explicitly targets the next M1 candle", async () => {
   clearGeminiAnalysisCache();
   process.env.GEMINI_API_KEY = "test-key";

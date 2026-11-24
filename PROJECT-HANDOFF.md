@@ -2379,3 +2379,11 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Gemini daily request budget remains 60; no repeated per-tick requests are added. This caps cost but also limits maximum signal opportunities.
 - Added regression coverage for a moderate trend setup accepted by the adaptive prefilter.
 - Pending: run complete tests/syntax checks, inspect CI, review PR, deploy only after checks pass, then compare signal frequency and false positives in Demo/paper testing. No accuracy/profitability claim.
+
+
+### 2026-11-24 — Restore previous Gemini signal-frequency settings
+- User reported signal output became too quiet after frequency tuning and requested return to the prior configuration at 65%.
+- Restored `main-market/src/gemini-analyzer.js`, `main-market/server.js`, and analyzer tests from the verified pre-tuning production commit `a161a434cd53c6dbd9e873ceacc3e828054c8101`.
+- This restores the prior 65% evidence threshold, 22-second analysis window, and original candidate prefilter behavior.
+- No changes to Twelve Data source, Gemini primary decision authority, next-M1 targeting, 30-second signal hold, or manual-only/no-broker execution.
+- Rollback is isolated in branch `revert/gemini-frequency-tuning-65-20261124`; merge only after CI passes.
