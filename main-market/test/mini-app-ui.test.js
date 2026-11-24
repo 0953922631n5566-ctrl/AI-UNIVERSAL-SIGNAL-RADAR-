@@ -4,12 +4,13 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
 const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("Mini App clearly shows signal engine disabled and removes Gemini controls",()=>{
+test("Mini App exposes native Partial Scoring 59/45 and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
  assert.doesNotMatch(html,/gemini/i);
- assert.match(html,/ปิดการวิเคราะห์สัญญาณแล้ว/);
- assert.doesNotMatch(html,/geminiToggle|geminiStatus|geminiQuota|GEMINI PRIMARY|GEMINI ·/i);
- assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini/);
+ assert.match(html,/CALL\/PUT ≥ 59/);
+ assert.match(html,/id="scoreStatus"/);
+ assert.match(html,/id="indicatorStatus"/);
+ assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini|Gemini/);
 });
 test("Mini App still controls Twelve Data monitoring and retains manual lamp",()=>{
  assert.match(html,/await control\("start"\)/);
@@ -25,8 +26,9 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  assert.ok(start>="<script>".length&&end>start);
  assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
-test("Backend health metadata declares no analyzer or signal generation",()=>{
- assert.match(serverJs,/decisionEngine: "NONE"/);
- assert.match(serverJs,/signalGeneration: false/);
+test("Backend health metadata declares native scoring with no external AI",()=>{
+ assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59"/);
+ assert.match(serverJs,/signalGeneration: true/);
  assert.match(serverJs,/externalAiCalls: false/);
+ assert.match(serverJs,/callPut: 59/);
 });
