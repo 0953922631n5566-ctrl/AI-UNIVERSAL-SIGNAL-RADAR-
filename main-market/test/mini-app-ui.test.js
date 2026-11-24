@@ -7,6 +7,7 @@ const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Mini App clearly shows signal engine disabled and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
  assert.match(html,/Gemini ถูกนำออกแล้ว/);
+ assert.match(html,/ปิดการวิเคราะห์สัญญาณแล้ว/);
  assert.doesNotMatch(html,/geminiToggle|geminiStatus|geminiQuota|GEMINI PRIMARY/);
  assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini/);
 });
