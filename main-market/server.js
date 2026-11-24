@@ -28,9 +28,9 @@ const authRequests = new Map();
 const SYSTEM_NAME = "GEMINI PRIMARY ADAPTIVE NEXT M1 · TWELVE DATA OHLC STREAM";
 const ARCHITECTURE_ID = "GEMINI_PRIMARY_NEXT_M1_WITH_LOCAL_OHLC_AND_TIMING_GUARDS";
 const VERSION = "2026-11-24-gemini-primary-next-m1-adaptive-prefilter-v2";
-const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 22);
+const configuredGeminiWindowSeconds = Number(process.env.GEMINI_ANALYSIS_WINDOW_SECONDS || 30);
 const GEMINI_ANALYSIS_WINDOW_MS = (Number.isFinite(configuredGeminiWindowSeconds)
-  ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 22) * 1000;
+  ? Math.max(18, Math.min(30, configuredGeminiWindowSeconds)) : 30) * 1000;
 const app = express();
 const server = http.createServer(app);
 
@@ -46,7 +46,7 @@ function newFeed(symbol) {
     lastPrepareLoggedCandle: null, lastFinalizeLoggedCandle: null, lastDiagnosticLoggedCandle: null,
     preAlertSignal: null, preAlertCandle: null,
     alertId: null, dataLocked: false,
-    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data" },
+    engine3Indicators: { status: "WAITING", ema5: [], ema20: [], atr14: [], receivedAt: 0, lastFetchedMinute: null, nextAttemptAt: null, lastError: null, message: "รอคำนวณ EMA9 / EMA21 / ATR14 จาก Twelve Data OHLC" },
     engine3IndicatorsPromise: null,
     engineActive: { TREND_RIDER: null },
     engineLastDispatchedCandle: { TREND_RIDER: null },
@@ -139,7 +139,7 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
-    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
+    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 9, ema20: 21, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
     source: "Twelve Data M1 OHLC + Streaming · Local indicators · Gemini primary analyzer"
   };
 }
@@ -167,6 +167,7 @@ function snapshot() {
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
     signalReleaseStatus: "GEMINI_PRIMARY_NOT_OOS_VALIDATED_MANUAL_ONLY",
     apiPool: twelveDataKeyPool.publicStatus(),
+    geminiQuota: geminiQuotaStatus(),
   };
 }
 
@@ -238,7 +239,8 @@ async function evaluate(feed) {
   const sourceReady = closed.length >= MIN_CLOSED_CANDLES && freshTick && current?.live === true && remainingMs > 0;
 
   let active = feed.engineActive?.TREND_RIDER || null;
-  if (active && now >= active.expiresAt) {
+  // Never keep an undelivered candidate after its target candle has opened.
+  if (active && (now >= active.expiresAt || (!active.dispatchedAt && now >= active.targetOpensAt))) {
     active = null;
     feed.engineActive.TREND_RIDER = null;
   }
@@ -255,47 +257,59 @@ async function evaluate(feed) {
     provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1",
     candidateSignal: setup.direction, geminiQuota: quota, setupMetrics: setup.metrics || null };
 
-  // Local calculations reuse the existing Twelve Data stream. Gemini is called
-  // only for a plausible setup, once per source candle, inside the pre-open window.
+  // Local OHLC prefilter runs on stream updates; Gemini is called only for a plausible setup.
   if (!active && sourceReady && setup.eligible &&
       remainingMs <= GEMINI_ANALYSIS_WINDOW_MS && remainingMs > 0 && quota.remaining > 0) {
     raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
-    if (raw.indicators) {
+    const localIndicators = raw.indicators || setup.indicators;
+    if (localIndicators) {
       feed.engine3Indicators = {
-        status: "LOCAL_READY", ema5: [raw.indicators.ema9], ema20: [raw.indicators.ema21], atr14: [raw.indicators.atr14],
-        receivedAt: now, lastFetchedMinute: sourceEpoch, nextAttemptAt: null, lastError: null,
+        status: "LOCAL_READY", ema5: [localIndicators.ema9], ema20: [localIndicators.ema21], atr14: [localIndicators.atr14],
+        receivedAt: Date.now(), lastFetchedMinute: sourceEpoch, nextAttemptAt: null, lastError: null,
         sources: { ema5: "LOCAL_OHLC_EMA9", ema20: "LOCAL_OHLC_EMA21", atr14: "LOCAL_OHLC_ATR14" },
         periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
       };
     }
+
+    // Re-check the current source candle and live tick after the AI response.
+    const decisionAt = Date.now();
+    const latest = feed.candles.at(-1);
+    const targetEpoch = sourceEpoch + 60;
+    const targetOpensAt = targetEpoch * 1000;
+    const decisionTickAgeMs = feed.tickAt ? decisionAt - feed.tickAt : Infinity;
+    const sourceStillLive = latest?.live === true && latest.epoch === sourceEpoch;
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
-      Number(raw.confidence) >= 65 &&
+      Number(raw.confidence) >= 60 &&
       !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
       Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
-    if (qualityPass) {
-      const targetEpoch = sourceEpoch + 60;
-      if (now < targetEpoch * 1000 && feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
-        active = createNextCandleSignal({
-          signal: raw.signal, sourceCandleEpoch: sourceEpoch, now,
-          entryPrice: feed.lastTick ?? current.close,
-          alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + targetEpoch + ":" + raw.signal
+    const timingPass = sourceStillLive && decisionTickAgeMs >= 0 &&
+      decisionTickAgeMs <= MAX_STREAM_AGE_SECONDS * 1000 &&
+      targetOpensAt - decisionAt >= 2_500;
+    if (qualityPass && timingPass && feed.engineLastDispatchedCandle?.TREND_RIDER !== targetEpoch) {
+      active = createNextCandleSignal({
+        signal: raw.signal, sourceCandleEpoch: sourceEpoch, now: decisionAt,
+        entryPrice: feed.lastTick ?? latest.close,
+        alertId: "GEMINI:" + feed.symbol.replace("/", "") + ":" + targetEpoch + ":" + raw.signal
+      });
+      if (active) {
+        active.engine = "GEMINI"; active.sourceReason = raw.reason;
+        active.confidence = raw.confidence; active.regime = raw.regime;
+        active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
+        active.analysisLatencyMs = decisionAt - now;
+        feed.engineActive.TREND_RIDER = active;
+        console.info("[signal] Gemini next-M1 candidate", {
+          symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
+          targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence,
+          analysisLatencyMs: active.analysisLatencyMs, riskFlags: active.riskFlags || [],
+          expiresAt: new Date(active.expiresAt).toISOString()
         });
-        if (active) {
-          active.engine = "GEMINI"; active.sourceReason = raw.reason;
-          active.confidence = raw.confidence; active.regime = raw.regime; active.evidence = raw.evidence; active.riskFlags = raw.riskFlags;
-          feed.engineActive.TREND_RIDER = active;
-          console.info("[signal] Gemini next-M1 candidate", {
-            symbol: feed.symbol, signal: active.signal, sourceCandleEpoch: sourceEpoch,
-            targetCandleEpoch: active.targetCandleEpoch, confidence: active.confidence, riskFlags: active.riskFlags || [],
-            expiresAt: new Date(active.expiresAt).toISOString()
-          });
-        }
       }
+    } else if (["CALL", "PUT"].includes(raw.signal) && !timingPass) {
+      raw = { ...raw, signal: "STANDBY", reason: "Gemini ตอบกลับช้าเกินไปหรือราคา Streaming ไม่สด · ยกเลิกสัญญาณเพื่อไม่ให้เข้าแท่งผิด" };
     }
   }
-
-  const isActive = Boolean(active && now < active.expiresAt);
+  const isActive = Boolean(active && active.dispatchedAt && now < active.expiresAt);
   const signal = isActive ? active.signal : "STANDBY";
   const reason = isActive
     ? "GEMINI " + active.signal + " · สำหรับแท่ง M1 ถัดไป · คงสัญญาณ 30 วินาทีหลังแท่งเป้าหมายเปิด" + (active.riskFlags?.length ? " · ระวัง: " + active.riskFlags.join(" / ") : "")
@@ -346,6 +360,7 @@ function dispatchSignalIfReady(feed) {
   const now = Date.now();
   if (!canDispatchNextCandleSignal(active, { now, tickAt: feed.tickAt,
     lastDispatchedTargetCandle: feed.engineLastDispatchedCandle?.TREND_RIDER })) return;
+  active.dispatchedAt = now;
   feed.engineLastDispatchedAt = now;
   feed.engineLastDispatchedCandle.TREND_RIDER = active.targetCandleEpoch;
   feed.engineLastDispatchedAlertId.TREND_RIDER = active.alertId;
