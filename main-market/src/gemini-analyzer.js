@@ -47,6 +47,17 @@ function rsi(values, period = 14) {
   if (loss === 0) return gain === 0 ? 50 : 100;
   return 100 - 100 / (1 + gain / loss);
 }
+function macd(values) {
+  const line = [];
+  for (let i = 25; i < values.length; i++) {
+    const slice = values.slice(0, i + 1);
+    const fast = ema(slice, 12), slow = ema(slice, 26);
+    if (fast !== null && slow !== null) line.push(fast - slow);
+  }
+  const current = line.at(-1) ?? null;
+  const signal = line.length >= 9 ? ema(line, 9) : null;
+  return { line: current, signal, histogram: current !== null && signal !== null ? current - signal : null };
+}
 export function buildTechnicalIndicators(candles, liveCandle = null) {
   const source = liveCandle ? [...candles, liveCandle] : candles;
   const closes = source.map(c => Number(c.close)).filter(Number.isFinite);
@@ -57,10 +68,11 @@ export function buildTechnicalIndicators(candles, liveCandle = null) {
   const atr14 = ranges.length >= 14 ? ranges.slice(-14).reduce((a, b) => a + b, 0) / 14 : null;
   const recent = source.slice(-4);
   const recentRange = last ? last.high - last.low : 0;
+  const macdValues = macd(closes);
   return {
     ema9: ema(closes, 9), ema21: ema(closes, 21), ema50: ema(closes, 50),
-    rsi14: rsi(closes), macd: ema(closes, 12) !== null && ema(closes, 26) !== null
-      ? ema(closes, 12) - ema(closes, 26) : null,
+    rsi14: rsi(closes), macd: macdValues.line, macdSignal: macdValues.signal,
+    macdHistogram: macdValues.histogram,
     atr14, atrPercent: atr14 && last?.close ? atr14 / last.close * 100 : null,
     support20: Math.min(...source.slice(-20).map(c => c.low)),
     resistance20: Math.max(...source.slice(-20).map(c => c.high)),
@@ -71,6 +83,43 @@ export function buildTechnicalIndicators(candles, liveCandle = null) {
     fourCandleNetChange: recent.length > 1 ? recent.at(-1).close - recent[0].open : null
   };
 }
+/**
+ * Cheap local gate: calculate on stream ticks, but call Gemini only when
+ * trend, momentum and the current candle point in the same direction.
+ * This gate never emits a trade direction; Gemini remains the sole decider.
+ */
+export function assessGeminiSetup(closedCandles, liveCandle) {
+  if (!Array.isArray(closedCandles) || closedCandles.length < 54 ||
+      !liveCandle || liveCandle.live !== true ||
+      ![liveCandle.epoch, liveCandle.open, liveCandle.high, liveCandle.low, liveCandle.close].every(Number.isFinite)) {
+    return { eligible: false, direction: null, reason: "ข้อมูล OHLC สำหรับคัดจังหวะยังไม่ครบ", indicators: null };
+  }
+  const indicators = buildTechnicalIndicators(closedCandles, liveCandle);
+  const atr = indicators.atr14;
+  const range = liveCandle.high - liveCandle.low;
+  const bodyRatio = range > 0 ? Math.abs(liveCandle.close - liveCandle.open) / range : 0;
+  if (![atr, indicators.ema9, indicators.ema21, indicators.rsi14, indicators.macdHistogram].every(Number.isFinite) || atr <= 0) {
+    return { eligible: false, direction: null, reason: "รอ Indicator ภายในระบบให้ครบ", indicators };
+  }
+  const gapAtr = Math.abs(indicators.ema9 - indicators.ema21) / atr;
+  const extensionAtr = Math.abs(liveCandle.close - indicators.ema9) / atr;
+  const metrics = { gapAtr, extensionAtr, bodyRatio };
+  if (gapAtr < 0.025) return { eligible: false, direction: null, reason: "ตลาดแคบ · EMA9/21 ยังไม่แยกทิศทาง", indicators, metrics };
+  if (range > atr * 2.8) return { eligible: false, direction: null, reason: "แท่งปัจจุบันผันผวนเกิน ATR · รอจังหวะใหม่", indicators, metrics };
+  if (extensionAtr > 1.5) return { eligible: false, direction: null, reason: "ราคาออกห่าง EMA9 มากเกินไป · ไม่ไล่ราคา", indicators, metrics };
+  if (bodyRatio < 0.08) return { eligible: false, direction: null, reason: "แรงของแท่งปัจจุบันยังไม่ชัด", indicators, metrics };
+  const call = indicators.ema9 > indicators.ema21 && liveCandle.close > indicators.ema9 &&
+    indicators.macdHistogram > 0 && indicators.rsi14 >= 50 && indicators.rsi14 <= 76;
+  const put = indicators.ema9 < indicators.ema21 && liveCandle.close < indicators.ema9 &&
+    indicators.macdHistogram < 0 && indicators.rsi14 <= 50 && indicators.rsi14 >= 24;
+  const direction = call ? "CALL" : put ? "PUT" : null;
+  return {
+    eligible: Boolean(direction), direction, indicators,
+    reason: direction ? "พบจังหวะ " + direction + " เบื้องต้น · ส่งให้ Gemini ตรวจยืนยัน" : "ทิศทาง EMA, MACD, RSI ยังไม่สอดคล้อง",
+    metrics
+  };
+}
+
 export function hasCriticalRiskFlags(flags = []) {
   const critical = /high[\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
   return Array.isArray(flags) && flags.some(flag => typeof flag === "string" && critical.test(flag));
