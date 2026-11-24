@@ -15,7 +15,7 @@ test("Gemini requests are scheduled in the final 18 seconds only after local set
   assert.match(server, /remainingMs <= 18_000 && remainingMs > 0/);
   assert.match(server, /shouldRequestGemini\(\{ closedCandles: closed, liveCandle: current \}\)/);
   assert.match(server, /targetOpensAt - decisionAt >= 2_500/);
-  assert.match(server, /engineLastDispatchedCandle\?\.TREND_RIDER !== targetEpoch/);
+  assert.match(server, /engineLastDispatchedCandle\?\.TREND_RIDER !== sourceEpoch \+ 60/);
   assert.match(server, /lastDispatchedTargetCandle: feed\.engineLastDispatchedCandle\?\.TREND_RIDER/);
   assert.match(server, /feed\.engineLastDispatchedCandle\.TREND_RIDER = active\.targetCandleEpoch/);
   assert.match(server, /active\.dispatchedAt = now/);
