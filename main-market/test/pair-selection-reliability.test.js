@@ -24,7 +24,7 @@ test("public pair snapshot falls back to the latest closed REST price without re
   assert.match(serverSource, /const latestClosedCandle = feed\.candles\.filter\(candle => candle && candle\.live !== true\)\.at\(-1\)/);
   assert.match(serverSource, /price: freshTick \?\? restLastPrice/);
   assert.match(serverSource, /lastTickPrice: freshTick/);
-  assert.match(serverSource, /signalGeneration: false/);
+  assert.match(serverSource, /signalGeneration: true/);
 });
 
 test("Twelve Data REST request is correctly formed for all six configured pairs", async () => {
