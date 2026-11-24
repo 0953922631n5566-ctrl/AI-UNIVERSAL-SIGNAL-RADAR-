@@ -61,7 +61,7 @@ test("Engine 3 can trigger trend continuation momentum without waiting for a new
  for(let j=0;j<5;j++){
   const c=candles.at(-5+j);
   const offset=.00003+j*.00006;
-  c.open=c.close-.00008;
+  c.open=c.close-.00002;
   c.low=c.close-offset;
   c.high=c.close+.00010;
  }
