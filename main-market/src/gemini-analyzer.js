@@ -72,7 +72,7 @@ export function buildTechnicalIndicators(candles, liveCandle = null) {
   };
 }
 export function hasCriticalRiskFlags(flags = []) {
-  const critical = /high[\\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
+  const critical = /high[\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
   return Array.isArray(flags) && flags.some(flag => typeof flag === "string" && critical.test(flag));
 }
 function standby(reason, extra = {}) {
