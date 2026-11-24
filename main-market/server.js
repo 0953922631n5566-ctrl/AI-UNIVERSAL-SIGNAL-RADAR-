@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeWithGemini, assessGeminiSetup, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
+import { analyzeWithGemini, geminiQuotaStatus, hasCriticalRiskFlags } from "./src/gemini-analyzer.js";
 import { createNextCandleSignal, canDispatchNextCandleSignal } from "./src/next-candle-timing.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
@@ -58,6 +58,8 @@ function newFeed(symbol) {
 const feeds = new Map(SYMBOLS.map(symbol => [symbol, newFeed(symbol)]));
 let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
+// Gemini is opt-in from the Mini App; when enabled it analyzes once per live M1 candle.
+let geminiEnabled = false;
 let upstream = null;
 let restTimer = null;
 let emaTimer = null;
@@ -157,6 +159,7 @@ function snapshot() {
     selectedSymbols: [selectedSymbol],
     pairs,
     monitoring,
+    geminiEnabled,
     connected: data.apiStatus === "ONLINE",
     serverOnline: true,
     apiStatus: data.apiStatus,
@@ -242,23 +245,19 @@ async function evaluate(feed) {
     active = null;
     feed.engineActive.TREND_RIDER = null;
   }
-  const setup = sourceReady ? assessGeminiSetup(closed, current)
-    : { eligible: false, direction: null, reason: "รอข้อมูล Twelve Data M1 สดและแท่งปิดครบ 54 แท่ง", indicators: null };
   const quota = geminiQuotaStatus(now);
   let raw = { signal: "STANDBY", regime: "UNCLEAR", confidence: 0,
-    reason: !sourceReady ? setup.reason
-      : !setup.eligible ? setup.reason
-      : remainingMs > GEMINI_ANALYSIS_WINDOW_MS ? "พบจังหวะเบื้องต้น · รอหน้าต่างยืนยัน Gemini ก่อนแท่งถัดไป"
+    reason: !geminiEnabled ? "Gemini ปิดอยู่ · เปิดสวิตช์ Gemini เพื่อเริ่มวิเคราะห์ทุกแท่ง M1"
+      : !sourceReady ? "รอข้อมูล Twelve Data M1 สดและแท่งปิดครบ 54 แท่ง"
       : quota.remaining <= 0 ? "ถึงงบ Gemini รายวันที่กำหนด · รอรีเซ็ต UTC"
-      : "กำลังรอผลยืนยันจาก Gemini",
-    evidence: [], riskFlags: [], indicators: setup.indicators || null,
-    provider: "GEMINI", strategy: "GEMINI_PRIMARY_ADAPTIVE_M1",
-    candidateSignal: setup.direction, geminiQuota: quota, setupMetrics: setup.metrics || null };
+      : "Gemini เปิดอยู่ · รอผลวิเคราะห์แท่ง M1",
+    evidence: [], riskFlags: [], indicators: null,
+    provider: "GEMINI", strategy: "GEMINI_PRIMARY_EVERY_M1_CANDLE",
+    candidateSignal: null, geminiQuota: quota };
 
-  // Local calculations reuse the existing Twelve Data stream. Gemini is called
-  // only for a plausible setup, once per source candle, inside the pre-open window.
-  if (!active && sourceReady && setup.eligible &&
-      remainingMs <= GEMINI_ANALYSIS_WINDOW_MS && remainingMs > 0 && quota.remaining > 0) {
+  // Opt-in mode: call Gemini on the first fresh live tick of every M1 candle.
+  // analyzeWithGemini deduplicates repeated ticks by source-candle epoch.
+  if (!active && geminiEnabled && sourceReady && remainingMs > 0 && quota.remaining > 0) {
     raw = await analyzeWithGemini({ symbol: feed.symbol, closedCandles: closed, liveCandle: current, now });
     if (raw.indicators) {
       feed.engine3Indicators = {
@@ -333,7 +332,7 @@ async function evaluate(feed) {
     entryPrice: isActive ? active.entryPrice : null,
     signalTimingWindowSeconds: [60 - GEMINI_ANALYSIS_WINDOW_MS / 1000, 60], signalTimingMode: "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
     indicatorSource: "TWELVE_DATA_M1_OHLC_LOCAL_INDICATORS",
-    analysisMode: "GEMINI_PRIMARY_ADAPTIVE_NEXT_M1",
+    analysisMode: "GEMINI_PRIMARY_EVERY_M1_CANDLE_NEXT_M1",
     liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
     geminiAnalysisWindowSeconds: GEMINI_ANALYSIS_WINDOW_MS / 1000,
     geminiQuota: geminiQuotaStatus(now),
@@ -908,8 +907,17 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
       if (!monitoring) await start(selectedSymbol);
     } else if (action === "stop") {
       if (monitoring) stop();
+    } else if (action === "gemini_on") {
+      geminiEnabled = true;
+      const feed = feeds.get(selectedSymbol);
+      if (monitoring && feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
+      console.info("[mini-app] Gemini enabled for every M1 candle", { symbol: selectedSymbol });
+    } else if (action === "gemini_off") {
+      geminiEnabled = false;
+      resetSignal(feeds.get(selectedSymbol), "ปิด Gemini แล้ว · ไม่มีการเรียก AI วิเคราะห์");
+      console.info("[mini-app] Gemini disabled", { symbol: selectedSymbol });
     } else {
-      return res.status(400).json({ ok: false, error: "รองรับเฉพาะคำสั่ง start และ stop" });
+      return res.status(400).json({ ok: false, error: "รองรับ start, stop, gemini_on และ gemini_off" });
     }
     noCache(res);
     res.json({ ok: true, market: snapshot() });
@@ -926,6 +934,7 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
     symbols: SYMBOLS, interval: INTERVAL,
+    geminiEnabled,
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
@@ -934,10 +943,10 @@ app.get("/health", (_req, res) => {
 
       safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
       geminiPrimary: { soleDecisionEngine: true, model: process.env.GEMINI_MODEL || "gemini-2.5-flash", minimumClosedCandles: MIN_CLOSED_CANDLES, currentLiveCandleIncluded: true, localIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], dailyRequestBudget: geminiQuotaStatus().dailyBudget, guards: ["TARGET_NEXT_M1_ONLY", "TARGET_PREOPEN_ONLY", "SIGNAL_HOLD_30_SECONDS", "LIVE_TICK_MAX_5_SECONDS"] },
-      gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "Local OHLC prefilter runs on stream ticks; Gemini is called only for aligned EMA/MACD/RSI/live-candle setups during the final configurable pre-open window and targets the immediately following M1 candle", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
+      gemini: { soleEngine: true, strategy: "ADAPTIVE_NEXT_M1", provider: "GEMINI_PRIMARY_PLUS_TWELVE_DATA_OHLC_STREAMING", indicatorEndpoints: [], derivedIndicators: ["EMA9", "EMA21", "RSI14", "MACD", "ATR14"], refreshSeconds: 0, estimatedIndicatorCreditsPerDay: 0, keyRotation: "GEMINI_API_KEY_POOL_NO_RETRY_ON_429", dailyRequestBudget: geminiQuotaStatus().dailyBudget, minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "When manually enabled in the Telegram Mini App, Gemini is called once per fresh live M1 candle (deduplicated by candle epoch) and evaluates the immediately following M1 candle; daily request budget applies", signalTiming: "NEXT_M1_TARGET_PREOPEN_HOLD_30S", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "GEMINI_PRIMARY" },
-      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      signalDecisionPath: "GEMINI_PRIMARY_NEXT_M1_PREOPEN_SIGNAL"
+      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP_GEMINI_TOGGLE",
+      signalDecisionPath: "GEMINI_PRIMARY_EVERY_M1_CANDLE_NEXT_M1_SIGNAL"
     },
     analyzer: {
       provider: "GEMINI_PRIMARY_WITH_TWELVE_DATA_M1_OHLC",
@@ -963,6 +972,7 @@ app.get("/health", (_req, res) => {
       estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
       geminiQuota: geminiQuotaStatus(),
       geminiDailyRequestBudget: Number(process.env.GEMINI_MAX_REQUESTS_PER_DAY || 60),
+      geminiEnabledByDefault: false, geminiCallPolicy: "ONE_REQUEST_PER_M1_CANDLE_WHEN_MANUALLY_ENABLED",
       nativeIndicatorRestCallsDisabled: true,
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
       contextCandles: 50,
