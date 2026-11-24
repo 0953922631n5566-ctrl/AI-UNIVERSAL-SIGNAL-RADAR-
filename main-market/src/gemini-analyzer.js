@@ -7,6 +7,8 @@ const cache = new Map();
 const inFlight = new Map();
 let quotaDay = "";
 let requestsToday = 0;
+let providerCooldownUntil = 0;
+let providerCooldownReason = "";
 
 function keysFromEnv() {
   const values = String(process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "")
@@ -23,8 +25,10 @@ function resetQuotaIfNeeded(now) {
 }
 export function geminiQuotaStatus(now = Date.now()) {
   resetQuotaIfNeeded(now);
-  return { model: MODEL, requestsToday, dailyBudget: dailyBudget(),
-    remaining: Math.max(0, dailyBudget() - requestsToday), resetsAtUtc: new Date(Date.UTC(
+  return { model: MODEL, requestsToday, dailyBudget: dailyBudget(), configuredKeys: keysFromEnv().length,
+    remaining: Math.max(0, dailyBudget() - requestsToday),
+    providerCooldownUntil: providerCooldownUntil > now ? new Date(providerCooldownUntil).toISOString() : null,
+    providerCooldownReason: providerCooldownUntil > now ? providerCooldownReason : null, resetsAtUtc: new Date(Date.UTC(
       new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate() + 1
     )).toISOString() };
 }
@@ -148,6 +152,7 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
   const keys = keysFromEnv();
   if (!keys.length) return standby("ยังไม่ได้ตั้ง GEMINI_API_KEY หรือ GEMINI_API_KEYS ใน Render");
   resetQuotaIfNeeded(now);
+  if (now < providerCooldownUntil) return standby("Gemini ถูกจำกัดชั่วคราว · ระบบพักการเรียกเพื่อป้องกันโควตาหมด", { providerStatus: "COOLDOWN", retryAt: new Date(providerCooldownUntil).toISOString() });
   if (requestsToday >= dailyBudget()) return standby("ถึงงบเรียก Gemini รายวันแล้ว · รอรีเซ็ต UTC", { providerStatus: "QUOTA_BUDGET" });
   if (!Array.isArray(closedCandles) || closedCandles.length < 54) return standby("ข้อมูลแท่งปิด M1 ยังไม่ครบ 54 แท่ง");
   if (typeof fetchImpl !== "function") return standby("ไม่พบ fetch สำหรับ Gemini");
@@ -200,6 +205,16 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
       requestsToday, dailyBudget: dailyBudget() });
     return result;
   })().catch(error => {
+    if (error.status === 429) {
+      const dailyQuota = /(per[- ]day|daily quota|requests per day|quota.*day)/i.test(error.message || "");
+      providerCooldownUntil = dailyQuota
+        ? Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1)
+        : Date.now() + 5 * 60_000;
+      providerCooldownReason = dailyQuota ? "DAILY_QUOTA" : "RATE_LIMIT";
+      console.warn("[gemini] provider cooldown enabled", {
+        symbol, reason: providerCooldownReason, until: new Date(providerCooldownUntil).toISOString()
+      });
+    }
     console.error("[gemini] request failed", { symbol, sourceCandleEpoch: sourceEpoch,
       status: error.status || null, message: error.message });
     const result = standby("Gemini วิเคราะห์ไม่สำเร็จ: " + error.message, { providerStatus: error.status === 429 ? "RATE_LIMIT" : "ERROR",
@@ -211,6 +226,6 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
   return promise;
 }
 export function clearGeminiAnalysisCache() {
-  cache.clear(); inFlight.clear(); quotaDay = ""; requestsToday = 0;
+  cache.clear(); inFlight.clear(); quotaDay = ""; requestsToday = 0; providerCooldownUntil = 0; providerCooldownReason = "";
 }
 export const GEMINI_MODEL = MODEL;
