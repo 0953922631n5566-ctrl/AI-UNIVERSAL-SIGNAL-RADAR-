@@ -1,6 +1,6 @@
 export const M1_CANDLE_MS=60_000;
 export const PREPARE_ALERT_START_MS=45_000;
-export const SIGNAL_FINALIZE_START_MS=55_000;
+export const SIGNAL_FINALIZE_START_MS=50_000;
 export const SIGNAL_HOLD_SECONDS=30;
 export const SIGNAL_MAX_TICK_AGE_MS=5_000;
 export function isPrepareAlertWindow(epoch,now=Date.now()){
