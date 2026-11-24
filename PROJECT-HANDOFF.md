@@ -2393,3 +2393,12 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - User requested more frequent CALL/PUT opportunities. On isolated branch `feature/gemini-confidence-35-20261124`, the Gemini release confidence threshold in `main-market/server.js` is changed from 65 to 35.
 - All other release guards remain unchanged: CALL/PUT only, block SIDEWAY/HIGH_VOLATILITY/UNCLEAR, no critical risk flags, maximum two risk flags, and at least two evidence items. Local OHLC prefilter, Twelve Data freshness/data locks, next-M1 timing, per-candle dedupe, 30-second signal hold, Gemini request budget/cache remain unchanged.
 - A 35% confidence threshold is an evidence-strength gate, not a win probability. More frequent releases may increase false positives. Require automated tests/build and Demo/paper-trading observation before real-money use; `SIGNAL_RELEASE_VALIDATED` remains false until out-of-sample validation.
+
+
+## 2026-11-24 — Manual Gemini on/off control and every-M1 analysis
+- User requested a Telegram Mini App switch to enable or disable Gemini on demand.
+- Isolated implementation branch: `feature/gemini-manual-toggle-every-candle-20261124`; production `main-market` is unchanged pending tests/review/deployment.
+- Gemini defaults OFF after server restart. The existing Start/Stop monitoring control remains separate. When the user enables Gemini, the backend calls Gemini once per fresh live M1 candle (one request per candle epoch; repeated stream ticks reuse the same in-flight/cached decision), without the previous local directional prefilter or final-22-second call window. Gemini assesses the next M1 candle; existing data-freshness, 54-closed-candle warm-up, risk-release checks, next-candle timing, 30-second signal hold, and manual-only/no-broker behavior remain.
+- The Mini App shows Gemini ON/OFF state, a dedicated toggle, and remaining daily quota. Default daily Gemini budget remains 60 requests (configurable with `GEMINI_MAX_REQUESTS_PER_DAY`); enabling Gemini does not override provider quota/rate limits. If quota is exhausted or Gemini errors, the system stays STANDBY and does not fabricate CALL/PUT.
+- Turning Gemini OFF clears any pending active signal and prevents further Gemini calls. Turning it ON schedules analysis immediately for the current live candle when monitoring is already running.
+- Pending: full tests, syntax checks, PR review, Render deployment and live verification. Do not tell the user it is available until the production deploy and API/UI checks pass.
