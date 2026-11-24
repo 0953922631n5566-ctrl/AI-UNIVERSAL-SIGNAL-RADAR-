@@ -274,11 +274,12 @@ async function evaluate(feed) {
         periods: { ema5: 9, ema20: 21, atr14: 14 }, message: "คำนวณ Indicator จาก Twelve Data OHLC ภายในระบบ"
       };
     }
+    // Higher-frequency mode: regime and ordinary caution flags no longer suppress
+    // a directional call. Keep only a low confidence floor and hard data-integrity blockers.
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
-      Number(raw.confidence) >= 35 &&
-      !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
-      Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
-      Array.isArray(raw.evidence) && raw.evidence.length >= 2;
+      Number(raw.confidence) >= 20 &&
+      Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 4 && !hasCriticalRiskFlags(raw.riskFlags) &&
+      Array.isArray(raw.evidence) && raw.evidence.length >= 1;
     if (qualityPass) {
       const targetEpoch = sourceEpoch + 60;
       const alreadyActiveForTarget = active?.targetCandleEpoch === targetEpoch;
@@ -348,7 +349,7 @@ async function evaluate(feed) {
     liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
     geminiAnalysisWindowSeconds: 60,
     geminiQuota: geminiQuotaStatus(now),
-    signalValidationNote: "Gemini เป็นผู้ตัดสินทิศทาง · Twelve Data OHLC/Streaming เป็นข้อมูลต้นทาง · จำกัดคำขอ Gemini · Manual only · No broker execution"
+    signalValidationNote: "โหมดสัญญาณถี่ขึ้น: อนุญาต SIDEWAY/HIGH_VOLATILITY และคำเตือนทั่วไป · บล็อกเฉพาะข้อมูลเสีย/ไม่ครบ · Gemini quota ยังจำกัด · Manual only · No broker execution"
   };
 }
 function dispatchSignalIfReady(feed) {
