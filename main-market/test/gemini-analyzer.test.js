@@ -11,14 +11,14 @@ function candles(count = 54) {
   });
 }
 function live(epoch) { return { epoch, open: 1.081, high: 1.0812, low: 1.0809, close: 1.0811, live: true }; }
-function mockFetch(signal = "CALL") {
+function mockFetch(signal = "CALL", confidence = 77) {
   let calls = 0;
   const fetchImpl = async (_url, init) => {
     calls++;
     const body = JSON.parse(init.body);
     assert.equal(body.contents[0].parts[0].text.includes("targetCandleEpoch"), true);
     return { ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({
-      signal, regime: signal === "PUT" ? "DOWNTREND" : "UPTREND", confidence: 77,
+      signal, regime: signal === "PUT" ? "DOWNTREND" : "UPTREND", confidence,
       reason: "หลักฐานสอดคล้อง", evidence: ["EMA", "RSI"], riskFlags: [], summary: "ทิศทางชัด"
     }) }] } }] }) };
   };
@@ -42,6 +42,17 @@ test("Gemini analyzes the current live candle and explicitly targets the next M1
   assert.equal(result.sourceCandleEpoch, sourceEpoch);
   assert.equal(result.targetCandleEpoch, sourceEpoch + 60);
   assert.equal(mock.calls, 1);
+});
+
+test("fractional Gemini confidence is normalized to the 0-100 evidence scale", async () => {
+  clearGeminiAnalysisCache();
+  process.env.GEMINI_API_KEY = "test-key";
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const mock = mockFetch("PUT", 0.65);
+  const result = await analyzeWithGemini({
+    symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(sourceEpoch), fetchImpl: mock.fetchImpl
+  });
+  assert.equal(result.confidence, 65);
 });
 
 test("repeated ticks in the same source candle reuse one Gemini request", async () => {
