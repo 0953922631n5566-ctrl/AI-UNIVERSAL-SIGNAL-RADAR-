@@ -16,6 +16,9 @@ test("Gemini requests are scheduled in the configurable pre-open window and use 
   assert.match(server, /GEMINI_ANALYSIS_WINDOW_SECONDS/);
   assert.match(server, /assessGeminiSetup\(closed, current\)/);
   assert.match(server, /engineLastDispatchedCandle\?\.TREND_RIDER !== targetEpoch/);
+  assert.match(server, /targetOpensAt - decisionAt >= 2_500/);
+  assert.match(server, /active\.dispatchedAt = now/);
+  assert.match(server, /active\.dispatchedAt && now < active\.expiresAt/);
   assert.match(server, /lastDispatchedTargetCandle: feed\.engineLastDispatchedCandle\?\.TREND_RIDER/);
   assert.match(server, /feed\.engineLastDispatchedCandle\.TREND_RIDER = active\.targetCandleEpoch/);
   assert.doesNotMatch(server, /canTriggerLiveSignal\(/);
