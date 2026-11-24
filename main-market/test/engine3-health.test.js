@@ -1,23 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const server = readFileSync(new URL("../server.js", import.meta.url), "utf8");
-test("health metadata declares no analyzer and no signal generation", () => {
-  assert.match(server, /decisionEngine: "NONE"/);
-  assert.match(server, /decisionAuthority: "NO_AI_OR_DIRECTIONAL_ANALYSIS"/);
-  assert.match(server, /engines: 0/);
-  assert.match(server, /provider: "NONE"/);
-  assert.match(server, /signalGeneration: false/);
-  assert.match(server, /externalAiCalls: false/);
+const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
+test("health metadata declares native Twelve Data scoring and no external AI",()=>{
+ assert.match(server,/decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59"/);
+ assert.match(server,/decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS"/);
+ assert.match(server,/engines: 1/);
+ assert.match(server,/provider: "TWELVE_DATA_NATIVE_INDICATORS"/);
+ assert.match(server,/signalGeneration: true/);
+ assert.match(server,/externalAiCalls: false/);
+ assert.match(server,/callPut: 59/);
 });
-test("Twelve Data is retained only as market data feed", () => {
-  assert.match(server, /fetchCandles/);
-  assert.match(server, /TWELVE_DATA_M1_OHLC_AND_STREAMING/);
-  assert.match(server, /DISABLED_NO_ANALYZER/);
-  assert.doesNotMatch(server, /GEMINI_API_KEY|analyzeWithGemini|geminiQuotaStatus/);
+test("native Twelve Data indicators are the only directional data provider",()=>{
+ assert.match(server,/fetchCandles/);assert.match(server,/fetchTrendEma5/);assert.match(server,/fetchEma20/);assert.match(server,/fetchAtr14/);
+ assert.match(server,/TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14/);
+ assert.doesNotMatch(server,/GEMINI_API_KEY|analyzeWithGemini|geminiQuotaStatus|Gemini/);
 });
-test("release and broker execution remain disabled", () => {
-  assert.match(server, /SIGNAL_RELEASE_VALIDATED = false/);
-  assert.match(server, /recovery: \{ enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false \}/);
-  assert.doesNotMatch(server, /selectRecoveryCandidate|engineRecoveryStates|enginePendingForecasts|ENGINE_4|analyzeMarket\(|analyzeBBPureScalper\(/);
+test("signal release remains manual-only with broker execution absent",()=>{
+ assert.match(server,/SIGNAL_RELEASE_VALIDATED = false/);
+ assert.match(server,/recovery: \{ enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false \}/);
+ assert.doesNotMatch(server,/selectRecoveryCandidate|engineRecoveryStates|enginePendingForecasts|ENGINE_4|placeBrokerOrder|executeBrokerOrder/);
 });

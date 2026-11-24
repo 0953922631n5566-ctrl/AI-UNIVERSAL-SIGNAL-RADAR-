@@ -2422,3 +2422,16 @@ The user explicitly authorized a complete rewrite: “ผมอนุญาต�
 - Backend forcibly clears pending/active signal state and returns STANDBY / DISABLED. No CALL/PUT signals can be produced until a separate analyzer is explicitly commissioned.
 - Health metadata reports decisionEngine NONE, signalGeneration false, analyzer NONE, externalAiCalls false, and DISABLED_NO_ANALYZER.
 - Mini App labels the signal engine DISABLED and explains that no CALL/PUT analysis is running.
+
+
+## 2026-11-24 — Restore original 65-point Partial Scoring with Twelve Data native indicators (feature branch)
+
+- User delegated restoration of the earlier 65-point scoring formula, specifically requesting the same indicator families used by that formula to be supplied by Twelve Data and lowering the CALL/PUT release threshold to 59.
+- Verified the historical baseline from merged PR #71 (feature/main-market-score-threshold-65, source commit eca584e72bfa839f2d7da1e8e305312540d8d361): four weighted components totaling 100 — EMA5 Slope Reversal 30, S/R Fakeout 30, Proximity & Momentum 20, Trend Context 20; CALL/PUT >=65, PREPARE 45–64; Choppy and ATR-spike kill switches.
+- Current implementation branch: feature/main-market-native-indicator-score59-20261124. The scoring formula is restored in main-market/src/advanced-scoring.js; threshold changed to CALL/PUT >=59, PREPARE 45–58, STANDBY below 45 or on a kill switch.
+- Replaced local technical-indicator calculations with Twelve Data native endpoints: /ema?time_period=5, /ema?time_period=20, and /atr?time_period=14. EMA5/EMA20 values are aligned to the latest closed M1 candle; ATR14 retrieves 34 consecutive closed values to retain the historical volatility-spike comparison. OHLC-only candle structure, wick/body, swing and momentum evidence remains derived from raw Twelve Data candles.
+- Native indicators refresh once per selected M1 minute, with sequential requests through the existing 10-key round-robin/failover pool. Estimated native-indicator usage is 4,320 credits/day plus the existing approximately 480 time-series credits/day; actual Twelve Data quota/plan behavior must be verified. Multiple keys do not automatically guarantee separate daily quotas.
+- Restored source-quality, consecutive-candle and fresh-stream gates; PREPARE remains non-directional at T-10; CALL/PUT can be finalized only at T-5 with a streaming tick no older than 5 seconds; signal hold remains 30 seconds. Manual-only; no broker execution; no Gemini or external AI calls.
+- Mini App now displays analyzer state, CALL/PUT scores, EMA5/EMA20/ATR14 values/status and 59/45 thresholds; sound/vibration alerts remain user-enabled.
+- Tests added for native indicator alignment, score weights and threshold, Choppy/ATR kill switches, source freshness, and Mini App wiring. Build/CI, merge, Render deploy, live health/API verification, and Telegram-device test are pending; do not call the change deployed until verified.
+- Production baseline before this feature branch was verified on Render deploy dep-dc2joqp5efls73bq9g7g (commit 8a3d6a5c43cb65f202ade1f45aaa965c256cdada): feed-only, no analyzer, 10/10 Twelve Data keys available. The production branch remains untouched while this feature branch is validated.

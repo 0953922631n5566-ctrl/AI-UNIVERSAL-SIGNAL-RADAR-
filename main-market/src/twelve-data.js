@@ -134,7 +134,7 @@ export async function fetchCandles({
 
 
 /** Fetch a provider-calculated native indicator series; no local indicator math. */
-async function fetchNativeIndicator({endpoint,field,period,symbol="EUR/USD",interval="1min",outputsize=6,keyPool=twelveDataKeyPool,fetchImpl=fetch,now=Date.now()}){
+async function fetchNativeIndicator({endpoint,field,period,symbol="EUR/USD",interval="1min",outputsize=6,requiredValues=4,keyPool=twelveDataKeyPool,fetchImpl=fetch,now=Date.now()}){
  const normalized=normalizeSymbol(symbol);
  if(!SYMBOLS.some(item=>normalizeSymbol(item)===normalized))throw new Error(`Pair is not enabled: ${symbol}`);
  const keys=keyPool.getRestCandidates?.()||keyPool.getCandidates();
@@ -164,12 +164,12 @@ async function fetchNativeIndicator({endpoint,field,period,symbol="EUR/USD",inte
   const value=Number(raw?.[field]);
   if(Number.isFinite(epoch)&&Number.isFinite(value)&&epoch<current)byEpoch.set(epoch,{epoch,value});
  }
- const values=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-4);
- if(values.length!==4||values.some((v,i)=>i>0&&v.epoch-values[i-1].epoch!==60)){
-  const e=new Error(`${symbol}: Twelve Data ${endpoint}(${period}) needs four consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;
+ const values=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-requiredValues);
+ if(values.length!==requiredValues||values.some((v,i)=>i>0&&v.epoch-values[i-1].epoch!==60)){
+  const e=new Error(`${symbol}: Twelve Data ${endpoint}(${period}) needs ${requiredValues} consecutive completed M1 values`);e.kind="INSUFFICIENT_HISTORY";throw e;
  }
  return{symbol:body.meta?.symbol||symbol,interval:body.meta?.interval||interval,endpoint,period,values:values.map(v=>({epoch:v.epoch,[field]:v.value})),receivedAt:now,source:`Twelve Data /${endpoint}`};
 }
 export const fetchTrendEma5 = options => fetchNativeIndicator({...options,endpoint:"ema",field:"ema",period:5});
 export const fetchEma20 = options => fetchNativeIndicator({...options,endpoint:"ema",field:"ema",period:20});
-export const fetchAtr14 = options => fetchNativeIndicator({...options,endpoint:"atr",field:"atr",period:14,outputsize:4});
+export const fetchAtr14 = options => fetchNativeIndicator({...options,endpoint:"atr",field:"atr",period:14,outputsize:40,requiredValues:34});

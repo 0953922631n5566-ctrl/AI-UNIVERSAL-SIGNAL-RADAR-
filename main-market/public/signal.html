@@ -73,8 +73,11 @@ button{font:inherit}
  </section>
  <section class="section" id="trendCard">
   <div class="section-title">SIGNAL ENGINE</div>
-  <div class="row"><span>สถานะเครื่องวิเคราะห์</span><small id="engineSignal">DISABLED</small></div>
-  <div id="reason" class="note">ปิดการวิเคราะห์สัญญาณแล้ว · แสดงข้อมูลราคาเท่านั้น</div>
+  <div class="row"><span>สถานะเครื่องวิเคราะห์</span><small id="engineSignal">WAITING</small></div>
+  <div class="row"><span>คะแนน CALL / PUT</span><small id="scoreStatus">—</small></div>
+  <div class="row"><span>เกณฑ์สัญญาณ</span><small>CALL/PUT ≥ 59 · PREPARE ≥ 45</small></div>
+  <div id="indicatorStatus" class="note">รอ EMA5 / EMA20 / ATR14 จาก Twelve Data</div>
+  <div id="reason" class="note">รอข้อมูลอินดิเคเตอร์จาก Twelve Data เพื่อวิเคราะห์</div>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
  </section>
@@ -107,16 +110,21 @@ async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitor
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
 $("monitorStatus").textContent=monitoring?"กำลังรับข้อมูล":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดรับข้อมูล":"เริ่มรับข้อมูล";
-$("engineSignal").textContent="DISABLED";$("reason").textContent="ปิดการวิเคราะห์สัญญาณแล้ว · แสดงข้อมูลราคาเท่านั้น";
 $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
-const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir|| (preparing?"PREPARE":"STANDBY");
+const indicator=m.indicators||{},ready=indicator.status==="READY";const usable=api==="ONLINE"&&monitoring&&ready;
+const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir||(preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
-$("hint").textContent="ปิดการวิเคราะห์สัญญาณแล้ว · แสดงข้อมูลราคาเท่านั้น";
+$("hint").textContent=state==="CALL"?"คะแนนผ่านเกณฑ์ 59 · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"คะแนนผ่านเกณฑ์ 59 · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอข้อมูลสดหรือเงื่อนไข Partial Score ที่ผ่านเกณฑ์";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-$("engineSignal").textContent="DISABLED";$("reason").textContent=m.reason||"ปิดระบบวิเคราะห์สัญญาณแล้ว";
+$("engineSignal").textContent=ready?"PARTIAL SCORING 59/45":indicator.status||"WAITING";
+$("scoreStatus").textContent="CALL "+(m.scores?.CALL??"—")+" · PUT "+(m.scores?.PUT??"—");
+const metrics=m.metrics||{};$("indicatorStatus").textContent=ready
+?"Twelve Data Native · EMA5 "+fmt(indicator.ema5?.ema??metrics.ema5)+" · EMA20 "+fmt(indicator.ema20?.ema??metrics.ema20)+" · ATR14 "+fmt(indicator.atr14?.atr??metrics.atr14)
+:(indicator.message||"รอ EMA5 / EMA20 / ATR14 จาก Twelve Data");
+$("reason").textContent=m.reason||m.statusMessage||"รอการวิเคราะห์";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
-// Signal notifications are disabled in data-only mode; no CALL/PUT alerts are processed.
+if(dir&&m.alertId&&String(m.alertId)!==lastAlertId){lastAlertId=String(m.alertId);soundPattern(dir==="CALL"?[880,1175,880]:[660,523,660]);try{navigator.vibrate?.([140,70,140]);tg?.HapticFeedback?.notificationOccurred("success");}catch{}}
 $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
 async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
 $("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});

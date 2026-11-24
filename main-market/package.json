@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,22 +17,22 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data Feed Only · Signal Engine Disabled",
-    "displayName": "Market Data Only · No Analyzer",
-    "engineCount": 0,
+    "name": "Twelve Data Native Partial Scoring 59",
+    "displayName": "Native Partial Scoring 59/45 · EMA5/EMA20/ATR14",
+    "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "TWELVE_DATA_OHLC_AND_STREAMING_ONLY",
-    "decisionAuthority": "NONE",
+    "executionModel": "TWELVE_DATA_NATIVE_INDICATORS_AND_OHLC_SCORING",
+    "decisionAuthority": "NATIVE_TWELVE_DATA_PARTIAL_SCORING",
     "indicators": {
-      "provider": "Twelve Data OHLC + Streaming for display only",
+      "provider": "Twelve Data native EMA5, EMA20, ATR14 + OHLC/Streaming",
       "localTechnicalIndicatorCalculations": false,
-      "refreshSeconds": 0,
-      "estimatedCreditsPerDay": 0
+      "refreshSeconds": 60,
+      "estimatedCreditsPerDay": 4320
     },
     "strategy": {
-      "name": "NO_SIGNAL_ANALYZER",
-      "signalGeneration": false,
-      "entryRule": "No directional analysis or CALL/PUT generation"
+      "name": "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59",
+      "signalGeneration": true,
+      "entryRule": "CALL/PUT >=59; PREPARE 45-58; STANDBY below 45 or guard failure"
     },
     "keyPool": {
       "configuredKeys": 10,
