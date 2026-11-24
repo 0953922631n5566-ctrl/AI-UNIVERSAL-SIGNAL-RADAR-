@@ -71,6 +71,10 @@ export function buildTechnicalIndicators(candles, liveCandle = null) {
     fourCandleNetChange: recent.length > 1 ? recent.at(-1).close - recent[0].open : null
   };
 }
+export function hasCriticalRiskFlags(flags = []) {
+  const critical = /high[\\s_-]*volatility|sideways?|unclear|contradict|conflict|stale|missing data|insufficient|late entry|over.?extend|extreme|spread|news|data quality|liquidity|ผันผวนสูง|ขัดแย้ง|ข้อมูล.*(ไม่ครบ|ล้า|ผิดปกติ)|ไม่มีข้อมูล|เข้า.*ช้า|ยืดตัว.*เกิน|สภาพคล่องต่ำ|สเปรดกว้าง/iu;
+  return Array.isArray(flags) && flags.some(flag => typeof flag === "string" && critical.test(flag));
+}
 function standby(reason, extra = {}) {
   return { signal: "STANDBY", regime: "UNCLEAR", confidence: 0, reason,
     evidence: [], riskFlags: [], summary: reason, provider: "GEMINI", model: MODEL, ...extra };
@@ -152,7 +156,7 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
     cache.set(cacheKey, { result, expiresAt: Date.now() + SUCCESS_CACHE_MS });
     console.info("[gemini] decision", { symbol, sourceCandleEpoch: sourceEpoch,
       targetCandleEpoch: sourceEpoch + 60, signal: result.signal, regime: result.regime, confidence: result.confidence,
-      riskFlagCount: result.riskFlags.length, evidenceCount: result.evidence.length,
+      riskFlagCount: result.riskFlags.length, riskFlags: result.riskFlags, evidenceCount: result.evidence.length,
       requestsToday, dailyBudget: dailyBudget() });
     return result;
   })().catch(error => {
