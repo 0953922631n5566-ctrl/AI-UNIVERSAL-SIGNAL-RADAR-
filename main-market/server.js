@@ -269,7 +269,7 @@ async function evaluate(feed) {
       };
     }
     const qualityPass = ["CALL", "PUT"].includes(raw.signal) &&
-      Number(raw.confidence) >= 65 &&
+      Number(raw.confidence) >= 35 &&
       !["SIDEWAY", "HIGH_VOLATILITY", "UNCLEAR"].includes(raw.regime) &&
       Array.isArray(raw.riskFlags) && raw.riskFlags.length <= 2 && !hasCriticalRiskFlags(raw.riskFlags) &&
       Array.isArray(raw.evidence) && raw.evidence.length >= 2;
