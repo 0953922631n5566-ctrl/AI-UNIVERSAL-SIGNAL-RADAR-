@@ -83,6 +83,18 @@ test("fractional Gemini confidence is normalized to the 0-100 evidence scale", a
   assert.equal(result.confidence, 65);
 });
 
+test("Gemini can analyze each successive M1 candle once when enabled by the caller", async () => {
+  clearGeminiAnalysisCache();
+  process.env.GEMINI_API_KEY = "test-key";
+  const sourceEpoch = Math.floor(Date.now() / 60000) * 60;
+  const mock = mockFetch("CALL");
+  const first = await analyzeWithGemini({ symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(sourceEpoch), fetchImpl: mock.fetchImpl });
+  const second = await analyzeWithGemini({ symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(sourceEpoch + 60), fetchImpl: mock.fetchImpl });
+  assert.equal(first.signal, "CALL");
+  assert.equal(second.signal, "CALL");
+  assert.equal(mock.calls, 2);
+});
+
 test("repeated ticks in the same source candle reuse one Gemini request", async () => {
   clearGeminiAnalysisCache();
   process.env.GEMINI_API_KEY = "test-key";

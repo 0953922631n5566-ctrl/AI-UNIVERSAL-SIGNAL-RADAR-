@@ -64,7 +64,7 @@ button{font:inherit}
   <div class="section-title">MONITORING</div>
   <div class="row"><span>สถานะการวิเคราะห์</span><small id="monitorStatus">กำลังเริ่มต้น</small></div>
   <button id="monitorToggle" class="control secondary">หยุดการวิเคราะห์</button>
-  <p class="note">เปิด Mini App แล้วระบบเริ่มเชื่อมต่อและวิเคราะห์ให้อัตโนมัติ หากกดหยุด สามารถกดเริ่มใหม่จากเมนูนี้ได้</p>
+  <p class="note">เปิด Mini App แล้วระบบเชื่อมต่อข้อมูลอัตโนมัติ ส่วน Gemini แยกสวิตช์เปิด/ปิดด้านล่าง และจะไม่เรียก AI เมื่อปิด</p>
  </section>
  <section class="section">
   <div class="section-title">SOUND & HAPTICS</div>
@@ -80,7 +80,9 @@ button{font:inherit}
   <div class="row"><span>ATR 14 · Local OHLC</span><small id="atr14">—</small></div>
   <div class="row"><span>แท่งปิดที่พร้อม</span><small id="candles">—</small></div>
   <div class="row"><span>Gemini โควต้าคงเหลือ</span><small id="geminiQuota">—</small></div>
-  <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div><p class="note">Gemini วิเคราะห์ก่อนแท่ง M1 ถัดไป · สัญญาณคงอยู่ 30 วินาทีหลังแท่งเป้าหมายเปิด</p>
+  <div class="row"><span>สถานะ Gemini</span><small id="geminiStatus">ปิดอยู่</small></div>
+  <button id="geminiToggle" class="control secondary" type="button">เปิด Gemini · วิเคราะห์ทุกแท่ง M1</button>
+  <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div><p class="note">เมื่อเปิด Gemini จะวิเคราะห์หนึ่งครั้งต่อแท่ง M1 และประเมินแท่งถัดไป · จำกัดตามโควต้ารายวัน · สัญญาณคงอยู่ 30 วินาที</p>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
  </section>
@@ -113,6 +115,7 @@ async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitor
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
 $("monitorStatus").textContent=monitoring?"กำลังทำงาน":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดการวิเคราะห์":"เริ่มวิเคราะห์";
+const geminiOn=m.geminiEnabled===true;$("geminiStatus").textContent=geminiOn?"เปิด · วิเคราะห์ทุกแท่ง":"ปิดอยู่";$("geminiToggle").textContent=geminiOn?"ปิด Gemini":"เปิด Gemini · วิเคราะห์ทุกแท่ง M1";$("geminiToggle").className="control "+(geminiOn?"":"secondary");
 $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
 const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir|| (preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
@@ -125,6 +128,7 @@ const active=Array.isArray(m.activeSignals)?m.activeSignals:[];if(active.length)
 $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
 async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
 $("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});
+$("geminiToggle").addEventListener("click",async()=>{const action=latest.geminiEnabled?"gemini_off":"gemini_on";await control(action);});
 try{const saved=localStorage.getItem("signalRadarManualLampColor");if(saved==="RED"||saved==="GREEN")manualLampColor=saved;}catch{}
 function paintManualLamp(){const green=manualLampColor==="GREEN";$("manualLampToggle").textContent=green?"สลับไฟเสริมเป็นสีแดง":"สลับไฟเสริมเป็นสีเขียว";$("manualLampStatus").textContent="ไฟเสริม: "+(green?"สีเขียว":"สีแดง")+" · แยกจากสัญญาณจริง";$("manualLampStatus").style.color=green?"#47e39a":"#ff6472";}
 $("manualLampToggle").addEventListener("click",()=>{manualLampColor=manualLampColor==="RED"?"GREEN":"RED";try{localStorage.setItem("signalRadarManualLampColor",manualLampColor);}catch{}paintManualLamp();});paintManualLamp();
