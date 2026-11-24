@@ -30,7 +30,7 @@ function validateNativeIndicators(candles, indicators) {
 
 export function classifyPartialScore(top,direction,killSwitch=false) {
   if(killSwitch||!direction)return {signal:"STANDBY",status:"STANDBY"};
-  if(top>=59)return {signal:direction,status:"SIGNAL"};
+  if(top>=54)return {signal:direction,status:"SIGNAL"};
   if(top>=45)return {signal:"PREPARE",status:"PREPARE"};
   return {signal:"STANDBY",status:"STANDBY"};
 }
@@ -120,13 +120,13 @@ export function scoreMarket(candles, indicators) {
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 59`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 54`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
     :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ PREPARE 45 หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_59",provider:"TWELVE_DATA_NATIVE_INDICATORS",
+    strategy:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_54",provider:"TWELVE_DATA_NATIVE_INDICATORS",
     riskFlags,evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
@@ -140,6 +140,6 @@ export function scoreMarket(candles, indicators) {
       sources:{ema5:"Twelve Data /ema time_period=5",ema20:"Twelve Data /ema time_period=20",atr14:"Twelve Data /atr time_period=14"},
       periods:{ema5:5,ema20:20,atr14:14},latestEpoch:validation.latestEpoch},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
-    thresholds:{signal:59,prepare:45,standbyBelow:45}
+    thresholds:{signal:54,prepare:45,standbyBelow:45}
   };
 }
