@@ -10,7 +10,7 @@ function native(candles){
  const tail=candles.slice(-4),last=candles.at(-1);
  return{ema5:tail.map((c,i)=>({epoch:c.epoch,ema:last.close-0.0006+i*0.0001})),
  ema20:tail.slice(-2).map((c,i)=>({epoch:c.epoch,ema:last.close-0.0012+i*0.0001})),
- atr14:Array.from({length:34},(_,i)=>({epoch:last.epoch-(33-i)*60,atr:0.0003}))};
+ atr14:Array.from({length:34},(_,i)=>({epoch:last.epoch-(33-i)*60,atr:0.0004}))};
 }
 test("native indicators must be complete, consecutive and aligned with latest closed M1 candle",()=>{
  const c=fixture(),v=native(c);assert.equal(scoreMarket(c,v).indicatorStatus.status,"READY");
