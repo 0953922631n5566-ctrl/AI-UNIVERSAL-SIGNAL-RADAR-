@@ -1,0 +1,8 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {analyzeMarket,sourceGate} from "../src/analyzer.js";
+function history(count=54){const start=Math.floor(Date.now()/60000)*60-count*60;let p=1.08;return Array.from({length:count},(_,i)=>{const open=p,close=p+0.0001;p=close;return{epoch:start+i*60,open,high:close+0.00005,low:open-0.00005,close,live:false};});}
+function native(c){const last=c.at(-1);return{ema5:c.slice(-4).map((x,i)=>({epoch:x.epoch,ema:last.close-0.0006+i*0.0001})),ema20:c.slice(-2).map((x,i)=>({epoch:x.epoch,ema:last.close-0.0012+i*0.0001})),atr14:Array.from({length:34},(_,i)=>({epoch:last.epoch-(33-i)*60,atr:0.0003}))};}
+test("source gate requires 54 consecutive closed candles and fresh Twelve Data Streaming",()=>{const c=history();assert.equal(sourceGate(c,{now:Date.now(),tickAgeSeconds:1}).ready,true);assert.equal(sourceGate(c,{now:Date.now(),tickAgeSeconds:26}).ready,false);c.at(-1).epoch-=120;assert.equal(sourceGate(c,{now:Date.now(),tickAgeSeconds:1}).ready,false);});
+test("analyzer fails closed when native indicators are missing or stale",async()=>{const c=history();assert.equal((await analyzeMarket(c,{now:Date.now(),tickAgeSeconds:1})).signal,"STANDBY");const v=native(c);v.atr14.at(-1).epoch-=60;assert.equal((await analyzeMarket(c,{now:Date.now(),tickAgeSeconds:1,indicators:v})).signal,"STANDBY");});
+test("analyzer reports native provider and 59/45 score gates",async()=>{const c=history(),r=await analyzeMarket(c,{now:Date.now(),tickAgeSeconds:1,indicators:native(c)});assert.equal(r.provider,"TWELVE_DATA_NATIVE_INDICATORS");assert.equal(r.thresholds.signal,59);assert.equal(r.thresholds.prepare,45);assert.equal(r.requiredCandles,54);});
