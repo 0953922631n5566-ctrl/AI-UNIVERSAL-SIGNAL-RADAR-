@@ -2,7 +2,7 @@ export const M1_MS = 60_000;
 export const SIGNAL_HOLD_MS = 30_000;
 export const MAX_TICK_AGE_MS = 5_000;
 // Keep enough time for the Telegram Mini App to receive and display the signal before candle rollover.
-export const MIN_SIGNAL_LEAD_MS = 1_200;
+export const MIN_SIGNAL_LEAD_MS = 2_500;
 
 export function createNextCandleSignal({ signal, sourceCandleEpoch, now, entryPrice, alertId }) {
   if (!["CALL", "PUT"].includes(signal) || !Number.isFinite(sourceCandleEpoch) || !Number.isFinite(now)) return null;
