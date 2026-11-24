@@ -82,8 +82,12 @@ function validateDecision(value) {
       !Array.isArray(value.evidence) || !Array.isArray(value.riskFlags) || typeof value.summary !== "string") {
     throw new Error("Gemini response schema invalid");
   }
+  // Gemini may serialize a normalized confidence as 0..1 or as 0..100.
+  // Convert fractional values to the documented 0..100 evidence-strength scale.
+  const normalizedConfidence = value.confidence >= 0 && value.confidence <= 1
+    ? value.confidence * 100 : value.confidence;
   return { signal: value.signal, regime: value.regime,
-    confidence: Math.max(0, Math.min(100, value.confidence)),
+    confidence: Math.max(0, Math.min(100, normalizedConfidence)),
     reason: value.reason.slice(0, 400),
     evidence: value.evidence.filter(v => typeof v === "string").slice(0, 6),
     riskFlags: value.riskFlags.filter(v => typeof v === "string").slice(0, 6),
@@ -147,7 +151,8 @@ export async function analyzeWithGemini({ symbol, closedCandles, liveCandle, now
       targetCandleEpoch: sourceEpoch + 60, analyzedAt: new Date(now).toISOString() };
     cache.set(cacheKey, { result, expiresAt: Date.now() + SUCCESS_CACHE_MS });
     console.info("[gemini] decision", { symbol, sourceCandleEpoch: sourceEpoch,
-      targetCandleEpoch: sourceEpoch + 60, signal: result.signal, confidence: result.confidence,
+      targetCandleEpoch: sourceEpoch + 60, signal: result.signal, regime: result.regime, confidence: result.confidence,
+      riskFlagCount: result.riskFlags.length, evidenceCount: result.evidence.length,
       requestsToday, dailyBudget: dailyBudget() });
     return result;
   })().catch(error => {
