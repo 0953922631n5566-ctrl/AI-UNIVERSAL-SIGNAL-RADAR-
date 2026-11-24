@@ -2,20 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {canFinalizeSignal,isFreshSignalTick,isPrepareAlertWindow,isSignalFinalizeWindow,signalHoldExpiresAt} from "../src/signal-timing.js";
 const candle=1_800_000_000,openAt=candle*1000;
-test("PREPARE window is T-15 through just before T-5",()=>{
+test("PREPARE window is T-15 through just before T-10",()=>{
  assert.equal(isPrepareAlertWindow(candle,openAt+44999),false);
  assert.equal(isPrepareAlertWindow(candle,openAt+45000),true);
- assert.equal(isPrepareAlertWindow(candle,openAt+54999),true);
- assert.equal(isPrepareAlertWindow(candle,openAt+55000),false);
+ assert.equal(isPrepareAlertWindow(candle,openAt+49999),true);
+ assert.equal(isPrepareAlertWindow(candle,openAt+50000),false);
 });
-test("Engine 3 finalizes only in the final five seconds of the source M1 candle",()=>{
- assert.equal(isSignalFinalizeWindow(candle,openAt+54999),false);
- assert.equal(isSignalFinalizeWindow(candle,openAt+55000),true);
+test("Engine 3 finalizes only in the final ten seconds of the source M1 candle",()=>{
+ assert.equal(isSignalFinalizeWindow(candle,openAt+49999),false);
+ assert.equal(isSignalFinalizeWindow(candle,openAt+50000),true);
  assert.equal(isSignalFinalizeWindow(candle,openAt+59999),true);
  assert.equal(isSignalFinalizeWindow(candle,openAt+60000),false);
 });
 test("finalization requires a fresh Streaming tick and permits one dispatch per candle",()=>{
- const now=openAt+55000,base={candleEpoch:candle,tickAt:now-1000,now};
+ const now=openAt+50000,base={candleEpoch:candle,tickAt:now-1000,now};
  assert.equal(canFinalizeSignal(base),true);
  assert.equal(canFinalizeSignal({...base,lastDispatchedCandle:candle}),false);
  assert.equal(canFinalizeSignal({...base,tickAt:now-5001}),false);
