@@ -19,7 +19,9 @@ test("Mini App automatically authenticates and starts monitoring",()=>{
  assert.match(html,/async function autoStart\(\)/);
  assert.match(html,/await control\("start"\)/);
  assert.match(html,/\/api\/telegram\/session/);
- assert.match(serverJs,/if \(action === "start"\)/);\n assert.match(serverJs,/action === "gemini_on"/);\n assert.match(serverJs,/action === "gemini_off"/);
+ assert.match(serverJs,/if \(action === "start"\)/);
+ assert.match(serverJs,/action === "gemini_on"/);
+ assert.match(serverJs,/action === "gemini_off"/);
 });
 test("Mini App reuses session and supports manual stop/restart",()=>{
  assert.match(html,/function ensureAuth\(\)\{if\(token\)return Promise\.resolve\(\)/);
@@ -31,7 +33,10 @@ test("Mini App exposes Gemini and local OHLC diagnostics",()=>{
  assert.match(html,/GEMINI PRIMARY · NEXT M1/);
  assert.match(html,/EMA 9 · Local OHLC/);
  assert.match(html,/signalRadarManualLampColor/);
- assert.match(serverJs,/analyzeWithGemini/);\n assert.match(html,/id="geminiToggle"/);\n assert.match(html,/id="geminiStatus"/);\n assert.match(html,/const action=latest\.geminiEnabled\?"gemini_off":"gemini_on"/);
+ assert.match(serverJs,/analyzeWithGemini/);
+ assert.match(html,/id="geminiToggle"/);
+ assert.match(html,/id="geminiStatus"/);
+ assert.match(html,/const action=latest\.geminiEnabled\?"gemini_off":"gemini_on"/);
  assert.doesNotMatch(serverJs,/fetchTrendEma5|fetchEma20|fetchAtr14/);
 });
 test("Mini App displays next-M1 target and retains sound/haptics",()=>{
