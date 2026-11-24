@@ -58,8 +58,10 @@ export function analyzeTrendRider(candles, options = {}) {
   const upPullback=last.low<=fastNow+volatility*.25&&last.close>fastNow&&last.close>=last.open;
   const downPullback=last.high>=fastNow-volatility*.25&&last.close<fastNow&&last.close<=last.open;
   const upBreak=last.close>priorHigh,downBreak=last.close<priorLow;
-  const upMomentum=last.close>previous.close&&bodyRatio>=.35;
-  const downMomentum=last.close<previous.close&&bodyRatio>=.35;
+  const bullishCandle=last.close>last.open;
+  const bearishCandle=last.close<last.open;
+  const upMomentum=bullishCandle&&last.close>previous.close&&bodyRatio>=.35;
+  const downMomentum=bearishCandle&&last.close<previous.close&&bodyRatio>=.35;
   // In a clearly aligned trend, a strong candle continuing beyond EMA5 is a valid trigger
   // even when the latest swing has not yet printed a fresh higher-low/lower-high or breakout.
   const upContinuation=upAligned&&last.close>fastNow&&upMomentum;
@@ -71,14 +73,24 @@ export function analyzeTrendRider(candles, options = {}) {
   if(sideways){status="SIDEWAYS_BLOCK";reason="EMA5/EMA20 พันกัน · งดสัญญาณในตลาดออกข้าง";}
   else if(late){status="LATE_ENTRY_BLOCK";reason="ราคาออกห่าง EMA5 เกิน 1.5 ATR · ไม่ไล่ตามเทรนด์";}
   else if(volatilitySpike){status="VOLATILITY_BLOCK";reason="แท่งล่าสุดกว้างผิดปกติเมื่อเทียบกับ ATR14";}
-  else if(scoreUp>=58&&scoreUp-scoreDown>=8&&upAligned&&(risingStructure||upBreak||upContinuation)){signal="CALL";score=scoreUp;status=upContinuation&&!risingStructure&&!upBreak?"UPTREND_MOMENTUM_CONTINUATION":"UPTREND_CONTINUATION";reason=upContinuation&&!risingStructure&&!upBreak?"EMA5 เหนือ EMA20 และแท่งล่าสุดยืนยันแรงซื้อเหนือ EMA5":"EMA5 เหนือ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาขึ้น";}
-  else if(scoreDown>=58&&scoreDown-scoreUp>=8&&downAligned&&(fallingStructure||downBreak||downContinuation)){signal="PUT";score=scoreDown;status=downContinuation&&!fallingStructure&&!downBreak?"DOWNTREND_MOMENTUM_CONTINUATION":"DOWNTREND_CONTINUATION";reason=downContinuation&&!fallingStructure&&!downBreak?"EMA5 ใต้ EMA20 และแท่งล่าสุดยืนยันแรงขายใต้ EMA5":"EMA5 ใต้ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาลง";}
+  else if(scoreUp>=58&&scoreUp-scoreDown>=8&&upAligned&&bullishCandle&&(risingStructure||upBreak||upContinuation)){signal="CALL";score=scoreUp;status=upContinuation&&!risingStructure&&!upBreak?"UPTREND_MOMENTUM_CONTINUATION":"UPTREND_CONTINUATION";reason=upContinuation&&!risingStructure&&!upBreak?"EMA5 เหนือ EMA20 และแท่งล่าสุดยืนยันแรงซื้อเหนือ EMA5":"EMA5 เหนือ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาขึ้น";}
+  else if(scoreDown>=58&&scoreDown-scoreUp>=8&&downAligned&&bearishCandle&&(fallingStructure||downBreak||downContinuation)){signal="PUT";score=scoreDown;status=downContinuation&&!fallingStructure&&!downBreak?"DOWNTREND_MOMENTUM_CONTINUATION":"DOWNTREND_CONTINUATION";reason=downContinuation&&!fallingStructure&&!downBreak?"EMA5 ใต้ EMA20 และแท่งล่าสุดยืนยันแรงขายใต้ EMA5":"EMA5 ใต้ EMA20 · โครงสร้างหรือแรงต่อเนื่องยืนยันขาลง";}
   else if(score>=45){status="TREND_WATCH";reason="เริ่มเห็นแนวโน้ม แต่คะแนนหรือแรงยืนยันยังไม่ครบ";}
+  const live=options.liveCandle;
+  const liveValid=live&&live.live===true&&live.epoch===sourceEpoch+60&&[live.open,live.high,live.low,live.close].every(Number.isFinite)&&live.high>=Math.max(live.open,live.close)&&live.low<=Math.min(live.open,live.close);
+  const liveBody=liveValid?Math.abs(live.close-live.open):0;
+  const liveBullish=Boolean(liveValid&&live.close>live.open&&live.close>=last.close&&liveBody>=volatility*.05);
+  const liveBearish=Boolean(liveValid&&live.close<live.open&&live.close<=last.close&&liveBody>=volatility*.05);
+  const liveConflict=options.requireLiveConfirmation===true&&((signal==="CALL"&&!liveBullish)||(signal==="PUT"&&!liveBearish));
+  if(liveConflict){signal=null;status="LIVE_DIRECTION_CONFLICT";reason="แท่ง M1 ที่กำลังก่อตัวยังไม่ยืนยันทิศทางเดียวกับสัญญาณ · งดเข้า";}
   const blockers=[];
   if(sideways)blockers.push("SIDEWAYS");
   if(late)blockers.push("LATE_ENTRY");
   if(volatilitySpike)blockers.push("ABNORMAL_RANGE");
   if(!upAligned&&!downAligned)blockers.push("EMA_ALIGNMENT");
+  if(!bullishCandle&&!bearishCandle)blockers.push("CLOSED_CANDLE_DOJI");
+  if(options.requireLiveConfirmation===true&&!liveBullish&&!liveBearish)blockers.push("LIVE_CANDLE_NOT_CONFIRMED");
+  if(options.requireLiveConfirmation===true&&((upAligned&&!liveBullish)||(downAligned&&!liveBearish)))blockers.push("LIVE_DIRECTION_CONFLICT");
   if(upAligned&&!risingStructure&&!upBreak&&!upContinuation)blockers.push("CALL_TRIGGER");
   if(downAligned&&!fallingStructure&&!downBreak&&!downContinuation)blockers.push("PUT_TRIGGER");
   if(Math.max(scoreUp,scoreDown)<58)blockers.push("SCORE_BELOW_58");
@@ -89,7 +101,7 @@ export function analyzeTrendRider(candles, options = {}) {
     metrics:{ema5:fastNow,ema20:slowNow,atr14:volatility,emaGapAtr:Number(gapAtr.toFixed(3)),
       extensionAtr:Number(extensionAtr.toFixed(3)),bodyRatio:Number(bodyRatio.toFixed(3)),priorHigh,priorLow,
       indicatorEpoch,sourceCandleEpoch:sourceEpoch,indicatorLagCandles,
-      upAligned,downAligned,risingStructure,fallingStructure,upBreak,downBreak,
+      upAligned,downAligned,bullishCandle,bearishCandle,liveBullish,liveBearish,liveConflict,risingStructure,fallingStructure,upBreak,downBreak,
       upPullback,downPullback,upMomentum,downMomentum,upContinuation,downContinuation,
       ema5Source:"Twelve Data /ema time_period=5",ema20Source:"Twelve Data /ema time_period=20",atr14Source:"Twelve Data /atr time_period=14"},
     indicatorStatus:{ema5:"READY",ema20:"READY",atr14:"READY"},

@@ -26,7 +26,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
 const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
-const VERSION = "2026-11-24-engine3-lag-aware-continuation-t10-v2";
+const VERSION = "2026-11-24-engine3-live-direction-confirmation-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -235,7 +235,7 @@ async function evaluate(feed) {
  const restFallback=feed.restStatus==="READY"&&!freshTick;
  const sourceReady=closed.length>=30&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
  const raw=sourceReady
-  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14})
+  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14,liveCandle:current?.live===true?current:null,requireLiveConfirmation:true})
   : {ready:false,signal:null,score:0,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด"};
  const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
  if(!candidate&&sourceEpoch!==null&&feed.lastDiagnosticLoggedCandle!==sourceEpoch){
@@ -915,7 +915,7 @@ app.get("/health", (_req, res) => {
       engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_10_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
       engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14"
+      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_CLOSED_AND_LIVE_M1_DIRECTION_CONFIRMATION"
     },
     analyzer: {
       provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
@@ -923,7 +923,7 @@ app.get("/health", (_req, res) => {
       role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
       externalAiCalls: false, localTechnicalIndicatorCalculations: false,
       indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
-      priceAction: "RAW_TWELVE_DATA_OHLC_SWING_STRUCTURE_AND_CANDLE_CONFIRMATION",
+      priceAction: "CLOSED_M1_CANDLE_DIRECTION_PLUS_CURRENT_LIVE_M1_DIRECTION_CONFIRMATION",
       scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30,
       guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
     },
