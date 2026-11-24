@@ -51,7 +51,7 @@ button{font:inherit}
   <div id="signal" class="signal-state">STANDBY</div>
   <div id="hint" class="signal-hint">กำลังเริ่มระบบวิเคราะห์อัตโนมัติ</div>
   <div class="timing">
-   <div class="time-card"><span>แท่งปัจจุบัน · M1</span><b id="candle">—</b></div>
+   <div class="time-card"><span>แท่งเป้าหมายถัดไป · M1</span><b id="candle">—</b></div>
    <div class="time-card"><span>สัญญาณคงเหลือ</span><b id="expiry">—</b></div>
   </div>
  </section>
@@ -79,6 +79,7 @@ button{font:inherit}
   <div class="row"><span>EMA 21 · Local OHLC</span><small id="ema20">—</small></div>
   <div class="row"><span>ATR 14 · Local OHLC</span><small id="atr14">—</small></div>
   <div class="row"><span>แท่งปิดที่พร้อม</span><small id="candles">—</small></div>
+  <div class="row"><span>Gemini โควต้าคงเหลือ</span><small id="geminiQuota">—</small></div>
   <div id="reason" class="note">รอข้อมูลจาก Twelve Data</div><p class="note">Gemini วิเคราะห์ก่อนแท่ง M1 ถัดไป · สัญญาณคงอยู่ 30 วินาทีหลังแท่งเป้าหมายเปิด</p>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
@@ -116,9 +117,9 @@ $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textC
 const usable=api==="ONLINE"&&monitoring;const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir|| (preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
-$("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · แท่ง M1 ถัดไป":"สัญญาณฝั่งขาย · แท่ง M1 ถัดไป"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
+$("hint").textContent=dir?(dir==="CALL"?"สัญญาณฝั่งซื้อ · เข้าแท่งเป้าหมาย M1":"สัญญาณฝั่งขาย · เข้าแท่งเป้าหมาย M1"):preparing?"เตรียมเฝ้าระวัง · รอยืนยันสัญญาณ":"รอข้อมูลสดและเงื่อนไขที่ผ่านเกณฑ์";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.indicators?.ema9);$("ema20").textContent=fmt(m.indicators?.ema21);$("atr14").textContent=fmt(m.indicators?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??30);$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
+const e=m.engineResults?.TREND_RIDER||m.trendRider||{};$("engineSignal").textContent=e.active?e.signal:(e.candidateSignal?"WATCH · "+e.candidateSignal:"STANDBY");$("regime").textContent=m.regime||"—";$("ema5").textContent=fmt(m.indicators?.ema9);$("ema20").textContent=fmt(m.indicators?.ema21);$("atr14").textContent=fmt(m.indicators?.atr14);$("candles").textContent=(m.closedCandleCount??0)+"/"+(m.requiredCandles??54);const quota=m.geminiQuota||{};$("geminiQuota").textContent=Number.isFinite(quota.remaining)?quota.remaining+"/"+(quota.dailyBudget??"—"):"—";$("reason").textContent=m.reason||m.statusMessage||"รอข้อมูลจาก Twelve Data";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
 const active=Array.isArray(m.activeSignals)?m.activeSignals:[];if(active.length){for(const item of active)notify(item.signal,String(item.alertId||item.engine+item.signal));}else if(dir&&m.alertId)notify(dir,String(m.alertId));
 $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
