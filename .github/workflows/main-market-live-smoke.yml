@@ -1,4 +1,4 @@
-name: Main Market Live Engine 3 Smoke Test
+name: Main Market Gemini Next-M1 Smoke Test
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: Wait for the Engine 3 Render release
+      - name: Wait for the Gemini Next-M1 Render release
         shell: bash
         run: |
           set -euo pipefail
@@ -28,7 +28,7 @@ jobs:
           for attempt in $(seq 1 60); do
             if HEALTH="$(curl -fsS --max-time 12 "$BASE/health" 2>/dev/null)" && printf '%s' "$HEALTH" | node -e '
               let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-                try { const h=JSON.parse(s); process.exit(h.ok && h.architecture?.decisionEngine==="ENGINE_3_TREND_RIDER_ONLY" && h.architecture?.engines===1 && h.architecture?.controlChannel==="TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP" ? 0 : 1); }
+                try { const h=JSON.parse(s); process.exit(h.ok && h.architecture?.decisionEngine==="GEMINI_PRIMARY_ADAPTIVE_NEXT_M1" && h.architecture?.engines===1 && h.analyzer?.provider==="GEMINI_PRIMARY_WITH_TWELVE_DATA_M1_OHLC" && h.analyzer?.configured===true && h.architecture?.controlChannel==="TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP" ? 0 : 1); }
                 catch { process.exit(1); }
               });'; then
               READY=1
@@ -36,7 +36,7 @@ jobs:
             fi
             sleep 5
           done
-          test "$READY" = "1" || { echo "Render did not become healthy on the expected Engine 3 release"; exit 1; }
+          test "$READY" = "1" || { echo "Render did not become healthy on the expected Gemini Next-M1 release"; exit 1; }
 
       - name: Verify Mini App and exercise session start stop
         shell: bash
@@ -69,8 +69,9 @@ jobs:
               let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
                 try {
                   const m=JSON.parse(s).market;
-                  const ok=m?.monitoring===true && m?.apiStatus==="ONLINE" && m?.indicators?.status==="READY" &&
-                    m?.indicators?.ema5 && m?.indicators?.ema20 && m?.indicators?.atr14;
+                  const ok=m?.monitoring===true && m?.apiStatus==="ONLINE" && m?.indicators?.status==="LOCAL_READY" &&
+                    m?.indicators?.ema5 && m?.indicators?.ema20 && m?.indicators?.atr14 &&
+                    m?.signalTimingMode==="NEXT_M1_TARGET_PREOPEN_HOLD_30S";
                   process.exit(ok ? 0 : 1);
                 } catch { process.exit(1); }
               });'; then
@@ -79,9 +80,9 @@ jobs:
             fi
             sleep 5
           done
-          test "$LIVE" = "1" || { echo "Engine 3 did not reach live Streaming plus native EMA5/EMA20/ATR14 readiness"; exit 1; }
+          test "$LIVE" = "1" || { echo "Gemini did not reach live Streaming plus locally calculated EMA9/EMA21/ATR14 readiness"; exit 1; }
 
           STOPPED="$(curl -fsS --max-time 20 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"stop"}' "$BASE/api/telegram/control")"
           printf '%s' "$STOPPED" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.market?.monitoring!==false)process.exit(1);});'
           trap - EXIT
-          echo "PASS: Mini App session, Start, live Streaming, Twelve Data EMA5/EMA20/ATR14, and Stop."
+          echo "PASS: Mini App session, Start, live Streaming, Gemini analyzer and local OHLC indicators, and Stop."
