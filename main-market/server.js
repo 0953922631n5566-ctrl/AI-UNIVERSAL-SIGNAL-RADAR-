@@ -10,7 +10,7 @@ import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeTrendRider } from "./src/trend-rider.js";
 const SIGNAL_RELEASE_VALIDATED = false;
-import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
+import { canTriggerLiveSignal } from "./src/signal-timing.js";
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
   REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
@@ -24,9 +24,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "ENGINE 3 TREND RIDER · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
+const SYSTEM_NAME = "ENGINE 3 TREND FIRST INSTANT ENTRY · TWELVE DATA NATIVE EMA5 EMA20 ATR14";
 const ARCHITECTURE_ID = "ENGINE_3_ONLY_TWELVE_DATA_NATIVE_INDICATORS";
-const VERSION = "2026-11-24-engine3-live-direction-confirmation-v1";
+const VERSION = "2026-11-24-engine3-twelvedata-instant-entry-v2";
 const app = express();
 const server = http.createServer(app);
 
@@ -227,48 +227,44 @@ async function evaluate(feed) {
  const tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
  const current=feed.candles.at(-1);
  const sourceEpoch=current?.live===true?current.epoch:null;
- const targetEpoch=sourceEpoch===null?null:sourceEpoch+60;
- const closed=feed.candles.filter(c=>c&&c.live!==true&&Number.isFinite(c.epoch)&&c.epoch<Math.floor(now/60000)*60).slice(-54);
+ const closed=feed.candles.filter(c=>c&&c.live!==true&&Number.isFinite(c.epoch)&&c.epoch<Math.floor(now/60000)*60).slice(-MIN_CLOSED_CANDLES);
  const latest=closed.at(-1);
  const latestAge=latest?now/1000-(latest.epoch+60):Infinity;
  const freshTick=Number.isFinite(tickAge)&&tickAge>=0&&tickAge<=MAX_STREAM_AGE_SECONDS;
  const restFallback=feed.restStatus==="READY"&&!freshTick;
- const sourceReady=closed.length>=30&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
+ const sourceReady=closed.length>=MIN_CLOSED_CANDLES&&latestAge<=MAX_CANDLE_AGE_SECONDS&&(freshTick||restFallback);
  const raw=sourceReady
-  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14,liveCandle:current?.live===true?current:null,requireLiveConfirmation:true})
-  : {ready:false,signal:null,score:0,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีแท่ง M1 ปิดอย่างน้อย 30 แท่งและข้อมูลราคาต้องสด"};
+  ? analyzeTrendRider(closed,{ema5Values:feed.engine3Indicators?.ema5,ema20Values:feed.engine3Indicators?.ema20,atrValues:feed.engine3Indicators?.atr14,liveCandle:current?.live===true?current:null})
+  : {ready:false,signal:null,status:"SOURCE_LOCKED",reason:"Trend Rider ต้องมีข้อมูล M1 OHLC ครบ "+MIN_CLOSED_CANDLES+" แท่งและข้อมูลตลาดพร้อม"};
  const candidate=["CALL","PUT"].includes(raw.signal)?raw.signal:null;
  if(!candidate&&sourceEpoch!==null&&feed.lastDiagnosticLoggedCandle!==sourceEpoch){
   feed.lastDiagnosticLoggedCandle=sourceEpoch;
-  console.info("[engine3] candidate blocked",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,status:raw.status,score:raw.score,scoreUp:raw.scoreUp,scoreDown:raw.scoreDown,blockers:raw.blockers||[],indicatorLagCandles:raw.metrics?.indicatorLagCandles??null});
+  console.info("[engine3] instant entry waiting",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,status:raw.status,regime:raw.regime,blockers:raw.blockers||[],indicatorLagCandles:raw.metrics?.indicatorLagCandles??null});
  }
- const prepare=sourceEpoch!==null&&isPrepareAlertWindow(sourceEpoch,now)&&Boolean(candidate);
- feed.preAlertStatus=prepare?"PREPARE_ALERT":null;
- feed.preAlertCandle=prepare?targetEpoch:null;
+ feed.preAlertStatus=null;
+ feed.preAlertCandle=null;
  feed.preAlertSignal=null;
- if(prepare&&feed.lastPrepareLoggedCandle!==sourceEpoch){
-  feed.lastPrepareLoggedCandle=sourceEpoch;
-  console.info("[timing] Engine 3 T-15 prepare",{symbol:feed.symbol,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,candidate});
- }
  let active=feed.engineActive?.TREND_RIDER||null;
  if(active&&now>=active.expiresAt){active=null;feed.engineActive.TREND_RIDER=null;}
- const timingReady=sourceEpoch!==null&&canFinalizeSignal({candleEpoch:sourceEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER});
- if(!active&&sourceEpoch!==null&&isSignalFinalizeWindow(sourceEpoch,now)&&candidate&&timingReady){
-  active={engine:"TREND_RIDER",signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,
-   triggeredAt:now,expiresAt:signalHoldExpiresAt(targetEpoch),score:raw.score??0,sourceReason:raw.reason||null,
-   alertId:"TREND_RIDER:"+targetEpoch+":"+candidate,entryPrice:null,entryPriceBasis:"TARGET_M1_CANDLE_OPEN"};
+ const timingReady=sourceEpoch!==null&&canTriggerLiveSignal({candleEpoch:sourceEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER});
+ if(!active&&sourceEpoch!==null&&candidate&&timingReady){
+  active={engine:"TREND_RIDER",signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:sourceEpoch,
+   triggeredAt:now,expiresAt:now+30_000,sourceReason:raw.reason||null,
+   alertId:"TREND_RIDER:"+sourceEpoch+":"+candidate,entryPrice:feed.lastTick??current.close,
+   entryPriceBasis:"TWELVE_DATA_LIVE_STREAMING"};
   feed.engineActive.TREND_RIDER=active;
-  console.info("[signal] Engine 3 finalized",{symbol:feed.symbol,signal:candidate,sourceCandleEpoch:sourceEpoch,targetCandleEpoch:targetEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
+  console.info("[signal] Engine 3 instant entry",{symbol:feed.symbol,signal:candidate,sourceCandleEpoch:sourceEpoch,
+   entryPrice:active.entryPrice,expiresAt:new Date(active.expiresAt).toISOString()});
  }
  const isActive=Boolean(active&&now<active.expiresAt);
  const signal=isActive?active.signal:"STANDBY";
- const reason=isActive?("สัญญาณ "+active.signal+" · Trend Rider · แสดง 30 วินาที"):prepare?("PREPARE T-15 · Trend Rider "+candidate+" · รอยืนยัน T-10"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
+ const reason=isActive?("สัญญาณ "+active.signal+" · เข้าได้ทันทีจากราคา Streaming · แสดง 30 วินาที"):(raw.reason||"Engine 3 กำลังรอข้อมูล Twelve Data");
  const engineResult={...raw,engine:"TREND_RIDER",candidateSignal:candidate,active:isActive,signal,
   status:isActive?"SIGNAL":candidate?"WATCH":raw.status,reason:isActive?reason:raw.reason,
   alertId:isActive?active.alertId:null,signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
   signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null};
- const activeSignals=isActive?[{engine:"TREND_RIDER",signal:active.signal,score:active.score,reason,
-  alertId:active.alertId,expiresAt:new Date(active.expiresAt).toISOString(),
+ const activeSignals=isActive?[{engine:"TREND_RIDER",signal:active.signal,reason,
+  alertId:active.alertId,entryPrice:active.entryPrice,expiresAt:new Date(active.expiresAt).toISOString(),
   targetCandleAt:new Date(active.targetCandleEpoch*1000).toISOString(),targetCandleEpoch:active.targetCandleEpoch}]:[];
  feed.activeSignal=isActive?active.signal:null;
  feed.signalCandle=isActive?active.targetCandleEpoch:null;
@@ -276,30 +272,33 @@ async function evaluate(feed) {
  feed.signalTriggeredAt=isActive?active.triggeredAt:0;
  feed.activeUntil=isActive?active.expiresAt:0;
  feed.alertId=isActive?active.alertId:null;
- feed.analysis={...raw,signal,direction:isActive?signal:null,status:isActive?"SIGNAL":prepare?"PREPARE":"STANDBY",
-  prepareSignal:prepare?candidate:null,reason,summary:reason,active:isActive,engine:"TREND_RIDER",
+ feed.analysis={...raw,signal,direction:isActive?signal:null,status:isActive?"SIGNAL":"STANDBY",
+  prepareSignal:null,reason,summary:reason,active:isActive,engine:"TREND_RIDER",
   engineResults:{TREND_RIDER:engineResult},activeSignals,trendRider:raw,
-  preAlertStatus:feed.preAlertStatus,preAlertCandle:feed.preAlertCandle,preAlertSignal:null,
+  preAlertStatus:null,preAlertCandle:null,preAlertSignal:null,
   tickAgeSeconds:tickAge===null?null:Math.round(tickAge),lastTickPrice:feed.lastTick,alertId:feed.alertId,
   signalTriggeredAt:isActive?new Date(active.triggeredAt).toISOString():null,
   signalExpiresAt:isActive?new Date(active.expiresAt).toISOString():null,
   signalTargetCandleAt:isActive?new Date(active.targetCandleEpoch*1000).toISOString():null,
-  signalTimingWindowSeconds:[10,0],indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
-  analysisMode:"CLOSED_M1_NATIVE_INDICATORS",liveAnalysisIntervalSeconds:LIVE_ANALYSIS_INTERVAL_SECONDS,
-  signalValidationNote:"Engine 3 เท่านั้น · EMA5 / EMA20 / ATR14 ใช้ค่าจาก Twelve Data native endpoints · สูตร Trend Rider ของเรา · Manual only · No broker execution"};
+  entryPrice:isActive?active.entryPrice:null,
+  signalTimingWindowSeconds:[0,60],signalTimingMode:"INTRABAR_IMMEDIATE_CURRENT_M1",
+  indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
+  analysisMode:"LIVE_M1_INTRABAR_NATIVE_INDICATORS",liveAnalysisIntervalSeconds:LIVE_ANALYSIS_INTERVAL_SECONDS,
+  signalValidationNote:"Engine 3 เท่านั้น · EMA5/EMA20/ATR14 จาก Twelve Data native endpoints · ใช้ราคา Streaming จับจังหวะเข้าในแท่ง M1 ทันที · Manual only · No broker execution"};
 }
 
 function dispatchSignalIfReady(feed) {
  const active=feed.engineActive?.TREND_RIDER;
- if(!active||!["CALL","PUT"].includes(active.signal)||!active.alertId)return;
+ if(!active||![ "CALL","PUT" ].includes(active.signal)||!active.alertId)return;
  if(feed.engineLastDispatchedAlertId?.TREND_RIDER===active.alertId)return;
  const now=Date.now();
- if(!canFinalizeSignal({candleEpoch:active.sourceCandleEpoch,tickAt:feed.tickAt,now,
-  lastDispatchedCandle:feed.engineLastDispatchedCandle?.TREND_RIDER}))return;
+ if(now>=active.expiresAt||!Number.isFinite(feed.tickAt)||now-feed.tickAt>5000)return;
  feed.engineLastDispatchedAt=now;
  feed.engineLastDispatchedCandle.TREND_RIDER=active.sourceCandleEpoch;
  feed.engineLastDispatchedAlertId.TREND_RIDER=active.alertId;
- console.info("[signal] Engine 3 signal available to Telegram Mini App",{engine:"TREND_RIDER",alertId:active.alertId,signal:active.signal,symbol:feed.symbol,targetCandleEpoch:active.targetCandleEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
+ console.info("[signal] Engine 3 instant signal available to Telegram Mini App",{engine:"TREND_RIDER",
+  alertId:active.alertId,signal:active.signal,symbol:feed.symbol,entryPrice:active.entryPrice,
+  candleEpoch:active.sourceCandleEpoch,expiresAt:new Date(active.expiresAt).toISOString()});
 }
 
 function applyTick(feed, price, epoch) {
@@ -840,138 +839,4 @@ app.get("/api/public/signal", (_req, res) => {
       analysisMode: state.analysisMode || "CLOSED_M1_NATIVE_INDICATORS",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [10, 0],
-      engineResults: state.engineResults || null,
-      signalReleaseValidated: state.signalReleaseValidated,
-      signalReleaseStatus: state.signalReleaseStatus,
-      signalValidationNote: state.signalValidationNote,
-      lastPrice: state.lastPrice,
-      lastTickPrice: state.lastTickPrice,
-      monitoring: state.monitoring,
-      apiPool: state.apiPool
-    }
-  });
-});
-app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
-  // Open Mini App access: issue a short-lived server session without requiring Telegram initData or BotFather token.
-  // Access control is intentionally left to the app owner.
-  const token = randomBytes(32).toString("hex");
-  const userId = "open-mini-app";
-  telegramSessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
-  noCache(res);
-  console.info("[mini-app] open session created");
-  res.json({ ok: true, sessionToken: token, expiresIn: Math.floor(SESSION_TTL_MS / 1000),
-    user: { id: userId, firstName: "Guest" } });
-});
-app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async (req, res) => {
-  const symbol = resolveSymbol(req.body?.symbol);
-  if (!symbol) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้", symbols: SYMBOLS });
-  try {
-    await select(symbol);
-    noCache(res);
-    res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
-  } catch (error) {
-    console.error("[mini-app] pair selection failed", symbol, error.message);
-    res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
-  }
-});
-app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
-  noCache(res);
-  res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
-});
-app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, async (req, res) => {
-  const action = req.body?.action;
-  try {
-    if (action === "start") {
-      if (!monitoring) await start(selectedSymbol);
-    } else if (action === "stop") {
-      if (monitoring) stop();
-    } else {
-      return res.status(400).json({ ok: false, error: "รองรับเฉพาะคำสั่ง start และ stop" });
-    }
-    noCache(res);
-    res.json({ ok: true, market: snapshot() });
-  } catch (error) {
-    console.error("[mini-app] monitoring control failed", error.message);
-    res.status(500).json({ ok: false, error: error.message || "ควบคุมระบบไม่สำเร็จ" });
-  }
-});
-
-app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
-app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
-app.get("/health", (_req, res) => {
-  noCache(res);
-  res.json({
-    ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
-    symbols: SYMBOLS, interval: INTERVAL,
-    authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
-    architecture: {
-      name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "ENGINE_3_TREND_RIDER_ONLY", engines: 1,
-      decisionAuthority: "OUR_TREND_RIDER_FORMULA_USING_TWELVE_DATA_NATIVE_INDICATORS",
-
-      safetyLayer: "SYSTEM_DATA_QUALITY_AND_TIMING_GUARDS",
-      trendRider: { soleEngine: true, emaFast: 5, emaTrend: 20, atrPeriod: 14, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30, localTechnicalIndicatorCalculations: false, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"] },
-      engine3: { soleEngine: true, strategy: "OUR_TREND_RIDER_FORMULA", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: 30, scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"], signalTiming: "T_MINUS_10_NEXT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
-      engineToggles: { supported: false, fixedEngine: "TREND_RIDER" },
-      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      signalDecisionPath: "ENGINE_3_TREND_RIDER_ONLY_WITH_CLOSED_AND_LIVE_M1_DIRECTION_CONFIRMATION"
-    },
-    analyzer: {
-      provider: "TWELVE_DATA_NATIVE_INDICATORS_AND_M1_OHLC",
-      model: null, configured: true,
-      role: "ONE_TREND_RIDER_ENGINE_WITH_OUR_OWN_DECISION_FORMULA",
-      externalAiCalls: false, localTechnicalIndicatorCalculations: false,
-      indicators: { EMA5: "/ema?time_period=5", EMA20: "/ema?time_period=20", ATR14: "/atr?time_period=14" },
-      priceAction: "CLOSED_M1_CANDLE_DIRECTION_PLUS_CURRENT_LIVE_M1_DIRECTION_CONFIRMATION",
-      scoreThreshold: 58, scoreLeadThreshold: 8, sidewaysGapAtrThreshold: 0.08, minimumClosedCandles: 30,
-      guards: ["SIDEWAYS", "LATE_EXTENSION_1_5_ATR", "ABNORMAL_RANGE_2_8_ATR"]
-    },
-    recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
-    configuration: {
-      telegramMiniAppAuthConfigured: true,
-      telegramInitDataRequired: false,
-      miniAppOpenAccess: true,
-      twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
-      twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: MIN_CLOSED_CANDLES,
-      historyCandles: HISTORY_CANDLES,
-      livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
-      liveAnalysisIntervalSeconds: LIVE_ANALYSIS_INTERVAL_SECONDS,
-      estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      engine3IndicatorRefreshSeconds: 60,
-      estimatedEngine3IndicatorCreditsPerDay: 4320,
-      engine3IndicatorKeyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER",
-      restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER",
-      contextCandles: 50,
-      entryCandles: 4,
-      restRefreshSeconds: REST_SYNC_SECONDS,
-      streamingRequiredForSignals: true,
-      restFallbackEnabled: true,
-      signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-      signalRuntimeLock: false,
-      signalReleaseStatus: "ENGINE3_TWELVE_DATA_NATIVE_INDICATORS_NOT_OOS_VALIDATED_MANUAL_ONLY",
-    }
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
-  console.info("[radar] startup configuration", {
-    twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
-    twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
-    miniAppOpenAccess: true,
-    signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    minimumClosedCandles: MIN_CLOSED_CANDLES,
-    historyCandles: HISTORY_CANDLES,
-    restRefreshSeconds: REST_SYNC_SECONDS
-  });
-  console.info("[radar] monitoring starts only after Telegram Mini App user action");
-});
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of telegramSessions) {
-    if (session.expiresAt <= now) telegramSessions.delete(token);
-  }
-}, 5 * 60 * 1000).unref();
+      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [0, 60],\n      engine3: { soleEngine: true, strategy: "TREND_FIRST_INSTANT_ENTRY", provider: "TWELVE_DATA_NATIVE_INDICATORS_PLUS_M1_OHLC_AND_STREAMING", indicatorEndpoints: ["EMA time_period=5", "EMA time_period=20", "ATR time_period=14"], derivedIndicators: [], refreshSeconds: 60, estimatedIndicatorCreditsPerDay: 4320, keyRotation: "TEN_KEY_ROUND_ROBIN_WITH_FAILOVER", minimumClosedCandles: MIN_CLOSED_CANDLES, entryRule: "EMA5/EMA20 trend plus live M1 price action on trend side of EMA5", scoreBasedFiltering: false, sidewaysGapAtrThreshold: 0.05, guards: ["SIDEWAYS_GAP_LT_0_05_ATR", "LATE_EXTENSION_GT_1_5_ATR", "ABNORMAL_RANGE_GT_2_8_ATR", "LIVE_TICK_MAX_5_SECONDS"], signalTiming: "INTRABAR_IMMEDIATE_CURRENT_M1", signalHoldSeconds: 30, manualOnly: true, brokerExecution: false },
