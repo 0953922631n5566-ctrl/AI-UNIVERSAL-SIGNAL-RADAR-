@@ -97,6 +97,33 @@ test("missing API key fails closed and does not invent a direction", async () =>
   assert.match(result.reason, /GEMINI_API_KEY/);
 });
 
+test("Gemini daily quota 429 activates a cooldown and prevents repeated provider calls", async () => {
+  clearGeminiAnalysisCache();
+  process.env.GEMINI_API_KEY = "test-key";
+  let calls = 0;
+  const now = Date.now();
+  const sourceEpoch = Math.floor(now / 60000) * 60;
+  const fetchImpl = async () => {
+    calls++;
+    return {
+      ok: false, status: 429,
+      clone: () => ({ json: async () => ({ error: { message: "Requests per day quota exceeded" } }) })
+    };
+  };
+  const first = await analyzeWithGemini({
+    symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(sourceEpoch),
+    now, fetchImpl
+  });
+  const second = await analyzeWithGemini({
+    symbol: "EUR/USD", closedCandles: candles(), liveCandle: live(sourceEpoch + 60),
+    now: now + 60_000, fetchImpl
+  });
+  assert.equal(first.providerStatus, "RATE_LIMIT");
+  assert.equal(second.providerStatus, "COOLDOWN");
+  assert.equal(calls, 1);
+  assert.ok(geminiQuotaStatus(now).providerCooldownUntil);
+});
+
 test("risk gate allows ordinary caution flags but blocks critical market/data risks", () => {
   assert.equal(hasCriticalRiskFlags(["price near resistance", "minor pullback"]), false);
   assert.equal(hasCriticalRiskFlags(["high volatility"]), true);
