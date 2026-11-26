@@ -25,9 +25,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "TWELVE DATA NATIVE PARTIAL SCORING 54";
-const ARCHITECTURE_ID = "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54_45";
-const VERSION = "2026-11-24-twelve-data-native-partial-scoring-54-v1";
+const SYSTEM_NAME = "TWELVE DATA NATIVE PARTIAL SCORING 65";
+const ARCHITECTURE_ID = "TWELVE_DATA_NATIVE_PARTIAL_SCORING_65_45";
+const VERSION = "2026-11-26-twelve-data-native-partial-scoring-65-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -162,7 +162,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_65_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -334,11 +334,11 @@ async function evaluate(feed) {
     signalTargetCandleAt:feed.signalCandle?new Date(feed.signalCandle*1000).toISOString():null,
     signalTimingWindowSeconds:[55,60],prepareTimingWindowSeconds:[50,55],
     signalTimingMode:"NEXT_M1_TARGET_PREOPEN_HOLD_30S",
-    analysisMode:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_54",
+    analysisMode:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_65",
     sourceCandleEpoch, targetCandleEpoch,
-    engineResults:{PARTIAL_SCORING_54:{signal:result.signal,direction:result.direction,score:result.score,scores:result.scores||null}},
+    engineResults:{PARTIAL_SCORING_65:{signal:result.signal,direction:result.direction,score:result.score,scores:result.scores||null}},
     indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
-    signalValidationNote:"Partial Scoring 54/45 · Native EMA5/EMA20/ATR14 from Twelve Data · Manual only · No broker execution · Not out-of-sample validated",
+    signalValidationNote:"Partial Scoring 65/45 · Native EMA5/EMA20/ATR14 from Twelve Data · Manual only · No broker execution · Not out-of-sample validated",
     indicators:{status:feed.engine3Indicators.status,ema5:feed.engine3Indicators.ema5?.at(-1)||null,
       ema20:feed.engine3Indicators.ema20?.at(-1)||null,atr14:feed.engine3Indicators.atr14?.at(-1)||null,
       sources:feed.engine3Indicators.sources||null,periods:feed.engine3Indicators.periods||{ema5:5,ema20:20,atr14:14},
@@ -877,7 +877,7 @@ app.get("/api/public/signal", (_req, res) => {
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
-      analysisMode: state.analysisMode || "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54",
+      analysisMode: state.analysisMode || "TWELVE_DATA_NATIVE_PARTIAL_SCORING_65",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [55, 60],
@@ -952,7 +952,7 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
+      decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_65", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
       signalGeneration: true, externalAiCalls: false,
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP"
@@ -969,7 +969,7 @@ app.get("/health", (_req, res) => {
       nativeIndicatorRestCallsDisabled: false, nativeIndicators: { provider: "Twelve Data native REST", periods: { ema5: 5, ema20: 20, atr14: 14 }, refreshSeconds: 60, atrHistoryValues: 34, estimatedCreditsPerDay: 4320 },
       restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER", restRefreshSeconds: REST_SYNC_SECONDS,
       streamingRequiredForSignals: true, signalReleaseValidated: false, signalRuntimeLock: false,
-      signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54_MANUAL_ONLY_NOT_OOS_VALIDATED"
+      signalReleaseStatus: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_65_MANUAL_ONLY_NOT_OOS_VALIDATED"
     }
   });
 });

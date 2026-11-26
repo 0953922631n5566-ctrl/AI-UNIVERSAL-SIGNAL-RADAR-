@@ -16,10 +16,10 @@ test("native indicators must be complete, consecutive and aligned with latest cl
  const c=fixture(),v=native(c);assert.equal(scoreMarket(c,v).indicatorStatus.status,"READY");
  const stale=structuredClone(v);stale.ema5.at(-1).epoch-=60;assert.equal(scoreMarket(c,stale).signal,"STANDBY");
 });
-test("restored 30/30/20/20 formula releases directional scores at 54",()=>{
- const c=fixture(),r=scoreMarket(c,native(c));assert.equal(r.thresholds.signal,54);assert.equal(r.thresholds.prepare,45);
+test("restored 30/30/20/20 formula releases directional scores at 65",()=>{
+ const c=fixture(),r=scoreMarket(c,native(c));assert.equal(r.thresholds.signal,65);assert.equal(r.thresholds.prepare,45);
  assert.deepEqual(Object.keys(r.components),["ema5SlopeReversal","srFakeout","proximityMomentum","trendContext"]);
- assert.ok(r.scores.CALL>=54,JSON.stringify(r.scores));assert.equal(r.signal,"CALL");
+ assert.ok(r.scores.CALL>=65,JSON.stringify(r.scores));assert.equal(r.signal,"CALL");
  assert.equal(r.provider,"TWELVE_DATA_NATIVE_INDICATORS");
 });
 test("choppy kill switch suppresses CALL/PUT",()=>{
@@ -30,10 +30,10 @@ test("abnormal ATR range suppresses CALL/PUT",()=>{
  const c=fixture();c.at(-1).high+=0.002;const r=scoreMarket(c,native(c));assert.equal(r.signal,"STANDBY");assert.ok(r.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
 
-test("54 is the exact CALL/PUT release boundary; 45-53 stays PREPARE",()=>{
- assert.deepEqual(classifyPartialScore(53,"CALL"),{signal:"PREPARE",status:"PREPARE"});
- assert.deepEqual(classifyPartialScore(54,"CALL"),{signal:"CALL",status:"SIGNAL"});
- assert.deepEqual(classifyPartialScore(54,"PUT"),{signal:"PUT",status:"SIGNAL"});
+test("65 is the exact CALL/PUT release boundary; 45-64 stays PREPARE",()=>{
+ assert.deepEqual(classifyPartialScore(64,"CALL"),{signal:"PREPARE",status:"PREPARE"});
+ assert.deepEqual(classifyPartialScore(65,"CALL"),{signal:"CALL",status:"SIGNAL"});
+ assert.deepEqual(classifyPartialScore(65,"PUT"),{signal:"PUT",status:"SIGNAL"});
  assert.deepEqual(classifyPartialScore(100,"CALL",true),{signal:"STANDBY",status:"STANDBY"});
  assert.deepEqual(classifyPartialScore(44,"PUT"),{signal:"STANDBY",status:"STANDBY"});
 });
