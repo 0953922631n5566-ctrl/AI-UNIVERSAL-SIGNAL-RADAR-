@@ -63,7 +63,7 @@ export async function loadCandleHistory({keyPool,symbol="EUR/USD",targetCandles=
   const minuteStart=Math.floor(now/60000)*60;
   const byEpoch=new Map();
   let endDate=null,pages=0,previousOldest=Infinity;
-  const maxPages=Math.ceil(target/PAGE_SIZE)+3;
+  const maxPages=Math.ceil(target/1000)+5;
   while(byEpoch.size<target && pages<maxPages){
     const outputsize=Math.min(PAGE_SIZE,target-byEpoch.size);
     const url=new URL("/time_series",API_BASE);
@@ -102,7 +102,6 @@ export async function loadCandleHistory({keyPool,symbol="EUR/USD",targetCandles=
     previousOldest=oldest;
     for(const candle of page)byEpoch.set(candle.epoch,candle);
     onProgress({pages,loadedCandles:byEpoch.size,targetCandles:target,oldestEpoch:oldest,newestEpoch:page.at(-1).epoch});
-    if(page.length<Math.min(PAGE_SIZE,outputsize))break;
     endDate=utcDate(oldest-60);
   }
   const candles=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-target);
