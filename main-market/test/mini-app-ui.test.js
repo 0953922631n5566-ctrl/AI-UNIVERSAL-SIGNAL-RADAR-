@@ -4,11 +4,12 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/candle-lab.html",import.meta.url),"utf8");
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("primary Telegram Mini App is the compact EMA5 two-phase interface",()=>{
- assert.match(html,/EMA 5 · TWO-PHASE M1/);
- assert.match(html,/id="phaseTitle"/);
- assert.match(html,/id="chart"/);
- assert.match(html,/id="history"/);
+test("primary Telegram Mini App is the signal-lights-only EMA5 two-phase interface",()=>{
+ assert.match(html,/EMA 5 · M1 · NON-OTC/);
+ assert.match(html,/id="lamp"/);
+ assert.match(html,/id="signal"/);
+ assert.match(html,/id="stage"/);
+ assert.doesNotMatch(html,/<canvas\b|id="history"/i);
  assert.match(html,/navigator\.vibrate/);
  assert.match(server,/app\.get\("\/signal".*candle-lab\.html/s);
 });

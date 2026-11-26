@@ -12,11 +12,12 @@ test("primary and alias Mini App routes serve the same EMA5 interface and status
  assert.match(server,/app\.get\("\/api\/telegram\/ema5\/status"/);
  assert.match(html,/\/api\/telegram\/ema5\/status/);
 });
-test("Mini App displays a compact chart and entry state",()=>{
- assert.match(html,/<canvas\b/i);
- assert.match(html,/id="phaseTitle"/);
- assert.match(html,/id="countdown"/);
+test("Mini App displays a signal light and next-candle entry state without chart",()=>{
+ assert.match(html,/id="lamp"/);
+ assert.match(html,/id="stage"/);
+ assert.match(html,/id="timer"/);
  assert.match(html,/ENTER /);
+ assert.doesNotMatch(html,/<canvas\b|id="history"/i);
 });
 test("embedded Mini App JavaScript parses",()=>{
  const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(x=>x[1].trim()).filter(Boolean);
