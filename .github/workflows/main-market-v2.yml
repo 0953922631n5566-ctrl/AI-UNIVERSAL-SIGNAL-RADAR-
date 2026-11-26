@@ -19,7 +19,7 @@ jobs:
           cache-dependency-path: main-market/package.json
       - name: Install and run tests
         run: cd main-market && npm install
-      - name: Verify EMA5 two-phase Twelve Data Telegram Mini App wiring
+      - name: Verify EMA5 signal-light Telegram Mini App wiring
         run: |
           cd main-market
           grep -Fq 'TELEGRAM_BOT_TOKEN' server.js
@@ -35,8 +35,10 @@ jobs:
           grep -Fq 'export const SYMBOLS = Object.freeze(["EUR/USD", "EUR/JPY", "GBP/USD", "USD/JPY"]);' src/config.js
           grep -Fq 'EMA5_PULLBACK_TWO_PHASE_M1' src/ema5-two-phase-engine.js
           grep -Fq 'lastRestKeyNumber' src/twelve-data-pool.js
-          grep -Fq 'id="chart"' public/candle-lab.html
-          grep -Fq 'id="history"' public/candle-lab.html
+          grep -Fq 'id="lamp"' public/candle-lab.html
+          grep -Fq 'id="signal"' public/candle-lab.html
+          grep -Fq 'id="timer"' public/candle-lab.html
+          ! grep -Eq '<canvas|id="history"' public/candle-lab.html
           ! grep -Eqi 'GEMINI_API_KEY|analyzeWithGemini|geminiQuotaStatus' server.js public/candle-lab.html
       - name: Syntax-check application modules
         run: |
