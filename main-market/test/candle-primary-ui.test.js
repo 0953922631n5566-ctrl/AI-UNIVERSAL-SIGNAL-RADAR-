@@ -26,7 +26,7 @@ test("only four requested major forex pairs are enabled",()=>{
 test("Mini App shows a signal lamp, pair selector, live price and entry timer without candles",()=>{
  for(const id of ["lamp","signal","stage","price","pricehint","timer","pairs","api","apiDetail"])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/CALL/);
- assert.match(html,/PUT/);
+ assert.match(html,/\.lamp\.put/);
  assert.match(html,/WAIT/);
  assert.match(html,/เสียงแจ้งเตือน/);
  assert.match(html,/navigator\.vibrate/);
