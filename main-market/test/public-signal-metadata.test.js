@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("public signal metadata identifies EUR/USD EMA5 + local S/R",()=>{
- assert.match(server,/analysisMode: "EMA5_PULLBACK_SR_TWO_PHASE_M1"/);
- assert.match(server,/Twelve Data M1 OHLC · EMA5 \+ local swing Support\/Resistance/);
- assert.match(server,/signalReleaseStatus: "EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED"/);
+test("public signal metadata identifies EUR/USD MA5 + Bollinger Bands(20,2)",()=>{
+ assert.match(server,/analysisMode: "MA5_BOLLINGER_20_2_M1"/);
+ assert.match(server,/Twelve Data real M1 OHLC · SMA5 \+ Bollinger Bands\(20,2\)/);
+ assert.match(server,/signalReleaseStatus: "EURUSD_MA5_BOLLINGER_20_2_M1_MANUAL_ONLY_NOT_OOS_VALIDATED"/);
 });
-test("public signal advertises the exact open, prepare and next-candle windows",()=>{
- assert.match(server,/signalTimingWindowSeconds: \[0, 5\]/);
- assert.match(server,/prepareTimingWindowSeconds: \[55, 60\]/);
- assert.match(server,/NEXT_M1_OPEN_00_05_AFTER_PREPARE_55_59/);
+test("public signal advertises the 10-second watch, final-5-second order and 30-second lamp",()=>{
+ assert.match(server,/watchSeconds:\[50,54\]/);
+ assert.match(server,/orderSeconds:\[55,59\]/);
+ assert.match(server,/orderLightSeconds:30/);
 });
