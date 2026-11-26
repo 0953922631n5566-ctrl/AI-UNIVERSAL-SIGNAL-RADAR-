@@ -307,7 +307,7 @@ async function evaluate(feed) {
       feed.signalSourceCandle=sourceCandleEpoch;feed.signalTriggeredAt=now;
       feed.activeUntil=signalHoldExpiresAt(targetCandleEpoch);
       feed.alertId=`${targetCandleEpoch}:${result.signal}`;
-      result.reason="ยืนยันสัญญาณ T-5 จาก Partial Score 54 สำหรับแท่ง M1 ถัดไป";
+      result.reason="ยืนยันสัญญาณ T-5 จาก Partial Score 65 สำหรับแท่ง M1 ถัดไป";
     }else{
       result.signal="STANDBY";
       result.reason=tickAgeSeconds===null||tickAgeSeconds>5
@@ -957,7 +957,7 @@ app.get("/health", (_req, res) => {
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP"
     },
-    analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { callPut: 54, prepare: 45, standbyBelow: 45 } },
+    analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { callPut: 65, prepare: 45, standbyBelow: 45 } },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: true, telegramInitDataRequired: false, miniAppOpenAccess: true,

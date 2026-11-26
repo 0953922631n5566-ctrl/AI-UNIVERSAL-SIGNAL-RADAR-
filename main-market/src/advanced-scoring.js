@@ -126,7 +126,7 @@ export function scoreMarket(candles, indicators) {
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_54",provider:"TWELVE_DATA_NATIVE_INDICATORS",
+    strategy:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_65",provider:"TWELVE_DATA_NATIVE_INDICATORS",
     riskFlags,evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
