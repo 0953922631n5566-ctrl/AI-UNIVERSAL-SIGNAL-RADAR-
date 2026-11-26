@@ -22,7 +22,7 @@
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "TWELVE_DATA_REAL_M1_OHLC_TWO_PHASE_SAMPLING",
-    "decisionAuthority": "EMA5_ONLY_PULLBACK",
+    "decisionAuthority": "EMA5_PULLBACK_WITH_LOCAL_SWING_SR",
     "indicators": {
       "provider": "EMA5 calculated from Twelve Data M1 OHLC",
       "periods": [
