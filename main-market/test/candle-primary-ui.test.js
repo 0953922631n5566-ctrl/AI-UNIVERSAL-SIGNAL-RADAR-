@@ -19,7 +19,7 @@ test("Mini App displays EUR/USD only, key status, S/R and mini chart",()=>{
  for(const id of ["signal","phase","price","timer","api","apiDetail","chart","history","ema","support","resistance","key"])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/PREPARE/);assert.match(html,/ENTER NOW/);assert.match(html,/<canvas\b/i);
 });
-test("Mini App chart shows 15 enlarged candles beside the order signal with live candle centered",()=>{
+test("Mini App chart keeps the live candle centered and reduces the screen to chart plus countdown",()=>{
  const stage=html.indexOf('id="signal"'),chart=html.indexOf('id="chart"'),metrics=html.indexOf('class="metrics"');
  assert.ok(stage>=0&&chart>stage&&metrics>chart,"chart must sit immediately after the signal panel and before metrics");
  assert.match(html,/chartwrap\{height:var\(--chart-height,260px\)/);
