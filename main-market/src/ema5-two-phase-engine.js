@@ -1,3 +1,4 @@
+export const EMA5_STRATEGY_ID = "EMA5_PULLBACK_TWO_PHASE_M1";
 const EMA_PERIOD = 5;
 const EMA_ALPHA = 2 / (EMA_PERIOD + 1);
 const MIN_HISTORY = 20;
