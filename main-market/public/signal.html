@@ -171,18 +171,6 @@ $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
 async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
 $("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});
 
-function setupChartResize(){
- const canvas=$("candleChart"),handle=$("chartResizeHandle");
- let height=350,startY=0,startHeight=height,dragging=false;
- try{const saved=Number(localStorage.getItem("signalRadarChartHeight"));if(Number.isFinite(saved)&&saved>=180&&saved<=620)height=saved;}catch{}
- const apply=()=>{canvas.style.height=height+"px";};
- apply();
- handle.addEventListener("pointerdown",event=>{dragging=true;startY=event.clientY;startHeight=height;handle.setPointerCapture?.(event.pointerId);event.preventDefault();});
- handle.addEventListener("pointermove",event=>{if(!dragging)return;height=Math.max(180,Math.min(620,startHeight+event.clientY-startY));apply();});
- const stop=()=>{if(!dragging)return;dragging=false;try{localStorage.setItem("signalRadarChartHeight",String(Math.round(height)));}catch{}};
- handle.addEventListener("pointerup",stop);handle.addEventListener("pointercancel",stop);handle.addEventListener("lostpointercapture",stop);
-}
-
 try{const saved=localStorage.getItem("signalRadarManualLampColor");if(saved==="RED"||saved==="GREEN")manualLampColor=saved;}catch{}
 function paintManualLamp(){const green=manualLampColor==="GREEN";$("manualLampToggle").textContent=green?"สลับไฟเสริมเป็นสีแดง":"สลับไฟเสริมเป็นสีเขียว";$("manualLampStatus").textContent="ไฟเสริม: "+(green?"สีเขียว":"สีแดง")+" · แยกจากสัญญาณจริง";$("manualLampStatus").style.color=green?"#47e39a":"#ff6472";}
 $("manualLampToggle").addEventListener("click",()=>{manualLampColor=manualLampColor==="RED"?"GREEN":"RED";try{localStorage.setItem("signalRadarManualLampColor",manualLampColor);}catch{}paintManualLamp();});paintManualLamp();
