@@ -53,7 +53,7 @@ jobs:
           printf '%s' "$SIGNAL_HTML" | grep -q 'id="orb"'
           LAB_HTML="$(curl -fsS --max-time 20 "$BASE/candle-lab")"
           printf '%s' "$LAB_HTML" | grep -q 'CANDLE PATTERN LAB'
-          printf '%s' "$LAB_HTML" | grep -q '100,000'
+          printf '%s' "$LAB_HTML" | grep -q '200,000'
 
           SESSION="$(curl -fsS --max-time 20 -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/api/telegram/session")"
           TOKEN="$(printf '%s' "$SESSION" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).sessionToken||""));')"
