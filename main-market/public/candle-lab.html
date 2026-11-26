@@ -129,7 +129,7 @@ function drawChart(d){
  [0,4,9,14].forEach(i=>{if(!candles[i])return;const label=new Date(candles[i].epoch*1000).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",hour12:false});ctx.fillText(label,candleX(i),bottom+18);});
  ctx.fillStyle="#91aab4";ctx.font="bold 8px system-ui";ctx.textAlign="left";ctx.fillText("LIVE",Math.min(w-34,liveX+5),top+9);
 }
-function render(d){lastData=d;running=!!d.monitoring;const sec=Math.floor(Date.now()/1000)%60,remaining=60-sec;$("price").textContent=fmt(d.price);$("pricehint").textContent=d.tickAgeSeconds!=null?"ราคาจริงจาก Twelve Data · Live":"รอราคา Streaming";$("timer").textContent="00:"+String(remaining===60?0:remaining).padStart(2,"0");$("progress").style.width=(sec/60*100)+"%";
+function render(d){lastData=d;running=!!d.monitoring;const sec=Math.floor(Date.now()/1000)%60,remaining=60-sec;$("price").textContent=fmt(d.price);$("pricehint").textContent=d.tickAgeSeconds!=null?"ราคาจริงจาก Twelve Data · Live":"รอราคา Streaming";$("timer").textContent="00:"+String(remaining).padStart(2,"0");$("progress").style.width=(sec/60*100)+"%";
 let label="WAIT",kind="wait",phaseText="สะสมข้อมูล EUR/USD... (รอดึงวินาทีที่ 55)";
 if(d.phase==="PREPARE"&&["CALL","PUT"].includes(d.signal)){label="PREPARE "+d.signal;kind=d.signal.toLowerCase();phaseText="เตรียมเข้าแท่งถัดไป · วินาที 55–59";}
 else if(d.phase==="ENTER"&&["CALL","PUT"].includes(d.signal)&&sec<=5){label="ENTER NOW · "+d.signal;kind=d.signal.toLowerCase();phaseText="ต้นแท่งใหม่ · วินาที 00–05";}
