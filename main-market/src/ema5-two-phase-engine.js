@@ -84,7 +84,7 @@ const BB_PIP = 0.0001;
 const BB_MIN_HISTORY = 40;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-export function samplingPhase(epochSeconds) {
+export function bollingerSamplingPhase(epochSeconds) {
   const second = ((Math.floor(epochSeconds) % 60) + 60) % 60;
   if (second >= 55) return "ORDER";
   if (second >= 50) return "WATCH";
@@ -184,4 +184,4 @@ export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAge
   return wait("ยังไม่ครบเงื่อนไข MA5 + BB(20,2) และแท่งปฏิเสธ", common);
 }
 
-export const EMA5_MIN_HISTORY = BB_MIN_HISTORY;
+export const MA5_BB_MIN_HISTORY = BB_MIN_HISTORY;
