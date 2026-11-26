@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { analyzeMarket } from "./src/analyzer.js";
+import { NEXT_SIGNAL_THRESHOLD, NEXT_PREPARE_THRESHOLD, NEXT_SIGNAL_HOLD_MS, NEXT_SIGNAL_MAX_TICK_AGE_MS } from "./src/streaming-entry-engine.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 const SIGNAL_RELEASE_VALIDATED = false;
@@ -378,7 +379,7 @@ function analyzeNextSignal(feed, now = Date.now()) {
   if (state.activeSignal && now >= state.activeUntil) {
     state.activeSignal = null; state.activeUntil = 0; state.alertId = null;
   }
-  if (!live || !latestClosed || tickAge > 5 || native.status !== "READY" ||
+  if (!live || !latestClosed || tickAge > NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000 || native.status !== "READY" ||
       ema5.at(-1)?.epoch !== latestClosed.epoch || ema20.at(-1)?.epoch !== latestClosed.epoch ||
       atr14.at(-1)?.epoch !== latestClosed.epoch || ema5.length < 3 || ema20.length < 2 || atr14.length < 2) {
     return { ...empty, tickAgeSeconds: Number.isFinite(tickAge) ? Math.round(tickAge) : null,
@@ -435,16 +436,16 @@ function analyzeNextSignal(feed, now = Date.now()) {
       ? "พักสัญญาณ: ความผันผวนของแท่งปัจจุบันสูงผิดปกติ"
       : "พักสัญญาณ: EMA5/EMA20 ซ้อนกันและแรงเคลื่อนไหวยังต่ำ" };
   }
-  if (top >= 58 && gap >= 6 && state.lastSignalSourceEpoch !== sourceEpoch) {
+  if (top >= NEXT_SIGNAL_THRESHOLD && gap >= 6 && state.lastSignalSourceEpoch !== sourceEpoch) {
     state.activeSignal = direction; state.sourceEpoch = sourceEpoch; state.targetEpoch = targetEpoch;
-    state.activeUntil = targetEpoch * 1000 + 30_000; state.alertId = `${targetEpoch}:${direction}:NEXTV1`;
+    state.activeUntil = targetEpoch * 1000 + NEXT_SIGNAL_HOLD_MS; state.alertId = `${targetEpoch}:${direction}:NEXTV1`;
     state.lastSignalSourceEpoch = sourceEpoch; state.score = top; state.scores = scores;
     return { ...base, signal: direction, alertId: state.alertId,
       signalExpiresAt: new Date(state.activeUntil).toISOString(),
       signalTargetCandleAt: new Date(targetEpoch * 1000).toISOString(),
       reason: `Streaming Entry Score ${top}/100 · ${direction} · สำหรับแท่ง M1 ถัดไป` };
   }
-  const prepare = top >= 46 && gap >= 4;
+  const prepare = top >= NEXT_PREPARE_THRESHOLD && gap >= 4;
   return { ...base, signal: "STANDBY", preAlertStatus: prepare ? "PREPARE_ALERT" : null,
     preAlertCandle: prepare ? targetEpoch : null,
     alertId: prepare ? `${sourceEpoch}:PREPARE:NEXTV1` : null,
@@ -1071,7 +1072,8 @@ app.get("/health", (_req, res) => {
       decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
       signalGeneration: true, externalAiCalls: false,
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
-      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP"
+      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
+      nextGeneration: { route: "/signal-next", api: "/api/telegram/signal-next", strategy: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS", threshold: NEXT_SIGNAL_THRESHOLD, prepareThreshold: NEXT_PREPARE_THRESHOLD, tickFreshnessSeconds: NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000, holdSeconds: NEXT_SIGNAL_HOLD_MS / 1000, isolatedFromLegacySignal: true }
     },
     analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
