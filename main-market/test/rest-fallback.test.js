@@ -7,7 +7,7 @@ test("Twelve Data OHLC and Streaming feed the EMA5 two-phase strategy",()=>{
  assert.match(server,/price: freshTick \?\? restLastPrice/);
  assert.match(server,/analyzeEma5Pullback/);
  assert.match(server,/EMA5_PULLBACK_TWO_PHASE_M1/);
- assert.match(server,/signal: "WAIT"/);
+ assert.match(server,/signal:"WAIT"/);
  assert.doesNotMatch(server,/analyzeMarket\(|fetchEma20|fetchAtr14|GEMINI_API_KEY/);
 });
 test("EMA5 status projection reports sampling schedule and manual-only entry",()=>{
