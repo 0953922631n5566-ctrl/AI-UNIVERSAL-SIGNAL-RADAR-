@@ -46,6 +46,8 @@ export function analyzeEma5Pullback({ symbol, closedCandles, liveCandle, tickAge
   const zones=findZones(recent,liveCandle.close), supportDistancePips=(liveCandle.close-zones.support)/PIP, resistanceDistancePips=(zones.resistance-liveCandle.close)/PIP;
   const nearSupport=liveCandle.low<=zones.support+SR_NEAR_PIPS*PIP && liveCandle.low>=zones.support-SR_NEAR_PIPS*PIP;
   const nearResistance=liveCandle.high>=zones.resistance-SR_NEAR_PIPS*PIP && liveCandle.high<=zones.resistance+SR_NEAR_PIPS*PIP;
+  const supportIntact=liveCandle.low>=zones.support-SR_NEAR_PIPS*PIP;
+  const resistanceIntact=liveCandle.high<=zones.resistance+SR_NEAR_PIPS*PIP;
   const common={ema5:ema.current,previousEma5:ema.previous,slope,slopePips:Number(slopePips.toFixed(3)),
     openPrice:liveCandle.open,closePrice:liveCandle.close,highPrice:liveCandle.high,lowPrice:liveCandle.low,
     support:zones.support,resistance:zones.resistance,supportDistancePips:Number(supportDistancePips.toFixed(1)),
