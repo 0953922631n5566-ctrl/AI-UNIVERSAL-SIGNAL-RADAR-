@@ -48,7 +48,7 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
-    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, sampledAt:null, lastAnalysis:null }
+    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, lastPrepareAnalysisAt:0, sampledAt:null, lastAnalysis:null }
   };
 }
 
