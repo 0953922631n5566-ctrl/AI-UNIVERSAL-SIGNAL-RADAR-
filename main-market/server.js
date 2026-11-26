@@ -1163,14 +1163,16 @@ app.get("/health", (_req, res) => {
     authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "TWELVE_DATA_200K_HISTORICAL_CANDLE_ANALOGUE", engines: 1, decisionAuthority: "CHRONOLOGICAL_8_CANDLE_PATTERN_MATCHING",
+      decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
+      primaryDecisionEngine: "TWELVE_DATA_200K_HISTORICAL_CANDLE_ANALOGUE",
       signalGeneration: true, externalAiCalls: false,
       dataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", manualOnly: true },
       candlePatternLab: { route: "/signal", aliasRoute: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: false, livePriceRequired: true }
     },
-    analyzer: { provider: "TWELVE_DATA_HISTORICAL_OHLC_ANALOGUE", configured: true, role: "PRIMARY_NEXT_M1_CANDLE_DIRECTION_ANALYST", externalAiCalls: false, patternLength: 8, minimumMatches: 12, minimumDirectionShare: 56, minimumDirectionalEdge: 8, livePriceMaxAgeSeconds: MAX_STREAM_AGE_SECONDS, manualOnly: true, outOfSampleValidated: false },
+    analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
+    primaryAnalyzer: { provider: "TWELVE_DATA_HISTORICAL_OHLC_ANALOGUE", role: "PRIMARY_NEXT_M1_CANDLE_DIRECTION_ANALYST", patternLength: 8, minimumMatches: 12, minimumDirectionShare: 56, minimumDirectionalEdge: 8, livePriceMaxAgeSeconds: MAX_STREAM_AGE_SECONDS, manualOnly: true, outOfSampleValidated: false },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: true, telegramInitDataRequired: false, miniAppOpenAccess: true,
