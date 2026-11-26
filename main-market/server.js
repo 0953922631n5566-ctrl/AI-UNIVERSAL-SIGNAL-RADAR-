@@ -11,6 +11,7 @@ import { analyzeMarket } from "./src/analyzer.js";
 import { NEXT_SIGNAL_THRESHOLD, NEXT_PREPARE_THRESHOLD, NEXT_SIGNAL_HOLD_MS, NEXT_SIGNAL_MAX_TICK_AGE_MS } from "./src/streaming-entry-engine.js";
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
+import { loadCandleHistory, buildCandlePatternModel, predictNextCandle } from "./src/candle-pattern-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -51,6 +52,24 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null }
+  };
+}
+
+
+const candleLearning = {
+  phase: "NOT_STARTED", message: "ยังไม่ได้โหลดข้อมูลย้อนหลัง",
+  targetCandles: 100000, loadedCandles: 0, pages: 0, model: null,
+  startedAt: null, finishedAt: null, error: null, trainingPromise: null
+};
+function publicCandleLearning() {
+  return {
+    phase: candleLearning.phase, message: candleLearning.message,
+    targetCandles: candleLearning.targetCandles, loadedCandles: candleLearning.loadedCandles,
+    pages: candleLearning.pages, patterns: candleLearning.model?.patternCount || 0,
+    startedAt: candleLearning.startedAt, finishedAt: candleLearning.finishedAt,
+    error: candleLearning.error,
+    oldestAt: candleLearning.model ? new Date(candleLearning.model.firstEpoch * 1000).toISOString() : null,
+    newestAt: candleLearning.model ? new Date(candleLearning.model.lastEpoch * 1000).toISOString() : null
   };
 }
 
@@ -1058,6 +1077,72 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
   }
 });
 
+
+app.get("/api/telegram/candle-learning/status", requireTelegramSession, (_req, res) => {
+  noCache(res);
+  res.json({ ok: true, learning: publicCandleLearning(), monitoring,
+    apiPool: twelveDataKeyPool.publicStatus() });
+});
+app.post("/api/telegram/candle-learning/train", requireTelegramSession, rateLimitControl, (req, res) => {
+  noCache(res);
+  if (candleLearning.trainingPromise) return res.status(202).json({ ok: true, learning: publicCandleLearning() });
+  const requested = Number(req.body?.targetCandles || 100000);
+  const targetCandles = Math.max(10000, Math.min(200000, Math.floor(Number.isFinite(requested) ? requested : 100000)));
+  candleLearning.phase = "FETCHING";
+  candleLearning.message = "กำลังโหลดแท่ง EUR/USD M1 จริงจาก Twelve Data";
+  candleLearning.targetCandles = targetCandles;
+  candleLearning.loadedCandles = 0;
+  candleLearning.pages = 0;
+  candleLearning.error = null;
+  candleLearning.startedAt = new Date().toISOString();
+  candleLearning.finishedAt = null;
+  candleLearning.model = null;
+  candleLearning.trainingPromise = (async () => {
+    try {
+      const history = await loadCandleHistory({
+        keyPool: twelveDataKeyPool, symbol: "EUR/USD", targetCandles,
+        onProgress: progress => {
+          candleLearning.loadedCandles = progress.loadedCandles;
+          candleLearning.pages = progress.pages;
+          candleLearning.message = `โหลดแล้ว ${progress.loadedCandles.toLocaleString()} / ${targetCandles.toLocaleString()} แท่ง · ${progress.pages} ชุด`;
+        }
+      });
+      candleLearning.phase = "BUILDING";
+      candleLearning.message = `สร้างดัชนีรูปแบบจาก ${history.loadedCandles.toLocaleString()} แท่ง`;
+      candleLearning.loadedCandles = history.loadedCandles;
+      candleLearning.pages = history.pages;
+      const model = buildCandlePatternModel(history.candles);
+      candleLearning.model = { ...model, firstEpoch: history.oldestEpoch, lastEpoch: history.newestEpoch };
+      candleLearning.phase = "READY";
+      candleLearning.message = `พร้อมทดสอบ · ${history.loadedCandles.toLocaleString()} แท่ง · ${model.patternCount.toLocaleString()} รูปแบบ`;
+      candleLearning.finishedAt = new Date().toISOString();
+      console.info("[candle-lab] model ready", { candles: history.loadedCandles, pages: history.pages, patterns: model.patternCount });
+    } catch (error) {
+      candleLearning.phase = "ERROR";
+      candleLearning.error = error.message || "Historical candle learning failed";
+      candleLearning.message = "โหลดหรือสร้างโมเดลไม่สำเร็จ";
+      candleLearning.finishedAt = new Date().toISOString();
+      console.error("[candle-lab] training failed", error);
+    } finally {
+      candleLearning.trainingPromise = null;
+    }
+  })();
+  res.status(202).json({ ok: true, learning: publicCandleLearning() });
+});
+app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, res) => {
+  noCache(res);
+  if (candleLearning.phase !== "READY" || !candleLearning.model) {
+    return res.status(409).json({ ok: false, error: "โมเดลยังไม่พร้อม", learning: publicCandleLearning() });
+  }
+  const feed = feeds.get("EUR/USD");
+  const closed = (feed?.candles || []).filter(c => c && c.live !== true).slice(-8);
+  const prediction = predictNextCandle(candleLearning.model, closed);
+  res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
+    tickAgeSeconds: feed?.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null,
+    monitoring, symbol: "EUR/USD", interval: "1min", manualOnly: true });
+});
+app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
+
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
@@ -1074,7 +1159,8 @@ app.get("/health", (_req, res) => {
       signalGeneration: true, externalAiCalls: false,
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      nextGeneration: { route: "/signal-next", api: "/api/telegram/signal-next", strategy: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS", threshold: NEXT_SIGNAL_THRESHOLD, prepareThreshold: NEXT_PREPARE_THRESHOLD, tickFreshnessSeconds: NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000, holdSeconds: NEXT_SIGNAL_HOLD_MS / 1000, isolatedFromLegacySignal: true }
+      nextGeneration: { route: "/signal-next", api: "/api/telegram/signal-next", strategy: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS", threshold: NEXT_SIGNAL_THRESHOLD, prepareThreshold: NEXT_PREPARE_THRESHOLD, tickFreshnessSeconds: NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000, holdSeconds: NEXT_SIGNAL_HOLD_MS / 1000, isolatedFromLegacySignal: true },
+      candlePatternLab: { route: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 100000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: true }
     },
     analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
