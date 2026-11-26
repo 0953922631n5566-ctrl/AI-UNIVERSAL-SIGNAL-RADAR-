@@ -12,8 +12,8 @@ test("primary and alias Mini App routes serve the same EMA5 interface and status
  assert.match(server,/app\.get\("\/api\/telegram\/ema5\/status"/);
  assert.match(html,/\/api\/telegram\/ema5\/status/);
 });
-test("Mini App displays a signal light and next-candle entry state without chart",()=>{
- assert.match(html,/id="lamp"/);
+test("Mini App displays a EUR/USD two-phase signal and mini chart",()=>{
+ assert.match(html,/id="chart"/);
  assert.match(html,/id="stage"/);
  assert.match(html,/id="timer"/);
  assert.match(html,/ENTER /);
