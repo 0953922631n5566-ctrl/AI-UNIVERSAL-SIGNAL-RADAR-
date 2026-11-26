@@ -59,7 +59,7 @@ export function analyzeEma5Pullback({ symbol, closedCandles, liveCandle, tickAge
     return{...common,signal:"CALL",regime:"UPTREND",reason:`EMA5 UP + Pullback + ${nearSupport?"Near Support":"EMA5 Retest"} · ยังมีระยะถึงแนวต้านย่อย`};
   if(slope==="DOWN"&&resistanceIntact&&(liveCandle.high>=ema.current||nearResistance)&&liveCandle.close<liveCandle.open&&liveCandle.close<ema.current&&Math.abs(supportDistancePips)>SR_NEAR_PIPS)
     return{...common,signal:"PUT",regime:"DOWNTREND",reason:`EMA5 DOWN + Pullback + ${nearResistance?"Near Resistance":"EMA5 Retest"} · ยังมีระยะถึงแนวรับย่อย`};
-  if(!supportIntact||!resistanceIntact||(slope==="UP"&&resistanceDistancePips<=SR_NEAR_PIPS)||(slope==="DOWN"&&supportDistancePips<=SR_NEAR_PIPS))
+  if((slope==="UP"&&!supportIntact)||(slope==="DOWN"&&!resistanceIntact)||(slope==="UP"&&resistanceDistancePips<=SR_NEAR_PIPS)||(slope==="DOWN"&&supportDistancePips<=SR_NEAR_PIPS))
     return{...common,signal:"WAIT",regime:"SR_BLOCK",reason:"ราคาอยู่ชิดแนวต้าน/แนวรับย่อย · เสี่ยงชนโซนกลับตัว"};
   if(Math.abs(supportDistancePips)>25&&Math.abs(resistanceDistancePips)>25)
     return{...common,signal:"WAIT",regime:"NO_ZONE",reason:"ราคาอยู่กลางทาง · ยังไม่มีโซน S/R ใกล้เคียง"};
