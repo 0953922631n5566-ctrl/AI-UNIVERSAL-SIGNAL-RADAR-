@@ -55,17 +55,17 @@ select,button{font:inherit;color:var(--white);background:#173541;border:1px soli
  <div class="track"><i id="progress"></i></div>
 </section>
 <div class="info"><span>API POOL</span><b id="apiDetail">กำลังตรวจสอบ 10 Keys</b></div>
-<div class="bottom"><button class="primary" id="toggle">START SCAN</button><button id="sound">เสียงแจ้งเตือน: เปิด</button></div>
+<div class="bottom"><button class="primary" id="toggle">START SCAN</button><button id="sound">เสียงแจ้งเตือน: เปิด</button><button id="colorSwap">สลับสีไฟ: ปกติ</button></div>
 <div class="foot">MANUAL ENTRY ONLY · NO BROKER EXECUTION · ONE SIGNAL PER CANDLE</div>
 </main>
 <script>
 const $=id=>document.getElementById(id),tg=window.Telegram?.WebApp;
-let token="",running=false,lastAlert="",soundOn=true,lastData=null;
+let token="",running=false,lastAlert="",soundOn=true,lastData=null,colorSwap=localStorage.getItem("signalColorSwap")==="1";
 async function auth(){tg?.ready?.();tg?.expand?.();const r=await fetch("/api/telegram/session",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}",cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Session failed");token=j.sessionToken;}
 async function req(path,options={}){if(!token)await auth();const r=await fetch(path,{...options,headers:{...(options.headers||{}),Authorization:"Bearer "+token,"Content-Type":"application/json"},cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j;}
 function beep(freq=760){if(!soundOn)return;try{const C=window.AudioContext||window.webkitAudioContext,ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=freq;g.gain.value=.04;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.18);o.onended=()=>ctx.close();}catch{}}
 function fmt(v,symbol){if(v==null||!Number.isFinite(Number(v)))return "—";return Number(v).toFixed(symbol?.includes("JPY")?3:5);}
-function paint(kind,text){const lamp=$("lamp");lamp.className="lamp "+kind;$("lampword").textContent=text;$("signal").className="signalText "+kind;$("signal").textContent=text;}
+function paint(kind,text){const visualKind=colorSwap?(kind==="call"?"put":kind==="put"?"call":kind):kind;const lamp=$("lamp");lamp.className="lamp "+visualKind;$("lampword").textContent=text;$("signal").className="signalText "+visualKind;$("signal").textContent=text;}
 function render(d){lastData=d;running=!!d.monitoring;const symbol=d.symbol||"EUR/USD";$("pairs").value=symbol;$("price").textContent=fmt(d.price,symbol);$("pricehint").textContent=d.tickAgeSeconds!=null?"ราคา Live · อัปเดต "+Number(d.tickAgeSeconds).toFixed(1)+" วินาทีที่แล้ว":(d.monitoring?"กำลังรอราคา Streaming":"ยังไม่เริ่มสแกน");
 const sec=Math.floor(Date.now()/1000)%60,remaining=60-sec;$("timer").textContent="00:"+String(remaining===60?0:remaining).padStart(2,"0");$("progress").style.width=(sec/60*100)+"%";
 let kind="wait",label="WAIT",stage="รอสัญญาณจาก EMA5",reason=d.reason||"รอข้อมูลราคา";
@@ -79,7 +79,7 @@ const available=d.apiPool?.availableCount??0,total=d.apiPool?.configuredCount??1
 $("toggle").textContent=d.monitoring?"STOP SCAN":"START SCAN";$("toggle").className=d.monitoring?"danger":"primary";
 if(d.alertId&&d.alertId!==lastAlert){lastAlert=d.alertId;if(d.phase==="PREPARE"){beep(620);try{tg?.HapticFeedback?.notificationOccurred("warning");navigator.vibrate?.([80,40,80]);}catch{}}else if(d.phase==="ENTER"){beep(940);try{tg?.HapticFeedback?.notificationOccurred("success");navigator.vibrate?.([130,50,130]);}catch{}}}
 }
-async function poll(){try{render(await req("/api/telegram/ema5/status"));}catch(e){$("api").textContent="API ERROR";$("api").className="api off";$("reason").textContent=e.message;paint("wait","WAIT");}}
+function updateColorSwapButton(){$("colorSwap").textContent="สลับสีไฟ: "+(colorSwap?"สลับแล้ว":"ปกติ");}\nupdateColorSwapButton();\n$("colorSwap").addEventListener("click",()=>{colorSwap=!colorSwap;localStorage.setItem("signalColorSwap",colorSwap?"1":"0");updateColorSwapButton();if(lastData)render(lastData);});\nasync function poll(){try{render(await req("/api/telegram/ema5/status"));}catch(e){$("api").textContent="API ERROR";$("api").className="api off";$("reason").textContent=e.message;paint("wait","WAIT");}}
 $("pairs").addEventListener("change",async()=>{try{await req("/api/telegram/select",{method:"POST",body:JSON.stringify({symbol:$("pairs").value})});await poll();}catch(e){$("reason").textContent=e.message;}});
 $("toggle").addEventListener("click",async()=>{try{await req("/api/telegram/control",{method:"POST",body:JSON.stringify({action:running?"stop":"start"})});await poll();}catch(e){$("reason").textContent=e.message;}});
 $("sound").addEventListener("click",()=>{soundOn=!soundOn;$("sound").textContent="เสียงแจ้งเตือน: "+(soundOn?"เปิด":"ปิด");if(soundOn)beep();});
