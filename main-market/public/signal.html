@@ -46,7 +46,7 @@ button{font:inherit}
   <div id="price" class="price">—</div>
   <div id="age" class="price-age">กำลังเชื่อมต่อข้อมูลตลาดจริง</div>
  </section>
- <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · ZOOM</span></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD"></canvas><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
+ <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · ZOOM 2 · CENTER</span></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD"></canvas><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
  <section class="signal-wrap" aria-live="polite">
   <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
   <div id="signal" class="signal-state">STANDBY</div>
@@ -110,14 +110,14 @@ async function control(action){if(controlBusy)return;controlBusy=true;try{await 
 async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเชื่อมต่อข้อมูล";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function renderChart(m){
- const canvas=$("candleChart"),ctx=canvas.getContext("2d"),rows=Array.isArray(m.candles)?m.candles.slice(-24):[];
+ const canvas=$("candleChart"),ctx=canvas.getContext("2d"),rows=Array.isArray(m.candles)?m.candles.slice(-14):[];
  const W=900,H=560,L=18,R=100,T=34,B=42;
  ctx.clearRect(0,0,W,H);ctx.fillStyle="#101b25";ctx.fillRect(0,0,W,H);
  if(!rows.length){ctx.fillStyle="#91a5aa";ctx.font="20px sans-serif";ctx.textAlign="center";ctx.fillText("รอข้อมูลแท่งเทียนจาก Twelve Data",W/2,H/2);return;}
  const vals=rows.flatMap(x=>[Number(x.high),Number(x.low)]).filter(Number.isFinite);
  const live=Number(m.lastTickPrice??m.price??rows.at(-1).close);
  const hi=Math.max(...vals,live),lo=Math.min(...vals,live),range=Math.max(hi-lo,0.00008),pad=Math.max(range*.12,0.000035);
- const min=lo-pad,max=hi+pad,ph=H-T-B,pw=W-L-R,step=pw/rows.length,bw=Math.max(12,step*.72),y=v=>T+(max-v)/(max-min)*ph;
+ const min=lo-pad,max=hi+pad,ph=H-T-B,pw=W-L-R,candleSpan=pw*.65,step=candleSpan/rows.length,bw=Math.max(18,step*.82),y=v=>T+(max-v)/(max-min)*ph;
  ctx.font="15px sans-serif";ctx.textAlign="right";
  for(let k=0;k<5;k++){const value=max-k*(max-min)/4,yy=T+k*ph/4;ctx.strokeStyle="#263640";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(W-R,yy);ctx.stroke();ctx.fillStyle="#82969d";ctx.fillText(value.toFixed(5),W-5,yy+5);}
  rows.forEach((d,i)=>{const x=L+i*step+step/2,o=+d.open,cl=+d.close,h=+d.high,l=+d.low,up=cl>=o,col=up?"#58c49b":"#ee6d61";ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillStyle=col;const top=y(Math.max(o,cl)),bottom=y(Math.min(o,cl));ctx.fillRect(x-bw/2,top,bw,Math.max(4,bottom-top));});
