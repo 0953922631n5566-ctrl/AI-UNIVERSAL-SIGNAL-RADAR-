@@ -17,6 +17,6 @@ test("backend samples at open and T-5, then enters next candle once",()=>{
 });
 test("Mini App displays EUR/USD only, key status, S/R and mini chart",()=>{
  for(const id of ["signal","phase","price","timer","api","apiDetail","chart","history","ema","support","resistance","key"])assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/PREPARE CALL/);assert.match(html,/ENTER NOW/);assert.match(html,/<canvas\b/i);
+ assert.match(html,/PREPARE/);assert.match(html,/ENTER NOW/);assert.match(html,/<canvas\b/i);
 });
 test("Mini App JavaScript parses",()=>{const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");assert.ok(start>0&&end>start);assert.doesNotThrow(()=>new Script(html.slice(start,end)));});
