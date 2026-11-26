@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js && node --check src/streaming-entry-engine.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js && node --check src/streaming-entry-engine.js && node --check src/ema5-two-phase-engine.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,35 +17,47 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data Native Scoring 55 All Analysis",
-    "displayName": "All Analysis Threshold 55 · EMA5/EMA20/ATR14",
+    "name": "Twelve Data EMA5 Two-Phase M1",
+    "displayName": "EMA5 Pullback · Open + T-5 sample · next M1 entry",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "TWELVE_DATA_NATIVE_INDICATORS_AND_OHLC_SCORING",
-    "decisionAuthority": "NATIVE_TWELVE_DATA_PARTIAL_SCORING",
+    "executionModel": "TWELVE_DATA_REAL_M1_OHLC_TWO_PHASE_SAMPLING",
+    "decisionAuthority": "EMA5_ONLY_PULLBACK",
     "indicators": {
-      "provider": "Twelve Data native EMA5, EMA20, ATR14 + OHLC/Streaming",
-      "localTechnicalIndicatorCalculations": false,
-      "refreshSeconds": 60,
-      "estimatedCreditsPerDay": 4320
+      "provider": "EMA5 calculated from Twelve Data M1 OHLC",
+      "periods": [
+        5
+      ],
+      "samplePointsPerMinute": 2,
+      "localIndicatorCalculation": true
     },
     "strategy": {
-      "name": "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",
-      "signalGeneration": true,
-      "entryRule": "All analysis >=55/100; below 55 is STANDBY; manual only"
+      "name": "EMA5_PULLBACK_TWO_PHASE_M1",
+      "openSampleSeconds": [
+        0,
+        2
+      ],
+      "prepareSampleSeconds": [
+        55,
+        59
+      ],
+      "entryWindowSeconds": [
+        0,
+        5
+      ],
+      "flatSlope": "WAIT_SIDEWAY",
+      "manualOnly": true
     },
     "keyPool": {
       "configuredKeys": 10,
       "rotation": "ROUND_ROBIN_WITH_FAILOVER"
     },
-    "manualLightSwitch": {
-      "enabled": true,
-      "colors": [
-        "RED",
-        "GREEN"
-      ],
-      "independentFromRealSignal": true
-    },
+    "supportedPairs": [
+      "EUR/USD",
+      "EUR/JPY",
+      "GBP/USD",
+      "USD/JPY"
+    ],
     "manualOnly": true,
     "brokerExecution": false
   }
