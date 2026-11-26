@@ -114,8 +114,8 @@ function publicFeed(feed) {
     openPrice: ema5.openPrice ?? null,
     sourceCandleEpoch: ema5.sourceEpoch ?? null,
     targetCandleEpoch: ema5.preparedForEpoch ?? ema5.enteredEpoch ?? null,
-    analysisMode: "EMA5_PULLBACK_TWO_PHASE_M1",
-    indicatorSource: "Twelve Data M1 OHLC · EMA5 only",
+    analysisMode: "EMA5_PULLBACK_SR_TWO_PHASE_M1",
+    indicatorSource: "Twelve Data M1 OHLC · EMA5 + local swing Support/Resistance",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -148,8 +148,8 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: ema5.alertId || feed.alertId,
     preAlertSignal: ema5.preparedSignal || null,
-    indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC" },
-    source: "Twelve Data real M1 OHLC + EMA5 pullback · Two-phase sampling"
+    indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC", support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null, supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null, slope: ema5.lastAnalysis?.slope ?? null },
+    source: "Twelve Data real M1 OHLC + EMA5 Pullback + local swing S/R · Two-phase sampling"
   };
 }
 
@@ -174,7 +174,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EMA5_PULLBACK_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -765,7 +765,7 @@ app.get("/api/public/signal", (_req, res) => {
       higherTimeframe: state.higherTimeframe || null,
       preAlertStatus: state.preAlertStatus || null, preAlertCandle: state.preAlertCandle || null,
       alertId: state.alertId || null,
-      price: state.lastTickPrice, analyzedAt: state.analyzedAt,
+      price: state.lastTickPrice, openPrice: state.openPrice ?? null, closePrice: state.closePrice ?? null, support: state.support ?? null, resistance: state.resistance ?? null, supportDistancePips: state.supportDistancePips ?? null, resistanceDistancePips: state.resistanceDistancePips ?? null, analyzedAt: state.analyzedAt,
       apiStatus: state.apiStatus, supportStatus: state.supportStatus,
       statusMessage: state.statusMessage, dataMode: state.dataMode,
       ageSeconds: state.ageSeconds, tickAgeSeconds: state.tickAgeSeconds,
@@ -774,9 +774,9 @@ app.get("/api/public/signal", (_req, res) => {
       analysisMode: state.analysisMode || "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",
       liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds ?? null,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
-      signalTimingWindowSeconds: state.signalTimingWindowSeconds || [55, 60],
-      prepareTimingWindowSeconds: state.prepareTimingWindowSeconds || [50, 55],
-      signalTimingMode: state.signalTimingMode || "NEXT_M1_TARGET_PREOPEN_HOLD_30S",
+      signalTimingWindowSeconds: [0, 5],
+      prepareTimingWindowSeconds: [55, 60],
+      signalTimingMode: "NEXT_M1_OPEN_00_05_AFTER_PREPARE_55_59",
       sourceCandleEpoch: state.sourceCandleEpoch ?? null,
       targetCandleEpoch: state.targetCandleEpoch ?? null,
       signalTargetCandleAt: state.signalTargetCandleAt ?? null,
