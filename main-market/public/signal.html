@@ -46,7 +46,7 @@ button{font:inherit}
   <div id="price" class="price">—</div>
   <div id="age" class="price-age">กำลังเชื่อมต่อข้อมูลตลาดจริง</div>
  </section>
- <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · 15 BARS</span></div><div class="chart-tools"><button id="chartZoomOut" type="button" aria-label="ซูมออก">−</button><button id="chartZoomIn" type="button" aria-label="ซูมเข้า">+</button><button id="chartViewReset" type="button">รีเซ็ตมุมมอง</button><small>ลากเพื่อเลื่อน · ใช้สองนิ้วเพื่อซูม</small></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD เลื่อนได้และซูมได้"></canvas><div id="chartResizeHandle" class="chart-resize-handle" role="separator" aria-orientation="horizontal" aria-label="ลากเพื่อปรับความสูงกราฟ"><span></span><small>ลากขึ้น / ลง เพื่อปรับความสูงกราฟ</small></div><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
+ <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · 15 BARS</span></div><div class="chart-tools"><button id="chartZoomOut" type="button" aria-label="ซูมออก">−</button><button id="chartZoomIn" type="button" aria-label="ซูมเข้า">+</button><button id="chartViewReset" type="button">รีเซ็ตมุมมอง</button><small>ลากซ้าย/ขวา: ดูย้อนหลัง · ลากขึ้น/ลง: เลื่อนราคา · 2 นิ้ว: ซูม</small></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD เลื่อนได้และซูมได้"></canvas><div id="chartResizeHandle" class="chart-resize-handle" role="separator" aria-orientation="horizontal" aria-label="ลากเพื่อปรับความสูงกราฟ"><span></span><small>ลากขึ้น / ลง เพื่อปรับความสูงกราฟ</small></div><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
  <section class="signal-wrap" aria-live="polite">
   <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
   <div id="signal" class="signal-state">STANDBY</div>
@@ -126,7 +126,7 @@ function renderChart(m){
  const min=mid-half,max=mid+half,ph=H-T-B,pw=W-L-R,step=pw/Math.max(count,rows.length),bw=Math.max(5,Math.min(30,step*.72));
  const y=v=>T+(max-v)/(max-min)*ph+chartView.panY;
  ctx.font="15px sans-serif";ctx.textAlign="right";
- for(let k=0;k<5;k++){const value=max-k*(max-min)/4,yy=T+k*ph/4;ctx.strokeStyle="#263640";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(W-R,yy);ctx.stroke();ctx.fillStyle="#82969d";ctx.fillText(value.toFixed(5),W-5,yy+5);}
+ for(let k=0;k<5;k++){const yy=T+k*ph/4,value=max-((yy-T-chartView.panY)/ph)*(max-min);ctx.strokeStyle="#263640";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(W-R,yy);ctx.stroke();ctx.fillStyle="#82969d";ctx.fillText(value.toFixed(5),W-5,yy+5);}
  rows.forEach((d,i)=>{const x=L+i*step+step/2,o=+d.open,cl=+d.close,h=+d.high,l=+d.low,up=cl>=o,col=up?"#58c49b":"#ee6d61";ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillStyle=col;const top=y(Math.max(o,cl)),bottom=y(Math.min(o,cl));ctx.fillRect(x-bw/2,top,bw,Math.max(3,bottom-top));});
  const last=rows[rows.length-1],price=Number.isFinite(live)?live:+last.close,py=y(price);
  ctx.strokeStyle="#e56b61";ctx.setLineDash([6,5]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(L,py);ctx.lineTo(W-R,py);ctx.stroke();ctx.setLineDash([]);
