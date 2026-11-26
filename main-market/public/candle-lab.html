@@ -58,7 +58,11 @@ function drawChart(d){
   ctx.strokeStyle="#1c303c";ctx.beginPath();ctx.moveTo(left,yy);ctx.lineTo(left+plotW,yy);ctx.stroke();
   ctx.fillStyle="#8296a5";ctx.textAlign="left";ctx.fillText(fmtPrice(value),left+plotW+6,yy);
  }
- const step=plotW/15,bw=Math.max(5,Math.min(15,step*.62)),visibleStart=allCandles.length-candles.length;
+ // Anchor the newest (currently forming) candle at the exact horizontal center of the plot.
+ // Older candles are laid out to its left; the right half stays open for live movement.
+ const step=plotW/15,liveCenter=left+plotW/2;
+ const candleX=i=>liveCenter-(candles.length-1-i)*step;
+ const bw=Math.max(5,Math.min(15,step*.62)),visibleStart=allCandles.length-candles.length;
  // EMA5 is calculated over the full candle history with the same seed/period as the analyzer.
  const closes=allCandles.map(x=>Number(x.close)),emaSeries=[];
  if(closes.length>=5){
@@ -68,7 +72,7 @@ function drawChart(d){
  }
  // Draw historical candles, then softly emphasize the newest live candle.
  candles.forEach((x,i)=>{
-  const xx=left+(i+.5)*step,up=Number(x.close)>=Number(x.open),color=up?"#16c784":"#ea3943";
+  const xx=candleX(i),up=Number(x.close)>=Number(x.open),color=up?"#16c784":"#ea3943";
   const hi=y(Number(x.high)),lo=y(Number(x.low)),o=y(Number(x.open)),cl=y(Number(x.close));
   ctx.strokeStyle=color;ctx.lineWidth=i===candles.length-1?1.8:1.35;
   if(i===candles.length-1){ctx.shadowColor=color;ctx.shadowBlur=7;}
@@ -79,7 +83,7 @@ function drawChart(d){
  });
  // EMA5 curve, using the same complete OHLC history as the backend calculation.
  ctx.strokeStyle="#f5c451";ctx.lineWidth=2;ctx.beginPath();let started=false;
- candles.forEach((x,i)=>{const index=visibleStart+i,v=emaSeries[index];if(!Number.isFinite(v))return;const xx=left+(i+.5)*step;if(!started){ctx.moveTo(xx,y(v));started=true;}else ctx.lineTo(xx,y(v));});
+ candles.forEach((x,i)=>{const index=visibleStart+i,v=emaSeries[index];if(!Number.isFinite(v))return;const xx=candleX(i);if(!started){ctx.moveTo(xx,y(v));started=true;}else ctx.lineTo(xx,y(v));});
  if(started)ctx.stroke();
  // Support and resistance bands.
  for(const [v,col] of [[d.support,"#49a6ff"],[d.resistance,"#b58cff"]]){
@@ -92,9 +96,9 @@ function drawChart(d){
   ctx.fillStyle="#dce8ef";ctx.fillRect(left+plotW+3,yy-8,axisW-5,16);ctx.fillStyle="#0b1721";ctx.font="bold 8px system-ui";ctx.textAlign="left";ctx.fillText(fmtPrice(livePrice),left+plotW+6,yy);
  }
  // Live candle guide and time labels.
- const liveX=left+(candles.length-.5)*step;ctx.strokeStyle="#8296a5";ctx.globalAlpha=.45;ctx.setLineDash([2,5]);ctx.beginPath();ctx.moveTo(liveX,top);ctx.lineTo(liveX,bottom);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+ const liveX=liveCenter;ctx.strokeStyle="#8296a5";ctx.globalAlpha=.45;ctx.setLineDash([2,5]);ctx.beginPath();ctx.moveTo(liveX,top);ctx.lineTo(liveX,bottom);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
  ctx.fillStyle="#9aabb8";ctx.font="8px system-ui";ctx.textAlign="center";ctx.textBaseline="alphabetic";
- [0,4,9,14].forEach(i=>{if(!candles[i])return;const label=new Date(candles[i].epoch*1000).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",hour12:false});ctx.fillText(label,left+(i+.5)*step,bottom+18);});
+ [0,4,9,14].forEach(i=>{if(!candles[i])return;const label=new Date(candles[i].epoch*1000).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",hour12:false});ctx.fillText(label,candleX(i),bottom+18);});
  ctx.fillStyle="#91aab4";ctx.font="bold 8px system-ui";ctx.textAlign="left";ctx.fillText("LIVE",Math.min(w-34,liveX+5),top+9);
 }
 function render(d){lastData=d;running=!!d.monitoring;const sec=Math.floor(Date.now()/1000)%60,remaining=60-sec;$("price").textContent=fmt(d.price);$("pricehint").textContent=d.tickAgeSeconds!=null?"ราคาจริงจาก Twelve Data · Live":"รอราคา Streaming";$("timer").textContent="00:"+String(remaining===60?0:remaining).padStart(2,"0");$("progress").style.width=(sec/60*100)+"%";
