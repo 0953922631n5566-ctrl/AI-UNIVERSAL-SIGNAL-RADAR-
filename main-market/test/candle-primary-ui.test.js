@@ -5,15 +5,15 @@ import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/candle-lab.html",import.meta.url),"utf8");
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 const config=readFileSync(new URL("../src/config.js",import.meta.url),"utf8");
-test("Telegram primary /signal serves the EUR/USD EMA5 S/R Mini App",()=>{
+test("Telegram primary /signal serves the EUR/USD MA5 Bollinger signal-light Mini App",()=>{
  assert.match(server,/app\.get\("\/signal".*public.*candle-lab\.html/s);
  assert.match(server,/primaryMiniApp:\{route:"\/signal",api:"\/api\/telegram\/ema5\/status"/);
- assert.match(server,/EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1/);
+ assert.match(server,/EURUSD_MA5_BOLLINGER_20_2_M1/);
  assert.match(config,/Object\.freeze\(\["EUR\/USD"\]\)/);
 });
-test("backend samples at open and T-5, then enters next candle once",()=>{
- assert.match(server,/startEma5Sampler\(\)/);assert.match(server,/sampleEma5\(feed,"OPEN",minute\)/);
- assert.match(server,/sampleEma5\(feed,"PREPARE",minute\)/);assert.match(server,/enterPreparedSignal\(state,minute\)/);assert.match(server,/second<=5/);
+test("backend watches in the last 10 seconds and confirms ORDER in the last 5 seconds",()=>{
+ assert.match(server,/startEma5Sampler\\(\\)/);assert.match(server,/runMa5BollingerCheck\\(feed, minute, "WATCH"\\)/);
+ assert.match(server,/runMa5BollingerCheck\\(feed, minute, "ORDER"\\)/);assert.match(server,/state\\.orderUntil = now \\+ 30000/);
 });
 test("Mini App displays EUR/USD only, key status, S/R and mini chart",()=>{
  for(const id of ["signal","phase","price","timer","api","apiDetail","chart","history","ema","support","resistance","key"])assert.match(html,new RegExp('id="'+id+'"'));
