@@ -27,9 +27,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "TWELVE DATA NATIVE SCORING 55 ALL ANALYSIS";
-const ARCHITECTURE_ID = "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS";
-const VERSION = "2026-11-26-twelve-data-native-scoring-55-chart-v1";
+const SYSTEM_NAME = "TWELVE DATA 200K CANDLE PATTERN ANALYZER";
+const ARCHITECTURE_ID = "TWELVE_DATA_200K_CANDLE_PATTERN_ANALYZER";
+const VERSION = "2026-11-26-candle-pattern-200k-primary-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -1081,7 +1081,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 app.get("/api/telegram/candle-learning/status", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, learning: publicCandleLearning(), monitoring,
-    apiPool: twelveDataKeyPool.publicStatus() });
+    market: snapshot(), apiPool: twelveDataKeyPool.publicStatus() });
 });
 app.post("/api/telegram/candle-learning/train", requireTelegramSession, rateLimitControl, (req, res) => {
   noCache(res);
@@ -1136,15 +1136,23 @@ app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, r
   }
   const feed = feeds.get("EUR/USD");
   const closed = (feed?.candles || []).filter(c => c && c.live !== true).slice(-22);
-  const prediction = predictNextCandle(candleLearning.model, closed);
+  const now = Date.now();
+  const tickAgeSeconds = feed?.tickAt ? Math.max(0, (now - feed.tickAt) / 1000) : null;
+  let prediction = predictNextCandle(candleLearning.model, closed);
+  if (!monitoring) {
+    prediction = { ...prediction, signal: "STANDBY", reason: "ระบบเฝ้าระวังยังไม่เริ่มรับราคาตลาดสด" };
+  } else if (tickAgeSeconds === null || tickAgeSeconds > MAX_STREAM_AGE_SECONDS) {
+    prediction = { ...prediction, signal: "STANDBY", reason: "ราคา Streaming ไม่สดพอ · ระงับสัญญาณจนกว่าจะได้รับราคาปัจจุบัน" };
+  }
   res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
-    tickAgeSeconds: feed?.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null,
-    monitoring, symbol: "EUR/USD", interval: "1min", manualOnly: true });
+    tickAgeSeconds, monitoring, symbol: "EUR/USD", interval: "1min", manualOnly: true,
+    livePriceRequired: true, maxLivePriceAgeSeconds: MAX_STREAM_AGE_SECONDS });
 });
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
-app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
-app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
+// The Telegram Mini App primary URL now serves the historical 200K candle analyzer.
+app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
+app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health", (_req, res) => {
@@ -1156,13 +1164,16 @@ app.get("/health", (_req, res) => {
     architecture: {
       name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
       decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
+      primaryDecisionEngine: "TWELVE_DATA_200K_HISTORICAL_CANDLE_ANALOGUE",
       signalGeneration: true, externalAiCalls: false,
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
+      primaryDataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      nextGeneration: { route: "/signal-next", api: "/api/telegram/signal-next", strategy: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS", threshold: NEXT_SIGNAL_THRESHOLD, prepareThreshold: NEXT_PREPARE_THRESHOLD, tickFreshnessSeconds: NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000, holdSeconds: NEXT_SIGNAL_HOLD_MS / 1000, isolatedFromLegacySignal: true },
-      candlePatternLab: { route: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: true }
+      primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", manualOnly: true },
+      candlePatternLab: { route: "/signal", aliasRoute: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: false, livePriceRequired: true }
     },
     analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
+    primaryAnalyzer: { provider: "TWELVE_DATA_HISTORICAL_OHLC_ANALOGUE", role: "PRIMARY_NEXT_M1_CANDLE_DIRECTION_ANALYST", patternLength: 8, minimumMatches: 12, minimumDirectionShare: 56, minimumDirectionalEdge: 8, livePriceMaxAgeSeconds: MAX_STREAM_AGE_SECONDS, manualOnly: true, outOfSampleValidated: false },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
     configuration: {
       telegramMiniAppAuthConfigured: true, telegramInitDataRequired: false, miniAppOpenAccess: true,
