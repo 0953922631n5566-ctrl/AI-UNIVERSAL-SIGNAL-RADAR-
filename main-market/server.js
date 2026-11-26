@@ -139,10 +139,9 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5", srLookback: 15 },
-    support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null,
-    supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null,
-    openPriceM1: ema5.openPrice ?? null, closePrice: ema5.closePrice ?? null,
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["SMA5", "Bollinger Bands(20,2)"] },
+    ma5: ema5.lastAnalysis?.ma5 ?? null, bbUpper: ema5.lastAnalysis?.bbUpper ?? null, bbMiddle: ema5.lastAnalysis?.bbMiddle ?? null, bbLower: ema5.lastAnalysis?.bbLower ?? null,
+    bbWidthRatio: ema5.lastAnalysis?.bbWidthRatio ?? null, bandPosition: ema5.lastAnalysis?.bandPosition ?? null, regime: ema5.lastAnalysis?.regime ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -178,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EURUSD_MA5_BOLLINGER_20_2_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -289,7 +288,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
-      // EMA5 decisions are made only at the two scheduled M1 sampling points.
+      // MA5 + BB(20,2) checks run from local Twelve Data M1 candles; no extra REST polling.
       console.info("[radar] REST ready", {
         symbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
@@ -865,7 +864,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
-// The Telegram Mini App primary URL serves the EMA5 two-phase M1 system.
+// The Telegram Mini App primary URL serves the MA5 + Bollinger Bands(20,2) M1 system.
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
