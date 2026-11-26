@@ -58,7 +58,7 @@ function newFeed(symbol) {
 
 const candleLearning = {
   phase: "NOT_STARTED", message: "ยังไม่ได้โหลดข้อมูลย้อนหลัง",
-  targetCandles: 100000, loadedCandles: 0, pages: 0, model: null,
+  targetCandles: 200000, loadedCandles: 0, pages: 0, model: null,
   startedAt: null, finishedAt: null, error: null, trainingPromise: null
 };
 function publicCandleLearning() {
@@ -1086,7 +1086,7 @@ app.get("/api/telegram/candle-learning/status", requireTelegramSession, (_req, r
 app.post("/api/telegram/candle-learning/train", requireTelegramSession, rateLimitControl, (req, res) => {
   noCache(res);
   if (candleLearning.trainingPromise) return res.status(202).json({ ok: true, learning: publicCandleLearning() });
-  const requested = Number(req.body?.targetCandles || 100000);
+  const requested = Number(req.body?.targetCandles || 200000);
   const targetCandles = Math.max(10000, Math.min(200000, Math.floor(Number.isFinite(requested) ? requested : 100000)));
   candleLearning.phase = "FETCHING";
   candleLearning.message = "กำลังโหลดแท่ง EUR/USD M1 จริงจาก Twelve Data";
@@ -1160,7 +1160,7 @@ app.get("/health", (_req, res) => {
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       nextGeneration: { route: "/signal-next", api: "/api/telegram/signal-next", strategy: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS", threshold: NEXT_SIGNAL_THRESHOLD, prepareThreshold: NEXT_PREPARE_THRESHOLD, tickFreshnessSeconds: NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000, holdSeconds: NEXT_SIGNAL_HOLD_MS / 1000, isolatedFromLegacySignal: true },
-      candlePatternLab: { route: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 100000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: true }
+      candlePatternLab: { route: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: true }
     },
     analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
     recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },

@@ -9,14 +9,6 @@ on:
       - "main-market/public/candle-lab.html"
       - "main-market/src/**"
       - ".github/workflows/main-market-live-smoke.yml"
-  pull_request:
-    branches: [main-market]
-    paths:
-      - "main-market/server.js"
-      - "main-market/public/signal-next.html"
-      - "main-market/public/candle-lab.html"
-      - "main-market/src/**"
-      - ".github/workflows/main-market-live-smoke.yml"
   workflow_dispatch:
 
 permissions:
@@ -41,7 +33,7 @@ jobs:
                   const lab=h.architecture?.candlePatternLab;
                   process.exit(h.ok && h.service==="main-market" && h.symbols?.includes("EUR/USD") &&
                     h.interval==="1min" && lab?.route==="/candle-lab" &&
-                    lab?.defaultHistoryCandles===100000 ? 0 : 1);
+                    lab?.defaultHistoryCandles===200000 ? 0 : 1);
                 } catch { process.exit(1); }
               });'; then
               READY=1
@@ -72,7 +64,7 @@ jobs:
           trap cleanup EXIT
 
           STATUS="$(curl -fsS --max-time 20 -H "Authorization: Bearer $TOKEN" "$BASE/api/telegram/candle-learning/status")"
-          printf '%s' "$STATUS" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.learning?.targetCandles!==100000)process.exit(1);});'
+          printf '%s' "$STATUS" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.learning?.targetCandles!==200000)process.exit(1);});'
 
           STARTED="$(curl -fsS --max-time 30 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"start"}' "$BASE/api/telegram/control")"
           printf '%s' "$STARTED" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.market?.monitoring!==true)process.exit(1);});'
