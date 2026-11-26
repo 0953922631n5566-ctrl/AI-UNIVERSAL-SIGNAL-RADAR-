@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMa5Bollinger, samplingPhase } from "./src/ema5-two-phase-engine.js";
+import { analyzeMa5Bollinger } from "./src/ema5-two-phase-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -317,7 +317,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
 }
 
 function scheduleLiveAnalysis(_feed) {
-  // Disabled: EMA5 decisions are made only at the two scheduled M1 sampling points.
+  // Disabled: MA5 + BB(20,2) checks run from live Twelve Data M1 candles.
 }
 
 function resetEma5State(feed, reason = "รอเริ่มสแกน") {
@@ -834,10 +834,11 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
 app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
  noCache(res);const feed=feeds.get(selectedSymbol),state=feed.ema5State,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
-  openPrice:state.openPrice,ema5:state.ema5,previousEma5:state.previousEma5,slope:state.slope,phase:state.phase,signal:state.signal,reason:state.reason,
-  closePrice:state.closePrice??null,highPrice:state.highPrice??null,lowPrice:state.lowPrice??null,support:state.lastAnalysis?.support??null,resistance:state.lastAnalysis?.resistance??null,supportDistancePips:state.lastAnalysis?.supportDistancePips??null,resistanceDistancePips:state.lastAnalysis?.resistanceDistancePips??null,nearSupport:state.lastAnalysis?.nearSupport??false,nearResistance:state.lastAnalysis?.nearResistance??false,slopePips:state.lastAnalysis?.slopePips??null,sourceEpoch:state.sourceEpoch,targetEpoch:state.preparedForEpoch??state.enteredEpoch,
-  alertId:state.alertId,sampledAt:state.sampledAt,history:state.history||[],candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},manualOnly:true,brokerExecution:false,strategy:"EMA5_PULLBACK_SR_TWO_PHASE_M1"});
+  phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
+  orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
+  ma5:state.lastAnalysis?.ma5??null,bbUpper:state.lastAnalysis?.bbUpper??null,bbMiddle:state.lastAnalysis?.bbMiddle??null,bbLower:state.lastAnalysis?.bbLower??null,bbWidthRatio:state.lastAnalysis?.bbWidthRatio??null,bandPosition:state.lastAnalysis?.bandPosition??null,regime:state.lastAnalysis?.regime??null,
+  alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
+  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"MA5_BOLLINGER_20_2_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
