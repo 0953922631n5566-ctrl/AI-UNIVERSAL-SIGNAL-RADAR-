@@ -5,16 +5,17 @@
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--white);font-family:system-ui,-apple-system,sans-serif}body{background:radial-gradient(ellipse at 50% -18%,#1b3e49 0,#07131b 58%);min-height:100dvh}
 main{width:min(100%,500px);margin:auto;min-height:100dvh;padding:12px;display:flex;flex-direction:column;gap:9px}header,.row{display:flex;align-items:center;justify-content:space-between;gap:8px}.brand{font-size:15px;font-weight:950;letter-spacing:.1em}.brand small{display:block;color:var(--muted);font-size:9px;letter-spacing:.12em}.api{border:1px solid #28644f;border-radius:30px;padding:6px 9px;color:var(--green);font-size:10px;font-weight:850}.api.off{color:var(--red);border-color:#75404a}
 .panel{background:linear-gradient(145deg,#132a34,#0b1c24);border:1px solid var(--line);border-radius:15px;padding:11px}.pair{font-size:19px;font-weight:950;letter-spacing:.04em}.pair small{font-size:11px;color:var(--muted);font-weight:700}.price{font-size:25px;font-weight:950;font-variant-numeric:tabular-nums;text-align:right}.muted{color:var(--muted);font-size:10px}.stage{text-align:center}.stageTitle{font-size:11px;color:var(--muted);font-weight:800;letter-spacing:.12em}.signal{font-size:27px;font-weight:1000;margin:2px 0}.signal.call{color:var(--green)}.signal.put{color:var(--red)}.signal.wait{color:var(--amber)}.reason{font-size:11px;color:#c4d4d9;min-height:16px}.timer{font-size:25px;font-weight:950;font-variant-numeric:tabular-nums}.track{height:5px;background:#203a44;border-radius:6px;overflow:hidden;margin-top:7px}.track i{display:block;height:100%;background:var(--amber);width:0}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.metric{background:#0b1c24;border:1px solid #203b45;border-radius:10px;padding:8px}.metric label{display:block;color:var(--muted);font-size:9px}.metric b{font-size:12px;font-variant-numeric:tabular-nums}.charthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.charthead b{font-size:11px}.chartwrap{height:168px;position:relative}canvas{width:100%;height:100%;display:block}.keyline{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}.history{display:flex;gap:6px;overflow:auto;padding-top:7px}.chip{border:1px solid #2b4651;border-radius:8px;padding:5px 7px;font-size:10px;white-space:nowrap}.chip.call{color:var(--green)}.chip.put{color:var(--red)}button{font:inherit;color:var(--white);background:#173541;border:1px solid #315260;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:850}.primary{background:#14513f;border-color:#27785d}.danger{background:#4b2730;border-color:#7b3c4a}.foot{text-align:center;color:#708991;font-size:9px;margin-top:auto}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.metric{background:#0b1c24;border:1px solid #203b45;border-radius:10px;padding:8px}.metric label{display:block;color:var(--muted);font-size:9px}.metric b{font-size:12px;font-variant-numeric:tabular-nums}.charthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.charthead b{font-size:11px}.chartwrap{height:260px;position:relative;overflow:hidden}canvas{width:100%;height:100%;display:block}.keyline{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}.history{display:flex;gap:6px;overflow:auto;padding-top:7px}.chip{border:1px solid #2b4651;border-radius:8px;padding:5px 7px;font-size:10px;white-space:nowrap}.chip.call{color:var(--green)}.chip.put{color:var(--red)}button{font:inherit;color:var(--white);background:#173541;border:1px solid #315260;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:850}.primary{background:#14513f;border-color:#27785d}.danger{background:#4b2730;border-color:#7b3c4a}.foot{text-align:center;color:#708991;font-size:9px;margin-top:auto}
 </style></head><body><main>
 <header><div class="brand">EUR/USD RADAR<small>EMA 5 PULLBACK · LOCAL S/R · M1 · NON-OTC</small></div><div class="api off" id="api">CONNECTING</div></header>
 <section class="panel"><div class="row"><div><div class="pair">EUR/USD <small>· M1</small></div><div class="muted" id="pricehint">รอราคา Live</div></div><div class="price" id="price">—</div></div></section>
 <section class="panel stage"><div class="stageTitle" id="phase">สะสมข้อมูล EUR/USD... (รอดึงวินาทีที่ 55)</div><div class="signal wait" id="signal">WAIT</div><div class="reason" id="reason">กำลังเริ่มระบบวิเคราะห์</div><div class="row" style="margin-top:7px"><span class="muted">แท่ง M1 ถัดไป</span><b class="timer" id="timer">00:00</b></div><div class="track"><i id="progress"></i></div></section>
+<section class="panel"><div class="charthead"><b>EUR/USD · 15 CANDLES + EMA5 + S/R</b><span class="muted" id="candlecount">0 แท่ง</span></div><div class="chartwrap"><canvas id="chart"></canvas></div><div class="keyline"><span>— EMA5</span><span>— Support / Resistance</span></div></section>
 <section class="panel"><div class="metrics">
 <div class="metric"><label>OPEN / CLOSE</label><b id="oc">— / —</b></div><div class="metric"><label>EMA 5 · SLOPE</label><b id="ema">— · —</b></div><div class="metric"><label>ราคา Live Age</label><b id="age">—</b></div>
 <div class="metric"><label>SUPPORT</label><b id="support">—</b></div><div class="metric"><label>RESISTANCE</label><b id="resistance">—</b></div><div class="metric"><label>KEY ACTIVE</label><b id="key">—</b></div>
 </div></section>
-<section class="panel"><div class="charthead"><b>EUR/USD · 15–20 CANDLES + EMA5 + S/R</b><span class="muted" id="candlecount">0 แท่ง</span></div><div class="chartwrap"><canvas id="chart"></canvas></div><div class="keyline"><span>— EMA5</span><span>— Support / Resistance</span></div></section>
+
 <section class="panel"><div class="row"><b style="font-size:11px">ประวัติสัญญาณล่าสุด</b><span class="muted">สูงสุด 10 รายการ</span></div><div class="history" id="history"><span class="muted">ยังไม่มีสัญญาณ</span></div></section>
 <div class="row"><span class="muted" id="apiDetail">กำลังตรวจสอบ API Keys</span><button class="primary" id="toggle">START SCAN</button><button id="sound">เสียง: เปิด</button></div>
 <div class="foot">MANUAL ENTRY ONLY · NO BROKER EXECUTION · EUR/USD ONLY</div>
@@ -25,14 +26,41 @@ async function auth(){tg?.ready?.();tg?.expand?.();const r=await fetch("/api/tel
 async function req(path,options={}){if(!token)await auth();const r=await fetch(path,{...options,headers:{...(options.headers||{}),Authorization:"Bearer "+token,"Content-Type":"application/json"},cache:"no-store"});const j=await r.json();if(!r.ok)throw Error(j.error||"Request failed");return j;}
 function beep(freq=760){if(!soundOn)return;try{const C=window.AudioContext||window.webkitAudioContext,ctx=new C(),o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=freq;g.gain.value=.04;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.18);o.onended=()=>ctx.close();}catch{}}
 function fmt(v){return v==null||!Number.isFinite(Number(v))?"—":Number(v).toFixed(5)}
-function drawChart(d){const c=$("chart"),ctx=c.getContext("2d"),rect=c.getBoundingClientRect(),w=Math.max(1,rect.width),h=Math.max(1,rect.height),ratio=window.devicePixelRatio||1;c.width=w*ratio;c.height=h*ratio;ctx.scale(ratio,ratio);ctx.clearRect(0,0,w,h);
-const candles=(d.candles||[]).filter(x=>x&&Number.isFinite(x.epoch)).slice(-20);if(!candles.length){ctx.fillStyle="#91aab4";ctx.font="11px sans-serif";ctx.fillText("รอข้อมูลแท่งเทียนจาก Twelve Data",10,24);return;}
-const values=candles.flatMap(x=>[x.high,x.low]);if(Number.isFinite(d.ema5))values.push(d.ema5);if(Number.isFinite(d.support))values.push(d.support);if(Number.isFinite(d.resistance))values.push(d.resistance);
-let min=Math.min(...values),max=Math.max(...values),pad=(max-min)*.12||.0001;min-=pad;max+=pad;const y=v=>h-12-(v-min)/(max-min)*(h-24),step=w/candles.length,bw=Math.max(3,step*.48);
-ctx.strokeStyle="#28424d";ctx.lineWidth=1;for(let i=1;i<4;i++){let yy=h*i/4;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(w,yy);ctx.stroke();}
-candles.forEach((x,i)=>{const xx=i*step+step/2,up=x.close>=x.open;ctx.strokeStyle=up?"#20d69a":"#ff6177";ctx.fillStyle=ctx.strokeStyle;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(xx,y(x.high));ctx.lineTo(xx,y(x.low));ctx.stroke();const top=y(Math.max(x.open,x.close)),bottom=y(Math.min(x.open,x.close));ctx.fillRect(xx-bw/2,top,bw,Math.max(1,bottom-top));});
-const closes=candles.map(x=>x.close);if(closes.length>=5){let ema=closes.slice(0,5).reduce((a,b)=>a+b,0)/5,alpha=2/6;const vals=[ema];for(let i=5;i<closes.length;i++){ema=closes[i]*alpha+ema*(1-alpha);vals.push(ema);}ctx.strokeStyle="#f6c66b";ctx.lineWidth=1.8;ctx.beginPath();vals.forEach((v,i)=>{const xx=(i+5)*step+step/2;if(i===0)ctx.moveTo(xx,y(v));else ctx.lineTo(xx,y(v));});ctx.stroke();}
-for(const [v,col] of [[d.support,"#54a8ff"],[d.resistance,"#b38aff"]])if(Number.isFinite(v)){ctx.strokeStyle=col;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,y(v));ctx.lineTo(w,y(v));ctx.stroke();ctx.setLineDash([]);}
+function drawChart(d){
+ const c=$("chart"),ctx=c.getContext("2d"),rect=c.getBoundingClientRect(),w=Math.max(1,rect.width),h=Math.max(1,rect.height),ratio=window.devicePixelRatio||1;
+ c.width=Math.round(w*ratio);c.height=Math.round(h*ratio);ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
+ const candles=(d.candles||[]).filter(x=>x&&Number.isFinite(x.epoch)&&[x.open,x.high,x.low,x.close].every(v=>Number.isFinite(Number(v)))).slice(-15);
+ if(!candles.length){ctx.fillStyle="#91aab4";ctx.font="12px sans-serif";ctx.fillText("รอข้อมูลแท่งเทียนจาก Twelve Data",12,24);return;}
+ const values=candles.flatMap(x=>[Number(x.high),Number(x.low)]);
+ if(Number.isFinite(d.ema5))values.push(d.ema5);
+ if(Number.isFinite(d.support))values.push(d.support);
+ if(Number.isFinite(d.resistance))values.push(d.resistance);
+ let min=Math.min(...values),max=Math.max(...values),pad=(max-min)*.14||.0001;min-=pad;max+=pad;
+ const top=16,bottom=h-18,plotH=bottom-top,y=v=>bottom-(v-min)/(max-min)*plotH;
+ // Keep the newest/live candle around the center, leaving room on the right to watch it move.
+ const plotW=w*.57,step=plotW/15,bw=Math.max(7,step*.68);
+ ctx.strokeStyle="#28424d";ctx.lineWidth=1;
+ for(let i=1;i<5;i++){const yy=top+plotH*i/5;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(w,yy);ctx.stroke();}
+ candles.forEach((x,i)=>{
+  const xx=(i+.5)*step,up=Number(x.close)>=Number(x.open),color=up?"#20d69a":"#ff6177";
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(xx,y(Number(x.high)));ctx.lineTo(xx,y(Number(x.low)));ctx.stroke();
+  const bodyTop=y(Math.max(Number(x.open),Number(x.close))),bodyBottom=y(Math.min(Number(x.open),Number(x.close)));
+  ctx.fillRect(xx-bw/2,bodyTop,bw,Math.max(2,bodyBottom-bodyTop));
+ });
+ if(candles.length>=5){
+  const closes=candles.map(x=>Number(x.close));
+  let ema=closes.slice(0,5).reduce((a,b)=>a+b,0)/5,alpha=2/6,vals=[ema];
+  for(let i=5;i<closes.length;i++){ema=closes[i]*alpha+ema*(1-alpha);vals.push(ema);}
+  ctx.strokeStyle="#f6c66b";ctx.lineWidth=2.4;ctx.beginPath();
+  vals.forEach((v,i)=>{const xx=(i+4.5)*step;if(i===0)ctx.moveTo(xx,y(v));else ctx.lineTo(xx,y(v));});ctx.stroke();
+ }
+ for(const [v,col] of [[d.support,"#54a8ff"],[d.resistance,"#b38aff"]])if(Number.isFinite(v)){
+  ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(0,y(v));ctx.lineTo(w,y(v));ctx.stroke();ctx.setLineDash([]);
+ }
+ const liveX=(candles.length-.5)*step;
+ ctx.strokeStyle="#91aab4";ctx.globalAlpha=.55;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(liveX,top);ctx.lineTo(liveX,bottom);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+ ctx.fillStyle="#91aab4";ctx.font="bold 10px system-ui";ctx.fillText("LIVE",Math.min(w-34,liveX+7),top+12);
 }
 function render(d){lastData=d;running=!!d.monitoring;const sec=Math.floor(Date.now()/1000)%60,remaining=60-sec;$("price").textContent=fmt(d.price);$("pricehint").textContent=d.tickAgeSeconds!=null?"ราคาจริงจาก Twelve Data · Live":"รอราคา Streaming";$("timer").textContent="00:"+String(remaining===60?0:remaining).padStart(2,"0");$("progress").style.width=(sec/60*100)+"%";
 let label="WAIT",kind="wait",phaseText="สะสมข้อมูล EUR/USD... (รอดึงวินาทีที่ 55)";
@@ -45,7 +73,7 @@ $("oc").textContent=fmt(d.openPrice)+" / "+fmt(d.closePrice);$("ema").textConten
 $("support").textContent=fmt(d.support)+(d.supportDistancePips!=null?" · "+d.supportDistancePips+"p":"");$("resistance").textContent=fmt(d.resistance)+(d.resistanceDistancePips!=null?" · "+d.resistanceDistancePips+"p":"");
 const pool=d.apiPool||{},num=pool.activeKeyNumber;$("key").textContent=num?"#"+num+"/10":"—";const available=pool.availableCount??0,total=pool.configuredCount??10;$("api").textContent="KEY "+(num?"#"+num:"—")+" · "+available+"/"+total;$("api").className="api"+(d.monitoring&&d.tickAgeSeconds!=null&&d.tickAgeSeconds<=5?"":" off");$("apiDetail").textContent=available+"/"+total+" Keys พร้อม · REST rotation/failover";$("toggle").textContent=d.monitoring?"STOP SCAN":"START SCAN";$("toggle").className=d.monitoring?"danger":"primary";
 const history=d.history||[];$("history").innerHTML=history.length?history.map(x=>'<span class="chip '+(x.signal==="CALL"?"call":"put")+'">'+x.signal+' · '+new Date(x.targetEpoch*1000).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+'</span>').join(""):'<span class="muted">ยังไม่มีสัญญาณ</span>';
-$("candlecount").textContent=(d.candles||[]).length+" แท่ง";drawChart(d);
+$("candlecount").textContent=Math.min(15,(d.candles||[]).length)+" / 15 แท่ง";drawChart(d);
 if(d.alertId&&d.alertId!==lastAlert){lastAlert=d.alertId;if(d.phase==="PREPARE"){beep(620);try{tg?.HapticFeedback?.notificationOccurred("warning");navigator.vibrate?.([80,40,80]);}catch{}}else if(d.phase==="ENTER"){beep(940);try{tg?.HapticFeedback?.notificationOccurred("success");navigator.vibrate?.([130,50,130]);}catch{}}}
 }
 async function poll(){try{render(await req("/api/telegram/ema5/status"));}catch(e){$("api").textContent="API ERROR";$("api").className="api off";$("reason").textContent=e.message;}}
