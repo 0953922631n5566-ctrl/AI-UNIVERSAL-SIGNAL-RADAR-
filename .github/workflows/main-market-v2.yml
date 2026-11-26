@@ -31,11 +31,11 @@ jobs:
           grep -Fq 'export const ENTRY_CANDLES = 4;' src/config.js
           grep -Fq 'export const MIN_CLOSED_CANDLES = CONTEXT_CANDLES + ENTRY_CANDLES;' src/config.js
           grep -Fq 'export const HISTORY_CANDLES = 100;' src/config.js
-          grep -Fq 'decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_59"' server.js
+          grep -Fq 'decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS"' server.js
           grep -Fq 'analyzeMarket' server.js
           grep -Fq 'NEXT_M1_TARGET_PREOPEN_HOLD_30S' server.js
           grep -Fq 'nativeIndicatorRestCallsDisabled: false' server.js
-          grep -Fq 'callPut: 59' server.js
+          grep -Fq 'callPut: 55' server.js
           grep -Fq 'fetchTrendEma5' server.js
           grep -Fq 'fetchEma20' server.js
           grep -Fq 'fetchAtr14' server.js

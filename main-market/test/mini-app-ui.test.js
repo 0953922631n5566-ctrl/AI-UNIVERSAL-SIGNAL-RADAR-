@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
 const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("Mini App exposes universal 65 analysis threshold and removes Gemini controls",()=>{
+test("Mini App exposes universal 55 analysis threshold and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
  assert.doesNotMatch(html,/gemini/i);
- assert.match(html,/ทุกการวิเคราะห์ ≥ 65\/100/);
+ assert.match(html,/ทุกการวิเคราะห์ ≥ 55\/100/);
  assert.match(html,/id="scoreStatus"/);
  assert.match(html,/id="indicatorStatus"/);
  assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini|Gemini/);
@@ -27,8 +27,8 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
 test("Backend health metadata declares native scoring with no external AI",()=>{
- assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_65_ALL_ANALYSIS"/);
+ assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS"/);
  assert.match(serverJs,/signalGeneration: true/);
  assert.match(serverJs,/externalAiCalls: false/);
- assert.match(serverJs,/callPut: 65/);
+ assert.match(serverJs,/callPut: 55/);
 });

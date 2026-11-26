@@ -1,3 +1,5 @@
+import { DIRECTIONAL_THRESHOLD } from "./config.js";
+
 const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
 const mean = xs => xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : 0;
 const median = xs => { if (!xs.length) return 0; const a=[...xs].sort((x,y)=>x-y); return a[Math.floor(a.length/2)]; };
@@ -30,7 +32,7 @@ function validateNativeIndicators(candles, indicators) {
 
 export function classifyPartialScore(top,direction,killSwitch=false) {
   if(killSwitch||!direction)return {signal:"STANDBY",status:"STANDBY"};
-  if(top>=65)return {signal:direction,status:"SIGNAL"};
+  if(top>=DIRECTIONAL_THRESHOLD)return {signal:direction,status:"SIGNAL"};
   return {signal:"STANDBY",status:"STANDBY"};
 }
 function componentScore(candles, direction, native) {
@@ -118,13 +120,13 @@ export function scoreMarket(candles, indicators) {
   const chosen=direction==="PUT"?put:call;
   const reason=choppy?"KILL SWITCH: EMA5/EMA20 พันกันและความชันแบน — STANDBY"
     :atrSpike?"KILL SWITCH: ATR/แท่งล่าสุดพุ่งผิดปกติ — STANDBY"
-    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ 65`
+    :signal==="CALL"||signal==="PUT"?`Partial Score ${top}/100 · ${signal} ผ่านเกณฑ์ ${DIRECTIONAL_THRESHOLD}`
     :signal==="PREPARE"?`PREPARE · ${direction} ${top}/100 · รอประเมินซ้ำที่ T-5`
-    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ 65 หรือทิศทางยังไม่ชัด`;
+    :`คะแนนสูงสุด ${top}/100 ต่ำกว่าเกณฑ์ ${DIRECTIONAL_THRESHOLD} หรือทิศทางยังไม่ชัด`;
   return {signal,status,direction,score:top,confidence:top,scores,components:chosen.components,
     componentScores:{CALL:call.components,PUT:put.components},reason,summary:reason,
     regime:choppy?"SIDEWAY":atrSpike?"HIGH_VOLATILITY":direction==="CALL"?"UPTREND":direction==="PUT"?"DOWNTREND":"UNCLEAR",
-    strategy:"TWELVE_DATA_NATIVE_SCORING_65_ALL_ANALYSIS",provider:"TWELVE_DATA_NATIVE_INDICATORS",
+    strategy:"TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",provider:"TWELVE_DATA_NATIVE_INDICATORS",
     riskFlags,evidence:[
       `CALL ${scores.CALL}/100 · PUT ${scores.PUT}/100`,
       `EMA5 Slope ${chosen.components.ema5SlopeReversal}/30 · S/R Fakeout ${chosen.components.srFakeout}/30`,
@@ -138,6 +140,6 @@ export function scoreMarket(candles, indicators) {
       sources:{ema5:"Twelve Data /ema time_period=5",ema20:"Twelve Data /ema time_period=20",atr14:"Twelve Data /atr time_period=14"},
       periods:{ema5:5,ema20:20,atr14:14},latestEpoch:validation.latestEpoch},
     prepareSignal:signal==="PREPARE"?direction:null,killSwitch:choppy||atrSpike,
-    thresholds:{allAnalysis:65,signal:65,prepare:null,standbyBelow:65}
+    thresholds:{allAnalysis:DIRECTIONAL_THRESHOLD,signal:DIRECTIONAL_THRESHOLD,prepare:null,standbyBelow:DIRECTIONAL_THRESHOLD}
   };
 }

@@ -23,7 +23,7 @@ export function sourceGate(candles, options = {}) {
     ageSeconds:Number.isFinite(ageSeconds)?ageSeconds:null,lastCandleEpoch:last?.epoch??null,closed};
 }
 
-/** The legacy 65-point Partial Scoring model, adapted to provider-native Twelve Data indicators. */
+/** The legacy 55-point Partial Scoring model, adapted to provider-native Twelve Data indicators. */
 export async function analyzeMarket(candles, options = {}) {
   const gate=sourceGate(candles,options);
   const base={lastCandleEpoch:gate.lastCandleEpoch,dataMode:gate.mode,ageSeconds:gate.ageSeconds,
@@ -35,6 +35,6 @@ export async function analyzeMarket(candles, options = {}) {
   return {...scored,...base,prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
-    signalValidationStatus:"TWELVE_DATA_NATIVE_SCORING_65_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"All Analysis Threshold 65 · EMA5/EMA20/ATR14 จาก Twelve Data Native · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"};
+    signalValidationStatus:"TWELVE_DATA_NATIVE_SCORING_55_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote:"All Analysis Threshold 55 · EMA5/EMA20/ATR14 จาก Twelve Data Native · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"};
 }

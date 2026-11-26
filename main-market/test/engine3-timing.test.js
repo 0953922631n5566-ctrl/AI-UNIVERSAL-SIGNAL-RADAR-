@@ -5,7 +5,7 @@ const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Gemini is absent and native directional scoring is enabled",()=>{
  assert.doesNotMatch(server,/analyzeWithGemini|geminiQuotaStatus|hasCriticalRiskFlags|GEMINI_API_KEY|Gemini/);
  assert.doesNotMatch(server,/action === "gemini_on"|action === "gemini_off"/);
- assert.match(server,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_65_ALL_ANALYSIS"/);
+ assert.match(server,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS"/);
  assert.match(server,/signalGeneration: true/);
  assert.match(server,/provider: "TWELVE_DATA_NATIVE_INDICATORS"/);
  assert.match(server,/analyzeMarket\(/);
