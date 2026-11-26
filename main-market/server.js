@@ -1166,7 +1166,8 @@ app.get("/health", (_req, res) => {
       decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
       primaryDecisionEngine: "TWELVE_DATA_200K_HISTORICAL_CANDLE_ANALOGUE",
       signalGeneration: true, externalAiCalls: false,
-      dataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
+      dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
+      primaryDataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
       primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", manualOnly: true },
       candlePatternLab: { route: "/signal", aliasRoute: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: false, livePriceRequired: true }
