@@ -23,10 +23,14 @@ test("backend samples at open and T-5, then enters next candle once",()=>{
 test("only four requested major forex pairs are enabled",()=>{
  for(const pair of ["EUR/USD","EUR/JPY","GBP/USD","USD/JPY"])assert.ok(config.includes(pair));
 });
-test("Mini App shows price, EMA5, slope, API key, chart and recent history",()=>{
- for(const id of ["price","open","ema","slope","key","chart","history","countdown","pairs"])assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/SOUND ON/);
+test("Mini App shows a signal lamp, pair selector, live price and entry timer without candles",()=>{
+ for(const id of ["lamp","signal","stage","price","pricehint","timer","pairs","api","apiDetail"])assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/CALL/);
+ assert.match(html,/PUT/);
+ assert.match(html,/WAIT/);
+ assert.match(html,/เสียงแจ้งเตือน/);
  assert.match(html,/navigator\.vibrate/);
+ assert.doesNotMatch(html,/<canvas\b|candle chart|candlestick/i);
 });
 test("Mini App JavaScript parses",()=>{
  const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");
