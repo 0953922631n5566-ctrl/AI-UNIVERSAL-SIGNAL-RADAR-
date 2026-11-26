@@ -30,7 +30,7 @@ button{font:inherit}
 .drawer-backdrop{position:fixed;inset:0;background:#0009;z-index:10}.drawer{position:fixed;z-index:11;top:0;right:0;height:100dvh;width:min(88vw,360px);padding:calc(18px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));background:#0d171e;border-left:1px solid #2a3c43;box-shadow:-20px 0 60px #0009;overflow:auto}.drawer[hidden],.drawer-backdrop[hidden]{display:none}.drawer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.drawer-head strong{font-size:12px;letter-spacing:.14em}.close{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#132028;color:#dce9e5;font-size:18px}
 .section{border:1px solid var(--line);background:#111d24;border-radius:14px;padding:13px;margin:10px 0}.section-title{font-size:9px;color:#92aaa8;letter-spacing:.16em;margin-bottom:10px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;color:#d4e0dc;padding:6px 0}.row small{color:var(--muted);font-size:10px;text-align:right}.control{width:100%;border:1px solid #365348;border-radius:11px;background:#153126;color:#b9f5d8;padding:12px;font-size:12px;font-weight:750;margin-top:8px}.control.secondary{border-color:#4b555a;background:#182329;color:#d8e2df}.note{font-size:10px;line-height:1.55;color:var(--muted);margin-top:9px}.key-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.key{display:flex;justify-content:space-between;gap:5px;border-radius:8px;padding:7px;background:#16242a;font-size:9px;color:#a9b9b8}.key.good b{color:var(--green)}.key.bad b{color:var(--red)}.key.empty b{color:#879498}
 .toast{position:fixed;z-index:20;left:16px;right:16px;top:calc(12px + env(safe-area-inset-top));max-width:420px;margin:auto;border:1px solid #45645a;border-radius:14px;background:#10251d;padding:13px 15px;box-shadow:0 12px 40px #0009}.toast[hidden]{display:none}.toast.call{border-color:#86414c;background:#2a151b}.toast.put{border-color:#28734f;background:#10271e}.toast strong,.toast span{display:block}.toast strong{font-size:12px}.toast span{font-size:10px;color:#b5c7c0;margin-top:4px}
-@keyframes pulse{50%{opacity:.45}} .chart-panel{border:1px solid #263a43;border-radius:14px;background:#101b25;padding:10px 8px 8px;box-shadow:0 14px 34px #0005;min-height:0}.chart-head{padding-bottom:10px}#candleChart{width:100%;height:auto;display:block;aspect-ratio:900/560}.chart-head{display:flex;justify-content:space-between;align-items:center;padding:3px 8px 8px;color:#e5eeeb;font-size:11px}.chart-head span{font-size:8px;letter-spacing:.12em;color:#63d6a0}#candleChart{width:100%;height:auto;display:block}.chart-legend{display:flex;justify-content:center;gap:12px;padding:6px 0 1px;color:#93a9ad;font-size:9px}.signal-wrap{min-height:auto;padding:4px 0;flex:none}.lamp-shell{display:none}.signal-state{margin-top:4px;font-size:26px}.timing{margin-top:8px}@media(max-height:690px){.signal-wrap{min-height:230px}.lamp-shell{width:156px;height:156px}.lamp{width:92px;height:92px}.signal-state{margin-top:15px}.timing{margin-top:17px}}
+@keyframes pulse{50%{opacity:.45}} .chart-panel{border:1px solid #263a43;border-radius:14px;background:#101b25;padding:10px 8px 8px;box-shadow:0 14px 34px #0005;min-height:0}.chart-head{padding-bottom:10px}#candleChart{width:100%;height:350px;display:block;aspect-ratio:auto}.chart-resize-handle{height:30px;display:flex;align-items:center;justify-content:center;gap:8px;touch-action:none;user-select:none;cursor:ns-resize;color:#789095;border-top:1px solid #263a43;margin-top:4px}.chart-resize-handle span{width:38px;height:4px;border-radius:4px;background:#60777d}.chart-resize-handle small{font-size:9px;letter-spacing:.04em}.chart-head{display:flex;justify-content:space-between;align-items:center;padding:3px 8px 8px;color:#e5eeeb;font-size:11px}.chart-head span{font-size:8px;letter-spacing:.12em;color:#63d6a0}#candleChart{width:100%;height:auto;display:block}.chart-legend{display:flex;justify-content:center;gap:12px;padding:6px 0 1px;color:#93a9ad;font-size:9px}.signal-wrap{min-height:auto;padding:4px 0;flex:none}.lamp-shell{display:none}.signal-state{margin-top:4px;font-size:26px}.timing{margin-top:8px}@media(max-height:690px){.signal-wrap{min-height:230px}.lamp-shell{width:156px;height:156px}.lamp{width:92px;height:92px}.signal-state{margin-top:15px}.timing{margin-top:17px}}
 </style>
 </head>
 <body>
@@ -46,7 +46,7 @@ button{font:inherit}
   <div id="price" class="price">—</div>
   <div id="age" class="price-age">กำลังเชื่อมต่อข้อมูลตลาดจริง</div>
  </section>
- <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · ZOOM 2 · CENTER</span></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD"></canvas><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
+ <section class="chart-panel"><div class="chart-head"><b>EUR/USD · M1</b><span id="chartStatus">LIVE CANDLES · TWELVE DATA · 15 BARS</span></div><canvas id="candleChart" width="900" height="560" aria-label="กราฟแท่งเทียน EUR/USD"></canvas><div id="chartResizeHandle" class="chart-resize-handle" role="separator" aria-orientation="horizontal" aria-label="ลากเพื่อปรับความสูงกราฟ"><span></span><small>ลากขึ้น / ลง เพื่อปรับความสูงกราฟ</small></div><div class="chart-legend"><span>🟢 แท่งขึ้น</span><span>🔴 แท่งลง</span><span>↑ CALL</span><span>↓ PUT</span></div></section>
  <section class="signal-wrap" aria-live="polite">
   <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
   <div id="signal" class="signal-state">STANDBY</div>
@@ -75,10 +75,10 @@ button{font:inherit}
  <section class="section" id="trendCard">
   <div class="section-title">SIGNAL ENGINE</div>
   <div class="row"><span>สถานะเครื่องวิเคราะห์</span><small id="engineSignal">WAITING</small></div>
-  <div class="row"><span>คะแนน CALL / PUT</span><small id="scoreStatus">—</small></div>
-  <div class="row"><span>เกณฑ์สัญญาณ</span><small>ทุกการวิเคราะห์ ≥ 55/100 · ต่ำกว่า 55 = STANDBY</small></div>
-  <div id="indicatorStatus" class="note">รอ EMA5 / EMA20 / ATR14 จาก Twelve Data</div>
-  <div id="reason" class="note">รอข้อมูลอินดิเคเตอร์จาก Twelve Data เพื่อวิเคราะห์</div>
+  <div class="row"><span>กลยุทธ์</span><small>EMA5 PULLBACK + S/R</small></div>
+  <div class="row"><span>จังหวะตรวจ</span><small>วินาที 55–59 · เข้าแท่ง M1 ถัดไป</small></div>
+  <div id="indicatorStatus" class="note">รอ OHLC จาก Twelve Data เพื่อคำนวณ EMA5 และแนวรับ/แนวต้าน</div>
+  <div id="reason" class="note">รอข้อมูลราคา Streaming สดและแท่ง M1</div>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
  </section>
@@ -110,7 +110,7 @@ async function control(action){if(controlBusy)return;controlBusy=true;try{await 
 async function autoStart(){if(autoStartBusy)return;autoStartBusy=true;$("monitorStatus").textContent="กำลังเชื่อมต่อข้อมูล";setApi("CONNECTING","CONNECTING");try{await ensureAuth();const ok=await control("start");if(ok){bootStartCompleted=true;$("monitorStatus").textContent="กำลังวิเคราะห์อัตโนมัติ";await poll();}}catch(e){$("monitorStatus").textContent=e.message||"เริ่มระบบไม่สำเร็จ";setApi("OFFLINE","RETRYING");}finally{autoStartBusy=false;}}
 function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.keyStates:[];const total=Number(pool?.configuredCount||0),ready=Number(pool?.availableCount||0);$("apiSummary").textContent="คีย์ที่ตั้งค่า "+total+"/10";$("apiPool").textContent="พร้อมใช้ "+ready;const host=$("apiKeys");host.replaceChildren();for(let n=1;n<=10;n++){const item=states.find(x=>Number(x.number)===n),el=document.createElement("div");el.className="key "+(!item?"empty":item.available===false?"bad":"good");const name=document.createElement("span"),state=document.createElement("b");name.textContent="KEY "+String(n).padStart(2,"0");state.textContent=!item?"OFF":item.status||"READY";el.append(name,state);host.append(el);}}
 function renderChart(m){
- const canvas=$("candleChart"),ctx=canvas.getContext("2d"),rows=Array.isArray(m.candles)?m.candles.slice(-14):[];
+ const canvas=$("candleChart"),ctx=canvas.getContext("2d"),rows=Array.isArray(m.candles)?m.candles.slice(-15):[];
  const W=900,H=560,L=18,R=100,T=34,B=42;
  ctx.clearRect(0,0,W,H);ctx.fillStyle="#101b25";ctx.fillRect(0,0,W,H);
  if(!rows.length){ctx.fillStyle="#91a5aa";ctx.font="20px sans-serif";ctx.textAlign="center";ctx.fillText("รอข้อมูลแท่งเทียนจาก Twelve Data",W/2,H/2);return;}
@@ -136,13 +136,13 @@ const indicator=m.indicators||{},ready=indicator.status==="READY";const usable=a
 const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir||(preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
-$("hint").textContent=state==="CALL"?"คะแนนผ่านเกณฑ์ 55/100 · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"คะแนนผ่านเกณฑ์ 55/100 · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอข้อมูลสดหรือเงื่อนไข Partial Score ที่ผ่านเกณฑ์";
+$("hint").textContent=state==="CALL"?"EMA5 Pullback + S/R · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"EMA5 Pullback + S/R · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอ Streaming สดและเงื่อนไข EMA5 Pullback + S/R";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-$("engineSignal").textContent=ready?"ALL ANALYSIS 55/100":indicator.status||"WAITING";
-$("scoreStatus").textContent="CALL "+(m.scores?.CALL??"—")+" · PUT "+(m.scores?.PUT??"—");
-const metrics=m.metrics||{};$("indicatorStatus").textContent=ready
-?"Twelve Data Native · EMA5 "+fmt(indicator.ema5?.ema??metrics.ema5)+" · EMA20 "+fmt(indicator.ema20?.ema??metrics.ema20)+" · ATR14 "+fmt(indicator.atr14?.atr??metrics.atr14)
-:(indicator.message||"รอ EMA5 / EMA20 / ATR14 จาก Twelve Data");
+$("engineSignal").textContent=ready?"EMA5 READY":indicator.status||"WAITING";
+const emaValue=typeof indicator.ema5==="number"?indicator.ema5:indicator.ema5?.ema;
+$("indicatorStatus").textContent=ready
+?"Twelve Data M1 OHLC · EMA5 "+fmt(emaValue)+" · S/R Lookback 15 · Streaming "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
+:(indicator.message||"รอ OHLC และราคา Streaming จาก Twelve Data");
 $("reason").textContent=m.reason||m.statusMessage||"รอการวิเคราะห์";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
 if(dir&&m.alertId&&String(m.alertId)!==lastAlertId){lastAlertId=String(m.alertId);soundPattern(dir==="CALL"?[880,1175,880]:[660,523,660]);try{navigator.vibrate?.([140,70,140]);tg?.HapticFeedback?.notificationOccurred("success");}catch{}}
@@ -150,6 +150,18 @@ $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
 async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
 $("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});
 
+function setupChartResize(){
+ const canvas=$("candleChart"),handle=$("chartResizeHandle");
+ let height=350,startY=0,startHeight=height,dragging=false;
+ try{const saved=Number(localStorage.getItem("signalRadarChartHeight"));if(Number.isFinite(saved)&&saved>=180&&saved<=620)height=saved;}catch{}
+ const apply=()=>{canvas.style.height=height+"px";};
+ apply();
+ handle.addEventListener("pointerdown",event=>{dragging=true;startY=event.clientY;startHeight=height;handle.setPointerCapture?.(event.pointerId);event.preventDefault();});
+ handle.addEventListener("pointermove",event=>{if(!dragging)return;height=Math.max(180,Math.min(620,startHeight+event.clientY-startY));apply();});
+ const stop=()=>{if(!dragging)return;dragging=false;try{localStorage.setItem("signalRadarChartHeight",String(Math.round(height)));}catch{}};
+ handle.addEventListener("pointerup",stop);handle.addEventListener("pointercancel",stop);handle.addEventListener("lostpointercapture",stop);
+}
+setupChartResize();
 try{const saved=localStorage.getItem("signalRadarManualLampColor");if(saved==="RED"||saved==="GREEN")manualLampColor=saved;}catch{}
 function paintManualLamp(){const green=manualLampColor==="GREEN";$("manualLampToggle").textContent=green?"สลับไฟเสริมเป็นสีแดง":"สลับไฟเสริมเป็นสีเขียว";$("manualLampStatus").textContent="ไฟเสริม: "+(green?"สีเขียว":"สีแดง")+" · แยกจากสัญญาณจริง";$("manualLampStatus").style.color=green?"#47e39a":"#ff6472";}
 $("manualLampToggle").addEventListener("click",()=>{manualLampColor=manualLampColor==="RED"?"GREEN":"RED";try{localStorage.setItem("signalRadarManualLampColor",manualLampColor);}catch{}paintManualLamp();});paintManualLamp();
