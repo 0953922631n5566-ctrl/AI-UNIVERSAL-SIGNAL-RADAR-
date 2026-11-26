@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js && node --check src/streaming-entry-engine.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
