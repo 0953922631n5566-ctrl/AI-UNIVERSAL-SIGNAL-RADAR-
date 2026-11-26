@@ -38,7 +38,7 @@ function drawChart(d){
  let min=Math.min(...values),max=Math.max(...values),pad=(max-min)*.14||.0001;min-=pad;max+=pad;
  const top=16,bottom=h-18,plotH=bottom-top,y=v=>bottom-(v-min)/(max-min)*plotH;
  // Keep the newest/live candle around the center, leaving room on the right to watch it move.
- const plotW=w*.57,step=plotW/15,bw=Math.max(7,step*.68);
+ const plotW=w*.57,step=plotW/15,bw=Math.max(9,step*.85);
  ctx.strokeStyle="#28424d";ctx.lineWidth=1;
  for(let i=1;i<5;i++){const yy=top+plotH*i/5;ctx.beginPath();ctx.moveTo(0,yy);ctx.lineTo(w,yy);ctx.stroke();}
  candles.forEach((x,i)=>{
