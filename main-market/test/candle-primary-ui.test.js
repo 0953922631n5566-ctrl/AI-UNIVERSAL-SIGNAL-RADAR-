@@ -28,7 +28,11 @@ test("Mini App chart keeps the live candle centered and reduces the screen to ch
  assert.match(html,/emaSeries/);
  assert.match(html,/Support and resistance bands/);
  assert.match(html,/Live price line/);
- assert.match(html,/const liveX=left\+\(candles\.length-\.5\)\*step/);
+ assert.match(html,/const step=plotW\\/15,liveCenter=left\\+plotW\\/2/);
+ assert.match(html,/const candleX=i=>liveCenter-\\(candles\\.length-1-i\\)\\*step/);
+ assert.match(html,/Minimal chart-first Mini App/);
+ assert.match(html,/const activeSignal=\\["PREPARE","ENTER"\\]/);
+ assert.match(html,/isCall\\?"#20d69a":"#ff5268"/);
  assert.match(html,/15 CANDLES \+ EMA5 \+ S\/R/);
  assert.match(html,/chartResize/);
  assert.match(html,/id="chartResize"/);
