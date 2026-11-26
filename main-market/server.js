@@ -1135,7 +1135,7 @@ app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, r
     return res.status(409).json({ ok: false, error: "โมเดลยังไม่พร้อม", learning: publicCandleLearning() });
   }
   const feed = feeds.get("EUR/USD");
-  const closed = (feed?.candles || []).filter(c => c && c.live !== true).slice(-8);
+  const closed = (feed?.candles || []).filter(c => c && c.live !== true).slice(-22);
   const prediction = predictNextCandle(candleLearning.model, closed);
   res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
     tickAgeSeconds: feed?.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null,
