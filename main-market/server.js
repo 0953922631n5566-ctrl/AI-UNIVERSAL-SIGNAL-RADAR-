@@ -140,8 +140,8 @@ function publicFeed(feed) {
       ? new Date(feed.activeUntil).toISOString() : null,
     alertId: feed.alertId,
     preAlertSignal: feed.preAlertSignal,
-    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
-    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + Streaming · All Analysis Threshold 55"
+    indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC" },
+    source: "Twelve Data real M1 OHLC + EMA5 pullback · Two-phase sampling"
   };
 }
 
@@ -350,12 +350,12 @@ async function sampleEma5(feed,phase,minuteEpoch){
    console.info("[ema5] OPEN sample",{symbol:feed.symbol,minuteEpoch,openPrice:state.openPrice});
   }else{
    const now=Date.now(),second=Math.floor(now/1000)%60;
-   if(Math.floor(now/60000)*60!==minuteEpoch||second<55){state.phase="WAIT";state.signal="WAIT";state.reason="ผลดึงข้อมูลมาช้าเกินช่วงวินาที 55 · ข้ามรอบ";return;}
+   if(Math.floor(now/60000)*60!==minuteEpoch||second<55){state.phase="WAIT";state.signal="WAIT";state.preparedSignal=null;state.preparedForEpoch=null;state.reason="ผลดึงข้อมูลมาช้าเกินช่วงวินาที 55 · ข้ามรอบ";return;}
    const current=live?.epoch===minuteEpoch?live:null,tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
    const result=analyzeEma5Pullback({symbol:feed.symbol,closedCandles:feed.candles.filter(c=>c&&!c.live),liveCandle:current,tickAgeSeconds:tickAge});
    Object.assign(state,{lastAnalysis:result,ema5:result.ema5??null,previousEma5:result.previousEma5??null,slope:result.slope||"WAIT",
     closePrice:result.closePrice??current?.close??null,highPrice:result.highPrice??current?.high??null,lowPrice:result.lowPrice??current?.low??null,
-    sourceEpoch:minuteEpoch,preparedForEpoch:null,preparedSignal:null,alertId:null,sampledAt:new Date().toISOString()});
+    sourceEpoch:minuteEpoch,openPrice:current?.open??state.openPrice,preparedForEpoch:null,preparedSignal:null,alertId:null,sampledAt:new Date().toISOString()});
    if(["CALL","PUT"].includes(result.signal)){
     state.phase="PREPARE";state.signal=result.signal;state.preparedSignal=result.signal;state.preparedForEpoch=minuteEpoch+60;
     state.reason=`PREPARE ${result.signal} · เตรียมเข้าแท่งถัดไป`;
