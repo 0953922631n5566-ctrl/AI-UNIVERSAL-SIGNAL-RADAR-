@@ -4,7 +4,10 @@ const EMA_ALPHA = 2 / (EMA_PERIOD + 1);
 const MIN_HISTORY = 20;
 const PIP = 0.0001;
 const SR_LOOKBACK = 15;
-const SR_NEAR_PIPS = 3.0;
+const SR_NEAR_PIPS = 4.5;
+const SR_CLEAR_PIPS = 2.0;
+const EMA_RETEST_TOLERANCE_PIPS = 1.5;
+const SLOPE_FLAT_PIPS = 0.05;
 export function samplingPhase(epochSeconds) {
   const second = ((Math.floor(epochSeconds) % 60) + 60) % 60;
   if (second <= 2) return "OPEN";
@@ -42,7 +45,7 @@ export function analyzeEma5Pullback({ symbol, closedCandles, liveCandle, tickAge
     return { signal:"WAIT", slope:"WAIT", reason:"OHLC ไม่สมบูรณ์" };
   const ema=calculateEma5(closes); if(!ema)return{signal:"WAIT",slope:"WAIT",reason:"คำนวณ EMA5 ไม่สำเร็จ"};
   const delta=ema.current-ema.previous, slopePips=delta/PIP;
-  const slope=Math.abs(slopePips)<0.1?"FLAT":delta>0?"UP":"DOWN";
+  const slope=Math.abs(slopePips)<SLOPE_FLAT_PIPS?"FLAT":delta>0?"UP":"DOWN";
   const zones=findZones(recent,liveCandle.close), supportDistancePips=(liveCandle.close-zones.support)/PIP, resistanceDistancePips=(zones.resistance-liveCandle.close)/PIP;
   const nearSupport=liveCandle.low<=zones.support+SR_NEAR_PIPS*PIP && liveCandle.low>=zones.support-SR_NEAR_PIPS*PIP;
   const nearResistance=liveCandle.high>=zones.resistance-SR_NEAR_PIPS*PIP && liveCandle.high<=zones.resistance+SR_NEAR_PIPS*PIP;
@@ -55,11 +58,11 @@ export function analyzeEma5Pullback({ symbol, closedCandles, liveCandle, tickAge
     sourceCandleEpoch:liveCandle.epoch,targetCandleEpoch:liveCandle.epoch+60,tickAgeSeconds:Number(tickAgeSeconds.toFixed(2)),
     indicator:"EMA5",source:"Twelve Data M1 OHLC + local EMA5 + local swing S/R"};
   if(slope==="FLAT")return{...common,signal:"WAIT",regime:"SIDEWAY",reason:"EMA5 แบนราบ · SIDEWAY · งดส่งสัญญาณ"};
-  if(slope==="UP"&&supportIntact&&(liveCandle.low<=ema.current||nearSupport)&&liveCandle.close>liveCandle.open&&liveCandle.close>ema.current&&Math.abs(resistanceDistancePips)>SR_NEAR_PIPS)
+  if(slope==="UP"&&supportIntact&&(liveCandle.low<=ema.current+EMA_RETEST_TOLERANCE_PIPS*PIP||nearSupport)&&liveCandle.close>liveCandle.open&&liveCandle.close>ema.current&&Math.abs(resistanceDistancePips)>SR_CLEAR_PIPS)
     return{...common,signal:"CALL",regime:"UPTREND",reason:`EMA5 UP + Pullback + ${nearSupport?"Near Support":"EMA5 Retest"} · ยังมีระยะถึงแนวต้านย่อย`};
-  if(slope==="DOWN"&&resistanceIntact&&(liveCandle.high>=ema.current||nearResistance)&&liveCandle.close<liveCandle.open&&liveCandle.close<ema.current&&Math.abs(supportDistancePips)>SR_NEAR_PIPS)
+  if(slope==="DOWN"&&resistanceIntact&&(liveCandle.high>=ema.current-EMA_RETEST_TOLERANCE_PIPS*PIP||nearResistance)&&liveCandle.close<liveCandle.open&&liveCandle.close<ema.current&&Math.abs(supportDistancePips)>SR_CLEAR_PIPS)
     return{...common,signal:"PUT",regime:"DOWNTREND",reason:`EMA5 DOWN + Pullback + ${nearResistance?"Near Resistance":"EMA5 Retest"} · ยังมีระยะถึงแนวรับย่อย`};
-  if((slope==="UP"&&!supportIntact)||(slope==="DOWN"&&!resistanceIntact)||(slope==="UP"&&resistanceDistancePips<=SR_NEAR_PIPS)||(slope==="DOWN"&&supportDistancePips<=SR_NEAR_PIPS))
+  if((slope==="UP"&&!supportIntact)||(slope==="DOWN"&&!resistanceIntact)||(slope==="UP"&&resistanceDistancePips<=SR_CLEAR_PIPS)||(slope==="DOWN"&&supportDistancePips<=SR_CLEAR_PIPS))
     return{...common,signal:"WAIT",regime:"SR_BLOCK",reason:"ราคาอยู่ชิดแนวต้าน/แนวรับย่อย · เสี่ยงชนโซนกลับตัว"};
   if(Math.abs(supportDistancePips)>25&&Math.abs(resistanceDistancePips)>25)
     return{...common,signal:"WAIT",regime:"NO_ZONE",reason:"ราคาอยู่กลางทาง · ยังไม่มีโซน S/R ใกล้เคียง"};

@@ -48,7 +48,7 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
-    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, sampledAt:null, lastAnalysis:null }
+    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, lastPrepareAnalysisAt:0, sampledAt:null, lastAnalysis:null }
   };
 }
 
@@ -131,7 +131,7 @@ function publicFeed(feed) {
       : monitoring ? "CONNECTING" : "OFFLINE",
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
-    candles: feed.candles.filter(candle => candle).slice(-60),
+    candles: feed.candles.filter(candle => candle).slice(-MAX_CANDLES),
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
@@ -318,7 +318,7 @@ function scheduleLiveAnalysis(_feed) {
 }
 
 function resetEma5State(feed,reason="รอเริ่มสแกน"){
- feed.ema5State={phase:"WAIT",minuteEpoch:null,openPrice:null,ema5:null,previousEma5:null,slope:"WAIT",signal:"WAIT",reason,preparedSignal:null,preparedForEpoch:null,sourceEpoch:null,enteredEpoch:null,alertId:null,history:[],lastOpenSampleEpoch:null,lastPrepareSampleEpoch:null,sampledAt:null,lastAnalysis:null};
+ feed.ema5State={phase:"WAIT",minuteEpoch:null,openPrice:null,ema5:null,previousEma5:null,slope:"WAIT",signal:"WAIT",reason,preparedSignal:null,preparedForEpoch:null,sourceEpoch:null,enteredEpoch:null,alertId:null,history:[],lastOpenSampleEpoch:null,lastPrepareSampleEpoch:null,lastPrepareAnalysisAt:0,sampledAt:null,lastAnalysis:null};
 }
 function mergeSampleCandles(feed,response){
  const byEpoch=new Map((feed.candles||[]).filter(c=>c&&Number.isFinite(c.epoch)).map(c=>[c.epoch,c]));
@@ -366,10 +366,35 @@ async function sampleEma5(feed,phase,minuteEpoch){
     state.reason=`PREPARE ${result.signal} · เตรียมเข้าแท่งถัดไป`;
     state.alertId=`${minuteEpoch}:${minuteEpoch+60}:${result.signal}:PREPARE:EMA5`;
    }else{state.phase=result.regime==="SIDEWAY"?"SIDEWAY":"WAIT";state.signal="WAIT";state.reason=result.reason;}
-   console.info("[ema5] PREPARE sample",{symbol:feed.symbol,minuteEpoch,signal:state.signal,slope:state.slope,ema5:state.ema5});
+   state.lastPrepareAnalysisAt=feed.tickAt||0;
+   console.info("[ema5] PREPARE sample",{symbol:feed.symbol,minuteEpoch,signal:state.signal,slope:state.slope,ema5:state.ema5,
+    reason:result.reason,regime:result.regime,tickAgeSeconds:result.tickAgeSeconds,
+    supportDistancePips:result.supportDistancePips,resistanceDistancePips:result.resistanceDistancePips,
+    nearSupport:result.nearSupport,nearResistance:result.nearResistance});
   }
  }catch(error){state.phase="ERROR";state.signal="WAIT";state.reason=`Twelve Data sample error: ${error.message}`;console.error("[ema5] sample failed",{symbol:feed.symbol,phase,message:error.message});}
  publish();
+}
+function refreshPrepareFromLive(feed,minuteEpoch){
+ const state=feed.ema5State,now=Date.now(),tickAt=feed.tickAt;
+ if(!tickAt||tickAt<=state.lastPrepareAnalysisAt||now-tickAt>5000)return;
+ const current=feed.candles.at(-1);
+ if(!current?.live||current.epoch!==minuteEpoch)return;
+ const result=analyzeEma5Pullback({symbol:feed.symbol,closedCandles:feed.candles.filter(c=>c&&!c.live),liveCandle:current,tickAgeSeconds:(now-tickAt)/1000});
+ state.lastPrepareAnalysisAt=tickAt;
+ state.lastAnalysis=result;state.ema5=result.ema5??null;state.previousEma5=result.previousEma5??null;
+ state.slope=result.slope||"WAIT";state.closePrice=result.closePrice??current.close;
+ state.highPrice=result.highPrice??current.high;state.lowPrice=result.lowPrice??current.low;
+ state.sourceEpoch=minuteEpoch;state.openPrice=current.open;state.sampledAt=new Date().toISOString();
+ if(["CALL","PUT"].includes(result.signal)){
+  state.phase="PREPARE";state.signal=result.signal;state.preparedSignal=result.signal;state.preparedForEpoch=minuteEpoch+60;
+  state.reason=`PREPARE ${result.signal} · ยืนยันจาก Tick สดในช่วง 55–59`;
+  state.alertId=`${minuteEpoch}:${minuteEpoch+60}:${result.signal}:PREPARE:EMA5`;
+  console.info("[ema5] PREPARE confirmed from live tick",{symbol:feed.symbol,minuteEpoch,signal:result.signal});
+  publish();
+ }else{
+  state.phase=result.regime==="SIDEWAY"?"SIDEWAY":"WAIT";state.signal="WAIT";state.reason=result.reason;
+ }
 }
 function tickEma5Clock(){
  if(!monitoring)return;
@@ -386,6 +411,7 @@ function tickEma5Clock(){
  const phase=samplingPhase(now/1000);
  if(phase==="OPEN"&&state.lastOpenSampleEpoch!==minute)void sampleEma5(feed,"OPEN",minute);
  else if(phase==="PREPARE"&&state.lastPrepareSampleEpoch!==minute)void sampleEma5(feed,"PREPARE",minute);
+ else if(phase==="PREPARE"&&state.lastPrepareSampleEpoch===minute&&state.preparedForEpoch!==minute+60&&second<=59&&state.phase!=="SAMPLING")refreshPrepareFromLive(feed,minute);
 }
 function startEma5Sampler(){clearInterval(ema5Timer);ema5Timer=setInterval(tickEma5Clock,200);tickEma5Clock();}
 
