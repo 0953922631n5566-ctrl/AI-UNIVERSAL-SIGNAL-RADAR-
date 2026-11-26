@@ -134,11 +134,12 @@ export function buildCandlePatternModel(candles) {
 export function predictNextCandle(model,recentCandles) {
   if(!model||model.patternCount===0)return {signal:"STANDBY",reason:"ยังไม่มีโมเดลรูปแบบแท่งเทียน",matches:0};
   const recent=recentCandles?.slice(-PATTERN_LENGTH);
-  if(!recent||recent.length!==PATTERN_LENGTH)return {signal:"STANDBY",reason:"ต้องมีแท่ง M1 ปิดแล้ว 8 แท่ง",matches:0};
+  if(!recent||recentCandles.length<PATTERN_LENGTH+14)return {signal:"STANDBY",reason:"ต้องมีแท่ง M1 ปิดแล้วอย่างน้อย 22 แท่ง",matches:0};
   const queryStartEpoch=recent[0].epoch;
   const query=encodePattern(recentCandles.slice(-PATTERN_LENGTH-14),14);
-  const top=[];
+  const nearest=[];
   const dims=PATTERN_LENGTH*FEATURE_COUNT;
+  const nearestLimit=TOP_K*5;
   for(let i=0;i<model.patternCount;i++){
     // The outcome candle must be strictly earlier than the query window: no look-ahead or self-match.
     if(model.nextEpochs[i]>=queryStartEpoch)continue;
@@ -147,16 +148,13 @@ export function predictNextCandle(model,recentCandles) {
     for(let j=0;j<dims;j++){const d=query[j]-model.vectors[offset+j];sum+=d*d;}
     const distance=Math.sqrt(sum/dims);
     const candidate={i,distance,start:model.starts[i],label:model.labels[i]};
-    let pos=0;while(pos<top.length&&top[pos].distance<=distance)pos++;
-    if(pos<TOP_K){
-      top.splice(pos,0,candidate);
-      // Avoid counting many near-identical, overlapping historical windows as independent matches.
-      for(let k=top.length-1;k>=0;k--){
-        if(k===pos)continue;
-        if(Math.abs(top[k].start-candidate.start)<PATTERN_LENGTH)top.splice(k,1);
-      }
-      if(top.length>TOP_K)top.pop();
-    }
+    let pos=0;while(pos<nearest.length&&nearest[pos].distance<=distance)pos++;
+    if(pos<nearestLimit){nearest.splice(pos,0,candidate);if(nearest.length>nearestLimit)nearest.pop();}
+  }
+  const top=[];
+  for(const candidate of nearest){
+    if(top.every(existing=>Math.abs(existing.start-candidate.start)>=PATTERN_LENGTH))top.push(candidate);
+    if(top.length>=TOP_K)break;
   }
   if(top.length<MIN_MATCHES)return {signal:"STANDBY",reason:"รูปแบบที่เทียบได้มีจำนวนไม่พอ",matches:top.length,requiredMatches:MIN_MATCHES};
   let callWeight=0,putWeight=0;
