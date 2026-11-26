@@ -4,27 +4,22 @@ import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-
-const here = path.dirname(fileURLToPath(import.meta.url));
-const html = await readFile(path.join(here, "../public/signal-next.html"), "utf8");
-const server = await readFile(path.join(here, "../server.js"), "utf8");
-
-test("next-generation Mini App has a separately addressable route and API", () => {
-  assert.match(server, /app\.get\("\/signal-next"/);
-  assert.match(server, /app\.get\("\/api\/telegram\/signal-next"/);
-  assert.match(html, /\/api\/telegram\/signal-next/);
+const here=path.dirname(fileURLToPath(import.meta.url));
+const html=await readFile(path.join(here,"../public/candle-lab.html"),"utf8");
+const server=await readFile(path.join(here,"../server.js"),"utf8");
+test("primary and alias Mini App routes serve the same EMA5 interface and status API",()=>{
+ assert.match(server,/app\.get\("\/signal-next".*candle-lab\.html/s);
+ assert.match(server,/app\.get\("\/api\/telegram\/ema5\/status"/);
+ assert.match(html,/\/api\/telegram\/ema5\/status/);
 });
-
-test("signal-only Mini App does not render a chart", () => {
-  assert.doesNotMatch(html, /<canvas\b/i);
-  assert.match(html, /id="orb"/);
-  assert.match(html, /id="candle"/);
-  assert.match(html, /id="expiry"/);
+test("Mini App displays a compact chart and entry state",()=>{
+ assert.match(html,/<canvas\b/i);
+ assert.match(html,/id="phaseTitle"/);
+ assert.match(html,/id="countdown"/);
+ assert.match(html,/ENTER /);
 });
-
-test("embedded Mini App JavaScript parses", () => {
-  const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
-    .map(match => match[1].trim()).filter(Boolean);
-  assert.equal(scripts.length, 1);
-  assert.doesNotThrow(() => new vm.Script(scripts[0]));
+test("embedded Mini App JavaScript parses",()=>{
+ const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(x=>x[1].trim()).filter(Boolean);
+ assert.equal(scripts.length,1);
+ assert.doesNotThrow(()=>new vm.Script(scripts[0]));
 });

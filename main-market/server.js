@@ -5,20 +5,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
-import { fetchCandles, fetchTrendEma5, fetchEma20, fetchAtr14 } from "./src/twelve-data.js";
+import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
-import { analyzeMarket } from "./src/analyzer.js";
-import { NEXT_SIGNAL_THRESHOLD, NEXT_PREPARE_THRESHOLD, NEXT_SIGNAL_HOLD_MS, NEXT_SIGNAL_MAX_TICK_AGE_MS } from "./src/streaming-entry-engine.js";
-import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { loadCandleHistory, buildCandlePatternModel, predictNextCandle } from "./src/candle-pattern-engine.js";
-import { resolveClosedCandleSignal } from "./src/candle-signal-gate.js";
+import { analyzeEma5Pullback, enterPreparedSignal, samplingPhase } from "./src/ema5-two-phase-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
-  REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
-  MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS, SIGNAL_HOLD_SECONDS,
+  REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, MAX_STREAM_AGE_SECONDS,
   resolveSymbol
 } from "./src/config.js";
 
@@ -28,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "TWELVE DATA 200K CANDLE PATTERN ANALYZER";
-const ARCHITECTURE_ID = "TWELVE_DATA_200K_CANDLE_PATTERN_ANALYZER";
-const VERSION = "2026-11-26-candle-pattern-next-m1-once-v2";
+const SYSTEM_NAME = "TWELVE DATA EMA5 TWO-PHASE M1 RADAR";
+const ARCHITECTURE_ID = "TWELVE_DATA_EMA5_TWO_PHASE_M1";
+const VERSION = "2026-11-26-ema5-two-phase-4pairs-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -52,44 +47,21 @@ function newFeed(symbol) {
     engineLastDispatchedCandle: { TREND_RIDER: null },
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
-    nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null }
+    nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
+    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, sampledAt:null, lastAnalysis:null }
   };
 }
 
-
-const candleLearning = {
-  phase: "NOT_STARTED", message: "ยังไม่ได้โหลดข้อมูลย้อนหลัง",
-  targetCandles: 200000, loadedCandles: 0, pages: 0, model: null,
-  startedAt: null, finishedAt: null, error: null, trainingPromise: null,
-  signalState: { sourceEpoch: null, result: null }
-};
-function publicCandleLearning() {
-  return {
-    phase: candleLearning.phase, message: candleLearning.message,
-    targetCandles: candleLearning.targetCandles, loadedCandles: candleLearning.loadedCandles,
-    pages: candleLearning.pages, patterns: candleLearning.model?.patternCount || 0,
-    startedAt: candleLearning.startedAt, finishedAt: candleLearning.finishedAt,
-    error: candleLearning.error,
-    oldestAt: candleLearning.model ? new Date(candleLearning.model.firstEpoch * 1000).toISOString() : null,
-    newestAt: candleLearning.model ? new Date(candleLearning.model.lastEpoch * 1000).toISOString() : null
-  };
-}
 
 const feeds = new Map(SYMBOLS.map(symbol => [symbol, newFeed(symbol)]));
 let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
 let monitoringStartedAt = 0;
 let upstream = null;
-let restTimer = null;
-let emaTimer = null;
+let ema5Timer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
-let signalTimer = null;
-let liveAnalysisTimer = null;
-let liveAnalysisBusy = false;
-let liveAnalysisPending = false;
-let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
 
@@ -117,6 +89,7 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
+  const ema5 = feed.ema5State || {};
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
   const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
@@ -132,6 +105,17 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
+    signal: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : "STANDBY",
+    direction: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : null,
+    reason: ema5.reason || analysis.reason,
+    phase: ema5.phase || "WAIT",
+    slope: ema5.slope || "WAIT",
+    ema5: ema5.ema5 ?? null,
+    openPrice: ema5.openPrice ?? null,
+    sourceCandleEpoch: ema5.sourceEpoch ?? null,
+    targetCandleEpoch: ema5.preparedForEpoch ?? ema5.enteredEpoch ?? null,
+    analysisMode: "EMA5_PULLBACK_TWO_PHASE_M1",
+    indicatorSource: "Twelve Data M1 OHLC · EMA5 only",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -151,7 +135,7 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5" },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -159,10 +143,10 @@ function publicFeed(feed) {
       : null,
     signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
-    alertId: feed.alertId,
-    preAlertSignal: feed.preAlertSignal,
-    indicators: { status: feed.engine3Indicators?.status || "WAITING", ema5: feed.engine3Indicators?.ema5?.at(-1) || null, ema20: feed.engine3Indicators?.ema20?.at(-1) || null, atr14: feed.engine3Indicators?.atr14?.at(-1) || null, sources: feed.engine3Indicators?.sources || null, periods: feed.engine3Indicators?.periods || { ema5: 5, ema20: 20, atr14: 14 }, message: feed.engine3Indicators?.message || "รอข้อมูล Indicator จาก Twelve Data" },
-    source: "Twelve Data native EMA5/EMA20/ATR14 + M1 OHLC + Streaming · All Analysis Threshold 55"
+    alertId: ema5.alertId || feed.alertId,
+    preAlertSignal: ema5.preparedSignal || null,
+    indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC" },
+    source: "Twelve Data real M1 OHLC + EMA5 pullback · Two-phase sampling"
   };
 }
 
@@ -187,7 +171,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "TWELVE_DATA_NATIVE_SCORING_55_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA5_PULLBACK_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -197,13 +181,9 @@ function publish() {
 }
 
 function clearTimers() {
-  clearInterval(restTimer); restTimer = null;
-  clearInterval(emaTimer); emaTimer = null;
+  clearInterval(ema5Timer); ema5Timer = null;
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
-  clearInterval(signalTimer); signalTimer = null;
-  clearTimeout(liveAnalysisTimer); liveAnalysisTimer = null;
-  liveAnalysisPending = false;
   clearTimeout(retryTimer); retryTimer = null;
 }
 
@@ -250,243 +230,7 @@ function classifyError(error) {
   return "TRANSIENT";
 }
 
-async function refreshNativeIndicators(feed,{force=false}={}) {
-  if(!feed)return;
-  if(feed.engine3IndicatorsPromise)return feed.engine3IndicatorsPromise;
-  const minute=Math.floor(Date.now()/60000)*60;
-  const state=feed.engine3Indicators;
-  if(!force&&state.lastFetchedMinute===minute)return;
-  if(state.nextAttemptAt&&Date.now()<state.nextAttemptAt)return;
-  state.status="FETCHING";
-  state.message="กำลังดึง EMA5 / EMA20 / ATR14 จาก Twelve Data Native";
-  feed.engine3IndicatorsPromise=(async()=>{
-    try{
-      // Sequential requests intentionally rotate the 10-key REST pool between native indicator calls.
-      const common={keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL};
-      const ema5=await fetchTrendEma5(common);
-      const ema20=await fetchEma20(common);
-      const atr14=await fetchAtr14(common);
-      const latestClosed=feed.candles.filter(c=>c&&c.live!==true).at(-1);
-      const epochs=[ema5.values.at(-1)?.epoch,ema20.values.at(-1)?.epoch,atr14.values.at(-1)?.epoch];
-      if(!latestClosed||epochs.some(epoch=>epoch!==latestClosed.epoch)){
-        const error=new Error("เวลา EMA5 / EMA20 / ATR14 ไม่ตรงกับแท่ง M1 ปิดล่าสุด");
-        error.kind="INDICATOR_ALIGNMENT";throw error;
-      }
-      feed.engine3Indicators={
-        status:"READY",ema5:ema5.values,ema20:ema20.values,atr14:atr14.values,
-        receivedAt:Date.now(),lastFetchedMinute:minute,nextAttemptAt:null,lastError:null,
-        sources:{ema5:"Twelve Data /ema time_period=5",ema20:"Twelve Data /ema time_period=20",atr14:"Twelve Data /atr time_period=14"},
-        periods:{ema5:5,ema20:20,atr14:14},message:"EMA5 / EMA20 / ATR14 พร้อม · คำนวณโดย Twelve Data"
-      };
-      console.info("[indicators] Twelve Data native values ready",{symbol:feed.symbol,epoch:latestClosed.epoch,atrSamples:atr14.values.length});
-    }catch(error){
-      feed.engine3Indicators={...state,status:"ERROR",lastError:error.message,nextAttemptAt:Date.now()+15000,
-        message:"โหลด Native Indicator ไม่สำเร็จ: "+error.message};
-      console.error("[indicators] Twelve Data native indicator error",{symbol:feed.symbol,message:error.message});
-    }finally{
-      feed.engine3IndicatorsPromise=null;
-      publish();
-    }
-  })();
-  return feed.engine3IndicatorsPromise;
-}
-
-async function evaluate(feed) {
-  const now=Date.now();
-  const tickAgeSeconds=feed.tickAt?(now-feed.tickAt)/1000:null;
-  const latestClosed=feed.candles.filter(c=>c&&c.live!==true).at(-1);
-  const indicators=feed.engine3Indicators;
-  if(!latestClosed||indicators?.status!=="READY"||indicators.ema5?.at(-1)?.epoch!==latestClosed.epoch){
-    void refreshNativeIndicators(feed).catch(error=>console.error("[indicators] refresh failed",error.message));
-  }
-  const result=await analyzeMarket(feed.candles,{
-    now,tickAgeSeconds,allowRestFallback:false,indicators:{
-      ema5:indicators?.ema5||[],ema20:indicators?.ema20||[],atr14:indicators?.atr14||[]
-    }
-  });
-  const current=feed.candles.at(-1);
-  const sourceCandleEpoch=current?.live===true?current.epoch:null;
-  const targetCandleEpoch=sourceCandleEpoch===null?null:sourceCandleEpoch+60;
-
-  if(feed.activeSignal&&now>=feed.activeUntil){
-    feed.activeSignal=null;feed.activeUntil=0;feed.signalCandle=null;
-    feed.signalSourceCandle=null;feed.signalTriggeredAt=0;feed.alertId=null;
-  }
-  const activeForCurrentOrNext=Boolean(feed.activeSignal&&now<feed.activeUntil&&
-    (feed.signalCandle===sourceCandleEpoch||feed.signalCandle===targetCandleEpoch));
-  feed.preAlertStatus=!activeForCurrentOrNext&&sourceCandleEpoch!==null&&
-    ["PREPARE","CALL","PUT"].includes(result.signal)&&isPrepareAlertWindow(sourceCandleEpoch,now)
-      ?"PREPARE_ALERT":null;
-  feed.preAlertCandle=feed.preAlertStatus?targetCandleEpoch:null;
-  feed.preAlertSignal=null;
-  const finalizeWindow=sourceCandleEpoch!==null&&isSignalFinalizeWindow(sourceCandleEpoch,now);
-  const canFinalize=finalizeWindow&&["CALL","PUT"].includes(result.signal)&&canFinalizeSignal({
-    candleEpoch:sourceCandleEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.lastDispatchedCandle
-  });
-  if(activeForCurrentOrNext){
-    result.signal=feed.activeSignal;
-    result.reason="สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะ 30 วินาทีหลังแท่งใหม่เปิด";
-  }else if(finalizeWindow&&["CALL","PUT"].includes(result.signal)){
-    if(canFinalize){
-      feed.activeSignal=result.signal;feed.signalCandle=targetCandleEpoch;
-      feed.signalSourceCandle=sourceCandleEpoch;feed.signalTriggeredAt=now;
-      feed.activeUntil=signalHoldExpiresAt(targetCandleEpoch);
-      feed.alertId=`${targetCandleEpoch}:${result.signal}`;
-      result.reason="ยืนยันสัญญาณ T-5 จาก Partial Score 55 สำหรับแท่ง M1 ถัดไป";
-    }else{
-      result.signal="STANDBY";
-      result.reason=tickAgeSeconds===null||tickAgeSeconds>5
-        ?"ไม่ยืนยันสัญญาณ: ราคา Streaming ต้องสดไม่เกิน 5 วินาทีในช่วง T-5"
-        :"ข้ามสัญญาณ: แท่งนี้ผ่านการยืนยันไปแล้ว";
-    }
-  }else if(feed.activeSignal&&now<feed.activeUntil){
-    result.signal="STANDBY";result.reason="รอแท่ง M1 เป้าหมาย";
-  }else if(feed.preAlertStatus==="PREPARE_ALERT"){
-    result.signal="STANDBY";result.reason="PREPARE_ALERT · เฝ้าระวัง ไม่แสดงทิศทางก่อน T-5";
-  }else{
-    result.signal="STANDBY";
-    if(sourceCandleEpoch!==null&&now<sourceCandleEpoch*1000+50_000)
-      result.reason="รอช่วง PREPARE T-10 และยืนยัน CALL/PUT ที่ T-5";
-    else if(sourceCandleEpoch!==null&&now>=sourceCandleEpoch*1000+60_000)
-      result.reason="รอแท่ง M1 ใหม่และข้อมูล Streaming";
-  }
-  feed.analysis={
-    ...result,preAlertStatus:feed.preAlertStatus,preAlertCandle:feed.preAlertCandle,
-    tickAgeSeconds:tickAgeSeconds===null?null:Math.round(tickAgeSeconds),
-    lastTickPrice:feed.lastTick,alertId:feed.alertId,
-    signalTriggeredAt:feed.signalTriggeredAt?new Date(feed.signalTriggeredAt).toISOString():null,
-    signalExpiresAt:feed.activeSignal?new Date(feed.activeUntil).toISOString():null,
-    signalTargetCandleAt:feed.signalCandle?new Date(feed.signalCandle*1000).toISOString():null,
-    signalTimingWindowSeconds:[55,60],prepareTimingWindowSeconds:[50,55],
-    signalTimingMode:"NEXT_M1_TARGET_PREOPEN_HOLD_30S",
-    analysisMode:"TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",
-    sourceCandleEpoch, targetCandleEpoch,
-    engineResults:{PARTIAL_SCORING_55:{signal:result.signal,direction:result.direction,score:result.score,scores:result.scores||null}},
-    indicatorSource:"TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14",
-    signalValidationNote:"All analysis threshold 55/100 · Native EMA5/EMA20/ATR14 from Twelve Data · Manual only · No broker execution · Not out-of-sample validated",
-    indicators:{status:feed.engine3Indicators.status,ema5:feed.engine3Indicators.ema5?.at(-1)||null,
-      ema20:feed.engine3Indicators.ema20?.at(-1)||null,atr14:feed.engine3Indicators.atr14?.at(-1)||null,
-      sources:feed.engine3Indicators.sources||null,periods:feed.engine3Indicators.periods||{ema5:5,ema20:20,atr14:14},
-      message:feed.engine3Indicators.message}
-  };
-  return feed.analysis;
-}
-function analyzeNextSignal(feed, now = Date.now()) {
-  const state = feed.nextEngine;
-  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : Infinity;
-  const candles = feed.candles || [];
-  const live = candles.at(-1)?.live === true ? candles.at(-1) : null;
-  const closed = candles.filter(c => c && c.live !== true);
-  const native = feed.engine3Indicators || {};
-  const ema5 = native.ema5 || [], ema20 = native.ema20 || [], atr14 = native.atr14 || [];
-  const latestClosed = closed.at(-1);
-  const empty = {
-    signal: "STANDBY", direction: null, score: 0, confidence: 0,
-    scores: { CALL: 0, PUT: 0 }, preAlertStatus: null, preAlertCandle: null,
-    alertId: null, signalExpiresAt: null, signalTargetCandleAt: null,
-    strategy: "STREAMING_NEXT_CANDLE_ADAPTIVE_V1",
-    analysisMode: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS",
-    signalReleaseValidated: false,
-    signalValidationStatus: "NEW_ENGINE_NOT_OUT_OF_SAMPLE_VALIDATED",
-    reason: "รอข้อมูล Streaming และ Twelve Data Native Indicators"
-  };
-  if (state.activeSignal && now < state.activeUntil) {
-    return { ...empty, signal: state.activeSignal, direction: state.activeSignal,
-      score: state.score || 0, confidence: state.score || 0, scores: state.scores || empty.scores,
-      alertId: state.alertId, signalExpiresAt: new Date(state.activeUntil).toISOString(),
-      signalTargetCandleAt: new Date(state.targetEpoch * 1000).toISOString(),
-      sourceCandleEpoch: state.sourceEpoch, targetCandleEpoch: state.targetEpoch,
-      reason: "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะ 30 วินาทีหลังแท่งใหม่เปิด" };
-  }
-  if (state.activeSignal && now >= state.activeUntil) {
-    state.activeSignal = null; state.activeUntil = 0; state.alertId = null;
-  }
-  if (!live || !latestClosed || tickAge > NEXT_SIGNAL_MAX_TICK_AGE_MS / 1000 || native.status !== "READY" ||
-      ema5.at(-1)?.epoch !== latestClosed.epoch || ema20.at(-1)?.epoch !== latestClosed.epoch ||
-      atr14.at(-1)?.epoch !== latestClosed.epoch || ema5.length < 3 || ema20.length < 2 || atr14.length < 2) {
-    return { ...empty, tickAgeSeconds: Number.isFinite(tickAge) ? Math.round(tickAge) : null,
-      reason: !live ? "รอแท่ง M1 ปัจจุบันและราคา Streaming"
-        : tickAge > 5 ? "ราคา Streaming เก่าเกิน 5 วินาที · งดออกสัญญาณ"
-        : "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data ให้ตรงกับแท่งปิดล่าสุด" };
-  }
-  const atr = Number(atr14.at(-1).atr);
-  const fast = Number(ema5.at(-1).ema), fastPrev = Number(ema5.at(-2).ema);
-  const slow = Number(ema20.at(-1).ema), slowPrev = Number(ema20.at(-2).ema);
-  const prev = closed.at(-1);
-  const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
-  if (![atr, fast, fastPrev, slow, slowPrev, live.open, live.high, live.low, live.close, prev.close].every(Number.isFinite) || atr <= 0) {
-    return { ...empty, reason: "ข้อมูลอินดิเคเตอร์หรือ OHLC ไม่สมบูรณ์" };
-  }
-  const range = Math.max(live.high - live.low, atr * 0.015, 1e-10);
-  const body = live.close - live.open;
-  const bodyRatio = Math.abs(body) / range;
-  const upperWick = live.high - Math.max(live.open, live.close);
-  const lowerWick = Math.min(live.open, live.close) - live.low;
-  const atrSpike = range > atr * 2.8;
-  const emaGap = Math.abs(fast - slow) / atr;
-  function score(direction) {
-    const sign = direction === "CALL" ? 1 : -1;
-    const aligned = sign * (fast - slow) / atr;
-    const trend = 30 * (0.55 * clamp((aligned + 0.04) / 0.34) +
-      0.25 * clamp((sign * (fast - fastPrev) / atr + 0.01) / 0.08) +
-      0.20 * clamp((sign * (slow - slowPrev) / atr + 0.005) / 0.04));
-    const impulse = sign * (0.65 * body + 0.35 * (live.close - prev.close));
-    const momentum = 25 * clamp((impulse / atr + 0.04) / 0.34);
-    const distance = Math.abs(live.close - fast) / atr;
-    const nearFast = clamp(1 - distance / 0.55);
-    const reclaim = sign * (live.close - live.open) > 0 ? 1 : 0.25;
-    const pullback = 25 * (0.7 * nearFast + 0.3 * reclaim);
-    const directionalWick = direction === "CALL" ? lowerWick : upperWick;
-    const opposingWick = direction === "CALL" ? upperWick : lowerWick;
-    const rejection = 20 * (0.55 * clamp(directionalWick / Math.max(range * 0.55, 1e-10)) +
-      0.30 * bodyRatio + 0.15 * clamp(1 - opposingWick / range));
-    return Math.round((trend + momentum + pullback + rejection) * 10) / 10;
-  }
-  const scores = { CALL: score("CALL"), PUT: score("PUT") };
-  const direction = scores.CALL >= scores.PUT ? "CALL" : "PUT";
-  const top = scores[direction], gap = Math.abs(scores.CALL - scores.PUT);
-  const sourceEpoch = live.epoch, targetEpoch = sourceEpoch + 60;
-  const base = { ...empty, scores, direction, score: top, confidence: top,
-    tickAgeSeconds: Math.round(tickAge), sourceCandleEpoch: sourceEpoch,
-    targetCandleEpoch: targetEpoch, nextCandleAt: targetEpoch * 1000,
-    components: { trend: Math.round((top) * 0.3), momentum: Math.round(top * 0.25),
-      pullback: Math.round(top * 0.25), candleQuality: Math.round(top * 0.20) },
-    indicators: { status: "READY", ema5: native.ema5.at(-1), ema20: native.ema20.at(-1),
-      atr14: native.atr14.at(-1), sources: native.sources || null } };
-  if (atrSpike || (emaGap < 0.025 && Math.abs(body) < atr * 0.025)) {
-    return { ...base, signal: "STANDBY", direction: null, reason: atrSpike
-      ? "พักสัญญาณ: ความผันผวนของแท่งปัจจุบันสูงผิดปกติ"
-      : "พักสัญญาณ: EMA5/EMA20 ซ้อนกันและแรงเคลื่อนไหวยังต่ำ" };
-  }
-  if (top >= NEXT_SIGNAL_THRESHOLD && gap >= 6 && state.lastSignalSourceEpoch !== sourceEpoch) {
-    state.activeSignal = direction; state.sourceEpoch = sourceEpoch; state.targetEpoch = targetEpoch;
-    state.activeUntil = targetEpoch * 1000 + NEXT_SIGNAL_HOLD_MS; state.alertId = `${targetEpoch}:${direction}:NEXTV1`;
-    state.lastSignalSourceEpoch = sourceEpoch; state.score = top; state.scores = scores;
-    return { ...base, signal: direction, alertId: state.alertId,
-      signalExpiresAt: new Date(state.activeUntil).toISOString(),
-      signalTargetCandleAt: new Date(targetEpoch * 1000).toISOString(),
-      reason: `Streaming Entry Score ${top}/100 · ${direction} · สำหรับแท่ง M1 ถัดไป` };
-  }
-  const prepare = top >= NEXT_PREPARE_THRESHOLD && gap >= 4;
-  return { ...base, signal: "STANDBY", preAlertStatus: prepare ? "PREPARE_ALERT" : null,
-    preAlertCandle: prepare ? targetEpoch : null,
-    alertId: prepare ? `${sourceEpoch}:PREPARE:NEXTV1` : null,
-    reason: prepare ? `PREPARE · ${direction} ${top}/100 · เฝ้าระวังแท่งถัดไป`
-      : `คะแนนสูงสุด ${top}/100 · รอจังหวะชัดเจนสำหรับแท่งถัดไป` };
-}
-
-function dispatchSignalIfReady(feed) {
-  const signal=feed.activeSignal,sourceCandleEpoch=feed.signalSourceCandle;
-  if(!signal||!["CALL","PUT"].includes(signal)||!feed.alertId||!Number.isFinite(sourceCandleEpoch))return;
-  const now=Date.now();
-  if(!canFinalizeSignal({candleEpoch:sourceCandleEpoch,tickAt:feed.tickAt,now,lastDispatchedCandle:feed.lastDispatchedCandle}))return;
-  if(feed.lastDispatchedAlertId===feed.alertId)return;
-  feed.lastDispatchedAt=now;feed.lastDispatchedCandle=sourceCandleEpoch;feed.lastDispatchedAlertId=feed.alertId;
-  console.info("[signal] T-5 native Partial Scoring signal is available to Mini App polling",{
-    alertId:feed.alertId,signal,sourceCandleEpoch,targetCandleEpoch:feed.signalCandle,
-    expiresAt:new Date(feed.activeUntil).toISOString(),score:feed.analysis?.score
-  });
-}
+async function evaluate(feed) { return feed.ema5State; }
 
 function applyTick(feed, price, epoch) {
   const minute = Math.floor(epoch / 60) * 60;
@@ -538,8 +282,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
-      await refreshNativeIndicators(feed,{force:true});
-      await evaluate(feed);
+      // EMA5 decisions are made only at the two scheduled M1 sampling points.
       console.info("[radar] REST ready", {
         symbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
@@ -567,67 +310,81 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
   return feed.restSyncPromise;
 }
 
-function startRestTimer() {
-  if (restTimer) return;
-  restTimer = setInterval(() => {
-    syncSelected().catch(error => console.error("[radar] REST sync", error.message));
-  }, REST_SYNC_SECONDS * 1000);
+function scheduleLiveAnalysis(_feed) {
+  // Disabled: EMA5 decisions are made only at the two scheduled M1 sampling points.
 }
 
-function scheduleLiveAnalysis(feed) {
-  if (!monitoring || !feed || selectedSymbol !== feed.symbol) return;
-  const current = feed.candles.at(-1);
-  if (!current?.live) return;
-  const elapsedMs = Date.now() - current.epoch * 1000;
-  if (elapsedMs < 0 || elapsedMs > 60000) return;
-  liveAnalysisPending = true;
-  if (liveAnalysisBusy || liveAnalysisTimer) return;
-  const cadenceMs = LIVE_ANALYSIS_INTERVAL_SECONDS * 1000;
-  const delayMs = Math.max(0, cadenceMs - (Date.now() - lastLiveAnalysisAt));
-  liveAnalysisTimer = setTimeout(async () => {
-    liveAnalysisTimer = null;
-    if (!monitoring || selectedSymbol !== feed.symbol) {
-      liveAnalysisPending = false;
-      return;
-    }
-    liveAnalysisPending = false;
-    const latest = feed.candles.at(-1);
-    const latestElapsedMs = latest?.live ? Date.now() - latest.epoch * 1000 : Infinity;
-    if (!latest?.live || latestElapsedMs < 0 || latestElapsedMs > 60000) return;
-    liveAnalysisBusy = true;
-    lastLiveAnalysisAt = Date.now();
-    try {
-      await evaluate(feed);
-      dispatchSignalIfReady(feed);
-      publish();
-    } catch (error) {
-      console.error("[radar] live tick analysis failed", error.message);
-    } finally {
-      liveAnalysisBusy = false;
-      if (liveAnalysisPending) scheduleLiveAnalysis(feed);
-    }
-  }, delayMs);
+function resetEma5State(feed,reason="รอเริ่มสแกน"){
+ feed.ema5State={phase:"WAIT",minuteEpoch:null,openPrice:null,ema5:null,previousEma5:null,slope:"WAIT",signal:"WAIT",reason,preparedSignal:null,preparedForEpoch:null,sourceEpoch:null,enteredEpoch:null,alertId:null,history:[],lastOpenSampleEpoch:null,lastPrepareSampleEpoch:null,sampledAt:null,lastAnalysis:null};
 }
-
-function startIndicatorTimer() {
-  if(emaTimer)clearInterval(emaTimer);
-  // Check locally every 5s, but request each native indicator only once per new M1 minute.
-  emaTimer=setInterval(()=>{
-    if(!monitoring)return;
-    const feed=feeds.get(selectedSymbol);
-    if(feed)void refreshNativeIndicators(feed);
-  },5000);
+function mergeSampleCandles(feed,response){
+ const byEpoch=new Map((feed.candles||[]).filter(c=>c&&Number.isFinite(c.epoch)).map(c=>[c.epoch,c]));
+ for(const candle of response.candles||[])byEpoch.set(candle.epoch,{...candle,live:false});
+ const minute=Math.floor(Date.now()/60000)*60;
+ const oldLive=feed.candles.at(-1)?.live&&feed.candles.at(-1).epoch===minute?feed.candles.at(-1):null;
+ const restLive=response.liveCandle?.epoch===minute?response.liveCandle:null;
+ let live=restLive||oldLive;
+ if(restLive&&oldLive){
+  const freshTick=feed.tickAt&&Date.now()-feed.tickAt<=5000;
+  live={...restLive,open:restLive.open??oldLive.open,high:Math.max(restLive.high,oldLive.high),
+   low:Math.min(restLive.low,oldLive.low),close:freshTick?feed.lastTick:restLive.close,live:true};
+ }else if(live&&feed.tickAt&&Date.now()-feed.tickAt<=5000){
+  live={...live,close:feed.lastTick,high:Math.max(live.high,feed.lastTick),low:Math.min(live.low,feed.lastTick),live:true};
+ }
+ if(live)byEpoch.set(live.epoch,{...live,live:true});
+ feed.candles=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-MAX_CANDLES);
+ return live;
 }
-
-function startSignalTimer() {
-  if (signalTimer) clearInterval(signalTimer);
-  // Local safety cadence keeps the single Trend Rider analysis aligned to M1 timing.
-  signalTimer = setInterval(() => {
-    if (!monitoring) return;
-    const feed = feeds.get(selectedSymbol);
-    if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
-  }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
+async function sampleEma5(feed,phase,minuteEpoch){
+ const state=feed.ema5State,marker=phase==="OPEN"?"lastOpenSampleEpoch":"lastPrepareSampleEpoch";
+ if(state[marker]===minuteEpoch)return;
+ state[marker]=minuteEpoch;
+ if(phase==="PREPARE"){state.phase="SAMPLING";state.signal="WAIT";state.reason="กำลังดึง OHLC ณ วินาที 55 และคำนวณ EMA5";publish();}
+ try{
+  const response=await fetchCandles({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,outputsize:80,includeCurrent:true});
+  const live=mergeSampleCandles(feed,response);
+  feed.restStatus="READY";feed.restMessage=`Twelve Data REST พร้อม · ${response.candles.length} แท่งปิด`;
+  if(phase==="OPEN"){
+   state.minuteEpoch=minuteEpoch;
+   state.openPrice=live?.epoch===minuteEpoch?live.open:(feed.lastTick??state.openPrice??null);
+   if(state.enteredEpoch!==minuteEpoch){state.phase="ACCUMULATING";state.reason=state.openPrice==null?"รอราคาเปิดจาก Streaming":"สะสมข้อมูลแท่ง M1 · รอประเมินวินาที 55";}
+   state.sampledAt=new Date().toISOString();
+   console.info("[ema5] OPEN sample",{symbol:feed.symbol,minuteEpoch,openPrice:state.openPrice});
+  }else{
+   const now=Date.now(),second=Math.floor(now/1000)%60;
+   if(Math.floor(now/60000)*60!==minuteEpoch||second<55){state.phase="WAIT";state.signal="WAIT";state.preparedSignal=null;state.preparedForEpoch=null;state.reason="ผลดึงข้อมูลมาช้าเกินช่วงวินาที 55 · ข้ามรอบ";return;}
+   const current=live?.epoch===minuteEpoch?live:null,tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
+   const result=analyzeEma5Pullback({symbol:feed.symbol,closedCandles:feed.candles.filter(c=>c&&!c.live),liveCandle:current,tickAgeSeconds:tickAge});
+   Object.assign(state,{lastAnalysis:result,ema5:result.ema5??null,previousEma5:result.previousEma5??null,slope:result.slope||"WAIT",
+    closePrice:result.closePrice??current?.close??null,highPrice:result.highPrice??current?.high??null,lowPrice:result.lowPrice??current?.low??null,
+    sourceEpoch:minuteEpoch,openPrice:current?.open??state.openPrice,preparedForEpoch:null,preparedSignal:null,alertId:null,sampledAt:new Date().toISOString()});
+   if(["CALL","PUT"].includes(result.signal)){
+    state.phase="PREPARE";state.signal=result.signal;state.preparedSignal=result.signal;state.preparedForEpoch=minuteEpoch+60;
+    state.reason=`PREPARE ${result.signal} · เตรียมเข้าแท่งถัดไป`;
+    state.alertId=`${minuteEpoch}:${minuteEpoch+60}:${result.signal}:PREPARE:EMA5`;
+   }else{state.phase=result.regime==="SIDEWAY"?"SIDEWAY":"WAIT";state.signal="WAIT";state.reason=result.reason;}
+   console.info("[ema5] PREPARE sample",{symbol:feed.symbol,minuteEpoch,signal:state.signal,slope:state.slope,ema5:state.ema5});
+  }
+ }catch(error){state.phase="ERROR";state.signal="WAIT";state.reason=`Twelve Data sample error: ${error.message}`;console.error("[ema5] sample failed",{symbol:feed.symbol,phase,message:error.message});}
+ publish();
 }
+function tickEma5Clock(){
+ if(!monitoring)return;
+ const feed=feeds.get(selectedSymbol);if(!feed)return;
+ const now=Date.now(),minute=Math.floor(now/60000)*60,second=Math.floor(now/1000)%60,state=feed.ema5State;
+ const live=feed.candles.at(-1)?.live&&feed.candles.at(-1).epoch===minute?feed.candles.at(-1):null;
+ if(state.preparedForEpoch===minute&&state.enteredEpoch!==minute){
+  if(second<=5&&live&&feed.tickAt&&now-feed.tickAt<=5000){
+   const entered=enterPreparedSignal(state,minute);
+   if(entered){state.reason=`ENTER ${entered.signal} NOW · สัญญาณครั้งเดียวสำหรับแท่งนี้`;state.openPrice=live.open;console.info("[ema5] ENTER",{symbol:feed.symbol,...entered});publish();}
+  }else if(second>5){state.phase="WAIT";state.signal="WAIT";state.reason="พ้น 5 วินาทีแรกหรือราคาไม่สด · ข้ามสัญญาณย้อนหลัง";state.preparedSignal=null;state.preparedForEpoch=null;}
+ }
+ if(state.phase==="ENTER"&&state.enteredEpoch===minute&&second>5){state.phase="ACCUMULATING";state.signal="WAIT";state.reason="แท่งนี้เข้าไปแล้ว · รอประเมินรอบถัดไปที่วินาที 55";}
+ const phase=samplingPhase(now/1000);
+ if(phase==="OPEN"&&state.lastOpenSampleEpoch!==minute)void sampleEma5(feed,"OPEN",minute);
+ else if(phase==="PREPARE"&&state.lastPrepareSampleEpoch!==minute)void sampleEma5(feed,"PREPARE",minute);
+}
+function startEma5Sampler(){clearInterval(ema5Timer);ema5Timer=setInterval(tickEma5Clock,200);tickEma5Clock();}
 
 function startWatchdog() {
   if (watchdogTimer) clearInterval(watchdogTimer);
@@ -870,13 +627,12 @@ async function start(symbolValue) {
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
-  startRestTimer();
-  startIndicatorTimer();
+  resetEma5State(feed, "กำลังเริ่มสแกน " + symbol);
   startWatchdog();
-  startSignalTimer();
   publish();
   await syncSelected({ force: true, symbol });
   if (monitoring) startStream();
+  startEma5Sampler();
   publish();
 }
 
@@ -896,6 +652,7 @@ async function select(symbolValue) {
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
   resetSignal(feed, "เปลี่ยนคู่เงินเป็น " + symbol);
+  resetEma5State(feed, "เปลี่ยนคู่เงิน · รอข้อมูลใหม่");
   publish();
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
@@ -916,6 +673,9 @@ function stop(clearSignal = true) {
   feed.dataLocked = false;
   if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "WAITING";
   if (clearSignal) resetSignal(feed, "หยุดสแกนแล้ว");
+  clearInterval(ema5Timer); ema5Timer = null;
+  const activeFeed = feeds.get(selectedSymbol);
+  if (activeFeed) resetEma5State(activeFeed, "หยุดสแกนแล้ว");
   globalLockMessage = null;
   publish();
 }
@@ -1051,14 +811,13 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
     res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
   }
 });
-app.get("/api/telegram/signal-next", requireTelegramSession, (_req, res) => {
-  noCache(res);
-  const state = snapshot();
-  const nextSignal = analyzeNextSignal(feeds.get(selectedSymbol));
-  res.json({ ok: true, market: { ...state, ...nextSignal, monitoring,
-    symbol: selectedSymbol, apiPool: twelveDataKeyPool.publicStatus(),
-    lastTickPrice: feeds.get(selectedSymbol)?.lastTick ?? state.lastTickPrice,
-    apiStatus: state.apiStatus } , channel: "TELEGRAM_MINI_APP_NEXT_V1" });
+app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
+ noCache(res);const feed=feeds.get(selectedSymbol),state=feed.ema5State,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
+ res.json({ok:true,monitoring,symbol:selectedSymbol,symbols:SYMBOLS,price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
+  openPrice:state.openPrice,ema5:state.ema5,previousEma5:state.previousEma5,slope:state.slope,phase:state.phase,signal:state.signal,reason:state.reason,
+  closePrice:state.closePrice??null,highPrice:state.highPrice??null,lowPrice:state.lowPrice??null,sourceEpoch:state.sourceEpoch,targetEpoch:state.preparedForEpoch??state.enteredEpoch,
+  alertId:state.alertId,sampledAt:state.sampledAt,history:state.history||[],candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
+  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},manualOnly:true,brokerExecution:false,strategy:"EMA5_PULLBACK_TWO_PHASE_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -1083,138 +842,35 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 });
 
 
-app.get("/api/telegram/candle-learning/status", requireTelegramSession, (_req, res) => {
-  noCache(res);
-  res.json({ ok: true, learning: publicCandleLearning(), monitoring,
-    market: snapshot(), apiPool: twelveDataKeyPool.publicStatus() });
-});
-app.post("/api/telegram/candle-learning/train", requireTelegramSession, rateLimitControl, (req, res) => {
-  noCache(res);
-  if (candleLearning.trainingPromise) return res.status(202).json({ ok: true, learning: publicCandleLearning() });
-  const requested = Number(req.body?.targetCandles || 200000);
-  const targetCandles = Math.max(10000, Math.min(200000, Math.floor(Number.isFinite(requested) ? requested : 100000)));
-  candleLearning.phase = "FETCHING";
-  candleLearning.message = "กำลังโหลดแท่ง EUR/USD M1 จริงจาก Twelve Data";
-  candleLearning.targetCandles = targetCandles;
-  candleLearning.loadedCandles = 0;
-  candleLearning.pages = 0;
-  candleLearning.error = null;
-  candleLearning.startedAt = new Date().toISOString();
-  candleLearning.finishedAt = null;
-  candleLearning.model = null;
-  candleLearning.trainingPromise = (async () => {
-    try {
-      const history = await loadCandleHistory({
-        keyPool: twelveDataKeyPool, symbol: "EUR/USD", targetCandles,
-        onProgress: progress => {
-          candleLearning.loadedCandles = progress.loadedCandles;
-          candleLearning.pages = progress.pages;
-          candleLearning.message = `โหลดแล้ว ${progress.loadedCandles.toLocaleString()} / ${targetCandles.toLocaleString()} แท่ง · ${progress.pages} ชุด`;
-        }
-      });
-      candleLearning.phase = "BUILDING";
-      candleLearning.message = `สร้างดัชนีรูปแบบจาก ${history.loadedCandles.toLocaleString()} แท่ง`;
-      candleLearning.loadedCandles = history.loadedCandles;
-      candleLearning.pages = history.pages;
-      const model = buildCandlePatternModel(history.candles);
-      candleLearning.model = { ...model, firstEpoch: history.oldestEpoch, lastEpoch: history.newestEpoch };
-      candleLearning.phase = "READY";
-      candleLearning.message = `พร้อมทดสอบ · ${history.loadedCandles.toLocaleString()} แท่ง · ${model.patternCount.toLocaleString()} รูปแบบ`;
-      candleLearning.finishedAt = new Date().toISOString();
-      console.info("[candle-lab] model ready", { candles: history.loadedCandles, pages: history.pages, patterns: model.patternCount });
-    } catch (error) {
-      candleLearning.phase = "ERROR";
-      candleLearning.error = error.message || "Historical candle learning failed";
-      candleLearning.message = "โหลดหรือสร้างโมเดลไม่สำเร็จ";
-      candleLearning.finishedAt = new Date().toISOString();
-      console.error("[candle-lab] training failed", error);
-    } finally {
-      candleLearning.trainingPromise = null;
-    }
-  })();
-  res.status(202).json({ ok: true, learning: publicCandleLearning() });
-});
-app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, res) => {
-  noCache(res);
-  if (candleLearning.phase !== "READY" || !candleLearning.model) {
-    return res.status(409).json({ ok: false, error: "โมเดลยังไม่พร้อม", learning: publicCandleLearning() });
-  }
-  const feed = feeds.get("EUR/USD");
-  const closed = (feed?.candles || []).filter(c => c && c.live !== true);
-  const live = feed?.candles?.at(-1)?.live === true ? feed.candles.at(-1) : null;
-  const now = Date.now();
-  const tickAgeSeconds = feed?.tickAt ? Math.max(0, (now - feed.tickAt) / 1000) : null;
-  // Keep the broad feed freshness lock; the one-shot gate below applies the stricter <=5s entry tick.
-  const prediction = tickAgeSeconds === null || tickAgeSeconds > MAX_STREAM_AGE_SECONDS
-    ? { signal: "STANDBY", reason: "ราคา Streaming ไม่สดพอ · ระงับสัญญาณจนกว่าจะได้รับราคาปัจจุบัน" }
-    : resolveClosedCandleSignal({
-        state: candleLearning.signalState,
-        closedCandles: closed,
-        liveCandle: live,
-        monitoring,
-        monitoringStartedAt,
-        tickAgeSeconds,
-        now,
-        predict: candles => predictNextCandle(candleLearning.model, candles.slice(-22))
-      });
-  res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
-    tickAgeSeconds, monitoring, monitoringStartedAt: monitoringStartedAt || null,
-    symbol: "EUR/USD", interval: "1min", manualOnly: true, brokerExecution: false,
-    livePriceRequired: true, maxLivePriceAgeSeconds: MAX_STREAM_AGE_SECONDS,
-    dispatchPolicy: "LATEST_CLOSED_M1_TO_NEXT_M1_ONCE_WITHIN_10S" });
-});
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
-// The Telegram Mini App primary URL now serves the historical 200K candle analyzer.
+// The Telegram Mini App primary URL serves the EMA5 two-phase M1 system.
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
-app.get("/signal-legacy", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
-app.get("/health", (_req, res) => {
-  noCache(res);
-  res.json({
-    ok: true, service: "main-market", systemName: SYSTEM_NAME, version: VERSION,
-    symbols: SYMBOLS, interval: INTERVAL,
-    authentication: { mode: "OPEN_MINI_APP_SESSION", configured: true },
-    architecture: {
-      name: SYSTEM_NAME, id: ARCHITECTURE_ID, deploymentModel: "SINGLE_RENDER_SERVICE",
-      decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS", engines: 1, decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS",
-      primaryDecisionEngine: "TWELVE_DATA_200K_HISTORICAL_CANDLE_ANALOGUE",
-      signalGeneration: true, externalAiCalls: false,
-      dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
-      primaryDataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
-      controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", dispatchPolicy: "LATEST_CLOSED_CANDLE_TO_NEXT_M1_ONCE_WITHIN_10S", manualOnly: true },
-      candlePatternLab: { route: "/signal", aliasRoute: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: false, livePriceRequired: true }
-    },
-    analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
-    primaryAnalyzer: { provider: "TWELVE_DATA_HISTORICAL_OHLC_ANALOGUE", role: "PRIMARY_NEXT_M1_CANDLE_DIRECTION_ANALYST", patternLength: 8, minimumMatches: 12, minimumDirectionShare: 56, minimumDirectionalEdge: 8, livePriceMaxAgeSeconds: MAX_STREAM_AGE_SECONDS, manualOnly: true, outOfSampleValidated: false },
-    recovery: { enabled: false, mode: "DISABLED", strategy: "NONE", martingale: false },
-    configuration: {
-      telegramMiniAppAuthConfigured: true, telegramInitDataRequired: false, miniAppOpenAccess: true,
-      twelveDataApiKey: twelveDataKeyPool.keyCount > 0,
-      twelveDataApiPool: twelveDataKeyPool.publicStatus(),
-      minimumClosedCandles: MIN_CLOSED_CANDLES, historyCandles: HISTORY_CANDLES,
-      livePriceCheckSeconds: LIVE_PRICE_CHECK_SECONDS,
-      estimatedRestCreditsPerDay: Math.ceil(86400 / REST_SYNC_SECONDS),
-      nativeIndicatorRestCallsDisabled: false, nativeIndicators: { provider: "Twelve Data native REST", periods: { ema5: 5, ema20: 20, atr14: 14 }, refreshSeconds: 60, atrHistoryValues: 34, estimatedCreditsPerDay: 4320 },
-      restKeyRotation: "ROUND_ROBIN_WITH_FAILOVER", restRefreshSeconds: REST_SYNC_SECONDS,
-      streamingRequiredForSignals: true, signalReleaseValidated: false, signalRuntimeLock: false,
-      signalReleaseStatus: "TWELVE_DATA_NATIVE_SCORING_55_MANUAL_ONLY_NOT_OOS_VALIDATED"
-    }
-  });
+app.get("/health",(_req,res)=>{
+ noCache(res);
+ res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EMA5_PULLBACK_TWO_PHASE_M1",
+ primaryDecisionEngine:"EMA5_ONLY",indicators:["EMA5"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},
+ primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:SYMBOLS,manualOnly:true},
+ signalPolicy:"ONE_PREPARE_AND_ONE_ENTER_PER_SOURCE_CANDLE"},
+ configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
+ restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] MAIN MARKET v2 listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] EMA5 MAIN MARKET listening on ${PORT}`);
   console.info("[radar] startup configuration", {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
     miniAppOpenAccess: true,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    minimumClosedCandles: MIN_CLOSED_CANDLES,
+    supportedPairs: SYMBOLS,
     historyCandles: HISTORY_CANDLES,
-    restRefreshSeconds: REST_SYNC_SECONDS
+    samplingPointsPerMinute: 2
   });
   console.info("[radar] monitoring starts only after Telegram Mini App user action");
 });

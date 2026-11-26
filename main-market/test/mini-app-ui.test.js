@@ -2,33 +2,31 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
-const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
-const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("Mini App exposes universal 55 analysis threshold and removes Gemini controls",()=>{
- assert.match(html,/SIGNAL ENGINE/);
- assert.doesNotMatch(html,/gemini/i);
- assert.match(html,/ทุกการวิเคราะห์ ≥ 55\/100/);
- assert.match(html,/id="scoreStatus"/);
- assert.match(html,/id="indicatorStatus"/);
- assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini|Gemini/);
+const html=readFileSync(new URL("../public/candle-lab.html",import.meta.url),"utf8");
+const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
+test("primary Telegram Mini App is the compact EMA5 two-phase interface",()=>{
+ assert.match(html,/EMA 5 · TWO-PHASE M1/);
+ assert.match(html,/id="phaseTitle"/);
+ assert.match(html,/id="chart"/);
+ assert.match(html,/id="history"/);
+ assert.match(html,/navigator\.vibrate/);
+ assert.match(server,/app\.get\("\/signal".*candle-lab\.html/s);
 });
-test("Mini App still controls Twelve Data monitoring and retains manual lamp",()=>{
- assert.match(html,/await control\("start"\)/);
- assert.match(html,/const action=latest\.monitoring\?"stop":"start"/);
- assert.match(html,/manualLampToggle/);
- assert.match(serverJs,/fetchCandles/);
+test("Mini App controls the Twelve Data monitor and pair selector",()=>{
+ assert.match(html,/\/api\/telegram\/control/);
+ assert.match(html,/\/api\/telegram\/select/);
+ assert.match(server,/\/api\/telegram\/ema5\/status/);
 });
 test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));
  const refs=[...html.matchAll(/\$\("([^"]+)"\)/g)].map(x=>x[1]);
  assert.deepEqual([...new Set(refs.filter(x=>!ids.has(x)))],[]);
- const start=html.indexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");
- assert.ok(start>="<script>".length&&end>start);
+ const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");
+ assert.ok(start>0&&end>start);
  assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
-test("Backend health metadata declares native scoring with no external AI",()=>{
- assert.match(serverJs,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS"/);
- assert.match(serverJs,/signalGeneration: true/);
- assert.match(serverJs,/externalAiCalls: false/);
- assert.match(serverJs,/callPut: 55/);
+test("backend health metadata declares EMA5 and no external AI",()=>{
+ assert.match(server,/decisionEngine:"EMA5_PULLBACK_TWO_PHASE_M1"/);
+ assert.match(server,/primaryDecisionEngine:"EMA5_ONLY"/);
+ assert.match(server,/externalAiCalls:false/);
 });

@@ -50,7 +50,8 @@ export async function fetchCandles({
   interval = "1min",
   outputsize = HISTORY_CANDLES,
   fetchImpl = fetch,
-  now = Date.now()
+  now = Date.now(),
+  includeCurrent = false
 }) {
   const normalized = normalizeSymbol(symbol);
   const allowed = SYMBOLS.some(item => normalizeSymbol(item) === normalized);
@@ -108,9 +109,12 @@ export async function fetchCandles({
 
   const minuteStart = Math.floor(now / 60000) * 60;
   const byEpoch = new Map();
+  let liveCandle = null;
   for (const raw of body.values) {
     const candle = parseCandle(raw);
-    if (!candle || candle.epoch >= minuteStart) continue;
+    if (!candle) continue;
+    if (candle.epoch === minuteStart && includeCurrent) { liveCandle = { ...candle, live: true }; continue; }
+    if (candle.epoch >= minuteStart) continue;
     byEpoch.set(candle.epoch, candle);
   }
 
@@ -126,7 +130,8 @@ export async function fetchCandles({
   return {
     symbol: body.meta?.symbol || symbol,
     interval: body.meta?.interval || interval,
-    candles: candles.slice(-HISTORY_CANDLES),
+    candles: candles.slice(-Math.max(HISTORY_CANDLES, outputsize)),
+    liveCandle,
     receivedAt: now,
     source: "Twelve Data REST"
   };
