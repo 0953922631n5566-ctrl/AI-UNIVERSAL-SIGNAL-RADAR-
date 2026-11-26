@@ -51,3 +51,11 @@ test("downward EMA5 slope plus bearish rejection through EMA5 prepares PUT",()=>
  assert.equal(result.signal,"PUT");
  assert.equal(result.slope,"DOWN");
 });
+
+test("slightly wider EMA5 retest tolerance still prepares a CALL",()=>{
+ const rising=Array.from({length:30},(_,i)=>({epoch:1000+i*60,open:1+i*0.0002,high:1.001+i*0.0002,low:0.999+i*0.0002,close:1+i*0.0002,live:false}));
+ const provisional=calculateEma5([...rising.map(c=>c.close),rising.at(-1).close+0.0015]);
+ const live={epoch:2800,open:rising.at(-1).close+0.0001,high:rising.at(-1).close+0.0017,low:provisional.current+0.0001,close:rising.at(-1).close+0.0015,live:true};
+ const result=analyzeEma5Pullback({symbol:"EUR/USD",closedCandles:rising,liveCandle:live,tickAgeSeconds:1});
+ assert.equal(result.signal,"CALL");
+});
