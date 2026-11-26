@@ -874,7 +874,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
 // The Telegram Mini App primary URL serves the EMA5 two-phase M1 system.
-app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
+app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
