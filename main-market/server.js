@@ -48,7 +48,8 @@ function newFeed(symbol) {
     engineActive: { TREND_RIDER: null },
     engineLastDispatchedCandle: { TREND_RIDER: null },
     engineLastDispatchedAlertId: { TREND_RIDER: null },
-    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null
+    lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
+    nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null }
   };
 }
 
@@ -347,6 +348,110 @@ async function evaluate(feed) {
   };
   return feed.analysis;
 }
+function analyzeNextSignal(feed, now = Date.now()) {
+  const state = feed.nextEngine;
+  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : Infinity;
+  const candles = feed.candles || [];
+  const live = candles.at(-1)?.live === true ? candles.at(-1) : null;
+  const closed = candles.filter(c => c && c.live !== true);
+  const native = feed.engine3Indicators || {};
+  const ema5 = native.ema5 || [], ema20 = native.ema20 || [], atr14 = native.atr14 || [];
+  const latestClosed = closed.at(-1);
+  const empty = {
+    signal: "STANDBY", direction: null, score: 0, confidence: 0,
+    scores: { CALL: 0, PUT: 0 }, preAlertStatus: null, preAlertCandle: null,
+    alertId: null, signalExpiresAt: null, signalTargetCandleAt: null,
+    strategy: "STREAMING_NEXT_CANDLE_ADAPTIVE_V1",
+    analysisMode: "STREAMING_TICK_PLUS_TWELVE_DATA_NATIVE_INDICATORS",
+    signalReleaseValidated: false,
+    signalValidationStatus: "NEW_ENGINE_NOT_OUT_OF_SAMPLE_VALIDATED",
+    reason: "รอข้อมูล Streaming และ Twelve Data Native Indicators"
+  };
+  if (state.activeSignal && now < state.activeUntil) {
+    return { ...empty, signal: state.activeSignal, direction: state.activeSignal,
+      score: state.score || 0, confidence: state.score || 0, scores: state.scores || empty.scores,
+      alertId: state.alertId, signalExpiresAt: new Date(state.activeUntil).toISOString(),
+      signalTargetCandleAt: new Date(state.targetEpoch * 1000).toISOString(),
+      sourceCandleEpoch: state.sourceEpoch, targetCandleEpoch: state.targetEpoch,
+      reason: "สัญญาณสำหรับแท่ง M1 เป้าหมาย · คงสถานะ 30 วินาทีหลังแท่งใหม่เปิด" };
+  }
+  if (state.activeSignal && now >= state.activeUntil) {
+    state.activeSignal = null; state.activeUntil = 0; state.alertId = null;
+  }
+  if (!live || !latestClosed || tickAge > 5 || native.status !== "READY" ||
+      ema5.at(-1)?.epoch !== latestClosed.epoch || ema20.at(-1)?.epoch !== latestClosed.epoch ||
+      atr14.at(-1)?.epoch !== latestClosed.epoch || ema5.length < 3 || ema20.length < 2 || atr14.length < 2) {
+    return { ...empty, tickAgeSeconds: Number.isFinite(tickAge) ? Math.round(tickAge) : null,
+      reason: !live ? "รอแท่ง M1 ปัจจุบันและราคา Streaming"
+        : tickAge > 5 ? "ราคา Streaming เก่าเกิน 5 วินาที · งดออกสัญญาณ"
+        : "รอ EMA5 / EMA20 / ATR14 จาก Twelve Data ให้ตรงกับแท่งปิดล่าสุด" };
+  }
+  const atr = Number(atr14.at(-1).atr);
+  const fast = Number(ema5.at(-1).ema), fastPrev = Number(ema5.at(-2).ema);
+  const slow = Number(ema20.at(-1).ema), slowPrev = Number(ema20.at(-2).ema);
+  const prev = closed.at(-1);
+  const clamp = (v, lo=0, hi=1) => Math.max(lo, Math.min(hi, v));
+  if (![atr, fast, fastPrev, slow, slowPrev, live.open, live.high, live.low, live.close, prev.close].every(Number.isFinite) || atr <= 0) {
+    return { ...empty, reason: "ข้อมูลอินดิเคเตอร์หรือ OHLC ไม่สมบูรณ์" };
+  }
+  const range = Math.max(live.high - live.low, atr * 0.015, 1e-10);
+  const body = live.close - live.open;
+  const bodyRatio = Math.abs(body) / range;
+  const upperWick = live.high - Math.max(live.open, live.close);
+  const lowerWick = Math.min(live.open, live.close) - live.low;
+  const atrSpike = range > atr * 2.8;
+  const emaGap = Math.abs(fast - slow) / atr;
+  function score(direction) {
+    const sign = direction === "CALL" ? 1 : -1;
+    const aligned = sign * (fast - slow) / atr;
+    const trend = 30 * (0.55 * clamp((aligned + 0.04) / 0.34) +
+      0.25 * clamp((sign * (fast - fastPrev) / atr + 0.01) / 0.08) +
+      0.20 * clamp((sign * (slow - slowPrev) / atr + 0.005) / 0.04));
+    const impulse = sign * (0.65 * body + 0.35 * (live.close - prev.close));
+    const momentum = 25 * clamp((impulse / atr + 0.04) / 0.34);
+    const distance = Math.abs(live.close - fast) / atr;
+    const nearFast = clamp(1 - distance / 0.55);
+    const reclaim = sign * (live.close - live.open) > 0 ? 1 : 0.25;
+    const pullback = 25 * (0.7 * nearFast + 0.3 * reclaim);
+    const directionalWick = direction === "CALL" ? lowerWick : upperWick;
+    const opposingWick = direction === "CALL" ? upperWick : lowerWick;
+    const rejection = 20 * (0.55 * clamp(directionalWick / Math.max(range * 0.55, 1e-10)) +
+      0.30 * bodyRatio + 0.15 * clamp(1 - opposingWick / range));
+    return Math.round((trend + momentum + pullback + rejection) * 10) / 10;
+  }
+  const scores = { CALL: score("CALL"), PUT: score("PUT") };
+  const direction = scores.CALL >= scores.PUT ? "CALL" : "PUT";
+  const top = scores[direction], gap = Math.abs(scores.CALL - scores.PUT);
+  const sourceEpoch = live.epoch, targetEpoch = sourceEpoch + 60;
+  const base = { ...empty, scores, direction, score: top, confidence: top,
+    tickAgeSeconds: Math.round(tickAge), sourceCandleEpoch: sourceEpoch,
+    targetCandleEpoch: targetEpoch, nextCandleAt: targetEpoch * 1000,
+    components: { trend: Math.round((top) * 0.3), momentum: Math.round(top * 0.25),
+      pullback: Math.round(top * 0.25), candleQuality: Math.round(top * 0.20) },
+    indicators: { status: "READY", ema5: native.ema5.at(-1), ema20: native.ema20.at(-1),
+      atr14: native.atr14.at(-1), sources: native.sources || null } };
+  if (atrSpike || (emaGap < 0.025 && Math.abs(body) < atr * 0.025)) {
+    return { ...base, signal: "STANDBY", direction: null, reason: atrSpike
+      ? "พักสัญญาณ: ความผันผวนของแท่งปัจจุบันสูงผิดปกติ"
+      : "พักสัญญาณ: EMA5/EMA20 ซ้อนกันและแรงเคลื่อนไหวยังต่ำ" };
+  }
+  if (top >= 58 && gap >= 6 && state.lastSignalSourceEpoch !== sourceEpoch) {
+    state.activeSignal = direction; state.sourceEpoch = sourceEpoch; state.targetEpoch = targetEpoch;
+    state.activeUntil = targetEpoch * 1000 + 30_000; state.alertId = `${targetEpoch}:${direction}:NEXTV1`;
+    state.lastSignalSourceEpoch = sourceEpoch; state.score = top; state.scores = scores;
+    return { ...base, signal: direction, alertId: state.alertId,
+      signalExpiresAt: new Date(state.activeUntil).toISOString(),
+      signalTargetCandleAt: new Date(targetEpoch * 1000).toISOString(),
+      reason: `Streaming Entry Score ${top}/100 · ${direction} · สำหรับแท่ง M1 ถัดไป` };
+  }
+  const prepare = top >= 46 && gap >= 4;
+  return { ...base, signal: "STANDBY", preAlertStatus: prepare ? "PREPARE_ALERT" : null,
+    preAlertCandle: prepare ? targetEpoch : null,
+    alertId: prepare ? `${sourceEpoch}:PREPARE:NEXTV1` : null,
+    reason: prepare ? `PREPARE · ${direction} ${top}/100 · เฝ้าระวังแท่งถัดไป`
+      : `คะแนนสูงสุด ${top}/100 · รอจังหวะชัดเจนสำหรับแท่งถัดไป` };
+}
+
 function dispatchSignalIfReady(feed) {
   const signal=feed.activeSignal,sourceCandleEpoch=feed.signalSourceCandle;
   if(!signal||!["CALL","PUT"].includes(signal)||!feed.alertId||!Number.isFinite(sourceCandleEpoch))return;
@@ -921,6 +1026,15 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
     res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
   }
 });
+app.get("/api/telegram/signal-next", requireTelegramSession, (_req, res) => {
+  noCache(res);
+  const state = snapshot();
+  const nextSignal = analyzeNextSignal(feeds.get(selectedSymbol));
+  res.json({ ok: true, market: { ...state, ...nextSignal, monitoring,
+    symbol: selectedSymbol, apiPool: twelveDataKeyPool.publicStatus(),
+    lastTickPrice: feeds.get(selectedSymbol)?.lastTick ?? state.lastTickPrice,
+    apiStatus: state.apiStatus } , channel: "TELEGRAM_MINI_APP_NEXT_V1" });
+});
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
   res.json({ ok: true, market: snapshot(), channel: "TELEGRAM_MINI_APP_POLLING" });
@@ -944,6 +1058,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 });
 
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health", (_req, res) => {
   noCache(res);
