@@ -7,7 +7,7 @@ const serverJs=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("Mini App exposes universal 65 analysis threshold and removes Gemini controls",()=>{
  assert.match(html,/SIGNAL ENGINE/);
  assert.doesNotMatch(html,/gemini/i);
- assert.match(html,/CALL\/PUT ≥ 65/);
+ assert.match(html,/ทุกการวิเคราะห์ ≥ 65\/100/);
  assert.match(html,/id="scoreStatus"/);
  assert.match(html,/id="indicatorStatus"/);
  assert.doesNotMatch(serverJs,/gemini_on|gemini_off|analyzeWithGemini|Gemini/);
