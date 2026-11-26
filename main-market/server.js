@@ -135,7 +135,10 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5", srLookback: 15 },\n    support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null,\n    supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null,\n    openPriceM1: ema5.openPrice ?? null, closePrice: ema5.closePrice ?? null,
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5", srLookback: 15 },
+    support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null,
+    supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null,
+    openPriceM1: ema5.openPrice ?? null, closePrice: ema5.closePrice ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
