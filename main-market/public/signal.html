@@ -160,7 +160,7 @@ $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=actualDir?"ORDER "+actualDir:preparing?"WATCH "+m.watchSignal:"STANDBY";
 $("hint").textContent=actualDir?"ORDER จริง · สัญญาณสำหรับ EUR/USD M1 · ไฟค้างถึงเวลาหมดอายุ":preparing?"เฝ้าระวัง "+m.watchSignal+" · ยังไม่ใช่คำสั่ง ORDER · รอยืนยันที่ 5 วินาทีสุดท้าย":m.reason||"รอ Streaming สดและเงื่อนไข MA5 + BB(20,2)";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-$("engineSignal").textContent=ready?"EMA5 READY":indicator.status||"WAITING";
+$("engineSignal").textContent=ready?"MA5 + BB READY":indicator.status||"WAITING";
 $("indicatorStatus").textContent=ready
 ?"Twelve Data M1 · MA5 "+fmt(indicator.ma5)+" · BB Upper "+fmt(indicator.bbUpper)+" / Lower "+fmt(indicator.bbLower)+" · Width "+(Number.isFinite(indicator.bbWidthRatio)?indicator.bbWidthRatio.toFixed(2)+"x":"—")+" · Tick "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
 :(indicator.message||"รอ OHLC และราคา Streaming จาก Twelve Data");
