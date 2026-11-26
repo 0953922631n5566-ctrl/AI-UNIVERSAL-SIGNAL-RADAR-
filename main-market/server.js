@@ -159,7 +159,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "TWELVE_DATA_NATIVE_SCORING_55_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EMA5_PULLBACK_TWO_PHASE_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -310,7 +310,15 @@ function mergeSampleCandles(feed,response){
  for(const candle of response.candles||[])byEpoch.set(candle.epoch,{...candle,live:false});
  const minute=Math.floor(Date.now()/60000)*60;
  const oldLive=feed.candles.at(-1)?.live&&feed.candles.at(-1).epoch===minute?feed.candles.at(-1):null;
- const live=response.liveCandle?.epoch===minute?response.liveCandle:oldLive;
+ const restLive=response.liveCandle?.epoch===minute?response.liveCandle:null;
+ let live=restLive||oldLive;
+ if(restLive&&oldLive){
+  const freshTick=feed.tickAt&&Date.now()-feed.tickAt<=5000;
+  live={...restLive,open:restLive.open??oldLive.open,high:Math.max(restLive.high,oldLive.high),
+   low:Math.min(restLive.low,oldLive.low),close:freshTick?feed.lastTick:restLive.close,live:true};
+ }else if(live&&feed.tickAt&&Date.now()-feed.tickAt<=5000){
+  live={...live,close:feed.lastTick,high:Math.max(live.high,feed.lastTick),low:Math.min(live.low,feed.lastTick),live:true};
+ }
  if(live)byEpoch.set(live.epoch,{...live,live:true});
  feed.candles=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-MAX_CANDLES);
  return live;
@@ -796,7 +804,7 @@ app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
  res.json({ok:true,monitoring,symbol:selectedSymbol,symbols:SYMBOLS,price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   openPrice:state.openPrice,ema5:state.ema5,previousEma5:state.previousEma5,slope:state.slope,phase:state.phase,signal:state.signal,reason:state.reason,
   closePrice:state.closePrice??null,highPrice:state.highPrice??null,lowPrice:state.lowPrice??null,sourceEpoch:state.sourceEpoch,targetEpoch:state.preparedForEpoch??state.enteredEpoch,
-  alertId:state.alertId,sampledAt:state.sampledAt,history:state.history||[],candles:feed.candles.slice(-20),apiPool:twelveDataKeyPool.publicStatus(),
+  alertId:state.alertId,sampledAt:state.sampledAt,history:state.history||[],candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
   sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},manualOnly:true,brokerExecution:false,strategy:"EMA5_PULLBACK_TWO_PHASE_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
@@ -827,7 +835,7 @@ app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP
 // The Telegram Mini App primary URL serves the EMA5 two-phase M1 system.
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
-app.get("/signal-legacy", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
