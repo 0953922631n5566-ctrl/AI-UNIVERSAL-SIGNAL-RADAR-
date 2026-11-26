@@ -26,6 +26,12 @@ test("Mini App chart shows 15 enlarged candles beside the order signal with live
  assert.match(html,/slice\(-15\)/);
  assert.match(html,/plotW=w\*\.57/);
  assert.match(html,/const liveX=\(candles\.length-\.5\)\*step/);
- assert.match(html,/15 CANDLES \+ EMA5 \+ S\/R/);\n assert.match(html,/id="chartResize"/);\n assert.match(html,/localStorage\.getItem\("eurusd-chart-height"\)/);\n assert.match(html,/localStorage\.setItem\("eurusd-chart-height"/);\n assert.match(html,/Math\.max\(160,Math\.min\(560/);\n assert.match(html,/pointerdown/);\n assert.match(html,/pointermove/);
+ assert.match(html,/15 CANDLES \+ EMA5 \+ S\/R/);
+ assert.match(html,/id="chartResize"/);
+ assert.match(html,/localStorage\.getItem\("eurusd-chart-height"\)/);
+ assert.match(html,/localStorage\.setItem\("eurusd-chart-height"/);
+ assert.match(html,/Math\.max\(160,Math\.min\(560/);
+ assert.match(html,/pointerdown/);
+ assert.match(html,/pointermove/);
 });
 test("Mini App JavaScript parses",()=>{const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");assert.ok(start>0&&end>start);assert.doesNotThrow(()=>new Script(html.slice(start,end)));});
