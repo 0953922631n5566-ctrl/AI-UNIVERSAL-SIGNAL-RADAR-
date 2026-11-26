@@ -80,7 +80,9 @@ $("toggle").textContent=d.monitoring?"STOP SCAN":"START SCAN";$("toggle").classN
 if(d.alertId&&d.alertId!==lastAlert){lastAlert=d.alertId;if(d.phase==="PREPARE"){beep(620);try{tg?.HapticFeedback?.notificationOccurred("warning");navigator.vibrate?.([80,40,80]);}catch{}}else if(d.phase==="ENTER"){beep(940);try{tg?.HapticFeedback?.notificationOccurred("success");navigator.vibrate?.([130,50,130]);}catch{}}}
 }
 function updateColorSwapButton(){$("colorSwap").textContent="สลับสีไฟ: "+(colorSwap?"สลับแล้ว":"ปกติ");}
-updateColorSwapButton();\n$("colorSwap").addEventListener("click",()=>{colorSwap=!colorSwap;localStorage.setItem("signalColorSwap",colorSwap?"1":"0");updateColorSwapButton();if(lastData)render(lastData);});\nasync function poll(){try{render(await req("/api/telegram/ema5/status"));}catch(e){$("api").textContent="API ERROR";$("api").className="api off";$("reason").textContent=e.message;paint("wait","WAIT");}}
+updateColorSwapButton();
+$("colorSwap").addEventListener("click",()=>{colorSwap=!colorSwap;localStorage.setItem("signalColorSwap",colorSwap?"1":"0");updateColorSwapButton();if(lastData)render(lastData);});
+async function poll(){try{render(await req("/api/telegram/ema5/status"));}catch(e){$("api").textContent="API ERROR";$("api").className="api off";$("reason").textContent=e.message;paint("wait","WAIT");}}
 $("pairs").addEventListener("change",async()=>{try{await req("/api/telegram/select",{method:"POST",body:JSON.stringify({symbol:$("pairs").value})});await poll();}catch(e){$("reason").textContent=e.message;}});
 $("toggle").addEventListener("click",async()=>{try{await req("/api/telegram/control",{method:"POST",body:JSON.stringify({action:running?"stop":"start"})});await poll();}catch(e){$("reason").textContent=e.message;}});
 $("sound").addEventListener("click",()=>{soundOn=!soundOn;$("sound").textContent="เสียงแจ้งเตือน: "+(soundOn?"เปิด":"ปิด");if(soundOn)beep();});
