@@ -852,8 +852,8 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EMA5_PULLBACK_TWO_PHASE_M1",
- primaryDecisionEngine:"EMA5_ONLY",indicators:["EMA5"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1",
+ primaryDecisionEngine:"EMA5_PULLBACK_WITH_LOCAL_SWING_SR",indicators:["EMA5","LOCAL_SWING_SUPPORT_RESISTANCE"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
  signalPolicy:"ONE_PREPARE_AND_ONE_ENTER_PER_SOURCE_CANDLE_WITH_SR_FILTER"},
