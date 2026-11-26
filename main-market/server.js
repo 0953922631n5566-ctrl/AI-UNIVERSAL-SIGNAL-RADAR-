@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeEma5Pullback, enterPreparedSignal, samplingPhase } from "./src/ema5-two-phase-engine.js";
+import { analyzeMa5Bollinger, samplingPhase } from "./src/ema5-two-phase-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -23,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EURUSD EMA5 PULLBACK SR TWO-PHASE M1 RADAR";
-const ARCHITECTURE_ID = "EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1";
-const VERSION = "2026-11-26-eurusd-ema5-sr-two-phase-v2";
+const SYSTEM_NAME = "EURUSD MA5 BOLLINGER 20 2 M1 SIGNAL RADAR";
+const ARCHITECTURE_ID = "EURUSD_MA5_BOLLINGER_20_2_M1";
+const VERSION = "2026-11-26-eurusd-ma5-bb20-2-watch10-order30-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -48,7 +48,7 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
-    ema5State: { phase:"WAIT", minuteEpoch:null, openPrice:null, ema5:null, previousEma5:null, slope:"WAIT", signal:"WAIT", reason:"รอเริ่มสแกน", preparedSignal:null, preparedForEpoch:null, sourceEpoch:null, enteredEpoch:null, alertId:null, history:[], lastOpenSampleEpoch:null, lastPrepareSampleEpoch:null, lastPrepareAnalysisAt:0, sampledAt:null, lastAnalysis:null }
+    ema5State: { phase:"WAIT", minuteEpoch:null, signal:"WAIT", reason:"รอเริ่มสแกน", watchSignal:null, watchReason:null, watchUntil:0, orderSignal:null, orderUntil:0, orderAlertId:null, orderTargetEpoch:null, lastWatchMinuteEpoch:null, lastOrderMinuteEpoch:null, sampledAt:null, lastAnalysis:null }
   };
 }
 
@@ -105,17 +105,21 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
-    signal: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : "STANDBY",
-    direction: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : null,
+    signal: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal) ? ema5.orderSignal : "STANDBY",
+    direction: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal) ? ema5.orderSignal : null,
     reason: ema5.reason || analysis.reason,
     phase: ema5.phase || "WAIT",
-    slope: ema5.slope || "WAIT",
-    ema5: ema5.ema5 ?? null,
-    openPrice: ema5.openPrice ?? null,
-    sourceCandleEpoch: ema5.sourceEpoch ?? null,
-    targetCandleEpoch: ema5.preparedForEpoch ?? ema5.enteredEpoch ?? null,
-    analysisMode: "EMA5_PULLBACK_SR_TWO_PHASE_M1",
-    indicatorSource: "Twelve Data M1 OHLC · EMA5 + local swing Support/Resistance",
+    watchSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
+    watchReason: ema5.watchReason || null,
+    watchActive: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal),
+    orderSignal: ema5.orderUntil > Date.now() ? ema5.orderSignal : null,
+    orderActive: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal),
+    orderAlertId: ema5.orderAlertId || null,
+    orderExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
+    sourceCandleEpoch: ema5.minuteEpoch ?? null,
+    targetCandleEpoch: ema5.orderTargetEpoch ?? null,
+    analysisMode: "MA5_BOLLINGER_20_2_M1",
+    indicatorSource: "Twelve Data real M1 OHLC · SMA5 + Bollinger Bands(20,2)",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -144,12 +148,12 @@ function publicFeed(feed) {
         ? feed.candles.at(-1).epoch + 60
         : Math.max(feed.candles.at(-1).epoch + 60, Math.floor(Date.now() / 60000) * 60 + 60)) * 1000
       : null,
-    signalExpiresAt: feed.activeUntil > Date.now()
-      ? new Date(feed.activeUntil).toISOString() : null,
-    alertId: ema5.alertId || feed.alertId,
-    preAlertSignal: ema5.preparedSignal || null,
-    indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC", support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null, supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null, slope: ema5.lastAnalysis?.slope ?? null },
-    source: "Twelve Data real M1 OHLC + EMA5 Pullback + local swing S/R · Two-phase sampling"
+    signalExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
+    alertId: ema5.orderAlertId || null,
+    preAlertSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
+    preAlertStatus: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal) ? "PREPARE_ALERT" : null,
+    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ma5: ema5.lastAnalysis?.ma5 ?? null, bbUpper: ema5.lastAnalysis?.bbUpper ?? null, bbMiddle: ema5.lastAnalysis?.bbMiddle ?? null, bbLower: ema5.lastAnalysis?.bbLower ?? null, bbWidthRatio: ema5.lastAnalysis?.bbWidthRatio ?? null, source: "SMA5 + Bollinger Bands(20,2) from Twelve Data M1 OHLC" },
+    source: "Twelve Data real M1 OHLC + MA5 + Bollinger Bands(20,2) · 10s watch / 5s order / 30s lamp"
   };
 }
 
@@ -317,101 +321,89 @@ function scheduleLiveAnalysis(_feed) {
   // Disabled: EMA5 decisions are made only at the two scheduled M1 sampling points.
 }
 
-function resetEma5State(feed,reason="รอเริ่มสแกน"){
- feed.ema5State={phase:"WAIT",minuteEpoch:null,openPrice:null,ema5:null,previousEma5:null,slope:"WAIT",signal:"WAIT",reason,preparedSignal:null,preparedForEpoch:null,sourceEpoch:null,enteredEpoch:null,alertId:null,history:[],lastOpenSampleEpoch:null,lastPrepareSampleEpoch:null,lastPrepareAnalysisAt:0,sampledAt:null,lastAnalysis:null};
+function resetEma5State(feed, reason = "รอเริ่มสแกน") {
+  feed.ema5State = {
+    phase: "WAIT", minuteEpoch: null, signal: "WAIT", reason,
+    watchSignal: null, watchReason: null, watchUntil: 0,
+    orderSignal: null, orderUntil: 0, orderAlertId: null, orderTargetEpoch: null,
+    lastWatchMinuteEpoch: null, lastOrderMinuteEpoch: null,
+    sampledAt: null, lastAnalysis: null
+  };
 }
-function mergeSampleCandles(feed,response){
- const byEpoch=new Map((feed.candles||[]).filter(c=>c&&Number.isFinite(c.epoch)).map(c=>[c.epoch,c]));
- for(const candle of response.candles||[])byEpoch.set(candle.epoch,{...candle,live:false});
- const minute=Math.floor(Date.now()/60000)*60;
- const oldLive=feed.candles.at(-1)?.live&&feed.candles.at(-1).epoch===minute?feed.candles.at(-1):null;
- const restLive=response.liveCandle?.epoch===minute?response.liveCandle:null;
- let live=restLive||oldLive;
- if(restLive&&oldLive){
-  const freshTick=feed.tickAt&&Date.now()-feed.tickAt<=5000;
-  live={...restLive,open:restLive.open??oldLive.open,high:Math.max(restLive.high,oldLive.high),
-   low:Math.min(restLive.low,oldLive.low),close:freshTick?feed.lastTick:restLive.close,live:true};
- }else if(live&&feed.tickAt&&Date.now()-feed.tickAt<=5000){
-  live={...live,close:feed.lastTick,high:Math.max(live.high,feed.lastTick),low:Math.min(live.low,feed.lastTick),live:true};
- }
- if(live)byEpoch.set(live.epoch,{...live,live:true});
- feed.candles=[...byEpoch.values()].sort((a,b)=>a.epoch-b.epoch).slice(-MAX_CANDLES);
- return live;
-}
-async function sampleEma5(feed,phase,minuteEpoch){
- const state=feed.ema5State,marker=phase==="OPEN"?"lastOpenSampleEpoch":"lastPrepareSampleEpoch";
- if(state[marker]===minuteEpoch)return;
- state[marker]=minuteEpoch;
- if(phase==="PREPARE"){state.phase="SAMPLING";state.signal="WAIT";state.reason="กำลังดึง OHLC ณ วินาที 55 และคำนวณ EMA5";publish();}
- try{
-  const response=await fetchCandles({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,outputsize:80,includeCurrent:true});
-  const live=mergeSampleCandles(feed,response);
-  feed.restStatus="READY";feed.restMessage=`Twelve Data REST พร้อม · ${response.candles.length} แท่งปิด`;
-  if(phase==="OPEN"){
-   state.minuteEpoch=minuteEpoch;
-   state.openPrice=live?.epoch===minuteEpoch?live.open:(feed.lastTick??state.openPrice??null);
-   if(state.enteredEpoch!==minuteEpoch){state.phase="ACCUMULATING";state.reason=state.openPrice==null?"รอราคาเปิดจาก Streaming":"สะสมข้อมูลแท่ง M1 · รอประเมินวินาที 55";}
-   state.sampledAt=new Date().toISOString();
-   console.info("[ema5] OPEN sample",{symbol:feed.symbol,minuteEpoch,openPrice:state.openPrice});
-  }else{
-   const now=Date.now(),second=Math.floor(now/1000)%60;
-   if(Math.floor(now/60000)*60!==minuteEpoch||second<55){state.phase="WAIT";state.signal="WAIT";state.preparedSignal=null;state.preparedForEpoch=null;state.reason="ผลดึงข้อมูลมาช้าเกินช่วงวินาที 55 · ข้ามรอบ";return;}
-   const current=live?.epoch===minuteEpoch?live:null,tickAge=feed.tickAt?(now-feed.tickAt)/1000:null;
-   const result=analyzeEma5Pullback({symbol:feed.symbol,closedCandles:feed.candles.filter(c=>c&&!c.live),liveCandle:current,tickAgeSeconds:tickAge});
-   Object.assign(state,{lastAnalysis:result,ema5:result.ema5??null,previousEma5:result.previousEma5??null,slope:result.slope||"WAIT",
-    closePrice:result.closePrice??current?.close??null,highPrice:result.highPrice??current?.high??null,lowPrice:result.lowPrice??current?.low??null,
-    sourceEpoch:minuteEpoch,openPrice:current?.open??state.openPrice,preparedForEpoch:null,preparedSignal:null,alertId:null,sampledAt:new Date().toISOString()});
-   if(["CALL","PUT"].includes(result.signal)){
-    state.phase="PREPARE";state.signal=result.signal;state.preparedSignal=result.signal;state.preparedForEpoch=minuteEpoch+60;
-    state.reason=`PREPARE ${result.signal} · เตรียมเข้าแท่งถัดไป`;
-    state.alertId=`${minuteEpoch}:${minuteEpoch+60}:${result.signal}:PREPARE:EMA5`;
-   }else{state.phase=result.regime==="SIDEWAY"?"SIDEWAY":"WAIT";state.signal="WAIT";state.reason=result.reason;}
-   state.lastPrepareAnalysisAt=feed.tickAt||0;
-   console.info("[ema5] PREPARE sample",{symbol:feed.symbol,minuteEpoch,signal:state.signal,slope:state.slope,ema5:state.ema5,
-    reason:result.reason,regime:result.regime,tickAgeSeconds:result.tickAgeSeconds,
-    supportDistancePips:result.supportDistancePips,resistanceDistancePips:result.resistanceDistancePips,
-    nearSupport:result.nearSupport,nearResistance:result.nearResistance});
+function runMa5BollingerCheck(feed, minuteEpoch, phase) {
+  const state = feed.ema5State;
+  const now = Date.now();
+  const live = feed.candles.at(-1)?.live && feed.candles.at(-1).epoch === minuteEpoch
+    ? feed.candles.at(-1) : null;
+  const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
+  const result = analyzeMa5Bollinger({
+    symbol: feed.symbol,
+    closedCandles: feed.candles.filter(c => c && !c.live),
+    liveCandle: live,
+    tickAgeSeconds: tickAge
+  });
+  state.lastAnalysis = result;
+  state.minuteEpoch = minuteEpoch;
+  state.sampledAt = new Date().toISOString();
+  if (phase === "WATCH") {
+    state.lastWatchMinuteEpoch = minuteEpoch;
+    state.watchSignal = ["CALL", "PUT"].includes(result.signal) ? result.signal : null;
+    state.watchReason = result.reason;
+    state.watchUntil = state.watchSignal ? (minuteEpoch + 60) * 1000 : 0;
+    state.phase = state.watchSignal ? "WATCH" : "WAIT";
+    state.signal = "WAIT";
+    state.reason = state.watchSignal
+      ? `เฝ้าระวัง ${state.watchSignal} · เหลือ 10 วินาทีสุดท้าย รอยืนยัน ORDER ที่ 5 วินาที`
+      : result.reason;
+    console.info("[ma5-bb] WATCH", { symbol: feed.symbol, minuteEpoch, signal: state.watchSignal, reason: result.reason });
+    return;
   }
- }catch(error){state.phase="ERROR";state.signal="WAIT";state.reason=`Twelve Data sample error: ${error.message}`;console.error("[ema5] sample failed",{symbol:feed.symbol,phase,message:error.message});}
- publish();
+  if (phase === "ORDER") {
+    state.lastOrderMinuteEpoch = minuteEpoch;
+    state.watchSignal = null;
+    state.watchUntil = 0;
+    state.orderTargetEpoch = minuteEpoch + 60;
+    if (["CALL", "PUT"].includes(result.signal) && live && tickAge !== null && tickAge <= 5) {
+      state.orderSignal = result.signal;
+      state.orderUntil = now + 30000;
+      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:MA5_BB20_2`;
+      state.phase = "ORDER";
+      state.signal = result.signal;
+      state.reason = `ORDER ${result.signal} · ยืนยันเงื่อนไข ณ 5 วินาทีสุดท้าย · ไฟค้าง 30 วินาที`;
+      console.info("[ma5-bb] ORDER", { symbol: feed.symbol, minuteEpoch, signal: result.signal, orderAlertId: state.orderAlertId, reason: result.reason });
+    } else {
+      state.orderSignal = null;
+      state.orderUntil = 0;
+      state.phase = "WAIT";
+      state.signal = "WAIT";
+      state.reason = result.reason || "ไม่ผ่านเงื่อนไขยืนยัน ORDER";
+      console.info("[ma5-bb] ORDER skipped", { symbol: feed.symbol, minuteEpoch, reason: result.reason });
+    }
+  }
 }
-function refreshPrepareFromLive(feed,minuteEpoch){
- const state=feed.ema5State,now=Date.now(),tickAt=feed.tickAt;
- if(!tickAt||tickAt<=state.lastPrepareAnalysisAt||now-tickAt>5000)return;
- const current=feed.candles.at(-1);
- if(!current?.live||current.epoch!==minuteEpoch)return;
- const result=analyzeEma5Pullback({symbol:feed.symbol,closedCandles:feed.candles.filter(c=>c&&!c.live),liveCandle:current,tickAgeSeconds:(now-tickAt)/1000});
- state.lastPrepareAnalysisAt=tickAt;
- state.lastAnalysis=result;state.ema5=result.ema5??null;state.previousEma5=result.previousEma5??null;
- state.slope=result.slope||"WAIT";state.closePrice=result.closePrice??current.close;
- state.highPrice=result.highPrice??current.high;state.lowPrice=result.lowPrice??current.low;
- state.sourceEpoch=minuteEpoch;state.openPrice=current.open;state.sampledAt=new Date().toISOString();
- if(["CALL","PUT"].includes(result.signal)){
-  state.phase="PREPARE";state.signal=result.signal;state.preparedSignal=result.signal;state.preparedForEpoch=minuteEpoch+60;
-  state.reason=`PREPARE ${result.signal} · ยืนยันจาก Tick สดในช่วง 55–59`;
-  state.alertId=`${minuteEpoch}:${minuteEpoch+60}:${result.signal}:PREPARE:EMA5`;
-  console.info("[ema5] PREPARE confirmed from live tick",{symbol:feed.symbol,minuteEpoch,signal:result.signal});
-  publish();
- }else{
-  state.phase=result.regime==="SIDEWAY"?"SIDEWAY":"WAIT";state.signal="WAIT";state.reason=result.reason;
- }
-}
-function tickEma5Clock(){
- if(!monitoring)return;
- const feed=feeds.get(selectedSymbol);if(!feed)return;
- const now=Date.now(),minute=Math.floor(now/60000)*60,second=Math.floor(now/1000)%60,state=feed.ema5State;
- const live=feed.candles.at(-1)?.live&&feed.candles.at(-1).epoch===minute?feed.candles.at(-1):null;
- if(state.preparedForEpoch===minute&&state.enteredEpoch!==minute){
-  if(second<=5&&live&&feed.tickAt&&now-feed.tickAt<=5000){
-   const entered=enterPreparedSignal(state,minute);
-   if(entered){state.reason=`ENTER ${entered.signal} NOW · สัญญาณครั้งเดียวสำหรับแท่งนี้`;state.openPrice=live.open;console.info("[ema5] ENTER",{symbol:feed.symbol,...entered});publish();}
-  }else if(second>5){state.phase="WAIT";state.signal="WAIT";state.reason="พ้น 5 วินาทีแรกหรือราคาไม่สด · ข้ามสัญญาณย้อนหลัง";state.preparedSignal=null;state.preparedForEpoch=null;}
- }
- if(state.phase==="ENTER"&&state.enteredEpoch===minute&&second>5){state.phase="ACCUMULATING";state.signal="WAIT";state.reason="แท่งนี้เข้าไปแล้ว · รอประเมินรอบถัดไปที่วินาที 55";}
- const phase=samplingPhase(now/1000);
- if(phase==="OPEN"&&state.lastOpenSampleEpoch!==minute)void sampleEma5(feed,"OPEN",minute);
- else if(phase==="PREPARE"&&state.lastPrepareSampleEpoch!==minute)void sampleEma5(feed,"PREPARE",minute);
- else if(phase==="PREPARE"&&state.lastPrepareSampleEpoch===minute&&state.preparedForEpoch!==minute+60&&second<=59&&state.phase!=="SAMPLING")refreshPrepareFromLive(feed,minute);
+function tickEma5Clock() {
+  if (!monitoring) return;
+  const feed = feeds.get(selectedSymbol);
+  if (!feed) return;
+  const now = Date.now();
+  const minute = Math.floor(now / 60000) * 60;
+  const second = Math.floor(now / 1000) % 60;
+  const state = feed.ema5State;
+  if (state.orderUntil && now >= state.orderUntil) {
+    state.orderSignal = null;
+    state.orderUntil = 0;
+    state.phase = "WAIT";
+    state.signal = "WAIT";
+    state.reason = "หมดเวลาแสดงไฟ ORDER 30 วินาที · รอรอบถัดไป";
+    publish();
+  }
+  if (second >= 50 && second < 55 && state.lastWatchMinuteEpoch !== minute) {
+    runMa5BollingerCheck(feed, minute, "WATCH");
+    publish();
+  } else if (second >= 55 && state.lastOrderMinuteEpoch !== minute) {
+    runMa5BollingerCheck(feed, minute, "ORDER");
+    publish();
+  }
 }
 function startEma5Sampler(){clearInterval(ema5Timer);ema5Timer=setInterval(tickEma5Clock,200);tickEma5Clock();}
 
@@ -881,17 +873,17 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1",
- primaryDecisionEngine:"EMA5_PULLBACK_WITH_LOCAL_SWING_SR",indicators:["EMA5","LOCAL_SWING_SUPPORT_RESISTANCE"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
- sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_MA5_BOLLINGER_20_2_M1",
+ primaryDecisionEngine:"SMA5_PLUS_BOLLINGER_BANDS_20_2",indicators:["SMA5","BOLLINGER_BANDS_20_2"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"ONE_PREPARE_AND_ONE_ENTER_PER_SOURCE_CANDLE_WITH_SR_FILTER"},
+ signalPolicy:"ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE_WITH_BB_EXPANSION_AND_SQUEEZE_WAIT_FILTER"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] EMA5 MAIN MARKET listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] MA5 + BB(20,2) MAIN MARKET listening on ${PORT}`);
   console.info("[radar] startup configuration", {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
