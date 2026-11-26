@@ -58,17 +58,10 @@ let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
 let monitoringStartedAt = 0;
 let upstream = null;
-let restTimer = null;
-let emaTimer = null;
 let ema5Timer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
-let signalTimer = null;
-let liveAnalysisTimer = null;
-let liveAnalysisBusy = false;
-let liveAnalysisPending = false;
-let lastLiveAnalysisAt = 0;
 let globalLockMessage = null;
 const controlRequests = new Map();
 
@@ -176,14 +169,9 @@ function publish() {
 }
 
 function clearTimers() {
-  clearInterval(restTimer); restTimer = null;
-  clearInterval(emaTimer); emaTimer = null;
   clearInterval(ema5Timer); ema5Timer = null;
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
-  clearInterval(signalTimer); signalTimer = null;
-  clearTimeout(liveAnalysisTimer); liveAnalysisTimer = null;
-  liveAnalysisPending = false;
   clearTimeout(retryTimer); retryTimer = null;
 }
 
@@ -310,13 +298,6 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
   return feed.restSyncPromise;
 }
 
-function startRestTimer() {
-  if (restTimer) return;
-  restTimer = setInterval(() => {
-    syncSelected().catch(error => console.error("[radar] REST sync", error.message));
-  }, REST_SYNC_SECONDS * 1000);
-}
-
 function scheduleLiveAnalysis(_feed) {
   // Disabled: EMA5 decisions are made only at the two scheduled M1 sampling points.
 }
@@ -338,6 +319,7 @@ async function sampleEma5(feed,phase,minuteEpoch){
  const state=feed.ema5State,marker=phase==="OPEN"?"lastOpenSampleEpoch":"lastPrepareSampleEpoch";
  if(state[marker]===minuteEpoch)return;
  state[marker]=minuteEpoch;
+ if(phase==="PREPARE"){state.phase="SAMPLING";state.signal="WAIT";state.reason="กำลังดึง OHLC ณ วินาที 55 และคำนวณ EMA5";publish();}
  try{
   const response=await fetchCandles({keyPool:twelveDataKeyPool,symbol:feed.symbol,interval:INTERVAL,outputsize:80,includeCurrent:true});
   const live=mergeSampleCandles(feed,response);
