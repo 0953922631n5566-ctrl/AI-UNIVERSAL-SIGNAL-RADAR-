@@ -1,4 +1,4 @@
-export const SYMBOLS = Object.freeze(["EUR/USD", "EUR/JPY", "GBP/USD", "USD/JPY"]);
+export const SYMBOLS = Object.freeze(["EUR/USD"]);
 export const DEFAULT_SYMBOL = "EUR/USD";
 export const INTERVAL = "1min";
 // Analysis window: 50 closed M1 context candles + 4 latest closed entry candles.

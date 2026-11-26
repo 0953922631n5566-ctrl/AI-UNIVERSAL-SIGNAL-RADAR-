@@ -23,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "TWELVE DATA EMA5 TWO-PHASE M1 RADAR";
-const ARCHITECTURE_ID = "TWELVE_DATA_EMA5_TWO_PHASE_M1";
-const VERSION = "2026-11-26-ema5-two-phase-4pairs-v1";
+const SYSTEM_NAME = "EURUSD EMA5 PULLBACK SR TWO-PHASE M1 RADAR";
+const ARCHITECTURE_ID = "EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1";
+const VERSION = "2026-11-26-eurusd-ema5-sr-two-phase-v2";
 const app = express();
 const server = http.createServer(app);
 
@@ -135,7 +135,10 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5" },
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5", srLookback: 15 },
+    support: ema5.lastAnalysis?.support ?? null, resistance: ema5.lastAnalysis?.resistance ?? null,
+    supportDistancePips: ema5.lastAnalysis?.supportDistancePips ?? null, resistanceDistancePips: ema5.lastAnalysis?.resistanceDistancePips ?? null,
+    openPriceM1: ema5.openPrice ?? null, closePrice: ema5.closePrice ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -801,7 +804,7 @@ app.post("/api/telegram/session", rateLimitAuth, (req, res) => {
 });
 app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async (req, res) => {
   const symbol = resolveSymbol(req.body?.symbol);
-  if (!symbol) return res.status(400).json({ ok: false, error: "ไม่รองรับคู่เงินนี้", symbols: SYMBOLS });
+  if (!symbol) return res.status(400).json({ ok: false, error: "ระบบนี้รองรับเฉพาะ EUR/USD เท่านั้น", symbols: SYMBOLS });
   try {
     await select(symbol);
     noCache(res);
@@ -813,11 +816,11 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
 });
 app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
  noCache(res);const feed=feeds.get(selectedSymbol),state=feed.ema5State,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
- res.json({ok:true,monitoring,symbol:selectedSymbol,symbols:SYMBOLS,price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
+ res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   openPrice:state.openPrice,ema5:state.ema5,previousEma5:state.previousEma5,slope:state.slope,phase:state.phase,signal:state.signal,reason:state.reason,
-  closePrice:state.closePrice??null,highPrice:state.highPrice??null,lowPrice:state.lowPrice??null,sourceEpoch:state.sourceEpoch,targetEpoch:state.preparedForEpoch??state.enteredEpoch,
+  closePrice:state.closePrice??null,highPrice:state.highPrice??null,lowPrice:state.lowPrice??null,support:state.lastAnalysis?.support??null,resistance:state.lastAnalysis?.resistance??null,supportDistancePips:state.lastAnalysis?.supportDistancePips??null,resistanceDistancePips:state.lastAnalysis?.resistanceDistancePips??null,nearSupport:state.lastAnalysis?.nearSupport??false,nearResistance:state.lastAnalysis?.nearResistance??false,slopePips:state.lastAnalysis?.slopePips??null,sourceEpoch:state.sourceEpoch,targetEpoch:state.preparedForEpoch??state.enteredEpoch,
   alertId:state.alertId,sampledAt:state.sampledAt,history:state.history||[],candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},manualOnly:true,brokerExecution:false,strategy:"EMA5_PULLBACK_TWO_PHASE_M1"});
+  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},manualOnly:true,brokerExecution:false,strategy:"EMA5_PULLBACK_SR_TWO_PHASE_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -852,11 +855,11 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EMA5_PULLBACK_TWO_PHASE_M1",
- primaryDecisionEngine:"EMA5_ONLY",indicators:["EMA5"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1",
+ primaryDecisionEngine:"EMA5_PULLBACK_WITH_LOCAL_SWING_SR",indicators:["EMA5","LOCAL_SWING_SUPPORT_RESISTANCE"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{openSeconds:[0,2],prepareSeconds:[55,59],entrySeconds:[0,5],restCallsPerMinute:2},
- primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:SYMBOLS,manualOnly:true},
- signalPolicy:"ONE_PREPARE_AND_ONE_ENTER_PER_SOURCE_CANDLE"},
+ primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
+ signalPolicy:"ONE_PREPARE_AND_ONE_ENTER_PER_SOURCE_CANDLE_WITH_SR_FILTER"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });

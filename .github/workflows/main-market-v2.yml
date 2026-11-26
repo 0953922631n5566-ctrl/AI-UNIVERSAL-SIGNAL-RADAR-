@@ -1,4 +1,4 @@
-name: Main Market Telegram Mini App Checks
+name: Main Market EUR/USD Telegram Mini App Checks
 on:
   push:
     branches: [main-market]
@@ -27,18 +27,23 @@ jobs:
           grep -Fq '/api/telegram/session' server.js
           grep -Fq '/api/telegram/ema5/status' server.js
           grep -Fq 'telegram-web-app.js' public/candle-lab.html
-          grep -Fq 'EMA5_PULLBACK_TWO_PHASE_M1' server.js
+          grep -Fq 'EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1' server.js
           grep -Fq 'startEma5Sampler' server.js
           grep -Fq 'sampleEma5(feed,"OPEN",minute)' server.js
           grep -Fq 'sampleEma5(feed,"PREPARE",minute)' server.js
           grep -Fq 'enterPreparedSignal(state,minute)' server.js
-          grep -Fq 'export const SYMBOLS = Object.freeze(["EUR/USD", "EUR/JPY", "GBP/USD", "USD/JPY"]);' src/config.js
-          grep -Fq 'EMA5_PULLBACK_TWO_PHASE_M1' src/ema5-two-phase-engine.js
+          grep -Fq 'export const SYMBOLS = Object.freeze(["EUR/USD"]);' src/config.js
+          grep -Fq 'EMA5_PULLBACK_SR_TWO_PHASE_M1' src/ema5-two-phase-engine.js
+          grep -Fq 'SR_LOOKBACK = 15' src/ema5-two-phase-engine.js
           grep -Fq 'lastRestKeyNumber' src/twelve-data-pool.js
-          grep -Fq 'id="lamp"' public/candle-lab.html
+          grep -Fq 'id="chart"' public/candle-lab.html
+          grep -Fq 'id="history"' public/candle-lab.html
+          grep -Fq 'PREPARE' public/candle-lab.html
+          grep -Fq 'ENTER NOW' public/candle-lab.html
           grep -Fq 'id="signal"' public/candle-lab.html
           grep -Fq 'id="timer"' public/candle-lab.html
-          ! grep -Eq '<canvas|id="history"' public/candle-lab.html
+          grep -Fq 'EUR/USD RADAR' public/candle-lab.html
+          ! grep -Eq '<select|id="pairs"' public/candle-lab.html
           ! grep -Eqi 'GEMINI_API_KEY|analyzeWithGemini|geminiQuotaStatus' server.js public/candle-lab.html
       - name: Syntax-check application modules
         run: |
