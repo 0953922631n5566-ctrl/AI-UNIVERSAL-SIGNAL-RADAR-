@@ -15,7 +15,7 @@ const base = {
 };
 
 test("emits a directional signal for the immediately following M1 candle", () => {
-  const result = resolveClosedCandleSignal({ ...base, predict: () => ({ signal: "CALL", callRatio: 70 }) });
+  const result = resolveClosedCandleSignal({ ...base, state: { sourceEpoch: null, result: null }, predict: () => ({ signal: "CALL", callRatio: 70 }) });
   assert.equal(result.signal, "CALL");
   assert.equal(result.sourceCandleEpoch, 120);
   assert.equal(result.targetCandleEpoch, 180);
@@ -42,7 +42,7 @@ test("does not issue a late signal after the 10-second next-candle entry window"
 });
 
 test("does not signal on a candle that was already open before monitoring began", () => {
-  const result = resolveClosedCandleSignal({ ...base, monitoringStartedAt: 180_500, predict: () => ({ signal: "CALL" }) });
+  const result = resolveClosedCandleSignal({ ...base, state: { sourceEpoch: null, result: null }, monitoringStartedAt: 180_500, predict: () => ({ signal: "CALL" }) });
   assert.equal(result.signal, "STANDBY");
   assert.match(result.reason, /รอแท่งใหม่/);
 });
