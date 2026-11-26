@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 test("health metadata declares native Twelve Data scoring and no external AI",()=>{
- assert.match(server,/decisionEngine: "TWELVE_DATA_NATIVE_PARTIAL_SCORING_54"/);
+ assert.match(server,/decisionEngine: "TWELVE_DATA_NATIVE_SCORING_65_ALL_ANALYSIS"/);
  assert.match(server,/decisionAuthority: "DETERMINISTIC_PARTIAL_SCORING_WITH_NATIVE_INDICATORS"/);
  assert.match(server,/engines: 1/);
  assert.match(server,/provider: "TWELVE_DATA_NATIVE_INDICATORS"/);
  assert.match(server,/signalGeneration: true/);
  assert.match(server,/externalAiCalls: false/);
- assert.match(server,/callPut: 54/);
+ assert.match(server,/callPut: 65/);
 });
 test("native Twelve Data indicators are the only directional data provider",()=>{
  assert.match(server,/fetchCandles/);assert.match(server,/fetchTrendEma5/);assert.match(server,/fetchEma20/);assert.match(server,/fetchAtr14/);
