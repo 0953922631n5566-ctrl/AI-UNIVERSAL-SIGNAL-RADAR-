@@ -17,35 +17,37 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data EMA5 Two-Phase M1",
-    "displayName": "EUR/USD EMA5 Pullback + local S/R · Open + T-5 sample · next M1 entry",
+    "name": "Twelve Data MA5 Bollinger Bands M1",
+    "displayName": "EUR/USD SMA5 + Bollinger Bands(20,2) · 10s watch · 5s final order · 30s signal light",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "TWELVE_DATA_REAL_M1_OHLC_TWO_PHASE_SAMPLING",
-    "decisionAuthority": "EMA5_PULLBACK_WITH_LOCAL_SWING_SR",
+    "executionModel": "TWELVE_DATA_REAL_M1_OHLC_STREAMING_LOCAL_ANALYSIS",
+    "decisionAuthority": "SMA5_PLUS_BOLLINGER_BANDS_20_2",
     "indicators": {
-      "provider": "EMA5 calculated from Twelve Data M1 OHLC",
+      "provider": "Local calculations from Twelve Data real M1 OHLC",
       "periods": [
-        5
+        5,
+        20
       ],
+      "bollingerDeviation": 2,
       "samplePointsPerMinute": 2,
       "localIndicatorCalculation": true
     },
     "strategy": {
-      "name": "EMA5_PULLBACK_SR_TWO_PHASE_M1",
-      "openSampleSeconds": [
-        0,
-        2
+      "name": "MA5_BOLLINGER_20_2_M1",
+      "watchSeconds": [
+        50,
+        54
       ],
-      "prepareSampleSeconds": [
+      "orderSeconds": [
         55,
         59
       ],
-      "entryWindowSeconds": [
-        0,
-        5
+      "orderLightSeconds": 30,
+      "waitFilters": [
+        "EXPANSION_EDGE_RIDE",
+        "SQUEEZE_MID"
       ],
-      "flatSlope": "WAIT_SIDEWAY",
       "manualOnly": true
     },
     "keyPool": {
