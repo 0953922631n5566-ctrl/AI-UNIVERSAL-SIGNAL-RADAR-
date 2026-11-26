@@ -30,6 +30,7 @@ export class TwelveDataKeyPool {
     this.keys = [...new Set(keys.map(value => String(value ?? "").trim()).filter(Boolean))];
     this.activeIndex = 0;
     this.restIndex = 0;
+    this.lastRestKey = null;
     this.cooldowns = new Map();
     this.failures = new Map();
     this.lastError = null;
@@ -64,6 +65,7 @@ export class TwelveDataKeyPool {
 
   markRestSuccess(key) {
     if (!key) return;
+    this.lastRestKey = key;
     this.cooldowns.delete(key);
     this.failures.delete(key);
     const index = this.keys.indexOf(key);
@@ -113,6 +115,7 @@ export class TwelveDataKeyPool {
       configuredCount: this.keys.length,
       availableCount,
       activeKeyNumber: activeKey ? this.keys.indexOf(activeKey) + 1 : null,
+      lastRestKeyNumber: this.lastRestKey ? this.keys.indexOf(this.lastRestKey) + 1 : null,
       keyStates: this.keys.map((credential, index) => {
         const until = this.cooldowns.get(credential) || 0;
         const available = until <= now;
