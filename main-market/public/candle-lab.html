@@ -47,7 +47,7 @@ function drawChart(d){
  if(Number.isFinite(d.ema5))values.push(Number(d.ema5));
  if(Number.isFinite(d.support))values.push(Number(d.support));
  if(Number.isFinite(d.resistance))values.push(Number(d.resistance));
- const livePrice=Number.isFinite(Number(d.price))?Number(d.price):Number(candles.at(-1).close);
+ const livePrice=d.price!=null&&Number.isFinite(Number(d.price))?Number(d.price):Number(candles.at(-1).close);
  if(Number.isFinite(livePrice))values.push(livePrice);
  let min=Math.min(...values),max=Math.max(...values),pad=(max-min)*.13||.00012;min-=pad;max+=pad;
  const y=v=>bottom-(v-min)/(max-min)*plotH,fmtPrice=v=>Number(v).toFixed(5);
@@ -83,7 +83,7 @@ function drawChart(d){
  if(started)ctx.stroke();
  // Support and resistance bands.
  for(const [v,col] of [[d.support,"#49a6ff"],[d.resistance,"#b58cff"]]){
-  if(!Number.isFinite(Number(v)))continue;
+  if(v==null||!Number.isFinite(Number(v)))continue;
   const yy=y(Number(v));ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(left,yy);ctx.lineTo(left+plotW,yy);ctx.stroke();ctx.setLineDash([]);
  }
  // Live price line and a compact price marker on the scale.
