@@ -769,7 +769,7 @@ app.get("/api/public/signal", (_req, res) => {
       closedCandleCount: state.closedCandleCount, requiredCandles: state.requiredCandles,
       analysisWindow: state.analysisWindow,
       analysisMode: state.analysisMode || "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",
-      liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds || LIVE_ANALYSIS_INTERVAL_SECONDS,
+      liveAnalysisIntervalSeconds: state.liveAnalysisIntervalSeconds ?? null,
       nextCandleAt: state.nextCandleAt, signalExpiresAt: state.signalExpiresAt,
       signalTimingWindowSeconds: state.signalTimingWindowSeconds || [55, 60],
       prepareTimingWindowSeconds: state.prepareTimingWindowSeconds || [50, 55],
