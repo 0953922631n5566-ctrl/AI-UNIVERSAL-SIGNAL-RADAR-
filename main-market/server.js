@@ -1058,8 +1058,9 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
   }
 });
 
-app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal-next.html")); });
+app.get("/signal-legacy", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health", (_req, res) => {
   noCache(res);
