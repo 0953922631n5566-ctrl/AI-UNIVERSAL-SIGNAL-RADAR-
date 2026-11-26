@@ -123,18 +123,20 @@ function renderChart(m){
  const hi=Math.max(...vals,Number.isFinite(live)?live:-Infinity),lo=Math.min(...vals,Number.isFinite(live)?live:Infinity);
  const range=Math.max(hi-lo,0.00008),pad=Math.max(range*.12,0.000035);
  const mid=(hi+lo)/2,half=(range/2+pad)/chartView.zoomY;
- const min=mid-half,max=mid+half,ph=H-T-B,pw=W-L-R,step=pw/Math.max(count,rows.length),bw=Math.max(5,Math.min(30,step*.72));
+ const min=mid-half,max=mid+half,ph=H-T-B,pw=W-L-R,slotStep=pw/Math.max(count,rows.length),step=slotStep*.52,bw=Math.max(5,Math.min(24,step*.72));
+ const latestAnchor=L+pw*.52;
+ const candleX=i=>latestAnchor-(rows.length-1-i)*step;
  const y=v=>T+(max-v)/(max-min)*ph+chartView.panY;
  ctx.font="15px sans-serif";ctx.textAlign="right";
  for(let k=0;k<5;k++){const yy=T+k*ph/4,value=max-((yy-T-chartView.panY)/ph)*(max-min);ctx.strokeStyle="#263640";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(W-R,yy);ctx.stroke();ctx.fillStyle="#82969d";ctx.fillText(value.toFixed(5),W-5,yy+5);}
- rows.forEach((d,i)=>{const x=L+i*step+step/2,o=+d.open,cl=+d.close,h=+d.high,l=+d.low,up=cl>=o,col=up?"#58c49b":"#ee6d61";ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillStyle=col;const top=y(Math.max(o,cl)),bottom=y(Math.min(o,cl));ctx.fillRect(x-bw/2,top,bw,Math.max(3,bottom-top));});
+ rows.forEach((d,i)=>{const x=candleX(i),o=+d.open,cl=+d.close,h=+d.high,l=+d.low,up=cl>=o,col=up?"#58c49b":"#ee6d61";ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,y(h));ctx.lineTo(x,y(l));ctx.stroke();ctx.fillStyle=col;const top=y(Math.max(o,cl)),bottom=y(Math.min(o,cl));ctx.fillRect(x-bw/2,top,bw,Math.max(3,bottom-top));});
  const last=rows[rows.length-1],price=Number.isFinite(live)?live:+last.close,py=y(price);
  ctx.strokeStyle="#e56b61";ctx.setLineDash([6,5]);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(L,py);ctx.lineTo(W-R,py);ctx.stroke();ctx.setLineDash([]);
  ctx.fillStyle="#e56b61";ctx.fillRect(W-R+2,py-14,86,28);ctx.fillStyle="#fff";ctx.font="bold 14px sans-serif";ctx.textAlign="center";ctx.fillText(price.toFixed(5),W-R+45,py+5);
  const dir=["CALL","PUT"].includes(m.signal)?m.signal:null;
- if(dir){const x=L+(rows.length-1)*step+step/2,yy=dir==="CALL"?y(+last.low)-26:y(+last.high)+34;ctx.fillStyle=dir==="CALL"?"#47e39a":"#ff6472";ctx.font="bold 25px sans-serif";ctx.textAlign="center";ctx.fillText(dir==="CALL"?"▲":"▼",x,yy);ctx.font="bold 16px sans-serif";ctx.fillText(dir,x,dir==="CALL"?yy+20:yy-26);}
+ if(dir){const x=candleX(rows.length-1),yy=dir==="CALL"?y(+last.low)-26:y(+last.high)+34;ctx.fillStyle=dir==="CALL"?"#47e39a":"#ff6472";ctx.font="bold 25px sans-serif";ctx.textAlign="center";ctx.fillText(dir==="CALL"?"▲":"▼",x,yy);ctx.font="bold 16px sans-serif";ctx.fillText(dir,x,dir==="CALL"?yy+20:yy-26);}
  ctx.font="15px sans-serif";ctx.fillStyle="#82969d";ctx.textAlign="center";
- [0,Math.floor(rows.length/2),rows.length-1].forEach(i=>{const d=new Date(+rows[i].epoch*1000);ctx.fillText(d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"}),L+i*step+step/2,H-10);});
+ [0,Math.floor(rows.length/2),rows.length-1].forEach(i=>{const d=new Date(+rows[i].epoch*1000);ctx.fillText(d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Bangkok"}),candleX(i),H-10);});
  $("chartStatus").textContent=(m.streamStatus==="SUBSCRIBED"||m.tickAgeSeconds!==null&&m.tickAgeSeconds<=5?"LIVE TICK":"DATA")+" · "+rows.length+" BARS";
 }
 function setupChartGestures(){
