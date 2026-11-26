@@ -21,12 +21,12 @@ test("builds compact pattern index from OHLC history",()=>{
 });
 test("returns a safe standby when the history is too short",()=>{
   const model=buildCandlePatternModel(makeCandles(100));
-  const result=predictNextCandle(model,makeCandles(100).slice(-8));
+  const result=predictNextCandle(model,makeCandles(100).slice(-22));
   assert.equal(result.signal,"STANDBY");
 });
 test("does not use an outcome from the current or future query window",()=>{
   const candles=makeCandles(1200),model=buildCandlePatternModel(candles);
-  const result=predictNextCandle(model,candles.slice(-8));
+  const result=predictNextCandle(model,candles.slice(-22));
   assert.ok(["CALL","PUT","STANDBY"].includes(result.signal));
   assert.ok(result.matches===undefined||result.matches<=30);
 });
