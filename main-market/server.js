@@ -1144,16 +1144,19 @@ app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, r
   const live = feed?.candles?.at(-1)?.live === true ? feed.candles.at(-1) : null;
   const now = Date.now();
   const tickAgeSeconds = feed?.tickAt ? Math.max(0, (now - feed.tickAt) / 1000) : null;
-  const prediction = resolveClosedCandleSignal({
-    state: candleLearning.signalState,
-    closedCandles: closed,
-    liveCandle: live,
-    monitoring,
-    monitoringStartedAt,
-    tickAgeSeconds,
-    now,
-    predict: candles => predictNextCandle(candleLearning.model, candles.slice(-22))
-  });
+  // Keep the broad feed freshness lock; the one-shot gate below applies the stricter <=5s entry tick.
+  const prediction = tickAgeSeconds === null || tickAgeSeconds > MAX_STREAM_AGE_SECONDS
+    ? { signal: "STANDBY", reason: "ราคา Streaming ไม่สดพอ · ระงับสัญญาณจนกว่าจะได้รับราคาปัจจุบัน" }
+    : resolveClosedCandleSignal({
+        state: candleLearning.signalState,
+        closedCandles: closed,
+        liveCandle: live,
+        monitoring,
+        monitoringStartedAt,
+        tickAgeSeconds,
+        now,
+        predict: candles => predictNextCandle(candleLearning.model, candles.slice(-22))
+      });
   res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
     tickAgeSeconds, monitoring, monitoringStartedAt: monitoringStartedAt || null,
     symbol: "EUR/USD", interval: "1min", manualOnly: true, brokerExecution: false,
