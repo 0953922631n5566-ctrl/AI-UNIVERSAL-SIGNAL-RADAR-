@@ -123,7 +123,7 @@ function publicFeed(feed) {
       : monitoring ? "CONNECTING" : "OFFLINE",
     tickAgeSeconds: tickAge === null ? null : Math.round(tickAge),
     lastTickPrice: freshTick,
-    candles: feed.candles.filter(candle => candle && candle.live !== true).slice(-60),
+    candles: feed.candles.filter(candle => candle).slice(-60),
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
