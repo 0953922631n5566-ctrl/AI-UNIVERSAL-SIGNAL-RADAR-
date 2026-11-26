@@ -30,14 +30,20 @@ export function resolveClosedCandleSignal({
     return standby("รอแท่ง M1 ปิดล่าสุดจาก Twelve Data");
   }
 
-  // Once this source candle has been evaluated, all later polls return the
-  // exact same result; this includes STANDBY and prevents late re-evaluation.
-  if (state?.sourceEpoch === latestClosed.epoch && state.result) {
-    return state.result;
-  }
-
   const targetEpoch = latestClosed.epoch + 60;
   if (!monitoring) return standby("ระบบเฝ้าระวังยังไม่เริ่มรับราคาตลาดสด");
+
+  // Once evaluated, later polls reuse the cached result. If monitoring was
+  // stopped and restarted after the target candle opened, never re-show it.
+  if (state?.sourceEpoch === latestClosed.epoch && state.result) {
+    if (monitoringStartedAt > targetEpoch * 1000) {
+      return standby("แท่งนี้ถูกประมวลผลไปแล้ว · ไม่ส่งสัญญาณซ้ำ", {
+        targetCandleEpoch: targetEpoch,
+        alreadyIssued: true
+      });
+    }
+    return state.result;
+  }
   if (!liveCandle?.live || liveCandle.epoch !== targetEpoch) {
     return standby("รอแท่ง M1 ถัดไปเริ่มต้น เพื่อส่งสัญญาณทันที");
   }
