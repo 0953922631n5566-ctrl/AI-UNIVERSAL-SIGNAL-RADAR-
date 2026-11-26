@@ -30,7 +30,7 @@ test("abnormal ATR range suppresses CALL/PUT",()=>{
  const c=fixture();c.at(-1).high+=0.002;const r=scoreMarket(c,native(c));assert.equal(r.signal,"STANDBY");assert.ok(r.riskFlags.includes("HIGH_ATR_SPIKE_KILL_SWITCH"));
 });
 
-test("55 is the universal directional release boundary; 0-64 stays STANDBY",()=>{
+test("55 is the universal directional release boundary; 0-54 stays STANDBY",()=>{
  assert.deepEqual(classifyPartialScore(54,"CALL"),{signal:"STANDBY",status:"STANDBY"});
  assert.deepEqual(classifyPartialScore(55,"CALL"),{signal:"CALL",status:"SIGNAL"});
  assert.deepEqual(classifyPartialScore(55,"PUT"),{signal:"PUT",status:"SIGNAL"});
