@@ -31,7 +31,10 @@ test("Mini App chart shows 15 enlarged candles beside the order signal with live
  assert.match(html,/const liveX=left\+\(candles\.length-\.5\)\*step/);
  assert.match(html,/15 CANDLES \+ EMA5 \+ S\/R/);
  assert.match(html,/chartResize/);
- assert.match(html,/id="chartResize"/);\n assert.match(server,/refreshPrepareFromLive/);\n assert.match(server,/lastPrepareAnalysisAt/);\n assert.match(server,/supportDistancePips:result\.supportDistancePips/);
+ assert.match(html,/id="chartResize"/);
+ assert.match(server,/refreshPrepareFromLive/);
+ assert.match(server,/lastPrepareAnalysisAt/);
+ assert.match(server,/supportDistancePips:result\.supportDistancePips/);
  assert.match(html,/localStorage\.getItem\("eurusd-chart-height"\)/);
  assert.match(html,/localStorage\.setItem\("eurusd-chart-height"/);
  assert.match(html,/Math\.max\(160,Math\.min\(560/);
