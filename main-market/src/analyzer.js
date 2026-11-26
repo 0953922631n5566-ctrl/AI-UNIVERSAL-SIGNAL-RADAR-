@@ -35,6 +35,6 @@ export async function analyzeMarket(candles, options = {}) {
   return {...scored,...base,prepareSignal:scored.prepareSignal||null,
     analyzedAt:new Date(Number.isFinite(options.now)?options.now:Date.now()).toISOString(),
     signalReleaseValidated:false,
-    signalValidationStatus:"TWELVE_DATA_NATIVE_PARTIAL_SCORING_MANUAL_ONLY_NOT_OOS_VALIDATED",
-    signalValidationNote:"Partial Scoring 65/45 · EMA5/EMA20/ATR14 จาก Twelve Data Native · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"};
+    signalValidationStatus:"TWELVE_DATA_NATIVE_SCORING_65_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalValidationNote:"All Analysis Threshold 65 · EMA5/EMA20/ATR14 จาก Twelve Data Native · ยังไม่มีผลประเมิน out-of-sample · ใช้ประกอบการตัดสินใจด้วยตนเองเท่านั้น"};
 }
