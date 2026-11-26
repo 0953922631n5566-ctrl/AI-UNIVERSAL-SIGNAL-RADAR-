@@ -80,8 +80,8 @@ export const EMA5_MIN_HISTORY=MIN_HISTORY;
 export const STRATEGY_ID = "MA5_BOLLINGER_20_2_M1";
 const PERIOD_BB = 20;
 const PERIOD_MA = 5;
-const PIP = 0.0001;
-const MIN_HISTORY = 40;
+const BB_PIP = 0.0001;
+const BB_MIN_HISTORY = 40;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function samplingPhase(epochSeconds) {
@@ -118,8 +118,8 @@ function rejection(candle, direction) {
   const body = Math.abs(candle.close - candle.open);
   const upperWick = candle.high - Math.max(candle.open, candle.close);
   const lowerWick = Math.min(candle.open, candle.close) - candle.low;
-  if (direction === "CALL") return candle.close > candle.open || (lowerWick >= Math.max(body * 0.7, PIP * 0.25) && lowerWick > upperWick);
-  return candle.close < candle.open || (upperWick >= Math.max(body * 0.7, PIP * 0.25) && upperWick > lowerWick);
+  if (direction === "CALL") return candle.close > candle.open || (lowerWick >= Math.max(body * 0.7, BB_PIP * 0.25) && lowerWick > upperWick);
+  return candle.close < candle.open || (upperWick >= Math.max(body * 0.7, BB_PIP * 0.25) && upperWick > lowerWick);
 }
 
 export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAgeSeconds }) {
@@ -129,14 +129,14 @@ export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAge
   if (!Number.isFinite(tickAgeSeconds) || tickAgeSeconds > 5) return wait("ราคา Streaming ไม่สดเกิน 5 วินาที");
   const closed = [...(closedCandles || [])].filter(c => c && c.live !== true && Number.isFinite(c.epoch))
     .sort((a, b) => a.epoch - b.epoch);
-  if (closed.length < MIN_HISTORY) return wait(`ประวัติแท่งปิดไม่พอ (${closed.length}/${MIN_HISTORY})`);
+  if (closed.length < BB_MIN_HISTORY) return wait(`ประวัติแท่งปิดไม่พอ (${closed.length}/${BB_MIN_HISTORY})`);
   const candles = [...closed, liveCandle];
   if (candles.some(c => ![c.open, c.high, c.low, c.close].every(Number.isFinite))) return wait("ข้อมูล OHLC ไม่สมบูรณ์");
   const closes = candles.map(c => Number(c.close));
   const currentBands = bands(closes);
   const ma5 = mean(closes.slice(-PERIOD_MA));
   const previousMa5 = mean(closes.slice(-PERIOD_MA - 1, -1));
-  const maSlopePips = (ma5 - previousMa5) / PIP;
+  const maSlopePips = (ma5 - previousMa5) / BB_PIP;
   const widthHistory = bandWidthHistory(closes);
   const typicalWidth = median(widthHistory);
   if (!currentBands || !typicalWidth || currentBands.width <= 0) return wait("คำนวณ BB(20,2) ไม่สำเร็จ");
@@ -184,4 +184,4 @@ export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAge
   return wait("ยังไม่ครบเงื่อนไข MA5 + BB(20,2) และแท่งปฏิเสธ", common);
 }
 
-export const EMA5_MIN_HISTORY = MIN_HISTORY;
+export const EMA5_MIN_HISTORY = BB_MIN_HISTORY;
