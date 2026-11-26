@@ -34,3 +34,20 @@ test("prepared signal enters target candle once only",()=>{
  assert.equal(duplicate,null);
  assert.equal(state.history.length,1);
 });
+
+test("upward EMA5 slope plus bullish pullback through EMA5 prepares CALL",()=>{
+ const rising=Array.from({length:30},(_,i)=>({epoch:1000+i*60,open:1+i*0.0002,high:1.001+i*0.0002,low:0.999+i*0.0002,close:1+i*0.0002,live:false}));
+ const provisional=calculateEma5([...rising.map(c=>c.close),rising.at(-1).close+0.0007]);
+ const live={epoch:2800,open:rising.at(-1).close+0.0001,high:rising.at(-1).close+0.001,low:provisional.current-0.00005,close:rising.at(-1).close+0.0007,live:true};
+ const result=analyzeEma5Pullback({symbol:"EUR/USD",closedCandles:rising,liveCandle:live,tickAgeSeconds:1});
+ assert.equal(result.signal,"CALL");
+ assert.equal(result.slope,"UP");
+});
+test("downward EMA5 slope plus bearish rejection through EMA5 prepares PUT",()=>{
+ const falling=Array.from({length:30},(_,i)=>({epoch:1000+i*60,open:1.006-i*0.0002,high:1.007-i*0.0002,low:1.005-i*0.0002,close:1.006-i*0.0002,live:false}));
+ const provisional=calculateEma5([...falling.map(c=>c.close),falling.at(-1).close-0.0007]);
+ const live={epoch:2800,open:falling.at(-1).close-0.0001,high:provisional.current+0.00005,low:falling.at(-1).close-0.001,close:falling.at(-1).close-0.0007,live:true};
+ const result=analyzeEma5Pullback({symbol:"EUR/USD",closedCandles:falling,liveCandle:live,tickAgeSeconds:1});
+ assert.equal(result.signal,"PUT");
+ assert.equal(result.slope,"DOWN");
+});
