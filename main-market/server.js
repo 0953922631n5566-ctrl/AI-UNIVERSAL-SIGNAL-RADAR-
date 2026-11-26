@@ -12,6 +12,7 @@ import { NEXT_SIGNAL_THRESHOLD, NEXT_PREPARE_THRESHOLD, NEXT_SIGNAL_HOLD_MS, NEX
 import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { loadCandleHistory, buildCandlePatternModel, predictNextCandle } from "./src/candle-pattern-engine.js";
+import { resolveClosedCandleSignal } from "./src/candle-signal-gate.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -29,7 +30,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "TWELVE DATA 200K CANDLE PATTERN ANALYZER";
 const ARCHITECTURE_ID = "TWELVE_DATA_200K_CANDLE_PATTERN_ANALYZER";
-const VERSION = "2026-11-26-candle-pattern-200k-primary-v1";
+const VERSION = "2026-11-26-candle-pattern-next-m1-once-v2";
 const app = express();
 const server = http.createServer(app);
 
@@ -59,7 +60,8 @@ function newFeed(symbol) {
 const candleLearning = {
   phase: "NOT_STARTED", message: "ยังไม่ได้โหลดข้อมูลย้อนหลัง",
   targetCandles: 200000, loadedCandles: 0, pages: 0, model: null,
-  startedAt: null, finishedAt: null, error: null, trainingPromise: null
+  startedAt: null, finishedAt: null, error: null, trainingPromise: null,
+  signalState: { sourceEpoch: null, result: null }
 };
 function publicCandleLearning() {
   return {
@@ -76,6 +78,7 @@ function publicCandleLearning() {
 const feeds = new Map(SYMBOLS.map(symbol => [symbol, newFeed(symbol)]));
 let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
+let monitoringStartedAt = 0;
 let upstream = null;
 let restTimer = null;
 let emaTimer = null;
@@ -857,6 +860,7 @@ async function start(symbolValue) {
   stop(false);
   selectedSymbol = symbol;
   monitoring = true;
+  monitoringStartedAt = Date.now();
   globalLockMessage = null;
   const feed = feeds.get(symbol);
   feed.tickAt = 0;
@@ -902,6 +906,7 @@ async function select(symbolValue) {
 
 function stop(clearSignal = true) {
   monitoring = false;
+  monitoringStartedAt = 0;
   clearTimers();
   closeUpstream();
   const feed = feeds.get(selectedSymbol);
@@ -1135,18 +1140,28 @@ app.get("/api/telegram/candle-learning/predict", requireTelegramSession, (req, r
     return res.status(409).json({ ok: false, error: "โมเดลยังไม่พร้อม", learning: publicCandleLearning() });
   }
   const feed = feeds.get("EUR/USD");
-  const closed = (feed?.candles || []).filter(c => c && c.live !== true).slice(-22);
+  const closed = (feed?.candles || []).filter(c => c && c.live !== true);
+  const live = feed?.candles?.at(-1)?.live === true ? feed.candles.at(-1) : null;
   const now = Date.now();
   const tickAgeSeconds = feed?.tickAt ? Math.max(0, (now - feed.tickAt) / 1000) : null;
-  let prediction = predictNextCandle(candleLearning.model, closed);
-  if (!monitoring) {
-    prediction = { ...prediction, signal: "STANDBY", reason: "ระบบเฝ้าระวังยังไม่เริ่มรับราคาตลาดสด" };
-  } else if (tickAgeSeconds === null || tickAgeSeconds > MAX_STREAM_AGE_SECONDS) {
-    prediction = { ...prediction, signal: "STANDBY", reason: "ราคา Streaming ไม่สดพอ · ระงับสัญญาณจนกว่าจะได้รับราคาปัจจุบัน" };
-  }
+  // Keep the broad feed freshness lock; the one-shot gate below applies the stricter <=5s entry tick.
+  const prediction = tickAgeSeconds === null || tickAgeSeconds > MAX_STREAM_AGE_SECONDS
+    ? { signal: "STANDBY", reason: "ราคา Streaming ไม่สดพอ · ระงับสัญญาณจนกว่าจะได้รับราคาปัจจุบัน" }
+    : resolveClosedCandleSignal({
+        state: candleLearning.signalState,
+        closedCandles: closed,
+        liveCandle: live,
+        monitoring,
+        monitoringStartedAt,
+        tickAgeSeconds,
+        now,
+        predict: candles => predictNextCandle(candleLearning.model, candles.slice(-22))
+      });
   res.json({ ok: true, prediction, price: feed?.lastTick ?? closed.at(-1)?.close ?? null,
-    tickAgeSeconds, monitoring, symbol: "EUR/USD", interval: "1min", manualOnly: true,
-    livePriceRequired: true, maxLivePriceAgeSeconds: MAX_STREAM_AGE_SECONDS });
+    tickAgeSeconds, monitoring, monitoringStartedAt: monitoringStartedAt || null,
+    symbol: "EUR/USD", interval: "1min", manualOnly: true, brokerExecution: false,
+    livePriceRequired: true, maxLivePriceAgeSeconds: MAX_STREAM_AGE_SECONDS,
+    dispatchPolicy: "LATEST_CLOSED_M1_TO_NEXT_M1_ONCE_WITHIN_10S" });
 });
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
@@ -1169,7 +1184,7 @@ app.get("/health", (_req, res) => {
       dataProvider: "TWELVE_DATA_NATIVE_EMA5_EMA20_ATR14_PLUS_M1_OHLC_AND_STREAMING",
       primaryDataProvider: "TWELVE_DATA_REAL_M1_OHLC_200K_PLUS_LIVE_STREAMING_PRICE",
       controlChannel: "TELEGRAM_MINI_APP_HTTP_POLLING_START_STOP",
-      primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", manualOnly: true },
+      primaryMiniApp: { route: "/signal", api: "/api/telegram/candle-learning", strategy: "200K_HISTORICAL_8_CANDLE_ANALOGUE_MATCHING", timeframe: "M1", dispatchPolicy: "LATEST_CLOSED_CANDLE_TO_NEXT_M1_ONCE_WITHIN_10S", manualOnly: true },
       candlePatternLab: { route: "/signal", aliasRoute: "/candle-lab", api: "/api/telegram/candle-learning", provider: "TWELVE_DATA_REAL_OHLC", timeframe: "M1", defaultHistoryCandles: 200000, maxHistoryCandles: 200000, patternLength: 8, isolatedFromPrimarySignal: false, livePriceRequired: true }
     },
     analyzer: { provider: "TWELVE_DATA_NATIVE_INDICATORS", configured: true, role: "SOLE_DETERMINISTIC_DIRECTIONAL_ANALYST", externalAiCalls: false, componentWeights: { ema5SlopeReversal: 30, srFakeout: 30, proximityMomentum: 20, trendContext: 20 }, thresholds: { allAnalysis: 55, callPut: 55, prepare: null, standbyBelow: 55 } },
