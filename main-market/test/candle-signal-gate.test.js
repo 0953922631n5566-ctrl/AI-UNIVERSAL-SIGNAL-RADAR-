@@ -55,3 +55,14 @@ test("waits for a fresh streaming tick before consuming the candle", () => {
   const ready = resolveClosedCandleSignal({ ...base, state, now: 182_000, tickAgeSeconds: 1, predict: () => ({ signal: "PUT" }) });
   assert.equal(ready.signal, "PUT");
 });
+
+test("does not re-show a cached signal after monitoring is restarted mid-target-candle", () => {
+  const state = { sourceEpoch: null, result: null };
+  resolveClosedCandleSignal({ ...base, state, predict: () => ({ signal: "CALL" }) });
+  const afterRestart = resolveClosedCandleSignal({
+    ...base, state, monitoringStartedAt: 180_500, now: 182_000,
+    predict: () => ({ signal: "PUT" })
+  });
+  assert.equal(afterRestart.signal, "STANDBY");
+  assert.equal(afterRestart.alreadyIssued, true);
+});
