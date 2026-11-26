@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SYMBOLS, DEFAULT_SYMBOL, resolveSymbol, HISTORY_CANDLES, MIN_CLOSED_CANDLES, MAX_CANDLES, LIVE_PRICE_CHECK_SECONDS } from "../src/config.js";
-test("Main Market exposes the four selected major forex pairs",()=>{
- assert.deepEqual(SYMBOLS,["EUR/USD","EUR/JPY","GBP/USD","USD/JPY"]);
+test("Main Market is locked to EUR/USD only",()=>{
+ assert.deepEqual(SYMBOLS,["EUR/USD"]);
  assert.equal(DEFAULT_SYMBOL,"EUR/USD");
 });
 test("pair selection normalizes case and slash formatting but rejects unknown pairs",()=>{
