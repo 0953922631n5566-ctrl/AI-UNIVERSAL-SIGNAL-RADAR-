@@ -95,11 +95,11 @@ button{font:inherit}
 const $=id=>document.getElementById(id);
 const tg=window.Telegram?.WebApp||null;
 let token="",latest={},pollBusy=false,controlBusy=false,authBusy=null,authRetryAfter=0,authFailureCount=0,autoStartBusy=false,bootStartCompleted=false;
-let audio=null,soundEnabled=false,lastAlertId="",lastPrepareId="",toastTimer=null,manualLampColor="RED";
+let audio=null,soundEnabled=false,lastAlertId="",lastPrepareId="",lastLampAlertKey="",lampHoldUntil=0,lampHoldState="",toastTimer=null,manualLampColor="RED";
 const fmt=v=>v!==null&&v!==undefined&&v!==""&&Number.isFinite(Number(v))?Number(v).toFixed(5):"—";
 function timeMs(v){if(v===null||v===undefined||v==="")return NaN;const n=typeof v==="number"?v:Number(v);if(Number.isFinite(n))return n;const p=Date.parse(v);return Number.isFinite(p)?p:NaN;}
 function countdown(v){const t=timeMs(v);if(!Number.isFinite(t))return "—";const s=Math.max(0,Math.ceil((t-Date.now())/1000));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
-function soundPattern(freqs){if(!soundEnabled||!audio||audio.state!=="running")return;const start=audio.currentTime+.02;freqs.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),at=start+i*.22;o.type="sine";o.frequency.setValueAtTime(f,at);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.13,at+.02);g.gain.exponentialRampToValueAtTime(.0001,at+.15);o.connect(g);g.connect(audio.destination);o.start(at);o.stop(at+.18);});}
+function soundPattern(freqs){if(!soundEnabled||!audio||audio.state!=="running")return;const start=audio.currentTime+.02;freqs.forEach((f,i)=>{const o=audio.createOscillator(),g=audio.createGain(),at=start+i*.20;o.type="sine";o.frequency.setValueAtTime(f,at);g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.30,at+.025);g.gain.setValueAtTime(.30,at+.19);g.gain.exponentialRampToValueAtTime(.0001,at+.27);o.connect(g);g.connect(audio.destination);o.start(at);o.stop(at+.29);});}
 async function enableSound(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)throw Error("อุปกรณ์ไม่รองรับเสียง");if(!audio)audio=new C();await audio.resume();soundEnabled=audio.state==="running";if(!soundEnabled)throw Error("ยังเปิดเสียงไม่ได้");$("soundEnable").textContent="เสียงแจ้งเตือนเปิดแล้ว";$("soundStatus").textContent="เปิดเสียงเรียบร้อย · ระบบจะส่งเสียงเมื่อมี PREPARE / CALL / PUT";soundPattern([660,880]);}catch(e){$("soundStatus").textContent=e.message||"เปิดเสียงไม่สำเร็จ";}}
 $("soundEnable").addEventListener("click",enableSound);
 
@@ -160,7 +160,7 @@ function paint(m){latest=m||{};renderChart(m);paintApiPool(m.apiPool||{});const 
 $("monitorStatus").textContent=monitoring?"กำลังรับข้อมูล":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดรับข้อมูล":"เริ่มรับข้อมูล";
 $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
 const indicator=m.indicators||{},ready=indicator.status==="READY";const usable=api==="ONLINE"&&monitoring&&ready;
-const dir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";const state=dir||(preparing?"PREPARE":"STANDBY");
+const actualDir=usable&&["CALL","PUT"].includes(m.signal)?m.signal:null;const preparing=usable&&m.preAlertStatus==="PREPARE_ALERT";if(actualDir){const lampKey=String(m.alertId|| (actualDir+":"+String(m.nextCandleAt||"")));if(lampKey!==lastLampAlertKey){lastLampAlertKey=lampKey;lampHoldState=actualDir;lampHoldUntil=Date.now()+30000;}}if(lampHoldUntil<=Date.now())lampHoldState="";const dir=lampHoldState||null;const state=dir||(preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=state;
 $("hint").textContent=state==="CALL"?"EMA5 Pullback + S/R · สัญญาณฝั่งซื้อสำหรับแท่ง M1 ถัดไป":state==="PUT"?"EMA5 Pullback + S/R · สัญญาณฝั่งขายสำหรับแท่ง M1 ถัดไป":preparing?"PREPARE · เฝ้าระวัง ไม่ใช่สัญญาณเข้าออเดอร์":"รอ Streaming สดและเงื่อนไข EMA5 Pullback + S/R";
@@ -172,7 +172,7 @@ $("indicatorStatus").textContent=ready
 :(indicator.message||"รอ OHLC และราคา Streaming จาก Twelve Data");
 $("reason").textContent=m.reason||m.statusMessage||"รอการวิเคราะห์";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
-if(dir&&m.alertId&&String(m.alertId)!==lastAlertId){lastAlertId=String(m.alertId);soundPattern(dir==="CALL"?[880,1175,880]:[660,523,660]);try{navigator.vibrate?.([140,70,140]);tg?.HapticFeedback?.notificationOccurred("success");}catch{}}
+if(actualDir&&m.alertId&&String(m.alertId)!==lastAlertId){lastAlertId=String(m.alertId);soundPattern(actualDir==="CALL"?[880,1175,880,1175]:[660,523,660,523]);try{navigator.vibrate?.([140,70,140]);tg?.HapticFeedback?.notificationOccurred("success");}catch{}}
 $("updated").textContent=new Date().toLocaleTimeString("th-TH");}
 async function poll(){if(pollBusy||document.visibilityState==="hidden")return;pollBusy=true;try{await ensureAuth();let r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(r.status===401){token="";await ensureAuth();r=await fetch("/api/telegram/signal",{headers:{Authorization:"Bearer "+token},cache:"no-store"});}const b=await r.json().catch(()=>({}));if(!r.ok)throw Error(b.error||"อ่านสถานะไม่สำเร็จ");paint(b.market||{});}catch(e){setApi("OFFLINE","RECONNECTING");$("hint").textContent=e.message||"กำลังเชื่อมต่อใหม่";}finally{pollBusy=false;}}
 $("monitorToggle").addEventListener("click",async()=>{const action=latest.monitoring?"stop":"start";await control(action);});
