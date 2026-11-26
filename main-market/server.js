@@ -7,17 +7,13 @@ import WebSocket from "ws";
 import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
-import { analyzeMarket } from "./src/analyzer.js";
-import { NEXT_SIGNAL_THRESHOLD, NEXT_PREPARE_THRESHOLD, NEXT_SIGNAL_HOLD_MS, NEXT_SIGNAL_MAX_TICK_AGE_MS } from "./src/streaming-entry-engine.js";
-import { canFinalizeSignal, isPrepareAlertWindow, isSignalFinalizeWindow, signalHoldExpiresAt } from "./src/signal-timing.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeEma5Pullback, enterPreparedSignal, samplingPhase } from "./src/ema5-two-phase-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
   SYMBOLS, DEFAULT_SYMBOL, INTERVAL, MIN_CLOSED_CANDLES, HISTORY_CANDLES, MAX_CANDLES,
-  REST_SYNC_SECONDS, LIVE_PRICE_CHECK_SECONDS, LIVE_ANALYSIS_INTERVAL_SECONDS,
-  MAX_CANDLE_AGE_SECONDS, MAX_STREAM_AGE_SECONDS, SIGNAL_HOLD_SECONDS,
+  LIVE_PRICE_CHECK_SECONDS, MAX_STREAM_AGE_SECONDS,
   resolveSymbol
 } from "./src/config.js";
 
@@ -388,26 +384,6 @@ function tickEma5Clock(){
 }
 function startEma5Sampler(){clearInterval(ema5Timer);ema5Timer=setInterval(tickEma5Clock,200);tickEma5Clock();}
 
-function startIndicatorTimer() {
-  if(emaTimer)clearInterval(emaTimer);
-  // Check locally every 5s, but request each native indicator only once per new M1 minute.
-  emaTimer=setInterval(()=>{
-    if(!monitoring)return;
-    const feed=feeds.get(selectedSymbol);
-    if(feed)void refreshNativeIndicators(feed);
-  },5000);
-}
-
-function startSignalTimer() {
-  if (signalTimer) clearInterval(signalTimer);
-  // Local safety cadence keeps the single Trend Rider analysis aligned to M1 timing.
-  signalTimer = setInterval(() => {
-    if (!monitoring) return;
-    const feed = feeds.get(selectedSymbol);
-    if (feed?.candles.at(-1)?.live) scheduleLiveAnalysis(feed);
-  }, LIVE_ANALYSIS_INTERVAL_SECONDS * 1000);
-}
-
 function startWatchdog() {
   if (watchdogTimer) clearInterval(watchdogTimer);
   watchdogTimer = setInterval(async () => {
@@ -649,11 +625,12 @@ async function start(symbolValue) {
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
+  resetEma5State(feed, "กำลังเริ่มสแกน " + symbol);
   startWatchdog();
-  startEma5Sampler();
   publish();
   await syncSelected({ force: true, symbol });
   if (monitoring) startStream();
+  startEma5Sampler();
   publish();
 }
 
