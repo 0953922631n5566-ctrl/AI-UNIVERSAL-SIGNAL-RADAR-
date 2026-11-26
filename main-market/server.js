@@ -89,6 +89,7 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
+  const ema5 = feed.ema5State || {};
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
   const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
@@ -104,6 +105,17 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
+    signal: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : "STANDBY",
+    direction: ["CALL","PUT"].includes(ema5.signal) ? ema5.signal : null,
+    reason: ema5.reason || analysis.reason,
+    phase: ema5.phase || "WAIT",
+    slope: ema5.slope || "WAIT",
+    ema5: ema5.ema5 ?? null,
+    openPrice: ema5.openPrice ?? null,
+    sourceCandleEpoch: ema5.sourceEpoch ?? null,
+    targetCandleEpoch: ema5.preparedForEpoch ?? ema5.enteredEpoch ?? null,
+    analysisMode: "EMA5_PULLBACK_TWO_PHASE_M1",
+    indicatorSource: "Twelve Data M1 OHLC · EMA5 only",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -123,7 +135,7 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { contextCandles: 50, entryCandles: 4, total: MIN_CLOSED_CANDLES },
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicator: "EMA5" },
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -131,8 +143,8 @@ function publicFeed(feed) {
       : null,
     signalExpiresAt: feed.activeUntil > Date.now()
       ? new Date(feed.activeUntil).toISOString() : null,
-    alertId: feed.alertId,
-    preAlertSignal: feed.preAlertSignal,
+    alertId: ema5.alertId || feed.alertId,
+    preAlertSignal: ema5.preparedSignal || null,
     indicators: { status: feed.ema5State?.ema5 != null ? "READY" : "WAITING", ema5: feed.ema5State?.ema5 ?? null, period: 5, source: "EMA5 from Twelve Data M1 OHLC" },
     source: "Twelve Data real M1 OHLC + EMA5 pullback · Two-phase sampling"
   };
