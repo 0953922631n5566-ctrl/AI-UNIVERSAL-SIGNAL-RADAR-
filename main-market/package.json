@@ -17,8 +17,8 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data Native Scoring 65 All Analysis",
-    "displayName": "All Analysis Threshold 65 · EMA5/EMA20/ATR14",
+    "name": "Twelve Data Native Scoring 55 All Analysis",
+    "displayName": "All Analysis Threshold 55 · EMA5/EMA20/ATR14",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "TWELVE_DATA_NATIVE_INDICATORS_AND_OHLC_SCORING",
@@ -30,9 +30,9 @@
       "estimatedCreditsPerDay": 4320
     },
     "strategy": {
-      "name": "TWELVE_DATA_NATIVE_SCORING_65_ALL_ANALYSIS",
+      "name": "TWELVE_DATA_NATIVE_SCORING_55_ALL_ANALYSIS",
       "signalGeneration": true,
-      "entryRule": "All analysis >=65/100; below 65 is STANDBY; manual only"
+      "entryRule": "All analysis >=55/100; below 55 is STANDBY; manual only"
     },
     "keyPool": {
       "configuredKeys": 10,
