@@ -4,10 +4,11 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("primary Telegram Mini App is the EUR/USD EMA5 score-80 signal-light interface",()=>{
+test("primary Telegram Mini App is the EUR/USD EMA5 + RSI14 score-80 signal-light interface",()=>{
  assert.match(html,/EUR \/ USD/);assert.match(html,/id="signal"/);
  assert.doesNotMatch(html,/id="candleChart"|class="chart-panel"/);
- assert.match(html,/EMA5 · SCORE 80\/100/);
+ assert.match(html,/EMA5 \+ RSI\(14\) · SCORE 80\/100/);
+ assert.match(html,/indicator\.rsi14/);
  assert.match(server,/app\.get\("\/signal".*public.*signal\.html/s);
 });
 test("Mini App controls scanner without a pair selector",()=>{
@@ -21,8 +22,8 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");
  assert.ok(start>0&&end>start);assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
-test("backend health metadata declares EMA5-only score 80 and no external AI",()=>{
- assert.match(server,/decisionEngine:"EURUSD_EMA5_SCORE_80_M1"/);
- assert.match(server,/primaryDecisionEngine:"EMA5_ONLY_SCORE_THRESHOLD_80"/);
- assert.match(server,/indicators:\["EMA5"\]/);assert.match(server,/externalAiCalls:false/);
+test("backend health metadata declares EMA5 + RSI14 score 80 and no external AI",()=>{
+ assert.match(server,/decisionEngine:"EURUSD_EMA5_RSI14_SCORE_80_M1"/);
+ assert.match(server,/primaryDecisionEngine:"EMA5_PLUS_RSI14_SCORE_THRESHOLD_80"/);
+ assert.match(server,/indicators:\["EMA5","RSI14"\]/);assert.match(server,/externalAiCalls:false/);
 });
