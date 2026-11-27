@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeMa5Bollinger } from "./src/ema5-two-phase-engine.js";
+import { analyzeEma5Score } from "./src/ema5-two-phase-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -23,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EURUSD MA5 BOLLINGER 20 2 M1 SIGNAL RADAR";
-const ARCHITECTURE_ID = "EURUSD_MA5_BOLLINGER_20_2_M1";
-const VERSION = "2026-11-26-eurusd-ma5-bb20-2-watch10-order30-v1";
+const SYSTEM_NAME = "EURUSD EMA5 SCORE 80 M1 SIGNAL RADAR";
+const ARCHITECTURE_ID = "EURUSD_EMA5_SCORE_80_M1";
+const VERSION = "2026-11-27-eurusd-ema5-score80-watch10-order30-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -118,8 +118,8 @@ function publicFeed(feed) {
     orderExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
     sourceCandleEpoch: ema5.minuteEpoch ?? null,
     targetCandleEpoch: ema5.orderTargetEpoch ?? null,
-    analysisMode: "MA5_BOLLINGER_20_2_M1",
-    indicatorSource: "Twelve Data real M1 OHLC · SMA5 + Bollinger Bands(20,2)",
+    analysisMode: "EMA5_SCORE_80_M1",
+    indicatorSource: "Twelve Data real M1 OHLC · EMA5 · score threshold 80/100",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -139,9 +139,9 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["SMA5", "Bollinger Bands(20,2)"] },
-    ma5: ema5.lastAnalysis?.ma5 ?? null, bbUpper: ema5.lastAnalysis?.bbUpper ?? null, bbMiddle: ema5.lastAnalysis?.bbMiddle ?? null, bbLower: ema5.lastAnalysis?.bbLower ?? null,
-    bbWidthRatio: ema5.lastAnalysis?.bbWidthRatio ?? null, bandPosition: ema5.lastAnalysis?.bandPosition ?? null, regime: ema5.lastAnalysis?.regime ?? null,
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["EMA5"] },
+    ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null,
+    score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, scoreThreshold: 80, regime: ema5.lastAnalysis?.regime ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
@@ -151,8 +151,8 @@ function publicFeed(feed) {
     alertId: ema5.orderAlertId || null,
     preAlertSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
     preAlertStatus: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal) ? "PREPARE_ALERT" : null,
-    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ma5: ema5.lastAnalysis?.ma5 ?? null, bbUpper: ema5.lastAnalysis?.bbUpper ?? null, bbMiddle: ema5.lastAnalysis?.bbMiddle ?? null, bbLower: ema5.lastAnalysis?.bbLower ?? null, bbWidthRatio: ema5.lastAnalysis?.bbWidthRatio ?? null, source: "SMA5 + Bollinger Bands(20,2) from Twelve Data M1 OHLC" },
-    source: "Twelve Data real M1 OHLC + MA5 + Bollinger Bands(20,2) · 10s watch / 5s order / 30s lamp"
+    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null, score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, threshold: 80, source: "EMA5 only from Twelve Data M1 OHLC" },
+    source: "Twelve Data real M1 OHLC + EMA5 score 80/100 · 10s watch / 5s order / 30s lamp"
   };
 }
 
@@ -329,13 +329,13 @@ function resetEma5State(feed, reason = "รอเริ่มสแกน") {
     sampledAt: null, lastAnalysis: null
   };
 }
-function runMa5BollingerCheck(feed, minuteEpoch, phase) {
+function runEma5ScoreCheck(feed, minuteEpoch, phase) {
   const state = feed.ema5State;
   const now = Date.now();
   const live = feed.candles.at(-1)?.live && feed.candles.at(-1).epoch === minuteEpoch
     ? feed.candles.at(-1) : null;
   const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
-  const result = analyzeMa5Bollinger({
+  const result = analyzeEma5Score({
     symbol: feed.symbol,
     closedCandles: feed.candles.filter(c => c && !c.live),
     liveCandle: live,
@@ -354,7 +354,7 @@ function runMa5BollingerCheck(feed, minuteEpoch, phase) {
     state.reason = state.watchSignal
       ? `เฝ้าระวัง ${state.watchSignal} · เหลือ 10 วินาทีสุดท้าย รอยืนยัน ORDER ที่ 5 วินาที`
       : result.reason;
-    console.info("[ma5-bb] WATCH", { symbol: feed.symbol, minuteEpoch, signal: state.watchSignal, reason: result.reason });
+    console.info("[ema5-score] WATCH", { symbol: feed.symbol, minuteEpoch, signal: state.watchSignal, reason: result.reason });
     return;
   }
   if (phase === "ORDER") {
@@ -365,18 +365,18 @@ function runMa5BollingerCheck(feed, minuteEpoch, phase) {
     if (["CALL", "PUT"].includes(result.signal) && live && tickAge !== null && tickAge <= 5) {
       state.orderSignal = result.signal;
       state.orderUntil = now + 30000;
-      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:MA5_BB20_2`;
+      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:EMA5_SCORE_80`;
       state.phase = "ORDER";
       state.signal = result.signal;
       state.reason = `ORDER ${result.signal} · ยืนยันเงื่อนไข ณ 5 วินาทีสุดท้าย · ไฟค้าง 30 วินาที`;
-      console.info("[ma5-bb] ORDER", { symbol: feed.symbol, minuteEpoch, signal: result.signal, orderAlertId: state.orderAlertId, reason: result.reason });
+      console.info("[ema5-score] ORDER", { symbol: feed.symbol, minuteEpoch, signal: result.signal, orderAlertId: state.orderAlertId, reason: result.reason });
     } else {
       state.orderSignal = null;
       state.orderUntil = 0;
       state.phase = "WAIT";
       state.signal = "WAIT";
       state.reason = result.reason || "ไม่ผ่านเงื่อนไขยืนยัน ORDER";
-      console.info("[ma5-bb] ORDER skipped", { symbol: feed.symbol, minuteEpoch, reason: result.reason });
+      console.info("[ema5-score] ORDER skipped", { symbol: feed.symbol, minuteEpoch, reason: result.reason });
     }
   }
 }
@@ -397,10 +397,10 @@ function tickEma5Clock() {
     publish();
   }
   if (second >= 50 && second < 55 && state.lastWatchMinuteEpoch !== minute) {
-    runMa5BollingerCheck(feed, minute, "WATCH");
+    runEma5ScoreCheck(feed, minute, "WATCH");
     publish();
   } else if (second >= 55 && state.lastOrderMinuteEpoch !== minute) {
-    runMa5BollingerCheck(feed, minute, "ORDER");
+    runEma5ScoreCheck(feed, minute, "ORDER");
     publish();
   }
 }
@@ -836,9 +836,9 @@ app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
   orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
-  ma5:state.lastAnalysis?.ma5??null,bbUpper:state.lastAnalysis?.bbUpper??null,bbMiddle:state.lastAnalysis?.bbMiddle??null,bbLower:state.lastAnalysis?.bbLower??null,bbWidthRatio:state.lastAnalysis?.bbWidthRatio??null,bandPosition:state.lastAnalysis?.bandPosition??null,regime:state.lastAnalysis?.regime??null,
+  ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"MA5_BOLLINGER_20_2_M1"});
+  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EMA5_SCORE_80_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -873,17 +873,17 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_MA5_BOLLINGER_20_2_M1",
- primaryDecisionEngine:"SMA5_PLUS_BOLLINGER_BANDS_20_2",indicators:["SMA5","BOLLINGER_BANDS_20_2"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_SCORE_80_M1",
+ primaryDecisionEngine:"EMA5_ONLY_SCORE_THRESHOLD_80",indicators:["EMA5"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE_WITH_BB_EXPANSION_AND_SQUEEZE_WAIT_FILTER"},
+ signalPolicy:"EMA5_ONLY_DIRECTIONAL_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] MA5 + BB(20,2) MAIN MARKET listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] EMA5 SCORE 80 MAIN MARKET listening on ${PORT}`);
   console.info("[radar] startup configuration", {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
