@@ -154,7 +154,7 @@ function publicFeed(feed) {
     alertId: lineState.orderAlertId || null,
     preAlertSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
     preAlertStatus: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal) ? "PREPARE_ALERT" : null,
-    candleLines: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, events: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 80, message: "รอ OHLC จาก Twelve Data เพื่อคำนวณเส้นดักจับแท่งเทียนแบบกำหนดเอง" },
+    candleLines: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, events: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 50, message: "เส้นพร้อมดักจับแท่งเทียน M1 แบบความถี่สูง · เกณฑ์ 50/100 พร้อมระบบยกเลิกสัญญาณหลอก" },
     source: "Twelve Data real M1 OHLC + custom candle lines · 10s watch / 5s order / 30s lamp"
   };
 }
