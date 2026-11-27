@@ -4,16 +4,17 @@ import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8");
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
-test("primary Telegram Mini App is the EUR/USD EMA5 + RSI14 score-80 signal-light interface",()=>{
+test("primary Telegram Mini App uses the indicator-free custom candle-lines engine",()=>{
  assert.match(html,/EUR \/ USD/);assert.match(html,/id="signal"/);
  assert.doesNotMatch(html,/id="candleChart"|class="chart-panel"/);
- assert.match(html,/EMA5 \+ RSI\(14\) · SCORE 80\/100/);
- assert.match(html,/indicator\.rsi14/);
+ assert.match(html,/CUSTOM CANDLE LINES · SCORE 80\/100/);
+ assert.match(html,/m\.candleLines/);
+ assert.doesNotMatch(html,/EMA5|RSI\(14\)|m\.indicators/);
  assert.match(server,/app\.get\("\/signal".*public.*signal\.html/s);
 });
 test("Mini App controls scanner without a pair selector",()=>{
  assert.match(html,/\/api\/telegram\/control/);assert.doesNotMatch(html,/<select\b|id="pairs"/);
- assert.match(server,/\/api\/telegram\/ema5\/status/);assert.match(server,/symbols:\["EUR\/USD"\]/);
+ assert.match(server,/\/api\/telegram\/candle-lines\/status/);assert.match(server,/symbols:\["EUR\/USD"\]/);
 });
 test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  const ids=new Set([...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]));
@@ -22,8 +23,8 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  const start=html.lastIndexOf("<script>")+"<script>".length,end=html.lastIndexOf("</script>");
  assert.ok(start>0&&end>start);assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
-test("backend health metadata declares EMA5 + RSI14 score 80 and no external AI",()=>{
- assert.match(server,/decisionEngine:"EURUSD_EMA5_RSI14_SCORE_80_M1"/);
- assert.match(server,/primaryDecisionEngine:"EMA5_PLUS_RSI14_SCORE_THRESHOLD_80"/);
- assert.match(server,/indicators:\["EMA5","RSI14"\]/);assert.match(server,/externalAiCalls:false/);
+test("backend health metadata declares custom OHLC geometry and no external AI",()=>{
+ assert.match(server,/decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1"/);
+ assert.match(server,/primaryDecisionEngine:"CUSTOM_CANDLE_GEOMETRY_LINES_THRESHOLD_80"/);
+ assert.match(server,/indicators:\[\]/);assert.match(server,/externalAiCalls:false/);
 });
