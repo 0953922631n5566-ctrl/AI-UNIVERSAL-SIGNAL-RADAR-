@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js && node --check src/streaming-entry-engine.js && node --check src/ema5-two-phase-engine.js"
+    "postinstall": "npm test && node --check server.js && node --check src/twelve-data.js && node --check src/twelve-data-pool.js && node --check src/stream-retry.js && node --check src/advanced-scoring.js && node --check src/analyzer.js && node --check src/signal-timing.js && node --check src/streaming-entry-engine.js && node --check src/ema5-two-phase-engine.js && node --check src/custom-candle-lines-engine.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
@@ -17,23 +17,25 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data EMA5 + RSI14 Score 80 M1",
-    "displayName": "EUR/USD EMA5 + RSI(14) · score 80/100 · 10s watch · 5s final order · 30s signal light",
+    "name": "Twelve Data Custom Candle Lines M1",
+    "displayName": "EUR/USD · Custom Candle Lines · no indicators · 10s watch · final 5s order · 30s signal light",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
-    "executionModel": "TWELVE_DATA_REAL_M1_OHLC_STREAMING_LOCAL_ANALYSIS",
-    "decisionAuthority": "EMA5_PLUS_RSI14_SCORE_THRESHOLD_80",
-    "indicators": {
-      "provider": "Local EMA5 and Wilder RSI(14) calculations from Twelve Data real M1 OHLC",
-      "periods": [
-        5,
-        14
+    "executionModel": "TWELVE_DATA_REAL_M1_OHLC_STREAMING_CUSTOM_PRICE_LINE_ANALYSIS",
+    "decisionAuthority": "CUSTOM_CANDLE_GEOMETRY_LINES_SCORE_THRESHOLD_80",
+    "priceLines": {
+      "source": "Real M1 OHLC only; all lines calculated locally",
+      "models": [
+        "confirmed swing support/resistance",
+        "recent micro-range high/low",
+        "range midpoint",
+        "adaptive trigger buffer",
+        "sweep/reclaim and retest lines"
       ],
-      "samplePointsPerMinute": 2,
-      "localIndicatorCalculation": true
+      "noTechnicalIndicators": true
     },
     "strategy": {
-      "name": "EMA5_RSI14_SCORE_80_M1",
+      "name": "CUSTOM_CANDLE_LINES_SCORE_80_M1",
       "scoreThreshold": 80,
       "watchSeconds": [
         50,
@@ -45,11 +47,10 @@
       ],
       "orderLightSeconds": 30,
       "scoreComponents": {
-        "ema5Slope": 25,
-        "closeSideOfEma5": 20,
-        "candleDirection": 15,
-        "rsi14Direction": 20,
-        "ema5RetestBonus": 20
+        "lineEvent": 50,
+        "candleBody": 15,
+        "closeLocation": 20,
+        "wickRejection": 15
       },
       "manualOnly": true
     },
