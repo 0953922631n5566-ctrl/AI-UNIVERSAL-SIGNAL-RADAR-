@@ -23,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EURUSD EMA5 SCORE 80 M1 SIGNAL RADAR";
-const ARCHITECTURE_ID = "EURUSD_EMA5_SCORE_80_M1";
-const VERSION = "2026-11-27-eurusd-ema5-score80-watch10-order30-v1";
+const SYSTEM_NAME = "EURUSD EMA5 RSI14 SCORE 80 M1 SIGNAL RADAR";
+const ARCHITECTURE_ID = "EURUSD_EMA5_RSI14_SCORE_80_M1";
+const VERSION = "2026-11-27-eurusd-ema5-rsi14-score80-watch10-order30-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -118,8 +118,8 @@ function publicFeed(feed) {
     orderExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
     sourceCandleEpoch: ema5.minuteEpoch ?? null,
     targetCandleEpoch: ema5.orderTargetEpoch ?? null,
-    analysisMode: "EMA5_SCORE_80_M1",
-    indicatorSource: "Twelve Data real M1 OHLC · EMA5 · score threshold 80/100",
+    analysisMode: "EMA5_RSI14_SCORE_80_M1",
+    indicatorSource: "Twelve Data real M1 OHLC · EMA5 + RSI(14) · score threshold 80/100",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -139,8 +139,9 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["EMA5"] },
+    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["EMA5", "RSI14"] },
     ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null,
+    rsi14: ema5.lastAnalysis?.rsi14 ?? null, previousRsi14: ema5.lastAnalysis?.previousRsi14 ?? null, rsiSignal: ema5.lastAnalysis?.rsiSignal ?? "WAIT",
     score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, scoreThreshold: 80, regime: ema5.lastAnalysis?.regime ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
@@ -151,8 +152,8 @@ function publicFeed(feed) {
     alertId: ema5.orderAlertId || null,
     preAlertSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
     preAlertStatus: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal) ? "PREPARE_ALERT" : null,
-    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null, score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, threshold: 80, source: "EMA5 only from Twelve Data M1 OHLC" },
-    source: "Twelve Data real M1 OHLC + EMA5 score 80/100 · 10s watch / 5s order / 30s lamp"
+    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null, rsi14: ema5.lastAnalysis?.rsi14 ?? null, previousRsi14: ema5.lastAnalysis?.previousRsi14 ?? null, rsiSignal: ema5.lastAnalysis?.rsiSignal ?? "WAIT", score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, threshold: 80, source: "EMA5 + Wilder RSI(14) from Twelve Data M1 OHLC" },
+    source: "Twelve Data real M1 OHLC + EMA5/RSI14 score 80/100 · 10s watch / 5s order / 30s lamp"
   };
 }
 
@@ -838,7 +839,7 @@ app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
   orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
   ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EMA5_SCORE_80_M1"});
+  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EMA5_RSI14_SCORE_80_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -873,17 +874,17 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_SCORE_80_M1",
- primaryDecisionEngine:"EMA5_ONLY_SCORE_THRESHOLD_80",indicators:["EMA5"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_RSI14_SCORE_80_M1",
+ primaryDecisionEngine:"EMA5_PLUS_RSI14_SCORE_THRESHOLD_80",indicators:["EMA5","RSI14"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"EMA5_ONLY_DIRECTIONAL_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
+ signalPolicy:"EMA5_RSI14_DIRECTIONAL_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] EMA5 SCORE 80 MAIN MARKET listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] EMA5 + RSI14 SCORE 80 MAIN MARKET listening on ${PORT}`);
   console.info("[radar] startup configuration", {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
