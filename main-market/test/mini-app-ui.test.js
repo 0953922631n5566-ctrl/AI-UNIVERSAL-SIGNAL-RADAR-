@@ -21,6 +21,6 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
  assert.ok(start>0&&end>start);assert.doesNotThrow(()=>new Script(html.slice(start,end)));
 });
 test("backend health metadata declares EUR/USD MA5 Bollinger and no external AI",()=>{
- assert.match(server,/decisionEngine:"EURUSD_MA5_BOLLINGER_20_2_M1"/);
- assert.match(server,/primaryDecisionEngine:"SMA5_PLUS_BOLLINGER_BANDS_20_2"/);assert.match(server,/externalAiCalls:false/);
+ assert.match(server,/decisionEngine:"EURUSD_EMA5_SCORE_80_M1"/);
+ assert.match(server,/primaryDecisionEngine:"EMA5_ONLY_SCORE_THRESHOLD_80"/);assert.match(server,/externalAiCalls:false/);
 });
