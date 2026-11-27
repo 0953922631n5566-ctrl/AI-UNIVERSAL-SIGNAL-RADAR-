@@ -25,14 +25,14 @@ This strategy uses no technical indicators. It derives its own price levels from
 - Wick defense: the current candle tests and reclaims the midpoint of a meaningful previous wick.
 - Body continuation: the current candle crosses the previous candle directional continuation line.
 
-The engine assigns heuristic structure points to line events, candle body, close location and wick rejection. The per-candle lines refresh from each newly completed M1 candle. A direction is eligible at 80/100; simultaneous CALL and PUT triggers are rejected as a conflict. This score is not a probability or proven win rate.
+The engine assigns heuristic structure points to line events, candle body, close location and wick rejection. The per-candle lines refresh from each newly completed M1 candle. A direction is eligible at 50/100 to increase M1 signal frequency. Directional raw-candle momentum can qualify when no structural line event fires; flat/doji candles remain WAIT, and simultaneous CALL and PUT triggers are rejected as a conflict. This score is a heuristic trigger threshold, not a probability or proven win rate.
 
 ## Safety and execution
 
 - EUR/USD, Non-OTC, M1 only.
 - Real Twelve Data OHLC and Streaming prices; no synthetic candles.
-- The live tick must be no older than five seconds when checked.
+- The live tick must be no older than five seconds when checked.\n- One ORDER decision is attempted every M1 candle at seconds 55–59; the relaxed 50/100 threshold aims to increase frequency but cannot guarantee a signal on a flat/doji candle or stale feed.\n- During the first 30 seconds of the target candle, CALL is immediately cancelled if price breaks below the source candle body midpoint (minus a small geometry buffer); PUT is cancelled if price breaks above it. The Mini App reports FALSE_SIGNAL and the original signal must not be used.
 - WATCH remains at seconds 50–54; final ORDER check remains at seconds 55–59.
 - Signal lamp remains visible for 30 seconds.
 - Manual decision support only. No broker order execution.
-- The 80-point threshold and line parameters require forward testing and outcome logging before any accuracy claim.
+- The 50-point threshold and line parameters require forward testing and outcome logging before any accuracy claim. The false-signal guard is a price-structure invalidation rule, not a guarantee against losses.
