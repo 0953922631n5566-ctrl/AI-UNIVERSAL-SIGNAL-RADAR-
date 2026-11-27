@@ -25,6 +25,6 @@ test("Mini App inline script parses and all referenced DOM IDs exist",()=>{
 });
 test("backend health metadata declares custom OHLC geometry and no external AI",()=>{
  assert.match(server,/decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1"/);
- assert.match(server,/primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_80"/);
+ assert.match(server,/primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_50_HIGH_FREQUENCY"/);
  assert.match(server,/indicators:\[\]/);assert.match(server,/externalAiCalls:false/);
 });
