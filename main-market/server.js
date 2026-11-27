@@ -288,7 +288,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
-      // MA5 + BB(20,2) checks run from local Twelve Data M1 candles; no extra REST polling.
+      // EMA5 score checks run from local Twelve Data M1 candles; no extra REST polling.
       console.info("[radar] REST ready", {
         symbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
@@ -865,7 +865,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
-// The Telegram Mini App primary URL serves the MA5 + Bollinger Bands(20,2) M1 system.
+// The Telegram Mini App primary URL serves the EMA5-only score-80 M1 system.
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
