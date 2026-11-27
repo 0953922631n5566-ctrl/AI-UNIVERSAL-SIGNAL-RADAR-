@@ -12,7 +12,7 @@ test("Telegram primary /signal serves the EUR/USD EMA5 score-80 signal-light Min
  assert.match(server,/primaryMiniApp:\{route:"\/signal",api:"\/api\/telegram\/ema5\/status"/);
  assert.match(server,/EURUSD_EMA5_SCORE_80_M1/);
  assert.match(config,/Object\.freeze\(\["EUR\/USD"\]\)/);
- assert.match(html,/MA5 \+ BB \(20,2\)/);
+ assert.match(html,/EMA5 · SCORE 80\/100/);
  assert.doesNotMatch(html,/id="candleChart"|class="chart-panel"/);
 });
 test("backend checks WATCH at T-10 and ORDER at T-5 for 30 seconds",()=>{
