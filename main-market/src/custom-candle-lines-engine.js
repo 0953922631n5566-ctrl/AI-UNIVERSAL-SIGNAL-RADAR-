@@ -159,22 +159,49 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     candle.close <= previousBodyLow && closePosition <= 0.28 &&
     candle.close < microLow;
 
-  const callSetup = lowerSweep || bullishBreakout || bullishRetest || bullishEngulf || bullishTrendlineBreak;
-  const putSetup = upperSweep || bearishBreakout || bearishRetest || bearishEngulf || bearishTrendlineBreak;
+  // Per-candle geometry: derive fresh micro-lines from the immediately preceding
+  // completed candle. These are original OHLC constructions, not broker indicators.
+  const previousBodyMid = (previousBodyHigh + previousBodyLow) / 2;
+  const previousRange = Math.max(previous.high - previous.low, PIP * 0.05);
+  const previousUpperWick = previous.high - previousBodyHigh;
+  const previousLowerWick = previousBodyLow - previous.low;
+  const previousUpperWickMid = previous.high - previousUpperWick * 0.5;
+  const previousLowerWickMid = previous.low + previousLowerWick * 0.5;
+  const previousBullContinuation = previous.close + Math.max(previous.close - previous.open, 0) * 0.25;
+  const previousBearContinuation = previous.close - Math.max(previous.open - previous.close, 0) * 0.25;
+  const bullishBodyMidCross = bullish && candle.open <= previousBodyMid + buffer * 0.25 &&
+    candle.close > previousBodyMid + buffer * 0.25 && closePosition >= 0.64;
+  const bearishBodyMidCross = bearish && candle.open >= previousBodyMid - buffer * 0.25 &&
+    candle.close < previousBodyMid - buffer * 0.25 && closePosition <= 0.36;
+  const bullishWickDefense = previousLowerWick >= previousRange * 0.18 &&
+    candle.low <= previousLowerWickMid + buffer && candle.close > previousLowerWickMid + buffer * 0.2 &&
+    bullish && closePosition >= 0.62;
+  const bearishWickDefense = previousUpperWick >= previousRange * 0.18 &&
+    candle.high >= previousUpperWickMid - buffer && candle.close < previousUpperWickMid - buffer * 0.2 &&
+    bearish && closePosition <= 0.38;
+  const bullishBodyContinuation = previous.close > previous.open &&
+    candle.close > previousBullContinuation && bullish && closePosition >= 0.68;
+  const bearishBodyContinuation = previous.close < previous.open &&
+    candle.close < previousBearContinuation && bearish && closePosition <= 0.32;
+
+  const callSetup = lowerSweep || bullishBreakout || bullishRetest || bullishEngulf ||
+    bullishTrendlineBreak || bullishBodyMidCross || bullishWickDefense || bullishBodyContinuation;
+  const putSetup = upperSweep || bearishBreakout || bearishRetest || bearishEngulf ||
+    bearishTrendlineBreak || bearishBodyMidCross || bearishWickDefense || bearishBodyContinuation;
 
   const callParts = {
     lineEvent: callSetup ? 50 : 0,
     candleBody: bullish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition >= 0.78 ? 20 : closePosition >= 0.68 ? 15 : 0,
-    wickRejection: lowerSweep || (upperWick <= Math.max(body * 0.35, buffer * 0.5) &&
-      (bullishBreakout || bullishTrendlineBreak)) ? 15 : 0
+    wickRejection: lowerSweep || bullishWickDefense || (upperWick <= Math.max(body * 0.35, buffer * 0.5) &&
+      (bullishBreakout || bullishTrendlineBreak || bullishBodyContinuation)) ? 15 : 0
   };
   const putParts = {
     lineEvent: putSetup ? 50 : 0,
     candleBody: bearish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition <= 0.22 ? 20 : closePosition <= 0.32 ? 15 : 0,
-    wickRejection: upperSweep || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) &&
-      (bearishBreakout || bearishTrendlineBreak)) ? 15 : 0
+    wickRejection: upperSweep || bearishWickDefense || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) &&
+      (bearishBreakout || bearishTrendlineBreak || bearishBodyContinuation)) ? 15 : 0
   };
   const callScore = callSetup ? scoreCandidate(callParts) : 0;
   const putScore = putSetup ? scoreCandidate(putParts) : 0;
@@ -189,6 +216,11 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     lowerTrigger: Number(lowerTrigger.toFixed(5)),
     supportTrend: Number.isFinite(risingOrFallingSupportLine) ? Number(risingOrFallingSupportLine.toFixed(5)) : null,
     resistanceTrend: Number.isFinite(risingOrFallingResistanceLine) ? Number(risingOrFallingResistanceLine.toFixed(5)) : null,
+    candleBodyMid: Number(previousBodyMid.toFixed(5)),
+    previousUpperWickMid: Number(previousUpperWickMid.toFixed(5)),
+    previousLowerWickMid: Number(previousLowerWickMid.toFixed(5)),
+    previousBullContinuation: Number(previousBullContinuation.toFixed(5)),
+    previousBearContinuation: Number(previousBearContinuation.toFixed(5)),
     bufferPips: Number((buffer / PIP).toFixed(2))
   };
   const common = {
@@ -208,7 +240,10 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     lineEvents: {
       lowerSweep, upperSweep, bullishBreakout, bearishBreakout,
       bullishRetest, bearishRetest, bullishEngulf, bearishEngulf,
-      bullishTrendlineBreak, bearishTrendlineBreak
+      bullishTrendlineBreak, bearishTrendlineBreak,
+      bullishBodyMidCross, bearishBodyMidCross,
+      bullishWickDefense, bearishWickDefense,
+      bullishBodyContinuation, bearishBodyContinuation
     },
     sourceCandleEpoch: candle.epoch,
     targetCandleEpoch: candle.epoch + 60,
@@ -225,7 +260,10 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     const setup = lowerSweep ? "กวาดแนวรับแล้วดึงกลับ" :
       bullishBreakout ? "ทะลุเส้น Trigger ด้านบน" :
       bullishRetest ? "ทดสอบเส้นต้านเดิมแล้วผ่านขึ้น" :
-      bullishTrendlineBreak ? "ทะลุเส้นแนวโน้มขาลงที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบบน";
+      bullishTrendlineBreak ? "ทะลุเส้นแนวโน้มขาลงที่คำนวณเอง" :
+      bullishWickDefense ? "เส้นไส้เทียนก่อนหน้าป้องกันแรงขาย" :
+      bullishBodyMidCross ? "ตัดเส้นกึ่งกลางลำตัวแท่งก่อนขึ้น" :
+      bullishBodyContinuation ? "ผ่านเส้นต่อเนื่องแรงซื้อของแท่งก่อน" : "แท่งกลืนกินทะลุกรอบบน";
     return { ...common, signal: "CALL", regime: "CUSTOM_LINE_CALL",
       lineStatus: "CALL_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${callScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
@@ -233,7 +271,10 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     const setup = upperSweep ? "กวาดแนวต้านแล้วถูกกดกลับ" :
       bearishBreakout ? "หลุดเส้น Trigger ด้านล่าง" :
       bearishRetest ? "ทดสอบแนวรับเดิมแล้วผ่านลง" :
-      bearishTrendlineBreak ? "หลุดเส้นแนวโน้มขาขึ้นที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบล่าง";
+      bearishTrendlineBreak ? "หลุดเส้นแนวโน้มขาขึ้นที่คำนวณเอง" :
+      bearishWickDefense ? "เส้นไส้เทียนก่อนหน้าป้องกันแรงซื้อ" :
+      bearishBodyMidCross ? "ตัดเส้นกึ่งกลางลำตัวแท่งก่อนลง" :
+      bearishBodyContinuation ? "ผ่านเส้นต่อเนื่องแรงขายของแท่งก่อน" : "แท่งกลืนกินทะลุกรอบล่าง";
     return { ...common, signal: "PUT", regime: "CUSTOM_LINE_PUT",
       lineStatus: "PUT_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${putScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
