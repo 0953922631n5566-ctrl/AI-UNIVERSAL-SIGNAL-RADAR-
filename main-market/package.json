@@ -49,10 +49,7 @@
       "rotation": "ROUND_ROBIN_WITH_FAILOVER"
     },
     "supportedPairs": [
-      "EUR/USD",
-      "EUR/JPY",
-      "GBP/USD",
-      "USD/JPY"
+      "EUR/USD"
     ],
     "manualOnly": true,
     "brokerExecution": false
