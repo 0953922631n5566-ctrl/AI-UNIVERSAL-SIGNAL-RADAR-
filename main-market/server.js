@@ -140,8 +140,7 @@ function publicFeed(feed) {
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
     analysisWindow: { historyCandles: HISTORY_CANDLES, lineModel: "CUSTOM_CANDLE_GEOMETRY", indicators: [] },
-    ema5: lineState.lastAnalysis?.ema5 ?? null, ema5SlopePips: lineState.lastAnalysis?.ema5SlopePips ?? null,
-    rsi14: lineState.lastAnalysis?.rsi14 ?? null, previousRsi14: lineState.lastAnalysis?.previousRsi14 ?? null, rsiSignal: lineState.lastAnalysis?.rsiSignal ?? "WAIT",
+    customLines: lineState.lastAnalysis?.lines ?? null, lineEvents: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null,
     score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, scoreThreshold: 80, regime: lineState.lastAnalysis?.regime ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
@@ -152,7 +151,7 @@ function publicFeed(feed) {
     alertId: lineState.orderAlertId || null,
     preAlertSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
     preAlertStatus: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal) ? "PREPARE_ALERT" : null,
-    indicators: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, lineEvents: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 80, message: "รอ OHLC จาก Twelve Data เพื่อคำนวณเส้นดักจับแท่งเทียนแบบกำหนดเอง" },
+    candleLines: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, events: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 80, message: "รอ OHLC จาก Twelve Data เพื่อคำนวณเส้นดักจับแท่งเทียนแบบกำหนดเอง" },
     source: "Twelve Data real M1 OHLC + custom candle lines · 10s watch / 5s order / 30s lamp"
   };
 }
@@ -366,7 +365,7 @@ function runCandleLineCheck(feed, minuteEpoch, phase) {
     if (["CALL", "PUT"].includes(result.signal) && live && tickAge !== null && tickAge <= 5) {
       state.orderSignal = result.signal;
       state.orderUntil = now + 30000;
-      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:EMA5_SCORE_80`;
+      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:CUSTOM_LINES_80`;
       state.phase = "ORDER";
       state.signal = result.signal;
       state.reason = `ORDER ${result.signal} · ยืนยันเงื่อนไข ณ 5 วินาทีสุดท้าย · ไฟค้าง 30 วินาที`;
@@ -874,7 +873,7 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EURUSD_CUSTOM_CANDLE_LINES_M1",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1",
  primaryDecisionEngine:"CUSTOM_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
