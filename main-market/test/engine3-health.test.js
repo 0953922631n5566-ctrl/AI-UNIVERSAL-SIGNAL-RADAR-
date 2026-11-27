@@ -11,8 +11,10 @@ test("health metadata declares EUR/USD EMA5-only score-80 engine",()=>{
  assert.match(server,/watchSeconds:\[50,54\],orderSeconds:\[55,59\],orderLightSeconds:30/);
 });
 test("EMA5-only score is calculated from Twelve Data M1 OHLC",()=>{
- assert.match(server,/fetchCandles/);assert.match(server,/analyzeEma5Score/);assert.match(engine,/analyzeEma5Score/);
- assert.match(engine,/EMA5 score threshold 80\/100/);
+ assert.match(server,/fetchCandles/);
+ assert.match(server,/analyzeEma5Score/);
+ assert.match(engine,/export function analyzeEma5Score/);
+ assert.match(engine,/EMA5_SCORE_STRATEGY_ID/);
  assert.doesNotMatch(server,/GEMINI_API_KEY|analyzeWithGemini|geminiQuotaStatus|Gemini/);
 });
 test("signal release remains manual-only with broker execution disabled",()=>{
