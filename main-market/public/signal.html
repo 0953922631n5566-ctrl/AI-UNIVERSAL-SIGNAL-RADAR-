@@ -162,7 +162,7 @@ $("hint").textContent=actualDir?"ORDER จริง · สัญญาณสำ�
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
 $("engineSignal").textContent=ready?"CUSTOM LINES READY":lines.status||"WAITING";
 $("lineStatus").textContent=ready
-?"เส้นรับ "+fmt(lines.lines?.support)+" · เส้นต้าน "+fmt(lines.lines?.resistance)+" · Trigger บน "+fmt(lines.lines?.upperTrigger)+" / ล่าง "+fmt(lines.lines?.lowerTrigger)+" · จุดสมดุล "+fmt(lines.lines?.center)+" · CALL "+(Number(lines.callScore)||0)+" / PUT "+(Number(lines.putScore)||0)+" · Tick "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
+?"เส้นรับ "+fmt(lines.lines?.support)+" · เส้นต้าน "+fmt(lines.lines?.resistance)+" · Trigger บน "+fmt(lines.lines?.upperTrigger)+" / ล่าง "+fmt(lines.lines?.lowerTrigger)+" · จุดสมดุล "+fmt(lines.lines?.center)+" · Trend S/R "+fmt(lines.lines?.supportTrend)+" / "+fmt(lines.lines?.resistanceTrend)+" · CALL "+(Number(lines.callScore)||0)+" / PUT "+(Number(lines.putScore)||0)+" · Tick "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
 :(lines.message||"รอ OHLC และราคา Streaming จาก Twelve Data เพื่อสร้างเส้นดักจับเอง");
 $("reason").textContent=m.reason||m.statusMessage||"รอการวิเคราะห์";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.sourceCandleEpoch||m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
