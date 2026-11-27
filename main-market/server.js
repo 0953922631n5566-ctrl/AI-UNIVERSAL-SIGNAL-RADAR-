@@ -177,7 +177,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EURUSD_MA5_BOLLINGER_20_2_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EURUSD_EMA5_SCORE_80_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
