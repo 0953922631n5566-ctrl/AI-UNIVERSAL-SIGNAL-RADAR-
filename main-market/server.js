@@ -25,7 +25,7 @@ const telegramSessions = new Map();
 const authRequests = new Map();
 const SYSTEM_NAME = "EURUSD CUSTOM CANDLE LINES M1 SIGNAL RADAR";
 const ARCHITECTURE_ID = "EURUSD_CUSTOM_CANDLE_LINES_M1";
-const VERSION = "2026-11-27-custom-candle-lines-no-indicators-watch10-order30-v1";
+const VERSION = "2026-11-27-custom-per-candle-geometry-watch10-order30-v2";
 const app = express();
 const server = http.createServer(app);
 
@@ -874,10 +874,10 @@ app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
  architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1",
- primaryDecisionEngine:"CUSTOM_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/candle-lines/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"CUSTOM_CANDLE_LINES_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
+ signalPolicy:"CUSTOM_PER_CANDLE_GEOMETRY_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
