@@ -91,7 +91,7 @@ body{padding:calc(10px + env(safe-area-inset-top)) 12px calc(12px + env(safe-are
  <section class="signal-wrap" aria-live="polite">
   <div id="lampShell" class="lamp-shell"><div class="lamp"></div></div>
   <div id="signal" class="signal-state">STANDBY</div>
-  <div id="hint" class="signal-hint">รอราคา Streaming สดและ EMA5 จาก Twelve Data</div>
+  <div id="hint" class="signal-hint">รอราคา Streaming สดและเส้นดักจับแท่งเทียน</div>
   <div class="timing">
    <div class="time-card"><span>แท่งเป้าหมายถัดไป · M1</span><b id="candle">—</b></div>
    <div class="time-card"><span>สัญญาณคงเหลือ</span><b id="expiry">—</b></div>
@@ -116,9 +116,9 @@ body{padding:calc(10px + env(safe-area-inset-top)) 12px calc(12px + env(safe-are
  <section class="section" id="trendCard">
   <div class="section-title">SIGNAL ENGINE</div>
   <div class="row"><span>สถานะเครื่องวิเคราะห์</span><small id="engineSignal">WAITING</small></div>
-  <div class="row"><span>กลยุทธ์</span><small>EMA5 + RSI(14) · SCORE 80/100</small></div>
+  <div class="row"><span>กลยุทธ์</span><small>CUSTOM CANDLE LINES · SCORE 80/100</small></div>
   <div class="row"><span>จังหวะตรวจ</span><small>เฝ้าระวัง 50–54 · ORDER 55–59 · ไฟค้าง 30 วินาที</small></div>
-  <div id="indicatorStatus" class="note">รอ OHLC จาก Twelve Data เพื่อคำนวณ EMA5 + RSI(14) และคะแนน 80/100</div>
+  <div id="lineStatus" class="note">รอ OHLC จาก Twelve Data เพื่อสร้างเส้นดักจับแท่งเทียนแบบคำนวณเอง</div>
   <div id="reason" class="note">รอข้อมูลราคา Streaming สดและแท่ง M1</div>
   <button id="manualLampToggle" class="control secondary" type="button">สลับไฟเสริมเป็นสีเขียว</button>
   <div id="manualLampStatus" class="note">ไฟเสริม: สีแดง · แยกจากสัญญาณจริง</div>
@@ -153,17 +153,17 @@ function paintApiPool(pool){const states=Array.isArray(pool?.keyStates)?pool.key
 function paint(m){latest=m||{};paintApiPool(m.apiPool||{});const api=m.apiStatus||"OFFLINE",monitoring=m.monitoring===true;setApi(api,api==="ONLINE"?(m.supportStatus==="REST_ONLY"?"REST DATA":"API ONLINE"):api==="CONNECTING"?"CONNECTING":"API "+api);
 $("monitorStatus").textContent=monitoring?"กำลังรับข้อมูล":"หยุดอยู่";$("monitorToggle").textContent=monitoring?"หยุดรับข้อมูล":"เริ่มรับข้อมูล";
 $("price").textContent=fmt(m.lastTickPrice??m.price??m.lastPrice);$("age").textContent=Number.isFinite(m.tickAgeSeconds)?("อัปเดต "+Math.round(m.tickAgeSeconds)+" วินาทีที่แล้ว"):m.statusMessage||"รอราคา Streaming";
-const indicator=m.indicators||{},ready=indicator.status==="READY";const usable=api==="ONLINE"&&monitoring&&ready;
+const lines=m.candleLines||{},ready=lines.status==="READY";const usable=api==="ONLINE"&&monitoring&&ready;
 const actualDir=usable&&m.orderActive===true&&["CALL","PUT"].includes(m.orderSignal)?m.orderSignal:null;const preparing=usable&&m.watchActive===true&&["CALL","PUT"].includes(m.watchSignal);
 const state=actualDir||(preparing?"PREPARE":"STANDBY");
 $("lampShell").className="lamp-shell "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");
 $("signal").className="signal-state "+(state==="CALL"?"call":state==="PUT"?"put":preparing?"prepare":"");$("signal").textContent=actualDir?"ORDER "+actualDir:preparing?"WATCH "+m.watchSignal:"STANDBY";
-$("hint").textContent=actualDir?"ORDER จริง · สัญญาณสำหรับ EUR/USD M1 · ไฟค้างถึงเวลาหมดอายุ":preparing?"เฝ้าระวัง "+m.watchSignal+" · ยังไม่ใช่คำสั่ง ORDER · รอยืนยันที่ 5 วินาทีสุดท้าย":m.reason||"รอ Streaming สดและเงื่อนไข EMA5 · คะแนนขั้นต่ำ 80/100";
+$("hint").textContent=actualDir?"ORDER จริง · สัญญาณสำหรับ EUR/USD M1 · ไฟค้างถึงเวลาหมดอายุ":preparing?"เฝ้าระวัง "+m.watchSignal+" · ยังไม่ใช่คำสั่ง ORDER · รอยืนยันที่ 5 วินาทีสุดท้าย":m.reason||"รอ Streaming สดและเงื่อนไขเส้นดักจับแท่งเทียน";
 $("candle").textContent=countdown(m.nextCandleAt);$("expiry").textContent=countdown(m.signalExpiresAt);
-$("engineSignal").textContent=ready?"EMA5 + RSI READY":indicator.status||"WAITING";
-$("indicatorStatus").textContent=ready
-?"Twelve Data M1 · EMA5 "+fmt(indicator.ema5)+" · RSI(14) "+(Number.isFinite(indicator.rsi14)?indicator.rsi14.toFixed(1):"—")+" ("+(indicator.rsiSignal||"WAIT")+") · คะแนน "+(Number(indicator.score)||0)+"/100 (เกณฑ์ 80) · CALL "+(Number(indicator.callScore)||0)+" / PUT "+(Number(indicator.putScore)||0)+" · Tick "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
-:(indicator.message||"รอ OHLC และราคา Streaming จาก Twelve Data เพื่อคำนวณ EMA5 + RSI(14)");
+$("engineSignal").textContent=ready?"CUSTOM LINES READY":lines.status||"WAITING";
+$("lineStatus").textContent=ready
+?"เส้นรับ "+fmt(lines.lines?.support)+" · เส้นต้าน "+fmt(lines.lines?.resistance)+" · Trigger บน "+fmt(lines.lines?.upperTrigger)+" / ล่าง "+fmt(lines.lines?.lowerTrigger)+" · จุดสมดุล "+fmt(lines.lines?.center)+" · Trend S/R "+fmt(lines.lines?.supportTrend)+" / "+fmt(lines.lines?.resistanceTrend)+" · CALL "+(Number(lines.callScore)||0)+" / PUT "+(Number(lines.putScore)||0)+" · Tick "+(Number.isFinite(m.tickAgeSeconds)?m.tickAgeSeconds.toFixed(1)+"s":"รอ Tick")
+:(lines.message||"รอ OHLC และราคา Streaming จาก Twelve Data เพื่อสร้างเส้นดักจับเอง");
 $("reason").textContent=m.reason||m.statusMessage||"รอการวิเคราะห์";
 if(preparing){const key=String(m.symbol||"EUR/USD")+":"+String(m.sourceCandleEpoch||m.nextCandleAt||"");if(key&&key!==lastPrepareId){lastPrepareId=key;soundPattern([587,784]);try{navigator.vibrate?.([90,60,90]);tg?.HapticFeedback?.impactOccurred("light");}catch{}}}
 if(actualDir&&m.orderAlertId&&String(m.orderAlertId)!==lastAlertId){lastAlertId=String(m.orderAlertId);soundPattern(actualDir==="CALL"?[880,1175,880,1175]:[660,523,660,523]);try{navigator.vibrate?.([140,70,140]);tg?.HapticFeedback?.notificationOccurred("success");}catch{}}

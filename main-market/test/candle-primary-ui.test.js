@@ -6,20 +6,21 @@ const html=readFileSync(new URL("../public/signal.html",import.meta.url),"utf8")
 const lab=readFileSync(new URL("../public/candle-lab.html",import.meta.url),"utf8");
 const server=readFileSync(new URL("../server.js",import.meta.url),"utf8");
 const config=readFileSync(new URL("../src/config.js",import.meta.url),"utf8");
-test("Telegram primary /signal serves the EUR/USD EMA5 + RSI14 score-80 signal-light Mini App",()=>{
+test("Telegram primary /signal serves the EUR/USD custom candle-lines Mini App",()=>{
  assert.match(server,/app\.get\("\/signal".*public.*signal\.html/s);
  assert.match(server,/app\.get\("\/signal-next".*candle-lab\.html/s);
- assert.match(server,/primaryMiniApp:\{route:"\/signal",api:"\/api\/telegram\/ema5\/status"/);
- assert.match(server,/EURUSD_EMA5_RSI14_SCORE_80_M1/);
+ assert.match(server,/primaryMiniApp:\{route:"\/signal",api:"\/api\/telegram\/candle-lines\/status"/);
+ assert.match(server,/EURUSD_CUSTOM_CANDLE_LINES_M1/);
  assert.match(config,/Object\.freeze\(\["EUR\/USD"\]\)/);
- assert.match(html,/EMA5 \+ RSI\(14\) · SCORE 80\/100/);
- assert.match(html,/indicator\.rsi14/);
+ assert.match(html,/CUSTOM CANDLE LINES · SCORE 80\/100/);
+ assert.match(html,/m\.candleLines/);
+ assert.doesNotMatch(html,/EMA5|RSI\(14\)|indicator\.rsi14/);
  assert.doesNotMatch(html,/id="candleChart"|class="chart-panel"/);
 });
 test("backend checks WATCH at T-10 and ORDER at T-5 for 30 seconds",()=>{
- assert.match(server,/startEma5Sampler\(\)/);
- assert.match(server,/runEma5ScoreCheck\(feed, minute, "WATCH"\)/);
- assert.match(server,/runEma5ScoreCheck\(feed, minute, "ORDER"\)/);
+ assert.match(server,/startCandleLineSampler\(\)/);
+ assert.match(server,/runCandleLineCheck\(feed, minute, "WATCH"\)/);
+ assert.match(server,/runCandleLineCheck\(feed, minute, "ORDER"\)/);
  assert.match(server,/state\.orderUntil = now \+ 30000/);
 });
 test("Mini App keeps EUR/USD only and manual order execution",()=>{
