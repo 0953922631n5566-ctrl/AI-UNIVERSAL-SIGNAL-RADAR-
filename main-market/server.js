@@ -288,7 +288,7 @@ async function syncSelected({ force = false, symbol = selectedSymbol } = {}) {
       feed.restMessage = `REST พร้อม · ${response.candles.length} แท่งปิด`;
       feed.dataLocked = false;
       globalLockMessage = null;
-      // EMA5 score checks run from local Twelve Data M1 candles; no extra REST polling.
+      // Custom candle-line checks run from real Twelve Data M1 OHLC; no extra REST polling.
       console.info("[radar] REST ready", {
         symbol, candles: response.candles.length,
         liveTick: Boolean(feed.tickAt)
@@ -831,14 +831,14 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
     res.status(500).json({ ok: false, error: error.message || "เปลี่ยนคู่เงินไม่สำเร็จ" });
   }
 });
-app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
+app.get(["/api/telegram/candle-lines/status","/api/telegram/ema5/status"],requireTelegramSession,(_req,res)=>{
  noCache(res);const feed=feeds.get(selectedSymbol),state=feed.candleLineState,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
   orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
-  ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,rsi14:state.lastAnalysis?.rsi14??null,previousRsi14:state.lastAnalysis?.previousRsi14??null,rsiSignal:state.lastAnalysis?.rsiSignal??"WAIT",score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
+  lines:state.lastAnalysis?.lines??null,lineEvents:state.lastAnalysis?.lineEvents??null,candleShape:state.lastAnalysis?.candleShape??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EURUSD_CUSTOM_CANDLE_LINES_M1"});
+  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EURUSD_CUSTOM_CANDLE_LINES_M1",indicatorSource:"NONE"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -865,7 +865,7 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
-// The Telegram Mini App primary URL serves the EMA5-only score-80 M1 system.
+// The Telegram Mini App serves the indicator-free custom candle-lines M1 system.
 app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
@@ -876,7 +876,7 @@ app.get("/health",(_req,res)=>{
  architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1",
  primaryDecisionEngine:"CUSTOM_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
- primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
+ primaryMiniApp:{route:"/signal",api:"/api/telegram/candle-lines/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
  signalPolicy:"CUSTOM_CANDLE_LINES_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
