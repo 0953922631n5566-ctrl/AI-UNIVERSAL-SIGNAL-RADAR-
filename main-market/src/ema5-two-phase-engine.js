@@ -208,10 +208,10 @@ export function calculateRsi14(closes) {
   const toRsi = (g, l) => l === 0 ? (g === 0 ? 50 : 100) : g === 0 ? 0 : 100 - 100 / (1 + g / l);
   let previous = toRsi(avgGain, avgLoss);
   for (let i = RSI_PERIOD + 1; i < values.length; i++) {
+    previous = toRsi(avgGain, avgLoss);
     const change = values[i] - values[i - 1];
     avgGain = (avgGain * (RSI_PERIOD - 1) + Math.max(change, 0)) / RSI_PERIOD;
     avgLoss = (avgLoss * (RSI_PERIOD - 1) + Math.max(-change, 0)) / RSI_PERIOD;
-    previous = toRsi(avgGain, avgLoss);
   }
   return { current: toRsi(avgGain, avgLoss), previous };
 }
