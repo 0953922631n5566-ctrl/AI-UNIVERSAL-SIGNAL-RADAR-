@@ -30,7 +30,8 @@
         "recent micro-range high/low",
         "range midpoint",
         "adaptive trigger buffer",
-        "sweep/reclaim and retest lines"
+        "sweep/reclaim and retest lines",
+        "projected diagonal support/resistance from confirmed pivots"
       ],
       "noTechnicalIndicators": true
     },
