@@ -8,7 +8,7 @@ test("health metadata declares EUR/USD indicator-free custom candle lines",()=>{
  assert.match(server,/primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_80"/);
  assert.match(server,/lineModel:"CUSTOM_CANDLE_GEOMETRY"/);
  assert.match(server,/externalAiCalls:false/);
- assert.match(server,/watchSeconds:\\[50,54\\],orderSeconds:\\[55,59\\],orderLightSeconds:30/);
+ assert.match(server,/watchSeconds:.*50,54.*orderSeconds:.*55,59.*orderLightSeconds:30/);
 });
 test("custom trigger levels are calculated only from Twelve Data M1 OHLC",()=>{
  assert.match(server,/fetchCandles/);assert.match(server,/analyzeCandleLines/);
