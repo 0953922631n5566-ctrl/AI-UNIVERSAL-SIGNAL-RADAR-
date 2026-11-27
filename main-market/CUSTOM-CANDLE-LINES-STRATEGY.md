@@ -8,7 +8,11 @@ This strategy uses no technical indicators. It derives its own price levels from
 - Micro-range high and low from the latest eight completed candles.
 - Range midpoint / balance line.
 - Adaptive trigger lines above and below the micro-range, with a small buffer derived from the median raw candle range.
-- Projected diagonal support and resistance lines from the latest two confirmed swing pivots.\n- Per-candle body midpoint line from the immediately preceding closed candle.\n- Previous upper/lower wick midpoint lines to detect wick defense and rejection.\n- Previous-candle directional continuation lines projected by 25% of its body.\n- Every active M1 candle is evaluated against these fresh per-candle geometry lines at the existing WATCH and ORDER checkpoints.
+- Projected diagonal support and resistance lines from the latest two confirmed swing pivots.
+- Per-candle body midpoint line from the immediately preceding closed candle.
+- Previous upper/lower wick midpoint lines to detect wick defense and rejection.
+- Previous-candle directional continuation lines projected by 25% of its body.
+- Every active M1 candle is evaluated against these fresh per-candle geometry lines at the existing WATCH and ORDER checkpoints.
 
 ## Candle events
 
@@ -16,7 +20,10 @@ This strategy uses no technical indicators. It derives its own price levels from
 - Breakout: the candle closes beyond a custom trigger line with directional body and strong close location.
 - Retest: price revisits a broken structural line and closes back through it.
 - Engulfing breakout: the live candle engulfs the previous candle body and clears the micro-range.
-- Diagonal trendline break: the live candle closes beyond a projected line with directional body confirmation.\n- Body-mid cross: the current candle crosses the previous candle body midpoint with directional close confirmation.\n- Wick defense: the current candle tests and reclaims the midpoint of a meaningful previous wick.\n- Body continuation: the current candle crosses the previous candle directional continuation line.
+- Diagonal trendline break: the live candle closes beyond a projected line with directional body confirmation.
+- Body-mid cross: the current candle crosses the previous candle body midpoint with directional close confirmation.
+- Wick defense: the current candle tests and reclaims the midpoint of a meaningful previous wick.
+- Body continuation: the current candle crosses the previous candle directional continuation line.
 
 The engine assigns heuristic structure points to line events, candle body, close location and wick rejection. The per-candle lines refresh from each newly completed M1 candle. A direction is eligible at 80/100; simultaneous CALL and PUT triggers are rejected as a conflict. This score is not a probability or proven win rate.
 
