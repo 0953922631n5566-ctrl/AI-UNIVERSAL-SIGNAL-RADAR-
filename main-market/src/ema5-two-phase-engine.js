@@ -187,17 +187,39 @@ export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAge
 export const MA5_BB_MIN_HISTORY = BB_MIN_HISTORY;
 
 
-export const EMA5_SCORE_STRATEGY_ID = "EURUSD_EMA5_SCORE_80_M1";
+export const EMA5_SCORE_STRATEGY_ID = "EURUSD_EMA5_RSI14_SCORE_80_M1";
 const EMA5_SCORE_MIN_HISTORY = 20;
 const EMA5_SCORE_PIP = 0.0001;
 const EMA5_SCORE_THRESHOLD = 80;
 const EMA5_SCORE_RETEST_TOLERANCE = 0.0001;
+const RSI_PERIOD = 14;
+
+/** Wilder RSI(14), calculated locally from Twelve Data M1 close prices. */
+export function calculateRsi14(closes) {
+  const values = closes.map(Number);
+  if (values.length < RSI_PERIOD + 1 || values.some(v => !Number.isFinite(v))) return null;
+  let gain = 0, loss = 0;
+  for (let i = 1; i <= RSI_PERIOD; i++) {
+    const change = values[i] - values[i - 1];
+    if (change > 0) gain += change;
+    else loss -= change;
+  }
+  let avgGain = gain / RSI_PERIOD, avgLoss = loss / RSI_PERIOD;
+  const toRsi = (g, l) => l === 0 ? (g === 0 ? 50 : 100) : g === 0 ? 0 : 100 - 100 / (1 + g / l);
+  let previous = toRsi(avgGain, avgLoss);
+  for (let i = RSI_PERIOD + 1; i < values.length; i++) {
+    const change = values[i] - values[i - 1];
+    avgGain = (avgGain * (RSI_PERIOD - 1) + Math.max(change, 0)) / RSI_PERIOD;
+    avgLoss = (avgLoss * (RSI_PERIOD - 1) + Math.max(-change, 0)) / RSI_PERIOD;
+    previous = toRsi(avgGain, avgLoss);
+  }
+  return { current: toRsi(avgGain, avgLoss), previous };
+}
 
 /**
- * EMA5-only directional scoring. The only indicator is EMA5; candle OHLC
- * supplies price-action confirmation. Core alignment = 80 points:
- * EMA slope 35, close side of EMA5 25, candle body direction 20.
- * A clean EMA5 retest adds 20 bonus points.
+ * EMA5 + RSI14 directional scoring. Core alignment = 80 points:
+ * EMA slope 25, close side of EMA5 20, candle direction 15,
+ * RSI14 direction confirmation 20. A clean EMA5 retest adds 20 bonus.
  */
 export function analyzeEma5Score({ symbol, closedCandles, liveCandle, tickAgeSeconds }) {
   const wait = (reason, extra = {}) => ({
@@ -218,10 +240,13 @@ export function analyzeEma5Score({ symbol, closedCandles, liveCandle, tickAgeSec
   if (candles.some(c => ![c.open, c.high, c.low, c.close].every(Number.isFinite))) {
     return wait("ข้อมูล OHLC ไม่สมบูรณ์");
   }
-  const ema = calculateEma5(candles.map(c => Number(c.close)));
+  const closes = candles.map(c => Number(c.close));
+  const ema = calculateEma5(closes);
   if (!ema || !Number.isFinite(ema.current) || !Number.isFinite(ema.previous)) {
     return wait("คำนวณ EMA5 ไม่สำเร็จ");
   }
+  const rsi = calculateRsi14(closes);
+  if (!rsi || !Number.isFinite(rsi.current)) return wait("ข้อมูลไม่พอคำนวณ RSI(14)");
   const c = liveCandle;
   const slopePips = (ema.current - ema.previous) / EMA5_SCORE_PIP;
   const slopeUp = slopePips > 0.02;
@@ -230,40 +255,45 @@ export function analyzeEma5Score({ symbol, closedCandles, liveCandle, tickAgeSec
   const closeBelow = c.close < ema.current;
   const bullish = c.close > c.open;
   const bearish = c.close < c.open;
+  const rsiCallConfirm = rsi.current > 50;
+  const rsiPutConfirm = rsi.current < 50;
   const callRetest = c.low <= ema.current + EMA5_SCORE_RETEST_TOLERANCE &&
     c.close > ema.current && (Math.min(c.open, c.close) - c.low) > (c.high - Math.max(c.open, c.close));
   const putRetest = c.high >= ema.current - EMA5_SCORE_RETEST_TOLERANCE &&
     c.close < ema.current && (c.high - Math.max(c.open, c.close)) > (Math.min(c.open, c.close) - c.low);
-  const callScore = (slopeUp ? 35 : 0) + (closeAbove ? 25 : 0) + (bullish ? 20 : 0) + (callRetest ? 20 : 0);
-  const putScore = (slopeDown ? 35 : 0) + (closeBelow ? 25 : 0) + (bearish ? 20 : 0) + (putRetest ? 20 : 0);
+  const callScore = (slopeUp ? 25 : 0) + (closeAbove ? 20 : 0) + (bullish ? 15 : 0) + (rsiCallConfirm ? 20 : 0) + (callRetest ? 20 : 0);
+  const putScore = (slopeDown ? 25 : 0) + (closeBelow ? 20 : 0) + (bearish ? 15 : 0) + (rsiPutConfirm ? 20 : 0) + (putRetest ? 20 : 0);
   const score = Math.max(callScore, putScore);
   const common = {
     ema5: ema.current,
     previousEma5: ema.previous,
     ema5SlopePips: Number(slopePips.toFixed(3)),
+    rsi14: Number(rsi.current.toFixed(2)),
+    previousRsi14: Number(rsi.previous.toFixed(2)),
+    rsiSignal: rsiCallConfirm ? "BULLISH" : rsiPutConfirm ? "BEARISH" : "NEUTRAL",
     slope: slopeUp ? "UP" : slopeDown ? "DOWN" : "FLAT",
     callScore, putScore, score, threshold: EMA5_SCORE_THRESHOLD,
     scoreParts: {
-      slope: 35, closeSide: 25, candleDirection: 20,
-      ema5Retest: 20,
-      call: { slope: slopeUp, closeAbove, bullish, retest: callRetest },
-      put: { slope: slopeDown, closeBelow, bearish, retest: putRetest }
+      ema5Slope: 25, closeSideOfEma5: 20, candleDirection: 15,
+      rsi14Direction: 20, ema5RetestBonus: 20,
+      call: { slope: slopeUp, closeAbove, bullish, rsiConfirm: rsiCallConfirm, retest: callRetest },
+      put: { slope: slopeDown, closeBelow, bearish, rsiConfirm: rsiPutConfirm, retest: putRetest }
     },
     openPrice: c.open, closePrice: c.close, highPrice: c.high, lowPrice: c.low,
     sourceCandleEpoch: c.epoch, targetCandleEpoch: c.epoch + 60,
     tickAgeSeconds: Number(tickAgeSeconds.toFixed(2)),
-    indicator: "EMA5",
-    source: "Twelve Data real M1 OHLC + local EMA5"
+    indicator: "EMA5 + RSI14",
+    source: "Twelve Data real M1 OHLC + local EMA5 + Wilder RSI14"
   };
   if (callScore >= EMA5_SCORE_THRESHOLD) {
-    return { ...common, signal: "CALL", regime: "EMA5_UP", reason: `EMA5 ขาขึ้น + ปิดเหนือ EMA5 + แท่งเขียว · คะแนน ${callScore}/100 (เกณฑ์ 80)` };
+    return { ...common, signal: "CALL", regime: "EMA5_RSI_BULLISH", reason: `EMA5 ขาขึ้น + ปิดเหนือ EMA5 + แท่งเขียว + RSI14 ${rsi.current.toFixed(1)} ยืนยันแรงซื้อ · คะแนน ${callScore}/100 (เกณฑ์ 80)` };
   }
   if (putScore >= EMA5_SCORE_THRESHOLD) {
-    return { ...common, signal: "PUT", regime: "EMA5_DOWN", reason: `EMA5 ขาลง + ปิดใต้ EMA5 + แท่งแดง · คะแนน ${putScore}/100 (เกณฑ์ 80)` };
+    return { ...common, signal: "PUT", regime: "EMA5_RSI_BEARISH", reason: `EMA5 ขาลง + ปิดใต้ EMA5 + แท่งแดง + RSI14 ${rsi.current.toFixed(1)} ยืนยันแรงขาย · คะแนน ${putScore}/100 (เกณฑ์ 80)` };
   }
   return {
-    ...common, signal: "WAIT", regime: "EMA5_WAIT",
-    reason: `ยังไม่ครบเกณฑ์ EMA5 · CALL ${callScore}/100 · PUT ${putScore}/100 · ต้องถึง 80 คะแนน`
+    ...common, signal: "WAIT", regime: "EMA5_RSI_WAIT",
+    reason: `รอ EMA5 และ RSI14 ยืนยันทิศทาง · RSI ${rsi.current.toFixed(1)} · CALL ${callScore}/100 · PUT ${putScore}/100 · ต้องถึง 80 คะแนน`
   };
 }
 
