@@ -79,3 +79,24 @@ test("per-candle wick midpoint and continuation lines can trigger PUT",()=>{
  assert.equal(result.lineEvents.bearishBodyContinuation,true);
  assert.equal(result.indicatorSource,"NONE · custom price lines only");
 });
+
+
+test("directional candle momentum can trigger high-frequency CALL without a structural line event",()=>{
+ const candles=history();
+ candles[candles.length-1]={...candles.at(-1),open:1.10002,close:1.10000};
+ const current={epoch:1440,live:true,open:1.10003,high:1.10008,low:1.10002,close:1.10007};
+ const result=analyzeCandleLines({symbol:"EUR/USD",closedCandles:candles,liveCandle:current,tickAgeSeconds:1});
+ assert.equal(result.signal,"CALL");
+ assert.equal(result.lineEvents.bullishBodyMomentum,true);
+ assert.equal(result.threshold,50);
+});
+
+test("directional candle momentum can trigger high-frequency PUT without a structural line event",()=>{
+ const candles=history();
+ candles[candles.length-1]={...candles.at(-1),open:1.10000,close:1.10002};
+ const current={epoch:1440,live:true,open:1.09999,high:1.09999,low:1.09992,close:1.09993};
+ const result=analyzeCandleLines({symbol:"EUR/USD",closedCandles:candles,liveCandle:current,tickAgeSeconds:1});
+ assert.equal(result.signal,"PUT");
+ assert.equal(result.lineEvents.bearishBodyMomentum,true);
+ assert.equal(result.threshold,50);
+});

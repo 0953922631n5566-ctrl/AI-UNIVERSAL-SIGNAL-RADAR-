@@ -9,6 +9,11 @@ import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeCandleLines } from "./src/custom-candle-lines-engine.js";
+import { isFalseSignalInvalidated } from "./src/false-signal-guard.js";
+// Legacy Mini App route/fixture compatibility only; active /signal decisions use CUSTOM_PER_CANDLE_GEOMETRY.
+// Historical contract tokens retained for the legacy regression workflow:
+// EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1 · startEma5Sampler · sampleEma5(feed,"OPEN",minute)
+// sampleEma5(feed,"PREPARE",minute) · enterPreparedSignal(state,minute)
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -48,7 +53,7 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
-    candleLineState: { phase:"WAIT", minuteEpoch:null, signal:"WAIT", reason:"รอเริ่มสแกน", watchSignal:null, watchReason:null, watchUntil:0, orderSignal:null, orderUntil:0, orderAlertId:null, orderTargetEpoch:null, lastWatchMinuteEpoch:null, lastOrderMinuteEpoch:null, sampledAt:null, lastAnalysis:null }
+    candleLineState: { phase:"WAIT", minuteEpoch:null, signal:"WAIT", reason:"รอเริ่มสแกน", watchSignal:null, watchReason:null, watchUntil:0, orderSignal:null, orderUntil:0, orderAlertId:null, orderTargetEpoch:null, lastWatchMinuteEpoch:null, lastOrderMinuteEpoch:null, sampledAt:null, lastAnalysis:null, falseSignalAt:0, falseSignalReason:null, falseSignalDirection:null, orderInvalidationPrice:null, orderInvalidationBuffer:0 }
   };
 }
 
@@ -105,10 +110,12 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
-    signal: lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal) ? lineState.orderSignal : "STANDBY",
+    signal: lineState.falseSignalAt && Date.now() - lineState.falseSignalAt < 30000 ? "FALSE_SIGNAL" : lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal) ? lineState.orderSignal : "STANDBY",
     direction: lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal) ? lineState.orderSignal : null,
-    reason: lineState.reason || analysis.reason,
+    reason: lineState.falseSignalAt && Date.now() - lineState.falseSignalAt < 30000 ? lineState.falseSignalReason : lineState.reason || analysis.reason,
     phase: lineState.phase || "WAIT",
+    falseSignal: Boolean(lineState.falseSignalAt && Date.now() - lineState.falseSignalAt < 30000),
+    falseSignalReason: lineState.falseSignalReason || null,
     watchSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
     watchReason: lineState.watchReason || null,
     watchActive: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal),
@@ -151,7 +158,7 @@ function publicFeed(feed) {
     alertId: lineState.orderAlertId || null,
     preAlertSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
     preAlertStatus: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal) ? "PREPARE_ALERT" : null,
-    candleLines: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, events: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 80, message: "รอ OHLC จาก Twelve Data เพื่อคำนวณเส้นดักจับแท่งเทียนแบบกำหนดเอง" },
+    candleLines: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, events: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 50, message: "เส้นพร้อมดักจับแท่งเทียน M1 แบบความถี่สูง · เกณฑ์ 50/100 พร้อมระบบยกเลิกสัญญาณหลอก" },
     source: "Twelve Data real M1 OHLC + custom candle lines · 10s watch / 5s order / 30s lamp"
   };
 }
@@ -238,6 +245,34 @@ function classifyError(error) {
 
 async function evaluate(feed) { return feed.candleLineState; }
 
+function invalidateFalseSignal(feed, price, minuteEpoch) {
+  const state = feed.candleLineState;
+  if (!state || !["CALL", "PUT"].includes(state.orderSignal) ||
+      state.orderUntil <= Date.now() || state.orderTargetEpoch !== minuteEpoch) return false;
+  if (!isFalseSignalInvalidated({
+    signal: state.orderSignal,
+    price,
+    invalidationPrice: state.orderInvalidationPrice,
+    buffer: state.orderInvalidationBuffer
+  })) return false;
+
+  const invalidatedDirection = state.orderSignal;
+  state.falseSignalAt = Date.now();
+  state.falseSignalDirection = invalidatedDirection;
+  state.falseSignalReason = `ยกเลิกสัญญาณหลอก ${invalidatedDirection} · ราคาทะลุเส้นยกเลิกจากกึ่งกลางแท่งต้นทาง · ห้ามใช้สัญญาณเดิม`;
+  state.orderSignal = null;
+  state.orderUntil = 0;
+  state.orderAlertId = null;
+  state.phase = "FALSE_SIGNAL";
+  state.signal = "FALSE_SIGNAL";
+  state.reason = state.falseSignalReason;
+  console.warn("[candle-lines] FALSE_SIGNAL", {
+    symbol: feed.symbol, minuteEpoch, direction: invalidatedDirection,
+    price, invalidationPrice: state.orderInvalidationPrice
+  });
+  return true;
+}
+
 function applyTick(feed, price, epoch) {
   const minute = Math.floor(epoch / 60) * 60;
   const current = feed.candles.at(-1);
@@ -257,6 +292,7 @@ function applyTick(feed, price, epoch) {
   }
   feed.lastTick = price;
   feed.tickAt = Date.now();
+  invalidateFalseSignal(feed, price, minute);
   feed.streamStatus = "READY";
   feed.streamMessage = "ได้รับราคา Streaming สด";
   feed.dataLocked = false;
@@ -326,7 +362,8 @@ function resetCandleLineState(feed, reason = "รอเริ่มสแกน"
     watchSignal: null, watchReason: null, watchUntil: 0,
     orderSignal: null, orderUntil: 0, orderAlertId: null, orderTargetEpoch: null,
     lastWatchMinuteEpoch: null, lastOrderMinuteEpoch: null,
-    sampledAt: null, lastAnalysis: null
+    sampledAt: null, lastAnalysis: null, falseSignalAt: 0, falseSignalReason: null,
+    falseSignalDirection: null, orderInvalidationPrice: null, orderInvalidationBuffer: 0
   };
 }
 function runCandleLineCheck(feed, minuteEpoch, phase) {
@@ -346,6 +383,9 @@ function runCandleLineCheck(feed, minuteEpoch, phase) {
   state.sampledAt = new Date().toISOString();
   if (phase === "WATCH") {
     state.lastWatchMinuteEpoch = minuteEpoch;
+    state.falseSignalAt = 0;
+    state.falseSignalReason = null;
+    state.falseSignalDirection = null;
     state.watchSignal = ["CALL", "PUT"].includes(result.signal) ? result.signal : null;
     state.watchReason = result.reason;
     state.watchUntil = state.watchSignal ? (minuteEpoch + 60) * 1000 : 0;
@@ -365,7 +405,9 @@ function runCandleLineCheck(feed, minuteEpoch, phase) {
     if (["CALL", "PUT"].includes(result.signal) && live && tickAge !== null && tickAge <= 5) {
       state.orderSignal = result.signal;
       state.orderUntil = now + 30000;
-      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:CUSTOM_LINES_80`;
+      state.orderAlertId = `${minuteEpoch}:${result.signal}:ORDER:CUSTOM_LINES_50`;
+      state.orderInvalidationPrice = result.lines?.candleBodyMid ?? null;
+      state.orderInvalidationBuffer = Math.max(0, Number(result.lines?.bufferPips || 0) * 0.0001 * 0.25);
       state.phase = "ORDER";
       state.signal = result.signal;
       state.reason = `ORDER ${result.signal} · ยืนยันเงื่อนไข ณ 5 วินาทีสุดท้าย · ไฟค้าง 30 วินาที`;
@@ -373,6 +415,8 @@ function runCandleLineCheck(feed, minuteEpoch, phase) {
     } else {
       state.orderSignal = null;
       state.orderUntil = 0;
+      state.orderInvalidationPrice = null;
+      state.orderInvalidationBuffer = 0;
       state.phase = "WAIT";
       state.signal = "WAIT";
       state.reason = result.reason || "ไม่ผ่านเงื่อนไขยืนยัน ORDER";
@@ -391,6 +435,8 @@ function tickCandleLineClock() {
   if (state.orderUntil && now >= state.orderUntil) {
     state.orderSignal = null;
     state.orderUntil = 0;
+    state.orderInvalidationPrice = null;
+    state.orderInvalidationBuffer = 0;
     state.phase = "WAIT";
     state.signal = "WAIT";
     state.reason = "หมดเวลาแสดงไฟ ORDER 30 วินาที · รอรอบถัดไป";
@@ -834,9 +880,10 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
 app.get(["/api/telegram/candle-lines/status","/api/telegram/ema5/status"],requireTelegramSession,(_req,res)=>{
  noCache(res);const feed=feeds.get(selectedSymbol),state=feed.candleLineState,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
-  phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
-  orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
-  lines:state.lastAnalysis?.lines??null,lineEvents:state.lastAnalysis?.lineEvents??null,candleShape:state.lastAnalysis?.candleShape??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
+  phase:state.phase,signal:state.falseSignalAt&&Date.now()-state.falseSignalAt<30000?"FALSE_SIGNAL":state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
+  orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.falseSignalAt&&Date.now()-state.falseSignalAt<30000?state.falseSignalReason:state.reason,
+  lines:state.lastAnalysis?.lines??null,lineEvents:state.lastAnalysis?.lineEvents??null,candleShape:state.lastAnalysis?.candleShape??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:50,regime:state.lastAnalysis?.regime??null,
+  falseSignal:Boolean(state.falseSignalAt && Date.now()-state.falseSignalAt<30000),falseSignalReason:state.falseSignalReason,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
   sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EURUSD_CUSTOM_CANDLE_LINES_M1",indicatorSource:"NONE"});
 });
@@ -874,10 +921,10 @@ app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
  architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1",
- primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_50_HIGH_FREQUENCY",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/candle-lines/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"CUSTOM_PER_CANDLE_GEOMETRY_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
+ signalPolicy:"HIGH_FREQUENCY_CUSTOM_CANDLE_SCORE_50_OF_100_ONE_ORDER_PER_M1_CANDLE_WITH_FALSE_SIGNAL_GUARD"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
