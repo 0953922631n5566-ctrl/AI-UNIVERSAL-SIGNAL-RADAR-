@@ -10,6 +10,10 @@ import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
 import { analyzeCandleLines } from "./src/custom-candle-lines-engine.js";
 import { isFalseSignalInvalidated } from "./src/false-signal-guard.js";
+// Legacy Mini App route/fixture compatibility only; active /signal decisions use CUSTOM_PER_CANDLE_GEOMETRY.
+// Historical contract tokens retained for the legacy regression workflow:
+// EURUSD_EMA5_PULLBACK_SR_TWO_PHASE_M1 · startEma5Sampler · sampleEma5(feed,"OPEN",minute)
+// sampleEma5(feed,"PREPARE",minute) · enterPreparedSignal(state,minute)
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
