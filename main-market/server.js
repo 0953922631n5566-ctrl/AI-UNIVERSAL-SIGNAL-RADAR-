@@ -178,7 +178,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EURUSD_EMA5_SCORE_80_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EURUSD_EMA5_RSI14_SCORE_80_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -837,7 +837,7 @@ app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
   orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
-  ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
+  ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,rsi14:state.lastAnalysis?.rsi14??null,previousRsi14:state.lastAnalysis?.previousRsi14??null,rsiSignal:state.lastAnalysis?.rsiSignal??"WAIT",score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
   sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EMA5_RSI14_SCORE_80_M1"});
 });
