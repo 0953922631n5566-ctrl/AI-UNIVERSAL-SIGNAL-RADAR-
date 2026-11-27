@@ -17,24 +17,21 @@
     "ws": "^8.18.0"
   },
   "radarArchitecture": {
-    "name": "Twelve Data MA5 Bollinger Bands M1",
-    "displayName": "EUR/USD SMA5 + Bollinger Bands(20,2) · 10s watch · 5s final order · 30s signal light",
+    "name": "Twelve Data EMA5 Score 80 M1",
+    "displayName": "EUR/USD EMA5 only · score 80/100 · 10s watch · 5s final order · 30s signal light",
     "engineCount": 1,
     "deploymentModel": "SINGLE_RENDER_SERVICE",
     "executionModel": "TWELVE_DATA_REAL_M1_OHLC_STREAMING_LOCAL_ANALYSIS",
-    "decisionAuthority": "SMA5_PLUS_BOLLINGER_BANDS_20_2",
+    "decisionAuthority": "EMA5_ONLY_SCORE_THRESHOLD_80",
     "indicators": {
-      "provider": "Local calculations from Twelve Data real M1 OHLC",
-      "periods": [
-        5,
-        20
-      ],
-      "bollingerDeviation": 2,
+      "provider": "Local EMA5 calculation from Twelve Data real M1 OHLC",
+      "periods": [5],
       "samplePointsPerMinute": 2,
       "localIndicatorCalculation": true
     },
     "strategy": {
-      "name": "MA5_BOLLINGER_20_2_M1",
+      "name": "EMA5_SCORE_80_M1",
+      "scoreThreshold": 80,
       "watchSeconds": [
         50,
         54
@@ -44,10 +41,7 @@
         59
       ],
       "orderLightSeconds": 30,
-      "waitFilters": [
-        "EXPANSION_EDGE_RIDE",
-        "SQUEEZE_MID"
-      ],
+      "scoreComponents": { "ema5Slope": 35, "closeSideOfEma5": 25, "candleDirection": 20, "ema5RetestBonus": 20 },
       "manualOnly": true
     },
     "keyPool": {
