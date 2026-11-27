@@ -31,7 +31,8 @@
         "range midpoint",
         "adaptive trigger buffer",
         "sweep/reclaim and retest lines",
-        "projected diagonal support/resistance from confirmed pivots",\n        "per-candle body midpoint, wick midpoint, and directional continuation lines"
+        "projected diagonal support/resistance from confirmed pivots",
+        "per-candle body midpoint, wick midpoint, and directional continuation lines"
       ],
       "noTechnicalIndicators": true
     },
