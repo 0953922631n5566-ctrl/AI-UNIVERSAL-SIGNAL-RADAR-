@@ -358,7 +358,8 @@ function resetCandleLineState(feed, reason = "รอเริ่มสแกน"
     watchSignal: null, watchReason: null, watchUntil: 0,
     orderSignal: null, orderUntil: 0, orderAlertId: null, orderTargetEpoch: null,
     lastWatchMinuteEpoch: null, lastOrderMinuteEpoch: null,
-    sampledAt: null, lastAnalysis: null
+    sampledAt: null, lastAnalysis: null, falseSignalAt: 0, falseSignalReason: null,
+    falseSignalDirection: null, orderInvalidationPrice: null, orderInvalidationBuffer: 0
   };
 }
 function runCandleLineCheck(feed, minuteEpoch, phase) {
@@ -410,6 +411,8 @@ function runCandleLineCheck(feed, minuteEpoch, phase) {
     } else {
       state.orderSignal = null;
       state.orderUntil = 0;
+      state.orderInvalidationPrice = null;
+      state.orderInvalidationBuffer = 0;
       state.phase = "WAIT";
       state.signal = "WAIT";
       state.reason = result.reason || "ไม่ผ่านเงื่อนไขยืนยัน ORDER";
@@ -428,6 +431,8 @@ function tickCandleLineClock() {
   if (state.orderUntil && now >= state.orderUntil) {
     state.orderSignal = null;
     state.orderUntil = 0;
+    state.orderInvalidationPrice = null;
+    state.orderInvalidationBuffer = 0;
     state.phase = "WAIT";
     state.signal = "WAIT";
     state.reason = "หมดเวลาแสดงไฟ ORDER 30 วินาที · รอรอบถัดไป";
@@ -871,8 +876,8 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
 app.get(["/api/telegram/candle-lines/status","/api/telegram/ema5/status"],requireTelegramSession,(_req,res)=>{
  noCache(res);const feed=feeds.get(selectedSymbol),state=feed.candleLineState,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
-  phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
-  orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
+  phase:state.phase,signal:state.falseSignalAt&&Date.now()-state.falseSignalAt<30000?"FALSE_SIGNAL":state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
+  orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.falseSignalAt&&Date.now()-state.falseSignalAt<30000?state.falseSignalReason:state.reason,
   lines:state.lastAnalysis?.lines??null,lineEvents:state.lastAnalysis?.lineEvents??null,candleShape:state.lastAnalysis?.candleShape??null,score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:50,regime:state.lastAnalysis?.regime??null,
   falseSignal:Boolean(state.falseSignalAt && Date.now()-state.falseSignalAt<30000),falseSignalReason:state.falseSignalReason,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
