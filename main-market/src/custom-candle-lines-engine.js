@@ -38,6 +38,16 @@ function findConfirmedPivots(candles) {
   return { highs, lows };
 }
 
+function projectTrendLine(points, targetEpoch) {
+  if (points.length < 2) return null;
+  const first = points.at(-2), last = points.at(-1);
+  const elapsed = last.epoch - first.epoch;
+  if (!Number.isFinite(elapsed) || elapsed <= 0) return null;
+  const slopePerSecond = (last.price - first.price) / elapsed;
+  const projected = last.price + slopePerSecond * (targetEpoch - last.epoch);
+  return Number.isFinite(projected) ? projected : null;
+}
+
 function nearestLine(levels, price, direction, fallback) {
   const candidates = levels.map(item => item.price)
     .filter(level => direction === "below" ? level <= price : level >= price)
@@ -147,13 +157,13 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     lineEvent: callSetup ? 50 : 0,
     candleBody: bullish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition >= 0.78 ? 20 : closePosition >= 0.68 ? 15 : 0,
-    wickRejection: lowerSweep || (upperWick <= Math.max(body * 0.35, buffer * 0.5) && bullishBreakout) ? 15 : 0
+    wickRejection: lowerSweep || (upperWick <= Math.max(body * 0.35, buffer * 0.5) && (bullishBreakout || bullishTrendlineBreak)) ? 15 : 0
   };
   const putParts = {
     lineEvent: putSetup ? 50 : 0,
     candleBody: bearish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition <= 0.22 ? 20 : closePosition <= 0.32 ? 15 : 0,
-    wickRejection: upperSweep || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) && bearishBreakout) ? 15 : 0
+    wickRejection: upperSweep || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) && (bearishBreakout || bearishTrendlineBreak)) ? 15 : 0
   };
   const callScore = callSetup ? scoreCandidate(callParts) : 0;
   const putScore = putSetup ? scoreCandidate(putParts) : 0;
@@ -200,14 +210,14 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
   if (callScore >= 80) {
     const setup = lowerSweep ? "กวาดแนวรับแล้วดึงกลับ" :
       bullishBreakout ? "ทะลุเส้น Trigger ด้านบน" :
-      bullishRetest ? "ทดสอบเส้นต้านเดิมแล้วผ่านขึ้น" : "แท่งกลืนกินทะลุกรอบบน";
+      bullishRetest ? "ทดสอบเส้นต้านเดิมแล้วผ่านขึ้น" :\n      bullishTrendlineBreak ? "ทะลุเส้นแนวโน้มขาลงที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบบน";
     return { ...common, signal: "CALL", regime: "CUSTOM_LINE_CALL",
       lineStatus: "CALL_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${callScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
   if (putScore >= 80) {
     const setup = upperSweep ? "กวาดแนวต้านแล้วถูกกดกลับ" :
       bearishBreakout ? "หลุดเส้น Trigger ด้านล่าง" :
-      bearishRetest ? "ทดสอบแนวรับเดิมแล้วผ่านลง" : "แท่งกลืนกินทะลุกรอบล่าง";
+      bearishRetest ? "ทดสอบแนวรับเดิมแล้วผ่านลง" :\n      bearishTrendlineBreak ? "หลุดเส้นแนวโน้มขาขึ้นที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบล่าง";
     return { ...common, signal: "PUT", regime: "CUSTOM_LINE_PUT",
       lineStatus: "PUT_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${putScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
