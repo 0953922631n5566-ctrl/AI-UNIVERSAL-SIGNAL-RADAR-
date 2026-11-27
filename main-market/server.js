@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 import { fetchCandles } from "./src/twelve-data.js";
 import { getStreamRetryReason } from "./src/stream-retry.js";
 import { twelveDataKeyPool } from "./src/twelve-data-pool.js";
-import { analyzeEma5Score } from "./src/ema5-two-phase-engine.js";
+import { analyzeCandleLines } from "./src/custom-candle-lines-engine.js";
 const SIGNAL_RELEASE_VALIDATED = false;
 
 import {
@@ -23,9 +23,9 @@ const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const telegramSessions = new Map();
 const authRequests = new Map();
-const SYSTEM_NAME = "EURUSD EMA5 RSI14 SCORE 80 M1 SIGNAL RADAR";
-const ARCHITECTURE_ID = "EURUSD_EMA5_RSI14_SCORE_80_M1";
-const VERSION = "2026-11-27-eurusd-ema5-rsi14-score80-watch10-order30-v1";
+const SYSTEM_NAME = "EURUSD CUSTOM CANDLE LINES M1 SIGNAL RADAR";
+const ARCHITECTURE_ID = "EURUSD_CUSTOM_CANDLE_LINES_M1";
+const VERSION = "2026-11-27-custom-candle-lines-no-indicators-watch10-order30-v1";
 const app = express();
 const server = http.createServer(app);
 
@@ -48,7 +48,7 @@ function newFeed(symbol) {
     engineLastDispatchedAlertId: { TREND_RIDER: null },
     lastDispatchedAt: 0, lastDispatchedCandle: null, lastDispatchedAlertId: null,
     nextEngine: { activeSignal: null, activeUntil: 0, sourceEpoch: null, targetEpoch: null, alertId: null, lastSignalSourceEpoch: null },
-    ema5State: { phase:"WAIT", minuteEpoch:null, signal:"WAIT", reason:"รอเริ่มสแกน", watchSignal:null, watchReason:null, watchUntil:0, orderSignal:null, orderUntil:0, orderAlertId:null, orderTargetEpoch:null, lastWatchMinuteEpoch:null, lastOrderMinuteEpoch:null, sampledAt:null, lastAnalysis:null }
+    candleLineState: { phase:"WAIT", minuteEpoch:null, signal:"WAIT", reason:"รอเริ่มสแกน", watchSignal:null, watchReason:null, watchUntil:0, orderSignal:null, orderUntil:0, orderAlertId:null, orderTargetEpoch:null, lastWatchMinuteEpoch:null, lastOrderMinuteEpoch:null, sampledAt:null, lastAnalysis:null }
   };
 }
 
@@ -58,7 +58,7 @@ let selectedSymbol = DEFAULT_SYMBOL;
 let monitoring = false;
 let monitoringStartedAt = 0;
 let upstream = null;
-let ema5Timer = null;
+let candleLineTimer = null;
 let watchdogTimer = null;
 let retryTimer = null;
 let heartbeatTimer = null;
@@ -89,7 +89,7 @@ function publicFeed(feed) {
   const status = feedStatus(feed);
   const tickAge = feed.tickAt ? Math.max(0, (Date.now() - feed.tickAt) / 1000) : null;
   const analysis = feed.analysis || standby("รอข้อมูล");
-  const ema5 = feed.ema5State || {};
+  const lineState = feed.candleLineState || {};
   const freshTick = tickAge !== null && tickAge <= MAX_STREAM_AGE_SECONDS
     ? feed.lastTick : null;
   const latestClosedCandle = feed.candles.filter(candle => candle && candle.live !== true).at(-1);
@@ -105,21 +105,21 @@ function publicFeed(feed) {
   };
   return {
     ...analysis,
-    signal: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal) ? ema5.orderSignal : "STANDBY",
-    direction: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal) ? ema5.orderSignal : null,
-    reason: ema5.reason || analysis.reason,
-    phase: ema5.phase || "WAIT",
-    watchSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
-    watchReason: ema5.watchReason || null,
-    watchActive: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal),
-    orderSignal: ema5.orderUntil > Date.now() ? ema5.orderSignal : null,
-    orderActive: ema5.orderUntil > Date.now() && ["CALL","PUT"].includes(ema5.orderSignal),
-    orderAlertId: ema5.orderAlertId || null,
-    orderExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
-    sourceCandleEpoch: ema5.minuteEpoch ?? null,
-    targetCandleEpoch: ema5.orderTargetEpoch ?? null,
-    analysisMode: "EMA5_RSI14_SCORE_80_M1",
-    indicatorSource: "Twelve Data real M1 OHLC · EMA5 + RSI(14) · score threshold 80/100",
+    signal: lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal) ? lineState.orderSignal : "STANDBY",
+    direction: lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal) ? lineState.orderSignal : null,
+    reason: lineState.reason || analysis.reason,
+    phase: lineState.phase || "WAIT",
+    watchSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
+    watchReason: lineState.watchReason || null,
+    watchActive: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal),
+    orderSignal: lineState.orderUntil > Date.now() ? lineState.orderSignal : null,
+    orderActive: lineState.orderUntil > Date.now() && ["CALL","PUT"].includes(lineState.orderSignal),
+    orderAlertId: lineState.orderAlertId || null,
+    orderExpiresAt: lineState.orderUntil > Date.now() ? new Date(lineState.orderUntil).toISOString() : null,
+    sourceCandleEpoch: lineState.minuteEpoch ?? null,
+    targetCandleEpoch: lineState.orderTargetEpoch ?? null,
+    analysisMode: "EURUSD_CUSTOM_CANDLE_LINES_M1",
+    indicatorSource: "NONE · Twelve Data real M1 OHLC + custom candle geometry lines",
     // Display a verified recent tick when available; otherwise show the latest real REST candle close.
     // This is presentation/data availability only and does not relax streaming requirements for signals.
     price: freshTick ?? restLastPrice,
@@ -139,21 +139,21 @@ function publicFeed(feed) {
     candleCount: feed.candles.length,
     closedCandleCount: Math.min(feed.candles.filter(c => !c.live).length, MIN_CLOSED_CANDLES),
     requiredCandles: MIN_CLOSED_CANDLES,
-    analysisWindow: { historyCandles: HISTORY_CANDLES, indicators: ["EMA5", "RSI14"] },
-    ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null,
-    rsi14: ema5.lastAnalysis?.rsi14 ?? null, previousRsi14: ema5.lastAnalysis?.previousRsi14 ?? null, rsiSignal: ema5.lastAnalysis?.rsiSignal ?? "WAIT",
-    score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, scoreThreshold: 80, regime: ema5.lastAnalysis?.regime ?? null,
+    analysisWindow: { historyCandles: HISTORY_CANDLES, lineModel: "CUSTOM_CANDLE_GEOMETRY", indicators: [] },
+    ema5: lineState.lastAnalysis?.ema5 ?? null, ema5SlopePips: lineState.lastAnalysis?.ema5SlopePips ?? null,
+    rsi14: lineState.lastAnalysis?.rsi14 ?? null, previousRsi14: lineState.lastAnalysis?.previousRsi14 ?? null, rsiSignal: lineState.lastAnalysis?.rsiSignal ?? "WAIT",
+    score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, scoreThreshold: 80, regime: lineState.lastAnalysis?.regime ?? null,
     nextCandleAt: feed.candles.length
       ? (feed.candles.at(-1).live
         ? feed.candles.at(-1).epoch + 60
         : Math.max(feed.candles.at(-1).epoch + 60, Math.floor(Date.now() / 60000) * 60 + 60)) * 1000
       : null,
-    signalExpiresAt: ema5.orderUntil > Date.now() ? new Date(ema5.orderUntil).toISOString() : null,
-    alertId: ema5.orderAlertId || null,
-    preAlertSignal: ema5.watchUntil > Date.now() ? ema5.watchSignal : null,
-    preAlertStatus: ema5.watchUntil > Date.now() && ["CALL","PUT"].includes(ema5.watchSignal) ? "PREPARE_ALERT" : null,
-    indicators: { status: ema5.lastAnalysis ? "READY" : "WAITING", ema5: ema5.lastAnalysis?.ema5 ?? null, ema5SlopePips: ema5.lastAnalysis?.ema5SlopePips ?? null, rsi14: ema5.lastAnalysis?.rsi14 ?? null, previousRsi14: ema5.lastAnalysis?.previousRsi14 ?? null, rsiSignal: ema5.lastAnalysis?.rsiSignal ?? "WAIT", score: ema5.lastAnalysis?.score ?? 0, callScore: ema5.lastAnalysis?.callScore ?? 0, putScore: ema5.lastAnalysis?.putScore ?? 0, threshold: 80, source: "EMA5 + Wilder RSI(14) from Twelve Data M1 OHLC" },
-    source: "Twelve Data real M1 OHLC + EMA5/RSI14 score 80/100 · 10s watch / 5s order / 30s lamp"
+    signalExpiresAt: lineState.orderUntil > Date.now() ? new Date(lineState.orderUntil).toISOString() : null,
+    alertId: lineState.orderAlertId || null,
+    preAlertSignal: lineState.watchUntil > Date.now() ? lineState.watchSignal : null,
+    preAlertStatus: lineState.watchUntil > Date.now() && ["CALL","PUT"].includes(lineState.watchSignal) ? "PREPARE_ALERT" : null,
+    indicators: { status: lineState.lastAnalysis ? "READY" : "WAITING", lines: lineState.lastAnalysis?.lines ?? null, lineEvents: lineState.lastAnalysis?.lineEvents ?? null, candleShape: lineState.lastAnalysis?.candleShape ?? null, score: lineState.lastAnalysis?.score ?? 0, callScore: lineState.lastAnalysis?.callScore ?? 0, putScore: lineState.lastAnalysis?.putScore ?? 0, threshold: 80, message: "รอ OHLC จาก Twelve Data เพื่อคำนวณเส้นดักจับแท่งเทียนแบบกำหนดเอง" },
+    source: "Twelve Data real M1 OHLC + custom candle lines · 10s watch / 5s order / 30s lamp"
   };
 }
 
@@ -178,7 +178,7 @@ function snapshot() {
     unsupportedCount: data.supportStatus === "UNSUPPORTED" ? 1 : 0,
     version: VERSION,
     signalReleaseValidated: SIGNAL_RELEASE_VALIDATED,
-    signalReleaseStatus: "EURUSD_EMA5_RSI14_SCORE_80_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
+    signalReleaseStatus: "EURUSD_CUSTOM_CANDLE_LINES_M1_MANUAL_ONLY_NOT_OOS_VALIDATED",
     apiPool: twelveDataKeyPool.publicStatus(),
   };
 }
@@ -188,7 +188,7 @@ function publish() {
 }
 
 function clearTimers() {
-  clearInterval(ema5Timer); ema5Timer = null;
+  clearInterval(candleLineTimer); candleLineTimer = null;
   clearInterval(watchdogTimer); watchdogTimer = null;
   clearInterval(heartbeatTimer); heartbeatTimer = null;
   clearTimeout(retryTimer); retryTimer = null;
@@ -237,7 +237,7 @@ function classifyError(error) {
   return "TRANSIENT";
 }
 
-async function evaluate(feed) { return feed.ema5State; }
+async function evaluate(feed) { return feed.candleLineState; }
 
 function applyTick(feed, price, epoch) {
   const minute = Math.floor(epoch / 60) * 60;
@@ -321,8 +321,8 @@ function scheduleLiveAnalysis(_feed) {
   // Disabled: MA5 + BB(20,2) checks run from live Twelve Data M1 candles.
 }
 
-function resetEma5State(feed, reason = "รอเริ่มสแกน") {
-  feed.ema5State = {
+function resetCandleLineState(feed, reason = "รอเริ่มสแกน") {
+  feed.candleLineState = {
     phase: "WAIT", minuteEpoch: null, signal: "WAIT", reason,
     watchSignal: null, watchReason: null, watchUntil: 0,
     orderSignal: null, orderUntil: 0, orderAlertId: null, orderTargetEpoch: null,
@@ -330,13 +330,13 @@ function resetEma5State(feed, reason = "รอเริ่มสแกน") {
     sampledAt: null, lastAnalysis: null
   };
 }
-function runEma5ScoreCheck(feed, minuteEpoch, phase) {
-  const state = feed.ema5State;
+function runCandleLineCheck(feed, minuteEpoch, phase) {
+  const state = feed.candleLineState;
   const now = Date.now();
   const live = feed.candles.at(-1)?.live && feed.candles.at(-1).epoch === minuteEpoch
     ? feed.candles.at(-1) : null;
   const tickAge = feed.tickAt ? (now - feed.tickAt) / 1000 : null;
-  const result = analyzeEma5Score({
+  const result = analyzeCandleLines({
     symbol: feed.symbol,
     closedCandles: feed.candles.filter(c => c && !c.live),
     liveCandle: live,
@@ -355,7 +355,7 @@ function runEma5ScoreCheck(feed, minuteEpoch, phase) {
     state.reason = state.watchSignal
       ? `เฝ้าระวัง ${state.watchSignal} · เหลือ 10 วินาทีสุดท้าย รอยืนยัน ORDER ที่ 5 วินาที`
       : result.reason;
-    console.info("[ema5-score] WATCH", { symbol: feed.symbol, minuteEpoch, signal: state.watchSignal, reason: result.reason });
+    console.info("[candle-lines] WATCH", { symbol: feed.symbol, minuteEpoch, signal: state.watchSignal, reason: result.reason });
     return;
   }
   if (phase === "ORDER") {
@@ -370,25 +370,25 @@ function runEma5ScoreCheck(feed, minuteEpoch, phase) {
       state.phase = "ORDER";
       state.signal = result.signal;
       state.reason = `ORDER ${result.signal} · ยืนยันเงื่อนไข ณ 5 วินาทีสุดท้าย · ไฟค้าง 30 วินาที`;
-      console.info("[ema5-score] ORDER", { symbol: feed.symbol, minuteEpoch, signal: result.signal, orderAlertId: state.orderAlertId, reason: result.reason });
+      console.info("[candle-lines] ORDER", { symbol: feed.symbol, minuteEpoch, signal: result.signal, orderAlertId: state.orderAlertId, reason: result.reason });
     } else {
       state.orderSignal = null;
       state.orderUntil = 0;
       state.phase = "WAIT";
       state.signal = "WAIT";
       state.reason = result.reason || "ไม่ผ่านเงื่อนไขยืนยัน ORDER";
-      console.info("[ema5-score] ORDER skipped", { symbol: feed.symbol, minuteEpoch, reason: result.reason });
+      console.info("[candle-lines] ORDER skipped", { symbol: feed.symbol, minuteEpoch, reason: result.reason });
     }
   }
 }
-function tickEma5Clock() {
+function tickCandleLineClock() {
   if (!monitoring) return;
   const feed = feeds.get(selectedSymbol);
   if (!feed) return;
   const now = Date.now();
   const minute = Math.floor(now / 60000) * 60;
   const second = Math.floor(now / 1000) % 60;
-  const state = feed.ema5State;
+  const state = feed.candleLineState;
   if (state.orderUntil && now >= state.orderUntil) {
     state.orderSignal = null;
     state.orderUntil = 0;
@@ -398,14 +398,14 @@ function tickEma5Clock() {
     publish();
   }
   if (second >= 50 && second < 55 && state.lastWatchMinuteEpoch !== minute) {
-    runEma5ScoreCheck(feed, minute, "WATCH");
+    runCandleLineCheck(feed, minute, "WATCH");
     publish();
   } else if (second >= 55 && state.lastOrderMinuteEpoch !== minute) {
-    runEma5ScoreCheck(feed, minute, "ORDER");
+    runCandleLineCheck(feed, minute, "ORDER");
     publish();
   }
 }
-function startEma5Sampler(){clearInterval(ema5Timer);ema5Timer=setInterval(tickEma5Clock,200);tickEma5Clock();}
+function startCandleLineSampler(){clearInterval(candleLineTimer);candleLineTimer=setInterval(tickCandleLineClock,200);tickCandleLineClock();}
 
 function startWatchdog() {
   if (watchdogTimer) clearInterval(watchdogTimer);
@@ -648,12 +648,12 @@ async function start(symbolValue) {
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
   resetSignal(feed, "กำลังเริ่มสแกน " + symbol);
-  resetEma5State(feed, "กำลังเริ่มสแกน " + symbol);
+  resetCandleLineState(feed, "กำลังเริ่มสแกน " + symbol);
   startWatchdog();
   publish();
   await syncSelected({ force: true, symbol });
   if (monitoring) startStream();
-  startEma5Sampler();
+  startCandleLineSampler();
   publish();
 }
 
@@ -673,7 +673,7 @@ async function select(symbolValue) {
   feed.streamMessage = "รอสมัครรับราคา Streaming";
   feed.dataLocked = false;
   resetSignal(feed, "เปลี่ยนคู่เงินเป็น " + symbol);
-  resetEma5State(feed, "เปลี่ยนคู่เงิน · รอข้อมูลใหม่");
+  resetCandleLineState(feed, "เปลี่ยนคู่เงิน · รอข้อมูลใหม่");
   publish();
   // Always load the newly selected pair's own REST history, even if monitoring is stopped.
   // When monitoring is active, subscribe to Streaming only after the selected pair's history sync.
@@ -694,9 +694,9 @@ function stop(clearSignal = true) {
   feed.dataLocked = false;
   if (feed.streamStatus !== "UNSUPPORTED") feed.streamStatus = "WAITING";
   if (clearSignal) resetSignal(feed, "หยุดสแกนแล้ว");
-  clearInterval(ema5Timer); ema5Timer = null;
+  clearInterval(candleLineTimer); candleLineTimer = null;
   const activeFeed = feeds.get(selectedSymbol);
-  if (activeFeed) resetEma5State(activeFeed, "หยุดสแกนแล้ว");
+  if (activeFeed) resetCandleLineState(activeFeed, "หยุดสแกนแล้ว");
   globalLockMessage = null;
   publish();
 }
@@ -833,13 +833,13 @@ app.post("/api/telegram/select", requireTelegramSession, rateLimitControl, async
   }
 });
 app.get("/api/telegram/ema5/status",requireTelegramSession,(_req,res)=>{
- noCache(res);const feed=feeds.get(selectedSymbol),state=feed.ema5State,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
+ noCache(res);const feed=feeds.get(selectedSymbol),state=feed.candleLineState,tickAge=feed.tickAt?Math.max(0,(Date.now()-feed.tickAt)/1000):null;
  res.json({ok:true,monitoring,symbol:"EUR/USD",symbols:["EUR/USD"],price:tickAge!==null&&tickAge<=5?feed.lastTick:null,tickAgeSeconds:tickAge,
   phase:state.phase,signal:state.orderUntil>Date.now()?state.orderSignal:"WAIT",watchSignal:state.watchUntil>Date.now()?state.watchSignal:null,watchActive:state.watchUntil>Date.now()&&!!state.watchSignal,
   orderSignal:state.orderUntil>Date.now()?state.orderSignal:null,orderActive:state.orderUntil>Date.now()&&!!state.orderSignal,orderExpiresAt:state.orderUntil?new Date(state.orderUntil).toISOString():null,reason:state.reason,
   ema5:state.lastAnalysis?.ema5??null,ema5SlopePips:state.lastAnalysis?.ema5SlopePips??null,rsi14:state.lastAnalysis?.rsi14??null,previousRsi14:state.lastAnalysis?.previousRsi14??null,rsiSignal:state.lastAnalysis?.rsiSignal??"WAIT",score:state.lastAnalysis?.score??0,callScore:state.lastAnalysis?.callScore??0,putScore:state.lastAnalysis?.putScore??0,scoreThreshold:80,regime:state.lastAnalysis?.regime??null,
   alertId:state.orderAlertId,sampledAt:state.sampledAt,candles:feed.candles.slice(-60),apiPool:twelveDataKeyPool.publicStatus(),
-  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EMA5_RSI14_SCORE_80_M1"});
+  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30},manualOnly:true,brokerExecution:false,strategy:"EURUSD_CUSTOM_CANDLE_LINES_M1"});
 });
 app.get("/api/telegram/signal", requireTelegramSession, (_req, res) => {
   noCache(res);
@@ -874,17 +874,17 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EMA5_RSI14_SCORE_80_M1",
- primaryDecisionEngine:"EMA5_PLUS_RSI14_SCORE_THRESHOLD_80",indicators:["EMA5","RSI14"],externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
+ architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_EURUSD_CUSTOM_CANDLE_LINES_M1",
+ primaryDecisionEngine:"CUSTOM_CANDLE_GEOMETRY_LINES_THRESHOLD_80",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
  sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
  primaryMiniApp:{route:"/signal",api:"/api/telegram/ema5/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"EMA5_RSI14_DIRECTIONAL_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
+ signalPolicy:"CUSTOM_CANDLE_LINES_SCORE_80_OF_100_ONE_WATCH_AND_ONE_ORDER_PER_M1_CANDLE"},
  configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
  restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
-  console.log(`[${SYSTEM_NAME}] EMA5 + RSI14 SCORE 80 MAIN MARKET listening on ${PORT}`);
+  console.log(`[${SYSTEM_NAME}] CUSTOM CANDLE LINES MAIN MARKET listening on ${PORT}`);
   console.info("[radar] startup configuration", {
     twelveDataApiKeysConfigured: twelveDataKeyPool.keyCount > 0,
     twelveDataApiKeyCount: twelveDataKeyPool.keyCount,
