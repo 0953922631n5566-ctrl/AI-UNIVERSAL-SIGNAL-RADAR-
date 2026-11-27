@@ -58,3 +58,24 @@ test("custom line engine rejects malformed OHLC geometry",()=>{
  assert.equal(result.signal,"WAIT");
  assert.match(result.reason,/OHLC/);
 });
+
+
+test("per-candle body midpoint and continuation lines can trigger CALL",()=>{
+ const current={epoch:1440,live:true,open:1.09998,high:1.10014,low:1.09997,close:1.10013};
+ const result=analyzeCandleLines({symbol:"EUR/USD",closedCandles:history(),liveCandle:current,tickAgeSeconds:1});
+ assert.equal(result.signal,"CALL");
+ assert.equal(result.lineEvents.bullishBodyMidCross,true);
+ assert.equal(result.lineEvents.bullishBodyContinuation,true);
+ assert.equal(result.lines.candleBodyMid,1.10001);
+ assert.equal(result.indicatorSource,"NONE · custom price lines only");
+});
+
+test("per-candle wick midpoint and continuation lines can trigger PUT",()=>{
+ const candles=history().map(c=>({...c,open:1.10002,close:1.10000}));
+ const current={epoch:1440,live:true,open:1.10004,high:1.10005,low:1.09986,close:1.09987};
+ const result=analyzeCandleLines({symbol:"EUR/USD",closedCandles:candles,liveCandle:current,tickAgeSeconds:1});
+ assert.equal(result.signal,"PUT");
+ assert.equal(result.lineEvents.bearishBodyMidCross,true);
+ assert.equal(result.lineEvents.bearishBodyContinuation,true);
+ assert.equal(result.indicatorSource,"NONE · custom price lines only");
+});
