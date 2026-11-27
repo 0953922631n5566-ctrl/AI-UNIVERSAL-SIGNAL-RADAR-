@@ -185,3 +185,86 @@ export function analyzeMa5Bollinger({ symbol, closedCandles, liveCandle, tickAge
 }
 
 export const MA5_BB_MIN_HISTORY = BB_MIN_HISTORY;
+
+
+export const EMA5_SCORE_STRATEGY_ID = "EURUSD_EMA5_SCORE_80_M1";
+const EMA5_SCORE_MIN_HISTORY = 20;
+const EMA5_SCORE_PIP = 0.0001;
+const EMA5_SCORE_THRESHOLD = 80;
+const EMA5_SCORE_RETEST_TOLERANCE = 0.0001;
+
+/**
+ * EMA5-only directional scoring. The only indicator is EMA5; candle OHLC
+ * supplies price-action confirmation. Core alignment = 80 points:
+ * EMA slope 35, close side of EMA5 25, candle body direction 20.
+ * A clean EMA5 retest adds 20 bonus points.
+ */
+export function analyzeEma5Score({ symbol, closedCandles, liveCandle, tickAgeSeconds }) {
+  const wait = (reason, extra = {}) => ({
+    signal: "WAIT", regime: "WAIT", reason,
+    strategy: EMA5_SCORE_STRATEGY_ID, threshold: EMA5_SCORE_THRESHOLD,
+    score: 0, callScore: 0, putScore: 0, ...extra
+  });
+  if (symbol !== "EUR/USD") return wait("ระบบนี้รองรับเฉพาะ EUR/USD");
+  if (!liveCandle || liveCandle.live !== true) return wait("รอแท่ง M1 ปัจจุบัน");
+  if (!Number.isFinite(tickAgeSeconds) || tickAgeSeconds > 5) return wait("ราคา Streaming ไม่สดเกิน 5 วินาที");
+  const closed = [...(closedCandles || [])]
+    .filter(c => c && c.live !== true && Number.isFinite(c.epoch))
+    .sort((a, b) => a.epoch - b.epoch);
+  if (closed.length < EMA5_SCORE_MIN_HISTORY) {
+    return wait(`ประวัติแท่งปิดไม่พอ (${closed.length}/${EMA5_SCORE_MIN_HISTORY})`);
+  }
+  const candles = [...closed, liveCandle];
+  if (candles.some(c => ![c.open, c.high, c.low, c.close].every(Number.isFinite))) {
+    return wait("ข้อมูล OHLC ไม่สมบูรณ์");
+  }
+  const ema = calculateEma5(candles.map(c => Number(c.close)));
+  if (!ema || !Number.isFinite(ema.current) || !Number.isFinite(ema.previous)) {
+    return wait("คำนวณ EMA5 ไม่สำเร็จ");
+  }
+  const c = liveCandle;
+  const slopePips = (ema.current - ema.previous) / EMA5_SCORE_PIP;
+  const slopeUp = slopePips > 0.02;
+  const slopeDown = slopePips < -0.02;
+  const closeAbove = c.close > ema.current;
+  const closeBelow = c.close < ema.current;
+  const bullish = c.close > c.open;
+  const bearish = c.close < c.open;
+  const callRetest = c.low <= ema.current + EMA5_SCORE_RETEST_TOLERANCE &&
+    c.close > ema.current && (Math.min(c.open, c.close) - c.low) > (c.high - Math.max(c.open, c.close));
+  const putRetest = c.high >= ema.current - EMA5_SCORE_RETEST_TOLERANCE &&
+    c.close < ema.current && (c.high - Math.max(c.open, c.close)) > (Math.min(c.open, c.close) - c.low);
+  const callScore = (slopeUp ? 35 : 0) + (closeAbove ? 25 : 0) + (bullish ? 20 : 0) + (callRetest ? 20 : 0);
+  const putScore = (slopeDown ? 35 : 0) + (closeBelow ? 25 : 0) + (bearish ? 20 : 0) + (putRetest ? 20 : 0);
+  const score = Math.max(callScore, putScore);
+  const common = {
+    ema5: ema.current,
+    previousEma5: ema.previous,
+    ema5SlopePips: Number(slopePips.toFixed(3)),
+    slope: slopeUp ? "UP" : slopeDown ? "DOWN" : "FLAT",
+    callScore, putScore, score, threshold: EMA5_SCORE_THRESHOLD,
+    scoreParts: {
+      slope: 35, closeSide: 25, candleDirection: 20,
+      ema5Retest: 20,
+      call: { slope: slopeUp, closeAbove, bullish, retest: callRetest },
+      put: { slope: slopeDown, closeBelow, bearish, retest: putRetest }
+    },
+    openPrice: c.open, closePrice: c.close, highPrice: c.high, lowPrice: c.low,
+    sourceCandleEpoch: c.epoch, targetCandleEpoch: c.epoch + 60,
+    tickAgeSeconds: Number(tickAgeSeconds.toFixed(2)),
+    indicator: "EMA5",
+    source: "Twelve Data real M1 OHLC + local EMA5"
+  };
+  if (callScore >= EMA5_SCORE_THRESHOLD) {
+    return { ...common, signal: "CALL", regime: "EMA5_UP", reason: `EMA5 ขาขึ้น + ปิดเหนือ EMA5 + แท่งเขียว · คะแนน ${callScore}/100 (เกณฑ์ 80)` };
+  }
+  if (putScore >= EMA5_SCORE_THRESHOLD) {
+    return { ...common, signal: "PUT", regime: "EMA5_DOWN", reason: `EMA5 ขาลง + ปิดใต้ EMA5 + แท่งแดง · คะแนน ${putScore}/100 (เกณฑ์ 80)` };
+  }
+  return {
+    ...common, signal: "WAIT", regime: "EMA5_WAIT",
+    reason: `ยังไม่ครบเกณฑ์ EMA5 · CALL ${callScore}/100 · PUT ${putScore}/100 · ต้องถึง 80 คะแนน`
+  };
+}
+
+export const EMA5_SCORE_MIN_HISTORY_EXPORT = EMA5_SCORE_MIN_HISTORY;
