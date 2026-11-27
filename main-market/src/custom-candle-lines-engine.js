@@ -188,9 +188,9 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
   // High-frequency raw-candle fallback: allow a directional M1 body to qualify
   // even when no structural line event fired. Flat/doji candles remain WAIT.
   const bullishBodyMomentum = bullish &&
-    body >= Math.max(medianBody * 0.35, PIP * 0.05) && closePosition >= 0.56;
+    body >= Math.max(medianBody * 0.35, PIP * 0.05) && closePosition >= 0.62;
   const bearishBodyMomentum = bearish &&
-    body >= Math.max(medianBody * 0.35, PIP * 0.05) && closePosition <= 0.44;
+    body >= Math.max(medianBody * 0.35, PIP * 0.05) && closePosition <= 0.38;
 
   const callSetup = lowerSweep || bullishBreakout || bullishRetest || bullishEngulf ||
     bullishTrendlineBreak || bullishBodyMidCross || bullishWickDefense || bullishBodyContinuation || bullishBodyMomentum;
