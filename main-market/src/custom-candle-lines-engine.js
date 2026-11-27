@@ -93,7 +93,7 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
   const pivots = findConfirmedPivots(closed.slice(-Math.min(closed.length, 16)));
   const price = Number(liveCandle.close);
   const support = nearestLine(pivots.lows, price, "below", Math.min(...recent.map(c => c.low)));
-  const resistance = nearestLine(pivots.highs, price, "above", Math.max(...recent.map(c => c.high)));
+  const resistance = nearestLine(pivots.highs, price, "above", Math.max(...recent.map(c => c.high)));\n  const risingOrFallingSupportLine = projectTrendLine(pivots.lows, liveCandle.epoch);\n  const risingOrFallingResistanceLine = projectTrendLine(pivots.highs, liveCandle.epoch);
   const microHigh = Math.max(...recent.map(c => c.high));
   const microLow = Math.min(...recent.map(c => c.low));
   const center = (microHigh + microLow) / 2;
@@ -131,6 +131,13 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     bearish && body >= Math.max(medianBody * 0.65, PIP * 0.1) &&
     closePosition <= 0.22;
 
+  const bullishTrendlineBreak = Number.isFinite(risingOrFallingResistanceLine) &&
+    candle.close > risingOrFallingResistanceLine + buffer && bullish &&
+    closePosition >= 0.78 && body >= Math.max(medianBody * 0.65, PIP * 0.1);
+  const bearishTrendlineBreak = Number.isFinite(risingOrFallingSupportLine) &&
+    candle.close < risingOrFallingSupportLine - buffer && bearish &&
+    closePosition <= 0.22 && body >= Math.max(medianBody * 0.65, PIP * 0.1);
+
   const bullishRetest = candle.low <= resistance + buffer &&
     candle.low >= resistance - buffer * 2 &&
     candle.close > resistance + buffer * 0.2 &&
@@ -150,20 +157,22 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     candle.close <= previousBodyLow && closePosition <= 0.28 &&
     candle.close < microLow;
 
-  const callSetup = lowerSweep || bullishBreakout || bullishRetest || bullishEngulf;
-  const putSetup = upperSweep || bearishBreakout || bearishRetest || bearishEngulf;
+  const callSetup = lowerSweep || bullishBreakout || bullishRetest || bullishEngulf || bullishTrendlineBreak;
+  const putSetup = upperSweep || bearishBreakout || bearishRetest || bearishEngulf || bearishTrendlineBreak;
 
   const callParts = {
     lineEvent: callSetup ? 50 : 0,
     candleBody: bullish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition >= 0.78 ? 20 : closePosition >= 0.68 ? 15 : 0,
-    wickRejection: lowerSweep || (upperWick <= Math.max(body * 0.35, buffer * 0.5) && (bullishBreakout || bullishTrendlineBreak)) ? 15 : 0
+    wickRejection: lowerSweep || (upperWick <= Math.max(body * 0.35, buffer * 0.5) &&
+      (bullishBreakout || bullishTrendlineBreak)) ? 15 : 0
   };
   const putParts = {
     lineEvent: putSetup ? 50 : 0,
     candleBody: bearish && body >= medianBody * 0.65 ? 15 : 0,
     closeLocation: closePosition <= 0.22 ? 20 : closePosition <= 0.32 ? 15 : 0,
-    wickRejection: upperSweep || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) && (bearishBreakout || bearishTrendlineBreak)) ? 15 : 0
+    wickRejection: upperSweep || (lowerWick <= Math.max(body * 0.35, buffer * 0.5) &&
+      (bearishBreakout || bearishTrendlineBreak)) ? 15 : 0
   };
   const callScore = callSetup ? scoreCandidate(callParts) : 0;
   const putScore = putSetup ? scoreCandidate(putParts) : 0;
@@ -176,6 +185,8 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     center: Number(center.toFixed(5)),
     upperTrigger: Number(upperTrigger.toFixed(5)),
     lowerTrigger: Number(lowerTrigger.toFixed(5)),
+    supportTrend: Number.isFinite(risingOrFallingSupportLine) ? Number(risingOrFallingSupportLine.toFixed(5)) : null,
+    resistanceTrend: Number.isFinite(risingOrFallingResistanceLine) ? Number(risingOrFallingResistanceLine.toFixed(5)) : null,
     bufferPips: Number((buffer / PIP).toFixed(2))
   };
   const common = {
@@ -194,7 +205,8 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
     },
     lineEvents: {
       lowerSweep, upperSweep, bullishBreakout, bearishBreakout,
-      bullishRetest, bearishRetest, bullishEngulf, bearishEngulf
+      bullishRetest, bearishRetest, bullishEngulf, bearishEngulf,
+      bullishTrendlineBreak, bearishTrendlineBreak
     },
     sourceCandleEpoch: candle.epoch,
     targetCandleEpoch: candle.epoch + 60,
@@ -210,14 +222,16 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
   if (callScore >= 80) {
     const setup = lowerSweep ? "กวาดแนวรับแล้วดึงกลับ" :
       bullishBreakout ? "ทะลุเส้น Trigger ด้านบน" :
-      bullishRetest ? "ทดสอบเส้นต้านเดิมแล้วผ่านขึ้น" :\n      bullishTrendlineBreak ? "ทะลุเส้นแนวโน้มขาลงที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบบน";
+      bullishRetest ? "ทดสอบเส้นต้านเดิมแล้วผ่านขึ้น" :
+      bullishTrendlineBreak ? "ทะลุเส้นแนวโน้มขาลงที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบบน";
     return { ...common, signal: "CALL", regime: "CUSTOM_LINE_CALL",
       lineStatus: "CALL_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${callScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
   if (putScore >= 80) {
     const setup = upperSweep ? "กวาดแนวต้านแล้วถูกกดกลับ" :
       bearishBreakout ? "หลุดเส้น Trigger ด้านล่าง" :
-      bearishRetest ? "ทดสอบแนวรับเดิมแล้วผ่านลง" :\n      bearishTrendlineBreak ? "หลุดเส้นแนวโน้มขาขึ้นที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบล่าง";
+      bearishRetest ? "ทดสอบแนวรับเดิมแล้วผ่านลง" :
+      bearishTrendlineBreak ? "หลุดเส้นแนวโน้มขาขึ้นที่คำนวณเอง" : "แท่งกลืนกินทะลุกรอบล่าง";
     return { ...common, signal: "PUT", regime: "CUSTOM_LINE_PUT",
       lineStatus: "PUT_TRIGGERED", reason: `${setup} · คะแนนโครงสร้างแท่ง ${putScore}/100 · สำหรับแท่ง M1 ถัดไป` };
   }
