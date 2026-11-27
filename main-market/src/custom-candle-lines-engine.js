@@ -93,7 +93,9 @@ export function analyzeCandleLines({ symbol, closedCandles, liveCandle, tickAgeS
   const pivots = findConfirmedPivots(closed.slice(-Math.min(closed.length, 16)));
   const price = Number(liveCandle.close);
   const support = nearestLine(pivots.lows, price, "below", Math.min(...recent.map(c => c.low)));
-  const resistance = nearestLine(pivots.highs, price, "above", Math.max(...recent.map(c => c.high)));\n  const risingOrFallingSupportLine = projectTrendLine(pivots.lows, liveCandle.epoch);\n  const risingOrFallingResistanceLine = projectTrendLine(pivots.highs, liveCandle.epoch);
+  const resistance = nearestLine(pivots.highs, price, "above", Math.max(...recent.map(c => c.high)));
+  const risingOrFallingSupportLine = projectTrendLine(pivots.lows, liveCandle.epoch);
+  const risingOrFallingResistanceLine = projectTrendLine(pivots.highs, liveCandle.epoch);
   const microHigh = Math.max(...recent.map(c => c.high));
   const microLow = Math.min(...recent.map(c => c.low));
   const center = (microHigh + microLow) / 2;
