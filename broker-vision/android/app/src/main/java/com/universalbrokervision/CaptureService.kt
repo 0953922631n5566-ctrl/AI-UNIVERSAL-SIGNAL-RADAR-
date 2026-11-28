@@ -32,6 +32,8 @@ class CaptureService:Service() {
   const val EXTRA_RESULT_CODE="resultCode";const val EXTRA_RESULT_DATA="resultData"
   const val EXTRA_ENDPOINT="endpoint";const val EXTRA_TOKEN="token"
   private const val CHANNEL="broker_vision_capture";private const val NOTIFICATION_ID=901
+  // Target a sub-second capture cadence; actual throughput is bounded by OCR and device load.
+  private const val CAPTURE_INTERVAL_MS=350L
  }
  private var projection:MediaProjection?=null;private var display:VirtualDisplay?=null;private var reader:ImageReader?=null
  private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
@@ -60,7 +62,7 @@ class CaptureService:Service() {
   reader=ImageReader.newInstance(metrics.widthPixels,metrics.heightPixels,PixelFormat.RGBA_8888,3)
   reader?.setOnImageAvailableListener({src->
    val image=src.acquireLatestImage()?:return@setOnImageAvailableListener
-   if(System.currentTimeMillis()-lastAt<900||!busy.compareAndSet(false,true)){image.close();return@setOnImageAvailableListener}
+   if(System.currentTimeMillis()-lastAt<CAPTURE_INTERVAL_MS||!busy.compareAndSet(false,true)){image.close();return@setOnImageAvailableListener}
    lastAt=System.currentTimeMillis();process(image)
   },handler)
   projection?.registerCallback(object:MediaProjection.Callback(){override fun onStop(){stopSelf()}},handler)
