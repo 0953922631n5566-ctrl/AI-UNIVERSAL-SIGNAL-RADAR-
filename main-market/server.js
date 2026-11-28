@@ -943,7 +943,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
     const data = await upstream.json();
     const analysis = data.analysis || {};
     const prediction = analysis.nextCandlePrediction || null;
-    const predictionSourceValid = prediction?.source === "APK_PRICE_AND_CANDLE_GEOMETRY";
+    const predictionSourceValid = prediction?.source === "APK_CAPTURED_PRICE_OHLC";
     const receivedAt = data.lastFrameAt || null;
     const ageSeconds = receivedAt ? Math.max(0, (Date.now() - Date.parse(receivedAt)) / 1000) : null;
     const fresh = Number.isFinite(ageSeconds) && ageSeconds <= 10;
@@ -988,7 +988,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
         nextCandlePrediction: predictionSourceValid ? prediction : null,
         signalConditions: analysis.signalConditions || null,
         analyzedAt: analysis.analyzedAt || null,
-        note: "ทำนายแท่งถัดไปจากราคาและรูปทรงแท่งเทียนที่ APK อ่านได้โดยตรง · ไม่มี Twelve Data"
+        note: "ทำนายแท่งถัดไปจากแท่ง M1 OHLC ที่สร้างจากราคาจริงของ APK · ไม่มี Twelve Data"
       },
       updatedAt: new Date().toISOString()
     });
