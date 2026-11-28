@@ -21,10 +21,16 @@ export function getM1CycleWindow(deviceTimeMs) {
 
 export function calculateEma(values, period) {
   const series=(Array.isArray(values)?values:[]).filter(finite).map(Number);
-  if(series.length<period)return null;
+  if(!series.length)return null;
   const alpha=2/(period+1);
-  let ema=series.slice(0,period).reduce((sum,value)=>sum+value,0)/period;
-  for(let i=period;i<series.length;i++)ema=series[i]*alpha+ema*(1-alpha);
+  // Use an SMA seed when enough history exists; otherwise seed from the first APK candle
+  // so the EMA20 can begin warming up immediately after a service restart.
+  let index=1,ema=series[0];
+  if(series.length>=period){
+    ema=series.slice(0,period).reduce((sum,value)=>sum+value,0)/period;
+    index=period;
+  }
+  for(let i=index;i<series.length;i++)ema=series[i]*alpha+ema*(1-alpha);
   return ema;
 }
 
@@ -47,8 +53,8 @@ export function predictNextCandle({candles,price,priceHistory=[]}) {
     Number(c.low)<=Math.min(Number(c.open),Number(c.close))&&
     Number(c.high)>Number(c.low)
   ).slice(-100);
-  if(series.length<20)
-    return {signal:"WAIT",status:"EMA_HISTORY_INSUFFICIENT",reason:"ต้องมีแท่ง M1 จากราคา APK อย่างน้อย 20 แท่งเพื่อคำนวณ EMA20",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC",ema5:null,ema20:null};
+  if(series.length<2)
+    return {signal:"WAIT",status:"EMA_HISTORY_INSUFFICIENT",reason:"ต้องมีแท่ง M1 จากราคา APK อย่างน้อย 2 แท่งเพื่อเริ่มคำนวณ EMA5/EMA20",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC",ema5:null,ema20:null};
 
   const closes=series.map(c=>Number(c.close));
   closes[closes.length-1]=Number(price);
@@ -82,10 +88,11 @@ export function predictNextCandle({candles,price,priceHistory=[]}) {
   else if(fastBelowSlow)reason="แนวโน้ม EMA เป็นขาลง แต่รอราคาอยู่ใต้ EMA5 หรือยืนยันการถูกกดลง";
 
   const gap=Math.abs(ema5-ema20);
-  const confidence=signal==="WAIT"?"LOW":gap/Math.max(Math.abs(ema20),1e-12)>0.00005?"MEDIUM":"LOW";
+  const confidence=signal==="WAIT"||series.length<20?"LOW":gap/Math.max(Math.abs(ema20),1e-12)>0.00005?"MEDIUM":"LOW";
   return {
     signal,status:signal==="WAIT"?"EMA_NO_ENTRY":"NEXT_CANDLE_PREDICTED",
     target:"NEXT_M1_CANDLE",setup,reason,confidence,calibratedCandles:series.length,
+    emaWarmupCandles:Math.max(0,20-series.length),
     ema5:Number(ema5.toFixed(10)),ema20:Number(ema20.toFixed(10)),
     previousEma5:previousEma5===null?null:Number(previousEma5.toFixed(10)),
     previousEma20:previousEma20===null?null:Number(previousEma20.toFixed(10)),
