@@ -1,4 +1,5 @@
 import express from "express";
+import { predictNextCandle } from "./next-candle-predictor.js";
 import path from "node:path";
 import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -77,13 +78,12 @@ async function restoreLatestFrame() {
 }
 function makeAnalysis() {
   const last = frames.at(-1);
-  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
+  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์", source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
   const ageMs = Date.now() - Date.parse(last.receivedAt);
   if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
-    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
+    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
 
-  // Instrument name and chart timeframe are metadata only. Analyze the visible price stream
-  // regardless of the broker's selected pair/market; do not gate on symbol or timeframe.
+  // The APK is the sole source of the live price, candle geometry and price-axis calibration.
   const recent = frames.slice(-12);
   const price = Number(last.price);
   const readable = finite(price) && price > 0;
@@ -96,34 +96,43 @@ function makeAnalysis() {
     priceSamples.unshift(rawPriceSamples[i]);
   }
   const trend = summarize(priceSamples);
-  const candleCount = Array.isArray(last.candles) ? last.candles.length : 0;
-  // No score threshold: emit a direction as soon as price-only conditions pass.
-  // Conditions: readable latest price, >=2 samples, >=1 tick net movement, >=60% directional consistency.
-  const signal = readable && trend.direction !== "WAIT" ? trend.direction : "WAIT";
-
   const candles = Array.isArray(last.candles) ? last.candles : [];
-  const axis=(last.axisPrices||[]).filter(p=>finite(p.price)&&finite(p.y)).sort((a,b)=>Number(a.y)-Number(b.y));
-  const axisCalibrated=axis.length>=2 && Math.abs(Number(axis.at(-1).y)-Number(axis[0].y))>10 &&
-    Math.abs(Number(axis.at(-1).price)-Number(axis[0].price))>0;
-  const yToPrice=y=>{
-    if(!axisCalibrated||!finite(y))return null;
-    const a=axis[0],z=axis.at(-1);
+  const axis = (last.axisPrices || []).filter(p => finite(p.price) && finite(p.y)).sort((a,b) => Number(a.y)-Number(b.y));
+  const axisCalibrated = axis.length >= 2 &&
+    Math.abs(Number(axis.at(-1).y)-Number(axis[0].y)) > 10 &&
+    Math.abs(Number(axis.at(-1).price)-Number(axis[0].price)) > 0;
+  const yToPrice = y => {
+    if (!axisCalibrated || !finite(y)) return null;
+    const a = axis[0], z = axis.at(-1);
     return Number(a.price)+(Number(y)-Number(a.y))*(Number(z.price)-Number(a.price))/(Number(z.y)-Number(a.y));
   };
-  const candlePriceLevels=axisCalibrated?candles.slice(-5).map(c=>({
-    open:yToPrice(c.openY),close:yToPrice(c.closeY),high:yToPrice(c.highY),low:yToPrice(c.lowY)
-  })): [];
-  return { signal, status:readable?"ANALYZED":"PRICE_UNREADABLE", price:readable?price:null,
-    candleCount, priceSamples:priceSamples.length,
-    priceAxisCalibrated:axisCalibrated,candlePriceLevels,
-    signalEligible:signal!=="WAIT",
-    signalConditions:{readablePrice:readable,minimumPriceSamples:2,actualPriceSamples:priceSamples.length,
-      minimumNetMoveTicks:1,actualNetMoveTicks:trend.tickSize?Math.abs(trend.priceChange||0)/trend.tickSize:0,
-      minimumDirectionalConsistencyPercent:60,actualDirectionalConsistencyPercent:trend.directionalConsistency||0,
-      passed:signal!=="WAIT"},
-    reason:signal==="WAIT"?"ราคายังไม่ผ่านเงื่อนไขการเคลื่อนไหวหรืออ่านราคาไม่ได้":"ราคาที่อ่านจากภาพเคลื่อนไหวต่อเนื่องไปทาง "+signal,
-    priceMomentum:trend, analyzedAt:new Date().toISOString(),
-    note:"วิเคราะห์จากราคาที่อ่านได้บนกราฟ ไม่ใช้ชื่อคู่เงินหรือกรอบเวลา และไม่ใช้คะแนนเป็นเงื่อนไข" };
+  const candlePriceLevels = axisCalibrated ? candles.slice(-12).map(c => ({
+    open:yToPrice(c.openY), close:yToPrice(c.closeY), high:yToPrice(c.highY), low:yToPrice(c.lowY)
+  })) : [];
+  const prediction = predictNextCandle({ candles, axisPrices:last.axisPrices, price:readable?price:null });
+  const signal = prediction.signal;
+
+  return {
+    signal,
+    status: prediction.status,
+    price: readable ? price : null,
+    candleCount: candles.length,
+    priceSamples: priceSamples.length,
+    priceAxisCalibrated: axisCalibrated,
+    candlePriceLevels,
+    signalEligible: signal !== "WAIT",
+    nextCandlePrediction: prediction,
+    signalConditions: {
+      readablePrice: readable,
+      calibratedCandles: prediction.calibratedCandles || 0,
+      target: "NEXT_CANDLE",
+      passed: signal !== "WAIT"
+    },
+    reason: prediction.reason,
+    priceMomentum: trend,
+    analyzedAt: new Date().toISOString(),
+    note: "ทำนายแท่งถัดไปจากราคาจริง รูปทรงแท่งเทียน และแกนราคาที่ APK อ่านได้เท่านั้น ไม่ใช้ Twelve Data หรือราคาจำลอง"
+  };
 }
 
 app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.2.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN),demoEnrollment:process.env.VISION_DEMO_ENROLLMENT==="true"}));
