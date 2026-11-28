@@ -33,13 +33,14 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.ok(enrolled.token.length>=64);
 
   const candles=Array.from({length:5},()=>({color:"GREEN",openY:120,closeY:90,highY:88,lowY:122}));
+  const imageBase64="/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AIQ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9k=";
   let last;
   for(let i=0;i<4;i++){
     const response=await fetch(base+"/api/vision/frame",{
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
       body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",
-        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
+        price:1.120235+i*0.000001,pricePrecision:6,imageBase64,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
     });
     assert.equal(response.status,202);
     last=await response.json();
@@ -48,12 +49,14 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.equal(last.analysis.status,"ANALYZED");
   assert.equal(last.analysis.priceAxisCalibrated,true);
   assert.equal(last.analysis.candlePriceLevels.length,4);
+  const publicState=await (await fetch(base+"/api/vision/public")).json();
+  assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
     headers:{"content-type":"application/json","authorization":"Bearer test-token"},
     body:JSON.stringify({width:1536,height:691,symbol:"EUR/JPY",timeframe:"1M",
-      price:150.100,ocr:[{text:"EUR/JPY",left:200,top:100,right:300,bottom:120}],candles})
+      price:150.100,imageBase64,ocr:[{text:"EUR/JPY",left:200,top:100,right:300,bottom:120}],candles})
   });
   const switchedBody=await switched.json();
   assert.equal(switchedBody.analysis.signal,"WAIT","a newly selected instrument must not reuse the previous pair's momentum");

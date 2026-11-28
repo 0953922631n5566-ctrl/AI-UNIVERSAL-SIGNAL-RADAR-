@@ -1,17 +1,20 @@
 import express from "express";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
 const frames = [];
+let latestFrameImage = null;
+const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
 const deviceTokens = new Map();
 const enrollAttempts = new Map();
 const DEVICE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 app.disable("x-powered-by");
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "6mb" }));
 
 function auth(req, res, next) {
   if (!API_TOKEN) return res.status(503).json({ ok:false, error:"VISION_API_TOKEN is not configured" });
@@ -45,9 +48,34 @@ function summarize(items) {
   return { direction, priceChange:delta, tickSize:tick, directionalConsistency:Math.round(dominance*100),
     confidence, reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
 }
+async function persistLatestFrame(frame, image) {
+  if (!STORAGE_DIR) return;
+  await mkdir(STORAGE_DIR, { recursive: true });
+  await writeFile(path.join(STORAGE_DIR, "latest-frame.jpg"), Buffer.from(image.base64, "base64"));
+  await writeFile(path.join(STORAGE_DIR, "latest-frame.json"), JSON.stringify({ ...frame, image: undefined }));
+}
+async function restoreLatestFrame() {
+  if (!STORAGE_DIR) return;
+  try {
+    const [bytes, metadata] = await Promise.all([
+      readFile(path.join(STORAGE_DIR, "latest-frame.jpg")),
+      readFile(path.join(STORAGE_DIR, "latest-frame.json"), "utf8")
+    ]);
+    const frame = JSON.parse(metadata);
+    frame.receivedAt = frame.receivedAt || new Date().toISOString();
+    frames.push(frame);
+    latestFrameImage = { mimeType: "image/jpeg", base64: bytes.toString("base64") };
+    console.log("Restored latest Broker Vision frame from persistent storage");
+  } catch (error) {
+    if (error.code !== "ENOENT") console.error("Could not restore latest frame:", error.message);
+  }
+}
 function makeAnalysis() {
   const last = frames.at(-1);
   if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
+  const ageMs = Date.now() - Date.parse(last.receivedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
+    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
   if (last.symbol === "UNKNOWN" || last.timeframe === "UNKNOWN")
     return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ" };
   const recent = frames.filter(x=>x.symbol===last.symbol && x.timeframe===last.timeframe).slice(-12);
@@ -104,12 +132,19 @@ app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
-    price:last?.price??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+    price:last?.price??null,candleCount:last?.candles?.length||0,
+    imageDataUri:latestFrameImage?`data:${latestFrameImage.mimeType};base64,${latestFrameImage.base64}`:null,
+    analysis:makeAnalysis()});
 });
 app.post("/api/vision/frame", auth, (req,res)=>{
   const b=req.body||{};
   if (!finite(b.width)||!finite(b.height)||!Array.isArray(b.ocr)||!Array.isArray(b.candles))
     return res.status(400).json({ok:false,error:"Expected width, height, ocr[], and candles[]"});
+  if (typeof b.imageBase64 !== "string" || b.imageBase64.length < 100 || b.imageBase64.length > 5_000_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.imageBase64))
+    return res.status(400).json({ok:false,error:"A real JPEG chart image is required (imageBase64, max 3.75 MB)"});
+  const imageBytes=Buffer.from(b.imageBase64,"base64");
+  if (imageBytes.length < 75 || imageBytes.length > 3_750_000 || imageBytes[0]!==0xff || imageBytes[1]!==0xd8 || imageBytes.at(-2)!==0xff || imageBytes.at(-1)!==0xd9)
+    return res.status(400).json({ok:false,error:"imageBase64 must contain a valid JPEG image"});
   const texts=b.ocr.map(x=>String(x.text||"").trim()).filter(Boolean);
   const priceCandidate=texts.map(t=>t.replace(/,/g,"").match(/\d+(?:\.\d{3,8})?/g)?.at(-1)).find(Boolean);
   const price=finite(b.price)?Number(b.price):(priceCandidate?Number(priceCandidate):null);
@@ -121,9 +156,12 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
+  latestFrameImage={mimeType:"image/jpeg",base64:b.imageBase64};
+  void persistLatestFrame(frame,latestFrameImage).catch(error=>console.error("Frame persistence failed:",error.message));
   const analysis=makeAnalysis();
-  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,analysis});
+  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,imageReceived:true,imageBytes:imageBytes.length,analysis});
 });
 app.get("/api/vision/snapshot", auth, (_req,res)=>res.json({ok:true,analysis:makeAnalysis(),frames:frames.slice(-20)}));
 app.get("/api/vision/status", auth, (_req,res)=>res.json({ok:true,frames:frames.length,lastFrame:frames.at(-1)?.receivedAt||null,analysis:makeAnalysis()}));
-app.listen(PORT,"0.0.0.0",()=>console.log(`Universal Broker Vision API listening on ${PORT}`));
+await restoreLatestFrame();
+app.listen(PORT,"0.0.0.0",()=>console.log(`Universal Broker Vision API listening on ${PORT}; persistent storage ${STORAGE_DIR ? "enabled" : "not configured"}`));

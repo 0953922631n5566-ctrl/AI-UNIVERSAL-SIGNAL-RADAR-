@@ -7,14 +7,14 @@ main{max-width:620px;margin:auto;display:grid;gap:14px}.panel{background:#111e29
 header{display:flex;justify-content:space-between;align-items:center;gap:12px}.muted{color:#91a6b3;font-size:12px}
 h1{font-size:19px;margin:0}.signal{font-size:38px;font-weight:850;letter-spacing:.04em}.green{color:#48e39a}.red{color:#ff6675}.wait{color:#f3ce73}
 .price{font-size:32px;font-variant-numeric:tabular-nums;font-weight:750}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.value{font-size:21px;font-weight:700}
-.dot{width:8px;height:8px;display:inline-block;border-radius:50%;background:#f3ce73;margin-right:7px}.live .dot{background:#48e39a;box-shadow:0 0 10px #48e39a}
+.preview{display:block;width:100%;max-height:420px;object-fit:contain;background:#050a0f;border-radius:12px;margin-top:12px}.dot{width:8px;height:8px;display:inline-block;border-radius:50%;background:#f3ce73;margin-right:7px}.live .dot{background:#48e39a;box-shadow:0 0 10px #48e39a}
 </style></head><body><main>
 <header><div><h1>UNIVERSAL BROKER VISION AI</h1><div class="muted">อ่านภาพหน้าจอ · ราคา · แท่งเทียน · วิเคราะห์แท่งถัดไป</div></div><div id="conn" class="muted"><span class="dot"></span>รอข้อมูล</div></header>
 <section class="panel"><div class="muted">SIGNAL · NEXT CANDLE</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="muted">รอภาพจาก Xiaomi 11T</div></section>
 <section class="panel"><div class="muted">BROKER PRICE LABEL</div><div id="price" class="price">—</div><div id="pair" class="muted">UNKNOWN · UNKNOWN</div></section>
 <section class="grid"><div class="panel"><div class="muted">CANDLE BODIES READ</div><div id="candles" class="value">0</div></div><div class="panel"><div class="muted">VISUAL QUALITY</div><div id="quality" class="value">0/100</div></div><div class="panel"><div class="muted">FRAMES RECEIVED</div><div id="frames" class="value">0</div></div><div class="panel"><div class="muted">CONFIDENCE SCORE</div><div id="confidence" class="value">0</div></div></section>
 <section class="panel"><div class="muted">APPROX. OHLC · CLOSED CANDLES</div><div id="levels" class="muted">รออ่านแกนราคาอย่างน้อย 2 จุด</div></section>
-<section class="panel"><div class="muted">LATEST CAPTURE</div><div id="updated">ยังไม่มีภาพเข้าระบบ</div></section>
+<section class="panel"><div class="muted">LATEST REAL CHART IMAGE</div><div id="updated">ยังไม่มีภาพเข้าระบบ</div><img id="frameImage" class="preview" alt="ภาพกราฟล่าสุดจากหน้าจอโบรกเกอร์" style="display:none"></section>
 <div class="muted">คะแนนนี้เป็นคะแนนกฎวิเคราะห์ภาพ ไม่ใช่เปอร์เซ็นต์โอกาสชนะ · ใช้ทดสอบ/เดโมก่อน ห้ามใช้แทนการตรวจสอบด้วยตนเอง</div>
 </main><script>
 const $=id=>document.getElementById(id);
@@ -28,6 +28,7 @@ $("frames").textContent=d.receivedFrames||0;$("confidence").textContent=(a.confi
 const levels=a.candlePriceLevels||[];
 $("levels").textContent=a.priceAxisCalibrated?levels.slice(-3).map(c=>"O "+Number(c.open).toFixed(6)+" H "+Number(c.high).toFixed(6)+" L "+Number(c.low).toFixed(6)+" C "+Number(c.close).toFixed(6)).join("  |  "):"รออ่านแกนราคาอย่างน้อย 2 จุด";
 $("updated").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleString("th-TH"):"ยังไม่มีภาพเข้าระบบ";
+if(d.imageDataUri){$("frameImage").src=d.imageDataUri;$("frameImage").style.display="block";}else{$("frameImage").removeAttribute("src");$("frameImage").style.display="none";}
 }catch(e){$("conn").className="muted";$("conn").innerHTML='<span class="dot"></span>RECONNECTING';}}
 refresh();setInterval(refresh,2000);
 </script></body></html>
