@@ -86,7 +86,7 @@ class CaptureService:Service() {
      .firstOrNull{it.matches(Regex("""[A-Z0-9._/-]{2,12}(?:\(OTC\))?"""))&&it !in setOf("OTC","BLITZ","CALL","PUT","M1","M5")}
     val symbol=pair?:genericTicker?:"UNKNOWN"
     val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
-    data class PriceHit(val value:Double,val left:Int,val precision:Int,val y:Float)
+    data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
     val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
      val raw=line.text.replace(",","").trim()
@@ -98,10 +98,11 @@ class CaptureService:Service() {
      val value=decimalValue?:inferredValue
      val precision=if(decimalValue!=null)raw.substringAfter(".").takeWhile{it.isDigit()}.length
       else if(inferredValue!=null)digits.length-integerDigits else 0
-     if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
-      PriceHit(value,box.left,precision,(box.top+box.bottom)/2f) else null
+     if(box!=null && box.left>bitmap.width*.65f && box.width>bitmap.width*.035f &&
+       box.top>bitmap.height*.20f && box.top<bitmap.height*.60f && value!=null)
+      PriceHit(value,box.left,box.width,precision,(box.top+box.bottom)/2f) else null
     }
-    val selectedPrice=priceCandidates.maxByOrNull{it.left}
+    val selectedPrice=priceCandidates.maxByOrNull{it.width}
     val price=selectedPrice?.value
     val pricePrecision=selectedPrice?.precision?:0
     val axisPrices=JSONArray()
