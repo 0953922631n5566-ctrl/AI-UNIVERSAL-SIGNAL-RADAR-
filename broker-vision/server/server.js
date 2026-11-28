@@ -38,7 +38,7 @@ const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
 
 function summarize(items) {
   const xs = items.filter(x => finite(x.price)).map(x => Number(x.price));
-  if (xs.length < 2) return { direction:"WAIT", reason:"ต้องอ่านป้ายราคาได้ต่อเนื่องอย่างน้อย 2 ภาพ", confidence:0 };
+  if (xs.length < 2) return { direction:"WAIT", reason:"ต้องอ่านป้ายราคาได้ต่อเนื่องอย่างน้อย 2 ภาพ" };
   const first = xs[0], last = xs.at(-1), delta = last-first;
   const reportedPrecision = Number(frames.at(-1)?.pricePrecision);
   const decimals = Number.isInteger(reportedPrecision) && reportedPrecision>0
@@ -50,10 +50,8 @@ function summarize(items) {
   const dominance = steps.length ? Math.max(up,down)/steps.length : 0;
   const direction = Math.abs(delta)>=tick && dominance>=0.60
     ? (delta>0 ? "CALL" : "PUT") : "WAIT";
-  const confidence = direction==="WAIT" ? 0
-    : clamp(Math.round(45+(dominance-0.5)*70+Math.min(Math.abs(delta)/tick,4)*5),0,85);
   return { direction, priceChange:delta, tickSize:tick, directionalConsistency:Math.round(dominance*100),
-    confidence, reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
+    reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
 }
 async function persistLatestFrame(frame, image) {
   if (!STORAGE_DIR) return;
