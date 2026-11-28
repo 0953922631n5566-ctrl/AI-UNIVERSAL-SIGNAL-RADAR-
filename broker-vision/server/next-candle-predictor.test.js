@@ -26,7 +26,7 @@ test("fails closed when fewer than four candles can be calibrated", () => {
 });
 
 test("fails closed when the APK price is unreadable", () => {
-  const result = predictNextCandle({ candles:Array.from({length:5},up()), axisPrices, price:null });
+  const result = predictNextCandle({ candles:Array(5).fill(null).map(() => up()), axisPrices, price:null });
   assert.equal(result.signal,"WAIT");
   assert.equal(result.status,"PRICE_UNREADABLE");
 });
