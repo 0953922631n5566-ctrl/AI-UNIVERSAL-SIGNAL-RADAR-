@@ -46,7 +46,7 @@ try{tg?.ready?.();tg?.expand?.();}catch{}
 const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
 function paint(d){
  const a=d.analysis||{},online=d.connected===true,signal=online?String(a.signal||"WAIT"):"WAIT";
- $("api").className="api "+(online?"live":"off");$("api").textContent=online?"VISION LIVE":"VISION OFFLINE";
+ const frameFresh=online&&d.frameFresh===true;$("api").className="api "+(frameFresh?"live":online?"":"off");$("api").textContent=frameFresh?"VISION LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
  $("price").textContent=fmt(d.price,6);$("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
  $("signal").className="signal "+(signal==="CALL"?"call":signal==="PUT"?"put":"wait");$("signal").textContent=signal;
