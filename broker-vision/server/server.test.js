@@ -51,8 +51,8 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(last.analysis.priceCandles.length,1);
   assert.ok(["WAITING_FOR_ENTRY_WINDOW","WATCH_WINDOW","NEXT_CANDLE_PREDICTED"].includes(last.analysis.status));
   assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
-  assert.equal(last.analysis.signal, last.analysis.phase==="ORDER_WINDOW" ? "CALL" : "WAIT");
-  assert.equal(last.analysis.signalConditions.passed, last.analysis.phase==="ORDER_WINDOW");
+  assert.equal(last.analysis.signal,"WAIT","no directional signal before four actual M1 price candles exist");
+  assert.equal(last.analysis.signalConditions.passed,false);
 
   const staleCapture=await fetch(base+"/api/vision/frame",{
     method:"POST",
@@ -71,7 +71,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(miniState.analysis.nextCandlePrediction.signal,"WAIT");
   assert.equal(miniState.priceCandles.length,1);
   assert.equal(miniState.chartSource,"APK_CAPTURED_PRICE_OHLC");
-  assert.equal(miniState.analysis.signal, miniState.analysis.phase==="ORDER_WINDOW" ? "CALL" : "WAIT");
+  assert.equal(miniState.analysis.signal,"WAIT","Mini App must not signal before four actual M1 price candles exist");
   assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
   const chartImage=await fetch(base+"/api/vision/chart-image");
   assert.equal(chartImage.status,200);
