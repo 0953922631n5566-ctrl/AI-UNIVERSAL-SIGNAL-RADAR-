@@ -156,7 +156,10 @@ app.get("/api/vision/miniapp", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
-    price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+    price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:last?.candles?.length||0,
+    priceDiagnostics:last?{ocrLineCount:last.ocrLineCount??null,priceCandidateCount:last.priceCandidateCount??null,
+      axisPriceCount:last.axisPriceCount??null,priceReadStatus:last.priceReadStatus??"UNKNOWN"}:null,
+    analysis:makeAnalysis()});
 });
 app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
@@ -208,12 +211,21 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     if(!priceCandidates.some(candidate=>Math.abs(candidate-suppliedPrice)<=tolerance))price=null;
   }
   const pricePrecision=price===null?null:(suppliedPrice!==null?suppliedPrecision:(String(price).split(".")[1]||"").length);
+  const priceReadStatus = price !== null ? "PRICE_OK"
+    : suppliedPrice !== null ? "SUPPLIED_PRICE_NOT_CONFIRMED_BY_OCR"
+    : priceCandidates.length ? "OCR_PRICE_CANDIDATE_REJECTED"
+    : "NO_DECIMAL_PRICE_CANDIDATE";
+  const axisPrices = Array.isArray(b.axisPrices) ? b.axisPrices.slice(0,30) : [];
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
     width:Number(b.width),height:Number(b.height),symbol,
     timeframe,
     price,
     pricePrecision,
-    axisPrices:Array.isArray(b.axisPrices)?b.axisPrices.slice(0,30):[],
+    ocrLineCount:b.ocr.length,
+    priceCandidateCount:priceCandidates.length,
+    axisPriceCount:axisPrices.length,
+    priceReadStatus,
+    axisPrices,
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
