@@ -7,12 +7,12 @@ Isolated Android screen-capture and visual market-observation project. It does n
 - Google ML Kit Text Recognition extracts visible text and price-like values.
 - A pixel pass segments green/red candle bodies and estimates wick bounds from the chart area.
 - The app reads visible price-axis labels and the live price tag; when at least two reliable price/vertical-axis points exist, the API maps candle pixels to approximate OHLC price levels.
-- Instrument and timeframe histories are isolated so switching pairs does not mix price momentum.
+- The signal engine does not require an instrument name or timeframe. It analyzes visible numeric prices; a sudden price-scale discontinuity above 5% starts a fresh sample window to reduce mixing data when the user switches charts.
 - The client posts chart-region OCR text, detected price, pair/timeframe labels, candle geometry, and a compressed JPEG crop of the chart to a separate Node API. It does not intentionally upload the full screen; the crop excludes the outer account side panels, but users should still avoid displaying sensitive account details inside the chart crop.
 - The API returns CALL / PUT / WAIT diagnostics and fails closed when visual data is incomplete.
 
 ## Limitations
-This is an initial prototype, not a validated trading system. OCR and candle segmentation need calibration across broker layouts, themes, zoom levels, and rotations. Pixel colors and OCR are imperfect. OHLC levels are approximate and only available when the visible price axis can be calibrated. If symbol/timeframe cannot be identified, or the chart is too unclear, the engine returns WAIT. The score is not a win probability. No profitability claim is made.
+This is an initial prototype, not a validated trading system. OCR and candle segmentation need calibration across broker layouts, themes, zoom levels, and rotations. Pixel colors and OCR are imperfect. OHLC levels are approximate and only available when the visible price axis can be calibrated. If the current price cannot be read, fewer than two consecutive samples are available, net movement is below one tick, or directional consistency is below 60%, the engine returns WAIT. There is no score threshold. No profitability claim is made.
 Android requires explicit screen-capture approval for each session and shows a persistent foreground notification. A signed APK must be built and installed on the Xiaomi 11T; a repository commit does not install software on the phone.
 
 ## API
