@@ -32,7 +32,8 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.equal(typeof enrolled.token,"string");
   assert.ok(enrolled.token.length>=64);
 
-  const candles=Array.from({length:5},()=>({color:"GREEN",openY:120,closeY:90,highY:88,lowY:122}));\n  const imageBase64="/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AIQ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9k=";
+  const candles=Array.from({length:5},()=>({color:"GREEN",openY:120,closeY:90,highY:88,lowY:122}));
+  const imageBase64="/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AIQ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9k=";
   let last;
   for(let i=0;i<4;i++){
     const response=await fetch(base+"/api/vision/frame",{
@@ -47,7 +48,9 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.equal(last.analysis.signal,"CALL");
   assert.equal(last.analysis.status,"ANALYZED");
   assert.equal(last.analysis.priceAxisCalibrated,true);
-  assert.equal(last.analysis.candlePriceLevels.length,4);\n  const publicState=await (await fetch(base+"/api/vision/public")).json();\n  assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
+  assert.equal(last.analysis.candlePriceLevels.length,4);
+  const publicState=await (await fetch(base+"/api/vision/public")).json();
+  assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
