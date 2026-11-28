@@ -78,13 +78,13 @@ async function restoreLatestFrame() {
 }
 function makeAnalysis() {
   const last = frames.at(-1);
-  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์", source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
+  if (!last) return { signal:"WAIT", phase:"WAITING", status:"NO_DATA", reason:"ยังไม่มีภาพจาก APK", source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
   const ageMs = Date.now() - Date.parse(last.receivedAt);
   if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
-    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
+    return { signal:"WAIT", phase:"WAITING", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
 
-  // The APK is the sole source of the live price, candle geometry and price-axis calibration.
-  const recent = frames.slice(-12);
+  // APK is the single source of truth for the live numeric price and candle geometry.
+  const recent = frames.slice(-24);
   const price = Number(last.price);
   const readable = finite(price) && price > 0;
   const rawPriceSamples = recent.filter(x => finite(x.price) && Number(x.price) > 0);
@@ -92,46 +92,50 @@ function makeAnalysis() {
   for (let i = rawPriceSamples.length - 1; i >= 0; i--) {
     const current = Number(rawPriceSamples[i].price);
     const next = priceSamples[0] ? Number(priceSamples[0].price) : null;
-    if (next !== null && Math.abs(current - next) / Math.max(Math.abs(current), Math.abs(next)) > 0.05) break;
+    if (next !== null && Math.abs(current-next)/Math.max(Math.abs(current),Math.abs(next)) > 0.05) break;
     priceSamples.unshift(rawPriceSamples[i]);
   }
   const trend = summarize(priceSamples);
   const candles = Array.isArray(last.candles) ? last.candles : [];
-  const axis = (last.axisPrices || []).filter(p => finite(p.price) && finite(p.y)).sort((a,b) => Number(a.y)-Number(b.y));
-  const axisCalibrated = axis.length >= 2 &&
-    Math.abs(Number(axis.at(-1).y)-Number(axis[0].y)) > 10 &&
-    Math.abs(Number(axis.at(-1).price)-Number(axis[0].price)) > 0;
-  const yToPrice = y => {
-    if (!axisCalibrated || !finite(y)) return null;
-    const a = axis[0], z = axis.at(-1);
-    return Number(a.price)+(Number(y)-Number(a.y))*(Number(z.price)-Number(a.price))/(Number(z.y)-Number(a.y));
-  };
-  const candlePriceLevels = axisCalibrated ? candles.slice(-12).map(c => ({
-    open:yToPrice(c.openY), close:yToPrice(c.closeY), high:yToPrice(c.highY), low:yToPrice(c.lowY)
-  })) : [];
   const prediction = predictNextCandle({ candles, axisPrices:last.axisPrices, price:readable?price:null });
-  const signal = prediction.signal;
+
+  // Synchronize the warning/order windows to the APK capture timestamp and M1 clock.
+  const captureMs = finite(last.deviceTime) ? Number(last.deviceTime) : Date.parse(last.receivedAt);
+  const cycleId = Math.floor(captureMs / 60000);
+  const elapsedMs = ((captureMs % 60000) + 60000) % 60000;
+  const secondsToNextCandle = Math.max(0, Math.ceil((60000-elapsedMs)/1000));
+  const phase = secondsToNextCandle <= 5 ? "ORDER_WINDOW"
+    : secondsToNextCandle <= 10 ? "WATCH" : "WAITING";
+  const signal = phase === "ORDER_WINDOW" ? prediction.signal : "WAIT";
+  const reason = !readable ? "ยังไม่ได้รับราคาตัวเลขจาก APK"
+    : phase === "WATCH" ? "เหลือ 10–6 วินาที · เฝ้าระวังและรอวิเคราะห์รอบสุดท้าย"
+    : phase === "ORDER_WINDOW" ? (prediction.reason || "วิเคราะห์ราคาใน 5 วินาทีสุดท้าย")
+    : "รอเข้าสู่ช่วง 10 วินาทีสุดท้ายของแท่ง M1";
 
   return {
-    signal,
-    status: prediction.status,
+    signal, phase, cycleId, secondsToNextCandle,
+    status: !readable ? "PRICE_UNREADABLE"
+      : phase === "WATCH" ? "WATCH_WINDOW"
+      : phase === "ORDER_WINDOW" ? (prediction.status || "ORDER_WINDOW")
+      : "WAITING_FOR_ENTRY_WINDOW",
     price: readable ? price : null,
+    pricePrecision: last.pricePrecision ?? null,
     candleCount: candles.length,
     priceSamples: priceSamples.length,
-    priceAxisCalibrated: axisCalibrated,
-    candlePriceLevels,
-    signalEligible: signal !== "WAIT",
+    calibratedCandles: prediction.calibratedCandles || 0,
+    signalEligible: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal),
     nextCandlePrediction: prediction,
     signalConditions: {
       readablePrice: readable,
       calibratedCandles: prediction.calibratedCandles || 0,
-      target: "NEXT_CANDLE",
-      passed: signal !== "WAIT"
+      target: "NEXT_M1_CANDLE",
+      phase,
+      passed: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal)
     },
-    reason: prediction.reason,
+    reason,
     priceMomentum: trend,
     analyzedAt: new Date().toISOString(),
-    note: "ทำนายแท่งถัดไปจากราคาจริง รูปทรงแท่งเทียน และแกนราคาที่ APK อ่านได้เท่านั้น ไม่ใช้ Twelve Data หรือราคาจำลอง"
+    note: "ใช้ราคาตัวเลขและรูปทรงแท่งเทียนจาก APK โดยตรง · เฝ้าระวัง 10 วินาทีสุดท้าย · วิเคราะห์/แจ้งสัญญาณใน 5 วินาทีสุดท้าย · ไม่ใช้ Twelve Data"
   };
 }
 
@@ -205,16 +209,13 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     return match?Number(match[0]):null;
   }).filter(value=>Number.isFinite(value)&&value>0);
   let price=suppliedPrice??priceCandidates.at(-1)??null;
-  // When the APK supplies a parsed price, require the same decimal value to be visible in OCR.
-  if(suppliedPrice!==null){
-    const tolerance=1.5*Math.pow(10,-suppliedPrecision);
-    if(!priceCandidates.some(candidate=>Math.abs(candidate-suppliedPrice)<=tolerance))price=null;
-  }
+  // Trust the numeric price parsed and supplied by the APK itself.
+  // OCR is retained for diagnostics only; it must never veto a valid APK price.
   const pricePrecision=price===null?null:(suppliedPrice!==null?suppliedPrecision:(String(price).split(".")[1]||"").length);
-  const priceReadStatus = price !== null ? "PRICE_OK"
-    : suppliedPrice !== null ? "SUPPLIED_PRICE_NOT_CONFIRMED_BY_OCR"
+  const priceReadStatus = suppliedPrice !== null ? "PRICE_OK_APK_DIRECT"
+    : price !== null ? "PRICE_OK_OCR_FALLBACK"
     : priceCandidates.length ? "OCR_PRICE_CANDIDATE_REJECTED"
-    : "NO_DECIMAL_PRICE_CANDIDATE";
+    : "NO_APK_PRICE_OR_OCR_CANDIDATE";
   const axisPrices = Array.isArray(b.axisPrices) ? b.axisPrices.slice(0,30) : [];
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
     width:Number(b.width),height:Number(b.height),symbol,
