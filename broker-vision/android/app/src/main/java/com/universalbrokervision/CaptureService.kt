@@ -101,11 +101,11 @@ class CaptureService:Service() {
      val value=decimalValue?:inferredValue
      val precision=if(decimalValue!=null)raw.substringAfter(".").takeWhile{it.isDigit()}.length
       else if(inferredValue!=null)digits.length-integerDigits else 0
-     if(box!=null && box.left>bitmap.width*.65f && box.width()>bitmap.width*.035f &&
+     if(box!=null && box.left>bitmap.width*.08f && box.width()>bitmap.width*.025f &&
        box.top>bitmap.height*.20f && box.top<bitmap.height*.60f && value!=null)
       PriceHit(value,box.left,box.width(),precision,(box.top+box.bottom)/2f) else null
     }
-    val selectedPrice=priceCandidates.maxByOrNull{it.width}
+    val selectedPrice=priceCandidates.maxByOrNull{(if(it.left>bitmap.width*.65f)100000 else 0)+it.width}
     val price=selectedPrice?.value
     val pricePrecision=selectedPrice?.precision?:0
     val axisPrices=JSONArray()
