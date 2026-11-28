@@ -76,11 +76,9 @@ class CaptureService:Service() {
   var bitmap:Bitmap?=null
   var roiBitmap:Bitmap?=null
   try{
-   bitmap=toBitmap(image);image.close()
-   val full=bitmap
+   val full=toBitmap(image);bitmap=full;image.close()
    val region=PriceRegionOverlay.cropRect(this,full.width,full.height)
-   roiBitmap=Bitmap.createBitmap(full,region.left,region.top,region.width(),region.height())
-   val roi=roiBitmap
+   val roi=Bitmap.createBitmap(full,region.left,region.top,region.width(),region.height());roiBitmap=roi
    recognizer.process(InputImage.fromBitmap(roi,0)).addOnSuccessListener{result->
     try{
      val lines=result.textBlocks.flatMap{it.lines}.filter{it.boundingBox!=null}
