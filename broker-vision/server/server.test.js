@@ -74,9 +74,11 @@ test("vision API guards uploads and emits price-only signals without instrument 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
     headers:{"content-type":"application/json","authorization":"Bearer test-token"},
-    body:JSON.stringify({width:1536,height:691,symbol:"EUR/JPY",timeframe:"1M",
-      price:150.100,imageBase64,ocr:[{text:"EUR/JPY",left:200,top:100,right:300,bottom:120}],candles})
+    body:JSON.stringify({width:1536,height:691,symbol:"UNKNOWN",timeframe:"UNKNOWN",
+      price:150.10,pricePrecision:2,imageBase64,ocr:[{text:"150.10",left:1400,top:300,right:1470,bottom:320}],candles:[]})
   });
   const switchedBody=await switched.json();
-  assert.equal(switchedBody.analysis.signal,"WAIT","a frame without a readable current price must not emit a signal");
+  assert.equal(switchedBody.analysis.signal,"WAIT","a newly selected chart starts a fresh price window");
+  assert.equal(switchedBody.analysis.price,150.10,"decimal prices are accepted without a recognized pair name");
+  assert.equal(switchedBody.analysis.priceSamples,1,"price history from a different chart scale must not be mixed");
 });
