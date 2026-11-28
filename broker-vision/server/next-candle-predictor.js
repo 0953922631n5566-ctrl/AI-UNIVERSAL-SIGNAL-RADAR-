@@ -1,17 +1,31 @@
+const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+
 export function getM1CycleWindow(deviceTimeMs) {
-  if (!finite(deviceTimeMs)) return { cycleId:null, elapsedMs:null, elapsedSeconds:null, secondsToNextCandle:null, phase:"WAITING", active:false };
+  if (!finite(deviceTimeMs)) return { cycleId:null, elapsedMs:null, elapsedSeconds:null, secondsToNextCandle:null, phase:"WAITING", active:false, watch:false };
   const timestamp=Number(deviceTimeMs);
   const elapsedMs=((timestamp%60000)+60000)%60000;
   const elapsedSeconds=Math.floor(elapsedMs/1000);
-  const active=elapsedSeconds<=55;
+  const watch=elapsedSeconds>=50&&elapsedSeconds<=54;
+  const active=elapsedSeconds>=55&&elapsedSeconds<=59;
   return {
     cycleId:Math.floor(timestamp/60000),
     elapsedMs,
     elapsedSeconds,
     secondsToNextCandle:Math.max(0,Math.ceil((60000-elapsedMs)/1000)),
-    phase:active?"ACTIVE":"CUTOFF",
-    active
+    phase:watch?"WATCH":active?"ORDER":"WAITING",
+    active,
+    watch
   };
+}
+
+export function calculateEma(values, period) {
+  const series=(Array.isArray(values)?values:[]).filter(finite).map(Number);
+  if(series.length<period)return null;
+  const alpha=2/(period+1);
+  let ema=series.slice(0,period).reduce((sum,value)=>sum+value,0)/period;
+  for(let i=period;i<series.length;i++)ema=series[i]*alpha+ema*(1-alpha);
+  return ema;
 }
 
 export function evaluateOpenBias({open,price,precision=5}) {
@@ -24,69 +38,58 @@ export function evaluateOpenBias({open,price,precision=5}) {
   return {direction,delta,tickSize};
 }
 
-const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
-const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
-
 export function predictNextCandle({candles,price,priceHistory=[]}) {
   if(!finite(price)||Number(price)<=0)
     return {signal:"WAIT",status:"PRICE_UNREADABLE",reason:"ยังไม่ได้รับราคาตัวเลขจาก APK",source:"APK_CAPTURED_PRICE_OHLC"};
   const series=(Array.isArray(candles)?candles:[]).filter(c=>
-    [c.open,c.high,c.low,c.close].every(finite) &&
-    Number(c.high)>=Math.max(Number(c.open),Number(c.close)) &&
-    Number(c.low)<=Math.min(Number(c.open),Number(c.close)) &&
+    [c.open,c.high,c.low,c.close].every(finite)&&
+    Number(c.high)>=Math.max(Number(c.open),Number(c.close))&&
+    Number(c.low)<=Math.min(Number(c.open),Number(c.close))&&
     Number(c.high)>Number(c.low)
   ).slice(-100);
-  if(series.length<4)
-    return {signal:"WAIT",status:"CANDLE_DATA_INSUFFICIENT",reason:"ต้องสะสมแท่ง M1 จากราคาจริงของ APK อย่างน้อย 4 แท่งก่อนวิเคราะห์",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC"};
+  if(series.length<20)
+    return {signal:"WAIT",status:"EMA_HISTORY_INSUFFICIENT",reason:"ต้องมีแท่ง M1 จากราคา APK อย่างน้อย 20 แท่งเพื่อคำนวณ EMA20",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC",ema5:null,ema20:null};
 
-  const recent=series.slice(-6).map(c=>{
-    const open=Number(c.open),close=Number(c.close),high=Number(c.high),low=Number(c.low);
-    const range=high-low,body=Math.abs(close-open);
-    return {open,close,high,low,range,body,direction:close>open?1:close<open?-1:0,
-      upperWickRatio:Math.max(0,high-Math.max(open,close))/range,
-      lowerWickRatio:Math.max(0,Math.min(open,close)-low)/range,
-      bodyRatio:body/range,closeLocation:(close-low)/range};
-  });
-  const latest=recent.at(-1),previous=recent.at(-2);
-  const meanRange=recent.reduce((sum,c)=>sum+c.range,0)/recent.length;
-  if(!(meanRange>0)||latest.range<meanRange*.06)
-    return {signal:"WAIT",status:"CANDLE_RANGE_TOO_SMALL",reason:"แท่ง M1 ล่าสุดมีช่วงราคาเล็กเกินกว่าจะยืนยันทิศทาง",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC"};
-  const weights=recent.map((c,i)=>(i+1)*c.direction*c.bodyRatio);
-  const weightTotal=recent.reduce((sum,_c,i)=>sum+i+1,0);
-  const bodyPressure=weights.reduce((sum,value)=>sum+value,0)/weightTotal;
-  const trendPressure=clamp((latest.close-recent[0].close)/(meanRange*Math.max(1,recent.length-1)),-1,1);
-  const higherCloses=recent.slice(1).filter((c,i)=>c.close>recent[i].close).length;
-  const lowerCloses=recent.slice(1).filter((c,i)=>c.close<recent[i].close).length;
-  const structureUp=higherCloses>=Math.ceil((recent.length-1)*.6);
-  const structureDown=lowerCloses>=Math.ceil((recent.length-1)*.6);
-  const bullishRejection=latest.lowerWickRatio>=.42&&latest.bodyRatio<=.48&&latest.closeLocation>=.52;
-  const bearishRejection=latest.upperWickRatio>=.42&&latest.bodyRatio<=.48&&latest.closeLocation<=.48;
-  const bullishContinuation=bodyPressure>=.16&&trendPressure>=.10&&structureUp&&latest.closeLocation>=.55;
-  const bearishContinuation=bodyPressure<=-.16&&trendPressure<=-.10&&structureDown&&latest.closeLocation<=.45;
+  const closes=series.map(c=>Number(c.close));
+  closes[closes.length-1]=Number(price);
+  const ema5=calculateEma(closes,5),ema20=calculateEma(closes,20);
+  const previousCloses=closes.slice(0,-1);
+  const previousEma5=calculateEma(previousCloses,5),previousEma20=calculateEma(previousCloses,20);
+  const latest=series.at(-1);
   const prices=(Array.isArray(priceHistory)?priceHistory:[]).filter(v=>finite(v)&&Number(v)>0).slice(-8).map(Number);
-  const uniquePrices=prices.filter((v,i)=>i===0||v!==prices[i-1]);
-  const decimals=Math.max(1,...[price,...prices].map(value=>String(value).split(".")[1]?.length||0));
-  const tick=10**(-Math.min(decimals,10));
-  const priceDelta=uniquePrices.length>=2?uniquePrices.at(-1)-uniquePrices[0]:0;
-  const priceConflictsUp=uniquePrices.length>=2&&priceDelta<=-tick;
-  const priceConflictsDown=uniquePrices.length>=2&&priceDelta>=tick;
-  let signal="WAIT",setup="NONE",reason="โครงสร้างแท่ง M1 จากราคาจริงยังไม่ผ่านเงื่อนไขยืนยัน";
-  const bullSetup=bullishContinuation||bullishRejection&&trendPressure>-.12&&bodyPressure>-.08;
-  const bearSetup=bearishContinuation||bearishRejection&&trendPressure<.12&&bodyPressure<.08;
-  if(bullSetup&&!bearSetup&&!priceConflictsUp){signal="CALL";setup=bullishContinuation?"TREND_CONTINUATION":"LOWER_WICK_REJECTION";reason=bullishContinuation?"แท่ง M1 ปิดสูงขึ้นต่อเนื่องจากราคา APK และแรงซื้อยืนยัน":"ราคาจริงปฏิเสธไส้ล่างและแรงขายกดราคาปิดไม่ลง";}
-  else if(bearSetup&&!bullSetup&&!priceConflictsDown){signal="PUT";setup=bearishContinuation?"TREND_CONTINUATION":"UPPER_WICK_REJECTION";reason=bearishContinuation?"แท่ง M1 ปิดต่ำลงต่อเนื่องจากราคา APK และแรงขายยืนยัน":"ราคาจริงปฏิเสธไส้บนและแรงซื้อดันราคาปิดไม่ขึ้น";}
-  else if((bullSetup&&priceConflictsUp)||(bearSetup&&priceConflictsDown))reason="ทิศทางราคาล่าสุดขัดกับโครงสร้างแท่ง M1 จึงงดสัญญาณ";
-  else if(bullSetup&&bearSetup)reason="พบเงื่อนไข CALL และ PUT ขัดแย้งกัน";
-  else if(latest.bodyRatio<.10)reason="แท่ง M1 ล่าสุดเป็น Doji แรงซื้อและแรงขายยังไม่ชนะกัน";
-  else if(previous.direction!==0&&latest.direction!==0&&previous.direction!==latest.direction)reason="แท่ง M1 ล่าสุดสวนทิศทางก่อนหน้า ยังต้องรอการยืนยัน";
-  const confidence=signal==="WAIT"?"LOW":
-    (setup==="TREND_CONTINUATION"&&Math.abs(bodyPressure)>=.28&&Math.abs(trendPressure)>=.20?"HIGH":"MEDIUM");
-  return {signal,status:signal==="WAIT"?"NO_CLEAR_DIRECTION":"NEXT_CANDLE_PREDICTED",
+  const previousPrice=prices.length>=2?prices.at(-2):null;
+  const rising=previousPrice!==null&&Number(price)>previousPrice;
+  const falling=previousPrice!==null&&Number(price)<previousPrice;
+  const fastAboveSlow=ema5>ema20;
+  const fastBelowSlow=ema5<ema20;
+  const crossUp=previousEma5!==null&&previousEma20!==null&&previousEma5<=previousEma20&&ema5>ema20;
+  const crossDown=previousEma5!==null&&previousEma20!==null&&previousEma5>=previousEma20&&ema5<ema20;
+  const bullishPullback=(Number(latest.low)<=Math.max(ema5,ema20))&&Number(price)>ema5&&rising;
+  const bearishPullback=(Number(latest.high)>=Math.min(ema5,ema20))&&Number(price)<ema5&&falling;
+  const bullishContinuation=fastAboveSlow&&Number(price)>=ema5;
+  const bearishContinuation=fastBelowSlow&&Number(price)<=ema5;
+
+  let signal="WAIT",setup="NONE",reason="EMA5 และ EMA20 ยังไม่เข้าเงื่อนไขทิศทางเดียวกัน";
+  if((crossUp&&Number(price)>=ema5)||(fastAboveSlow&&(bullishContinuation||bullishPullback))){
+    signal="CALL";
+    setup=crossUp?"EMA5_CROSS_UP_EMA20":bullishPullback?"EMA_PULLBACK_BOUNCE_UP":"EMA5_ABOVE_EMA20";
+    reason=setup==="EMA5_CROSS_UP_EMA20"?"EMA5 ตัดขึ้นเหนือ EMA20 · เตรียม CALL แท่งถัดไป":setup==="EMA_PULLBACK_BOUNCE_UP"?"ราคาย่อลงหา EMA5/EMA20 แล้วดีดกลับขึ้น":"EMA5 อยู่เหนือ EMA20 และราคาอยู่เหนือ EMA5";
+  }else if((crossDown&&Number(price)<=ema5)||(fastBelowSlow&&(bearishContinuation||bearishPullback))){
+    signal="PUT";
+    setup=crossDown?"EMA5_CROSS_DOWN_EMA20":bearishPullback?"EMA_PULLBACK_REJECTION_DOWN":"EMA5_BELOW_EMA20";
+    reason=setup==="EMA5_CROSS_DOWN_EMA20"?"EMA5 ตัดลงต่ำกว่า EMA20 · เตรียม PUT แท่งถัดไป":setup==="EMA_PULLBACK_REJECTION_DOWN"?"ราคาดีดหา EMA5/EMA20 แล้วถูกกดกลับลง":"EMA5 อยู่ต่ำกว่า EMA20 และราคาอยู่ใต้ EMA5";
+  }else if(fastAboveSlow)reason="แนวโน้ม EMA เป็นขาขึ้น แต่รอราคาอยู่เหนือ EMA5 หรือยืนยันการดีดกลับ";
+  else if(fastBelowSlow)reason="แนวโน้ม EMA เป็นขาลง แต่รอราคาอยู่ใต้ EMA5 หรือยืนยันการถูกกดลง";
+
+  const gap=Math.abs(ema5-ema20);
+  const confidence=signal==="WAIT"?"LOW":gap/Math.max(Math.abs(ema20),1e-12)>0.00005?"MEDIUM":"LOW";
+  return {
+    signal,status:signal==="WAIT"?"EMA_NO_ENTRY":"NEXT_CANDLE_PREDICTED",
     target:"NEXT_M1_CANDLE",setup,reason,confidence,calibratedCandles:series.length,
-    evidence:{bodyPressure:Number(bodyPressure.toFixed(3)),trendPressure:Number(trendPressure.toFixed(3)),
-      higherCloses,lowerCloses,structureUp,structureDown,
-      upperWickRatio:Number(latest.upperWickRatio.toFixed(3)),lowerWickRatio:Number(latest.lowerWickRatio.toFixed(3)),
-      bodyRatio:Number(latest.bodyRatio.toFixed(3)),closeLocation:Number(latest.closeLocation.toFixed(3)),
-      bullishRejection,bearishRejection,priceDelta:Number(priceDelta.toFixed(decimals)),priceConflictsUp,priceConflictsDown},
-    calibration:"APK_PRICE_DERIVED_M1_OHLC",source:"APK_CAPTURED_PRICE_OHLC"};
+    ema5:Number(ema5.toFixed(10)),ema20:Number(ema20.toFixed(10)),
+    previousEma5:previousEma5===null?null:Number(previousEma5.toFixed(10)),
+    previousEma20:previousEma20===null?null:Number(previousEma20.toFixed(10)),
+    evidence:{fastAboveSlow,fastBelowSlow,crossUp,crossDown,bullishContinuation,bearishContinuation,bullishPullback,bearishPullback,rising,falling},
+    calibration:"APK_PRICE_DERIVED_M1_OHLC_EMA5_EMA20",source:"APK_CAPTURED_PRICE_OHLC"
+  };
 }
