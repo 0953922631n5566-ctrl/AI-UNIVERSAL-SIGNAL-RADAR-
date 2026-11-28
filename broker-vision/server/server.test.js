@@ -50,7 +50,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
   assert.equal(last.analysis.signalConditions.passed,true);
   assert.equal(last.analysis.priceAxisCalibrated,true);
-  assert.equal(last.analysis.candlePriceLevels.length,4);
+  assert.equal(last.analysis.candlePriceLevels.length,5);
   const publicState=await (await fetch(base+"/api/vision/public")).json();
   assert.equal("imageDataUri" in publicState,false,"public status must not expose broker screenshots");
   const miniResponse=await fetch(base+"/api/vision/miniapp");
