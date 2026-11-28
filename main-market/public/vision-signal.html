@@ -139,7 +139,7 @@ function paint(d){
  const frameFresh=online&&d.frameFresh===true;
  lastFrameFresh=frameFresh;
  $("chartLive").textContent=frameFresh?"LIVE":d.lastFrameAt?"STALE":"WAITING";
- const trustedPrediction=frameFresh&&p.source==="APK_PRICE_AND_CANDLE_GEOMETRY";
+ const trustedPrediction=frameFresh&&p.source==="APK_CAPTURED_PRICE_OHLC";
  const phase=trustedPrediction?(a.phase||d.phase||"WAITING"):"WAITING";
  const signal=trustedPrediction&&["CALL","PUT","WATCH"].includes(a.signal)?a.signal:"WAIT";
  alertPhase(phase,signal,a.cycleId??d.cycleId??"unknown");
