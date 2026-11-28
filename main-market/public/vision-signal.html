@@ -53,9 +53,9 @@ try{tg?.ready?.();tg?.expand?.();}catch{}
 const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
 let alertsEnabled=false,audioContext=null,lastAlertKey="";
 let latchedSignal="",latchedUntil=0,lastSignalKey="";
-let countdownDeadline=0,countdownCycle="",lastChartFrame="";
+let countdownDeadline=0,countdownCycle="",lastChartFrame="",lastFrameFresh=false;
 const chartImage=$("brokerChart");
-chartImage.addEventListener("load",()=>{$("chartPlaceholder").hidden=true;$("chartLive").textContent="LIVE";});
+chartImage.addEventListener("load",()=>{$("chartPlaceholder").hidden=true;$("chartLive").textContent=lastFrameFresh?"LIVE":"STALE";});
 chartImage.addEventListener("error",()=>{$("chartPlaceholder").hidden=false;$("chartPlaceholder").textContent="ยังไม่มีภาพกราฟจาก APK";$("chartLive").textContent="NO FRAME";});
 function updateBrokerChart(d){
  const frameKey=d.lastFrameAt||"";
@@ -106,6 +106,8 @@ function paint(d){
  const a=d.analysis||{},p=a.nextCandlePrediction||{},online=d.connected===true;
  updateBrokerChart(d);
  const frameFresh=online&&d.frameFresh===true;
+ lastFrameFresh=frameFresh;
+ $("chartLive").textContent=frameFresh?"LIVE":d.lastFrameAt?"STALE":"WAITING";
  const trustedPrediction=frameFresh&&p.source==="APK_PRICE_AND_CANDLE_GEOMETRY";
  const phase=trustedPrediction?(a.phase||d.phase||"WAITING"):"WAITING";
  const signal=trustedPrediction&&["CALL","PUT","WATCH"].includes(a.signal)?a.signal:"WAIT";
