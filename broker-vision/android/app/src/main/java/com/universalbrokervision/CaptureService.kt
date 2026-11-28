@@ -108,15 +108,23 @@ class CaptureService:Service() {
  }
  private fun detectCandles(bitmap:Bitmap):JSONArray {
   val out=JSONArray();val top=(bitmap.height*.16f).toInt();val bottom=(bitmap.height*.88f).toInt()
-  val start=(bitmap.width*.08f).toInt();val end=(bitmap.width*.82f).toInt()
+  val start=(bitmap.width*.13f).toInt();val end=(bitmap.width*.82f).toInt()
   data class C(val x:Int,val color:String,val top:Int,val bottom:Int)
   val columns=mutableListOf<C>()
-  for(x in start until end step 2){var green=0;var red=0;var minY=bottom;var maxY=top
-   for(y in top until bottom step 2){val c=bitmap.getPixel(x,y);val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c)
-    if(g>r*1.28&&g>b*1.05&&g>75){green++;minY=minOf(minY,y);maxY=maxOf(maxY,y)}
-    if(r>g*1.22&&r>b*1.05&&r>85){red++;minY=minOf(minY,y);maxY=maxOf(maxY,y)}
+  for(x in start until end step 2){
+   var active:String?=null;var runStart=0;var runEnd=0;var runLength=0
+   var bestColor="";var bestTop=0;var bestBottom=0;var bestLength=0
+   for(y in top until bottom step 2){
+    val c=bitmap.getPixel(x,y);val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c)
+    val kind=when{g>r*1.28&&g>b*1.05&&g>75->"GREEN";r>g*1.22&&r>b*1.05&&r>85->"RED";else->null}
+    if(kind!=null&&kind==active&&y-runEnd<=2){runLength++;runEnd=y}
+    else{
+     if(runLength>bestLength){bestLength=runLength;bestColor=active.orEmpty();bestTop=runStart;bestBottom=runEnd}
+     active=kind;runStart=y;runEnd=y;runLength=if(kind!=null)1 else 0
+    }
    }
-   if(maxOf(green,red)>=3)columns.add(C(x,if(green>=red)"GREEN" else "RED",minY,maxY))
+   if(runLength>bestLength){bestLength=runLength;bestColor=active.orEmpty();bestTop=runStart;bestBottom=runEnd}
+   if(bestLength>=3)columns.add(C(x,bestColor,bestTop,bestBottom))
   }
   val groups=mutableListOf<MutableList<C>>()
   columns.forEach{c->val last=groups.lastOrNull();if(last!=null&&last.last().color==c.color&&c.x-last.last().x<=6)last.add(c)else groups.add(mutableListOf(c))}
