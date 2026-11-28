@@ -40,7 +40,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
       body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",deviceTime:Date.now(),
-        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
+        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120},{text:(1.120235+i*0.000001).toFixed(6),left:1400,top:300,right:1470,bottom:320}],candles})
     });
     assert.equal(response.status,202);
     last=await response.json();
@@ -51,7 +51,15 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(last.analysis.signalConditions.passed,true);
   assert.equal(last.analysis.priceAxisCalibrated,true);
   assert.equal(last.analysis.candlePriceLevels.length,5);
-  const publicState=await (await fetch(base+"/api/vision/public")).json();
+
+  const staleCapture=await fetch(base+"/api/vision/frame",{
+    method:"POST",
+    headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
+    body:JSON.stringify({width:1536,height:691,symbol:"UNKNOWN",timeframe:"UNKNOWN",deviceTime:Date.now()-20000,
+      price:1.12345,pricePrecision:5,ocr:[{text:"1.12345",left:1400,top:300,right:1470,bottom:320}],candles:[]})
+  });
+  assert.equal(staleCapture.status,409,"stale APK captures must be rejected");
+\n  const publicState=await (await fetch(base+"/api/vision/public")).json();
   assert.equal("imageDataUri" in publicState,false,"public status must not expose broker screenshots");
   const miniResponse=await fetch(base+"/api/vision/miniapp");
   const miniState=await miniResponse.json();
