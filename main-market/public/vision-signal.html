@@ -34,6 +34,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <div class="detail"><span>สถานะการวิเคราะห์</span><b id="analysisStatus">WAITING</b></div>
 <div class="detail"><span>เป้าหมาย</span><b id="target">แท่งถัดไป</b></div>
 <div class="detail"><span>จำนวนแท่งที่เทียบราคาได้</span><b id="sampleCount">—</b></div>
+<div class="detail"><span>สถานะอ่านราคาจาก APK</span><b id="ocrStatus">—</b></div>
 <div class="detail"><span>เงื่อนไขสัญญาณ</span><b id="conditions">—</b></div>
 <div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
 </section>
@@ -64,6 +65,8 @@ function paint(d){
  $("livePriceMetric").textContent=fmt(d.price,precision);
  $("analysisStatus").textContent=a.status||"WAITING";
  $("sampleCount").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
+ const diag=d.priceDiagnostics||{};
+ $("ocrStatus").textContent=diag.priceReadStatus||"รอข้อมูล";
  $("target").textContent=trustedPrediction?"แท่ง M1 ถัดไป":"รอข้อมูล";
  $("conditions").textContent=signal==="CALL"||signal==="PUT"?"ผ่าน · "+(p.confidence||"MEDIUM")+" · คาดการณ์แท่งถัดไป":"ยังไม่ผ่าน · งดออกสัญญาณ";
  $("receivedAt").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleTimeString("th-TH"):"—";
