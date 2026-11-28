@@ -107,7 +107,7 @@ function makeAnalysis() {
     open:yToPrice(c.openY),close:yToPrice(c.closeY),high:yToPrice(c.highY),low:yToPrice(c.lowY)
   })): [];
   return { signal, status:readable?"ANALYZED":"PRICE_UNREADABLE", price:readable?price:null,
-    candleCount, priceSamples:priceSamples.length, quality,
+    candleCount, priceSamples:priceSamples.length,
     priceAxisCalibrated:axisCalibrated,candlePriceLevels,
     signalEligible:signal!=="WAIT",
     signalConditions:{readablePrice:readable,minimumPriceSamples:2,actualPriceSamples:priceSamples.length,
