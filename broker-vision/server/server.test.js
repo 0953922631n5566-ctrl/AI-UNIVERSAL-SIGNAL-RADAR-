@@ -51,6 +51,12 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.equal(last.analysis.candlePriceLevels.length,4);
   const publicState=await (await fetch(base+"/api/vision/public")).json();
   assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
+  const miniResponse=await fetch(base+"/api/vision/miniapp");
+  const miniState=await miniResponse.json();
+  assert.equal(miniResponse.status,200);
+  assert.equal(miniState.price,1.120238);
+  assert.equal(miniState.analysis.signal,"CALL");
+  assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
 
   const badOcr=await fetch(base+"/api/vision/frame",{
     method:"POST",
