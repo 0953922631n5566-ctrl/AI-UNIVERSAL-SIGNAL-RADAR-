@@ -33,7 +33,7 @@ class CaptureService:Service() {
  }
  private var projection:MediaProjection?=null;private var display:VirtualDisplay?=null;private var reader:ImageReader?=null
  private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
- private var lastAt=0L;private val busy=AtomicBoolean(false)
+ private var lastAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
  private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
  override fun onBind(intent:Intent?):IBinder?=null
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
@@ -169,14 +169,17 @@ class CaptureService:Service() {
     .put("highY",wickTop).put("lowY",wickBottom).put("bodyHeight",bodyBottom-bodyTop))
   };return out
  }
- private fun upload(payload:JSONObject){Thread{
-  var c:HttpURLConnection?=null
-  try{c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
-   requestMethod="POST";connectTimeout=8000;readTimeout=8000;doOutput=true
-   setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
-  };c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))};c.inputStream.close()
-  }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}finally{c?.disconnect()}
- }.start()}
+ private fun upload(payload:JSONObject){
+  if(!uploading.compareAndSet(false,true))return
+  Thread{
+   var c:HttpURLConnection?=null
+   try{c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
+    requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
+    setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
+   };c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))};c.inputStream.close()
+   }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}finally{c?.disconnect();uploading.set(false)}
+  }.start()
+ }
  override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
   try{projection?.stop()}catch(_:Exception){};try{recognizer.close()}catch(_:Exception){}
   worker?.quitSafely();super.onDestroy()
