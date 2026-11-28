@@ -94,15 +94,24 @@ function paint(d){
  const phase=trustedPrediction?(a.phase||d.phase||"WAITING"):"WAITING";
  const signal=trustedPrediction&&["CALL","PUT","WATCH"].includes(a.signal)?a.signal:"WAIT";
  alertPhase(phase,signal,a.cycleId??d.cycleId??"unknown");
+ const cycleKey=String(a.cycleId??d.cycleId??"unknown");
+ if(frameFresh&&(signal==="CALL"||signal==="PUT")){
+  const signalKey=cycleKey+":"+signal;
+  if(signalKey!==lastSignalKey){lastSignalKey=signalKey;latchedSignal=signal;latchedUntil=Date.now()+30000;}
+ }
+ const holdActive=!!latchedSignal&&Date.now()<latchedUntil;
+ const displaySignal=holdActive?latchedSignal:signal;
+ if(!holdActive&&latchedSignal){latchedSignal="";latchedUntil=0;}
  $("api").className="api "+(frameFresh?"live":online?"":"off");
  $("api").textContent=frameFresh?"APK LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
  const precision=Number.isInteger(d.pricePrecision)?Math.max(1,Math.min(10,d.pricePrecision)):6;
  $("price").textContent=fmt(d.price,precision);
  $("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
- $("signal").className="signal "+(signal==="CALL"?"call":signal==="PUT"?"put":signal==="WATCH"?"watch":"wait");
- $("signal").textContent=signal;
- $("reason").textContent=trustedPrediction?(a.reason||p.reason||"รอข้อมูลแท่งเทียน"):a.reason||d.error||"รอภาพจากโบรกเกอร์";
+ $("signal").className="signal "+(displaySignal==="CALL"?"call":displaySignal==="PUT"?"put":displaySignal==="WATCH"?"watch":"wait");
+ $("signal").textContent=displaySignal;
+ $("signalHold").textContent=holdActive?"ค้าง "+Math.ceil((latchedUntil-Date.now())/1000)+" วินาที":"ปิดแล้ว";
+ $("reason").textContent=holdActive?"คงไฟ "+(displaySignal==="CALL"?"เขียว CALL":"แดง PUT")+" ไว้จนครบ 30 วินาที":trustedPrediction?(a.reason||p.reason||"รอข้อมูลแท่งเทียน"):a.reason||d.error||"รอภาพจากโบรกเกอร์";
  $("phase").textContent=phase==="WATCH"?"เฝ้าระวัง · 10 วินาทีสุดท้าย":phase==="ORDER_WINDOW"?"วิเคราะห์/เข้าแท่งถัดไป · 5 วินาทีสุดท้าย":"รอรอบถัดไป";
  $("countdown").textContent=Number.isFinite(Number(a.secondsToNextCandle??d.secondsToNextCandle))?Math.max(0,Number(a.secondsToNextCandle??d.secondsToNextCandle))+" วินาที":"—";
  $("calibrated").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
