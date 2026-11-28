@@ -97,7 +97,10 @@ function makeAnalysis() {
   }
   const trend = summarize(priceSamples);
   const candles = Array.isArray(last.candles) ? last.candles : [];
-  const prediction = predictNextCandle({ candles, axisPrices:last.axisPrices, price:readable?price:null });
+  const prediction = predictNextCandle({
+    candles, axisPrices:last.axisPrices, price:readable?price:null,
+    priceHistory:priceSamples.map(sample=>Number(sample.price))
+  });
 
   // Synchronize the warning/order windows to the APK capture timestamp and M1 clock.
   const captureMs = finite(last.deviceTime) ? Number(last.deviceTime) : Date.parse(last.receivedAt);
@@ -155,6 +158,12 @@ app.post("/api/vision/enroll", (req,res)=>{
   res.status(201).json({ok:true,token,expiresAt:new Date(expiresAt).toISOString(),expiresInSeconds:DEVICE_TOKEN_TTL_MS/1000});
 });
 app.get("/vision", (_req,res)=>res.sendFile(path.resolve("public/vision.html")));
+app.get("/api/vision/chart-image", (_req,res)=>{
+  res.setHeader("Cache-Control","no-store, no-cache, max-age=0, must-revalidate");
+  res.setHeader("Pragma","no-cache");
+  if(!latestFrameImage?.base64) return res.status(204).end();
+  res.type("image/jpeg").send(Buffer.from(latestFrameImage.base64,"base64"));
+});
 app.get("/api/vision/miniapp", (_req,res)=>{
   res.setHeader("Cache-Control","no-store, no-cache, max-age=0, must-revalidate");
   const last=frames.at(-1);
