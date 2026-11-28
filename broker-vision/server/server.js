@@ -1,4 +1,5 @@
 import express from "express";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 const app = express();
@@ -54,6 +55,13 @@ function makeAnalysis() {
 }
 
 app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.1.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN)}));
+app.get("/vision", (_req,res)=>res.sendFile(path.resolve("public/vision.html")));
+app.get("/api/vision/public", (_req,res)=>{
+  const last=frames.at(-1);
+  res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
+    symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
+    price:last?.price??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+});
 app.post("/api/vision/frame", auth, (req,res)=>{
   const b=req.body||{};
   if (!finite(b.width)||!finite(b.height)||!Array.isArray(b.ocr)||!Array.isArray(b.candles))
