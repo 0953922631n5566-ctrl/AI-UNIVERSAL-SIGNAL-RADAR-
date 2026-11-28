@@ -76,6 +76,32 @@ async function restoreLatestFrame() {
     if (error.code !== "ENOENT") console.error("Could not restore latest frame:", error.message);
   }
 }
+function buildPriceCandles(items) {
+  const valid = (Array.isArray(items) ? items : [])
+    .filter(item => finite(item.price) && Number(item.price) > 0 && finite(item.deviceTime))
+    .slice(-MAX_FRAMES);
+  if (!valid.length) return [];
+  // Keep one continuous price scale; a broker/pair switch must not mix unlike prices.
+  const segment = [];
+  for (let i = valid.length - 1; i >= 0; i--) {
+    const price = Number(valid[i].price);
+    const next = segment.length ? Number(segment[0].close) : null;
+    if (next !== null && Math.abs(price-next)/Math.max(Math.abs(price),Math.abs(next)) > 0.05) break;
+    segment.unshift(valid[i]);
+  }
+  const byMinute = new Map();
+  for (const item of segment) {
+    const epoch = Math.floor(Number(item.deviceTime)/60000)*60000;
+    const price = Number(item.price);
+    const candle = byMinute.get(epoch);
+    if (!candle) byMinute.set(epoch,{epoch,open:price,high:price,low:price,close:price,samples:1});
+    else { candle.high=Math.max(candle.high,price); candle.low=Math.min(candle.low,price); candle.close=price; candle.samples++; }
+  }
+  const candles=[...byMinute.values()].sort((a,b)=>a.epoch-b.epoch).slice(-100);
+  const latestEpoch=candles.at(-1)?.epoch;
+  return candles.map(c=>({...c,closed:c.epoch<latestEpoch,source:"APK_CAPTURED_PRICE"}));
+}
+
 function makeAnalysis() {
   const last = frames.at(-1);
   if (!last) return { signal:"WAIT", phase:"WAITING", status:"NO_DATA", reason:"ยังไม่มีภาพจาก APK", source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
@@ -96,9 +122,10 @@ function makeAnalysis() {
     priceSamples.unshift(rawPriceSamples[i]);
   }
   const trend = summarize(priceSamples);
-  const candles = Array.isArray(last.candles) ? last.candles : [];
+  // The displayed chart and predictor share this exact OHLC series, built only from APK prices.
+  const priceCandles = buildPriceCandles(frames);
   const prediction = predictNextCandle({
-    candles, axisPrices:last.axisPrices, price:readable?price:null,
+    candles:priceCandles, price:readable?price:null,
     priceHistory:priceSamples.map(sample=>Number(sample.price))
   });
 
@@ -123,11 +150,14 @@ function makeAnalysis() {
       : "WAITING_FOR_ENTRY_WINDOW",
     price: readable ? price : null,
     pricePrecision: last.pricePrecision ?? null,
-    candleCount: candles.length,
+    candleCount: priceCandles.length,
+    priceCandleCount: priceCandles.length,
     priceSamples: priceSamples.length,
     calibratedCandles: prediction.calibratedCandles || 0,
     signalEligible: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal),
     nextCandlePrediction: prediction,
+    priceCandles,
+    chartSource: "APK_CAPTURED_PRICE_OHLC",
     signalConditions: {
       readablePrice: readable,
       calibratedCandles: prediction.calibratedCandles || 0,
@@ -169,7 +199,8 @@ app.get("/api/vision/miniapp", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
-    price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:last?.candles?.length||0,
+    price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:makeAnalysis().priceCandleCount||0,
+    priceCandles:makeAnalysis().priceCandles||[],chartSource:"APK_CAPTURED_PRICE_OHLC",
     priceDiagnostics:last?{ocrLineCount:last.ocrLineCount??null,priceCandidateCount:last.priceCandidateCount??null,
       axisPriceCount:last.axisPriceCount??null,priceReadStatus:last.priceReadStatus??"UNKNOWN"}:null,
     analysis:makeAnalysis()});
