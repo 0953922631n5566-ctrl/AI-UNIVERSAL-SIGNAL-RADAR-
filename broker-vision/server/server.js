@@ -9,6 +9,8 @@ const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
 const frames = [];
+const priceCandles = [];
+let lastPriceScale = null;
 let latestFrameImage = null;
 const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
 const enrollAttempts = new Map();
@@ -70,36 +72,31 @@ async function restoreLatestFrame() {
     const frame = JSON.parse(metadata);
     frame.receivedAt = frame.receivedAt || new Date().toISOString();
     frames.push(frame);
+    updatePriceCandle(frame);
     latestFrameImage = { mimeType: "image/jpeg", base64: bytes.toString("base64") };
     console.log("Restored latest Broker Vision frame from persistent storage");
   } catch (error) {
     if (error.code !== "ENOENT") console.error("Could not restore latest frame:", error.message);
   }
 }
-function buildPriceCandles(items) {
-  const valid = (Array.isArray(items) ? items : [])
-    .filter(item => finite(item.price) && Number(item.price) > 0 && finite(item.deviceTime))
-    .slice(-MAX_FRAMES);
-  if (!valid.length) return [];
-  // Keep one continuous price scale; a broker/pair switch must not mix unlike prices.
-  const segment = [];
-  for (let i = valid.length - 1; i >= 0; i--) {
-    const price = Number(valid[i].price);
-    const next = segment.length ? Number(segment[0].close) : null;
-    if (next !== null && Math.abs(price-next)/Math.max(Math.abs(price),Math.abs(next)) > 0.05) break;
-    segment.unshift(valid[i]);
+function updatePriceCandle(frame) {
+  if (!finite(frame?.price) || Number(frame.price) <= 0 || !finite(frame?.deviceTime)) return;
+  const price=Number(frame.price);
+  if(lastPriceScale!==null && Math.abs(price-lastPriceScale)/Math.max(Math.abs(price),Math.abs(lastPriceScale))>0.05){
+    priceCandles.length=0;
   }
-  const byMinute = new Map();
-  for (const item of segment) {
-    const epoch = Math.floor(Number(item.deviceTime)/60000)*60000;
-    const price = Number(item.price);
-    const candle = byMinute.get(epoch);
-    if (!candle) byMinute.set(epoch,{epoch,open:price,high:price,low:price,close:price,samples:1});
-    else { candle.high=Math.max(candle.high,price); candle.low=Math.min(candle.low,price); candle.close=price; candle.samples++; }
+  lastPriceScale=price;
+  const epoch=Math.floor(Number(frame.deviceTime)/60000)*60000;
+  const last=priceCandles.at(-1);
+  if(last && epoch<last.epoch) return;
+  if(last && epoch===last.epoch){
+    last.high=Math.max(last.high,price);last.low=Math.min(last.low,price);
+    last.close=price;last.samples++;
+  }else{
+    if(last)last.closed=true;
+    priceCandles.push({epoch,open:price,high:price,low:price,close:price,samples:1,closed:false,source:"APK_CAPTURED_PRICE"});
+    if(priceCandles.length>100)priceCandles.splice(0,priceCandles.length-100);
   }
-  const candles=[...byMinute.values()].sort((a,b)=>a.epoch-b.epoch).slice(-100);
-  const latestEpoch=candles.at(-1)?.epoch;
-  return candles.map(c=>({...c,closed:c.epoch<latestEpoch,source:"APK_CAPTURED_PRICE"}));
 }
 
 function makeAnalysis() {
@@ -123,9 +120,9 @@ function makeAnalysis() {
   }
   const trend = summarize(priceSamples);
   // The displayed chart and predictor share this exact OHLC series, built only from APK prices.
-  const priceCandles = buildPriceCandles(frames);
+  const chartCandles = priceCandles.slice(-100);
   const prediction = predictNextCandle({
-    candles:priceCandles, price:readable?price:null,
+    candles:chartCandles, price:readable?price:null,
     priceHistory:priceSamples.map(sample=>Number(sample.price))
   });
 
@@ -150,13 +147,13 @@ function makeAnalysis() {
       : "WAITING_FOR_ENTRY_WINDOW",
     price: readable ? price : null,
     pricePrecision: last.pricePrecision ?? null,
-    candleCount: priceCandles.length,
-    priceCandleCount: priceCandles.length,
+    candleCount: chartCandles.length,
+    priceCandleCount: chartCandles.length,
     priceSamples: priceSamples.length,
     calibratedCandles: prediction.calibratedCandles || 0,
     signalEligible: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal),
     nextCandlePrediction: prediction,
-    priceCandles,
+    priceCandles:chartCandles,
     chartSource: "APK_CAPTURED_PRICE_OHLC",
     signalConditions: {
       readablePrice: readable,
@@ -200,7 +197,7 @@ app.get("/api/vision/miniapp", (_req,res)=>{
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
     price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:makeAnalysis().priceCandleCount||0,
-    priceCandles:makeAnalysis().priceCandles||[],chartSource:"APK_CAPTURED_PRICE_OHLC",
+    priceCandles:priceCandles.slice(-100),chartSource:"APK_CAPTURED_PRICE_OHLC",
     priceDiagnostics:last?{ocrLineCount:last.ocrLineCount??null,priceCandidateCount:last.priceCandidateCount??null,
       axisPriceCount:last.axisPriceCount??null,priceReadStatus:last.priceReadStatus??"UNKNOWN"}:null,
     analysis:makeAnalysis()});
@@ -269,6 +266,7 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
+  updatePriceCandle(frame);
   if(imageBytes){
     latestFrameImage={mimeType:"image/jpeg",base64:b.imageBase64};
     void persistLatestFrame(frame,latestFrameImage).catch(error=>console.error("Frame persistence failed:",error.message));
