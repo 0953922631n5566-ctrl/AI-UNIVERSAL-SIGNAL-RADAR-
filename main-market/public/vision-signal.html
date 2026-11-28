@@ -26,7 +26,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <section class="panel signal-panel"><div class="signal-label">NEXT CANDLE SIGNAL</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
 <section class="metrics">
 <div class="metric"><span>VISUAL QUALITY</span><b id="quality">—</b></div>
-<div class="metric"><span>CONFIDENCE SCORE</span><b id="confidence">—</b></div>
+<div class="metric"><span>ENTRY SCORE · MIN 40</span><b id="confidence">—</b></div>
 <div class="metric"><span>FRAMES RECEIVED</span><b id="frames">0</b></div>
 <div class="metric"><span>CANDLES DETECTED</span><b id="candles">0</b></div>
 </section>
@@ -52,7 +52,7 @@ function paint(d){
  $("signal").className="signal "+(signal==="CALL"?"call":signal==="PUT"?"put":"wait");$("signal").textContent=signal;
  $("reason").textContent=a.reason||d.error||"รอภาพจากโบรกเกอร์";
  $("quality").textContent=Number.isFinite(a.quality)?a.quality+"/100":"—";
- $("confidence").textContent=Number.isFinite(a.confidence)?a.confidence+"/100":"—";
+ $("confidence").textContent=Number.isFinite(a.score)?a.score+"/100 · ≥"+(a.scoreThreshold??40):Number.isFinite(a.confidence)?a.confidence+"/100 · ≥40":"—";
  $("frames").textContent=Number(d.receivedFrames||0);$("candles").textContent=Number(d.candleCount||0);
  $("analysisStatus").textContent=a.status||"WAITING";$("closedCandles").textContent=Number.isFinite(a.completedCandleCount)?a.completedCandleCount:"—";
  $("momentum").textContent=a.priceChange==null?"—":(a.priceChange>0?"+":"")+fmt(a.priceChange,6)+" · "+(a.directionalConsistency||0)+"%";
