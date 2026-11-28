@@ -23,7 +23,9 @@ function summarize(items) {
   const xs = items.filter(x => finite(x.price)).map(x => Number(x.price));
   if (xs.length < 2) return { direction:"WAIT", reason:"ต้องอ่านป้ายราคาได้ต่อเนื่องอย่างน้อย 2 ภาพ", confidence:0 };
   const first = xs[0], last = xs.at(-1), delta = last-first;
-  const decimals = String(last).split(".")[1]?.length || 4;
+  const reportedPrecision = Number(frames.at(-1)?.pricePrecision);
+  const decimals = Number.isInteger(reportedPrecision) && reportedPrecision>0
+    ? reportedPrecision : (String(last).split(".")[1]?.length || 4);
   const tick = 10 ** (-Math.min(decimals,10));
   const steps = xs.slice(1).map((value,i)=>value-xs[i]);
   const up = steps.filter(value=>value>0).length;
@@ -80,7 +82,9 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   const price=finite(b.price)?Number(b.price):(priceCandidate?Number(priceCandidate):null);
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
     width:Number(b.width),height:Number(b.height),symbol:String(b.symbol||"UNKNOWN").slice(0,40),
-    timeframe:String(b.timeframe||"UNKNOWN").slice(0,20),price,ocr:b.ocr.slice(0,100),
+    timeframe:String(b.timeframe||"UNKNOWN").slice(0,20),price,
+    pricePrecision:finite(b.pricePrecision)?clamp(Math.round(Number(b.pricePrecision)),0,10):null,
+    ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
   const analysis=makeAnalysis();
