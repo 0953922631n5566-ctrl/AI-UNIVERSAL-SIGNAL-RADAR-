@@ -21,6 +21,12 @@ test("starts EMA20 with short APK history and reports its warmup",()=>{
  const result=predictNextCandle({candles:risingCandles.slice(0,2),price:1.10032,priceHistory:[1.10022,1.10032]});
  assert.equal(result.signal,"CALL");assert.equal(result.emaWarmupCandles,18);assert.equal(result.confidence,"LOW");
 });
+test("accepts a flat but valid APK candle as EMA close history",()=>{
+ const flat=[0,1].map(i=>({epoch:i*60000,open:1.2345,high:1.2345,low:1.2345,close:1.2345}));
+ const result=predictNextCandle({candles:flat,price:1.2345,priceHistory:[1.2345,1.2345]});
+ assert.equal(result.calibratedCandles,2);assert.equal(result.ema5,1.2345);assert.equal(result.ema20,1.2345);
+ assert.equal(result.signal,"WAIT");
+});
 test("waits when fewer than two valid APK candles exist",()=>{
  const result=predictNextCandle({candles:risingCandles.slice(0,1),price:1.10012});
  assert.equal(result.signal,"WAIT");assert.equal(result.status,"EMA_HISTORY_INSUFFICIENT");
