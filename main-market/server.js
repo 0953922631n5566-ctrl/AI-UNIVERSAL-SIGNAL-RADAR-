@@ -913,7 +913,8 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 
 app.get("/api/vision/miniapp", async (_req, res) => {
   noCache(res);
-  const base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com").replace(/\\/$/, "");
+  let base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com");
+  while (base.endsWith("/")) base = base.slice(0, -1);
   try {
     const upstream = await fetch(base + "/api/vision/public", {
       headers: { Accept: "application/json" },
