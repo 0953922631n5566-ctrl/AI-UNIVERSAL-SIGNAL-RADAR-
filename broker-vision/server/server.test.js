@@ -49,7 +49,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(last.analysis.nextCandlePrediction.signal,"WAIT","only one minute candle is available in this fast API test");
   assert.equal(last.analysis.nextCandlePrediction.status,"CANDLE_DATA_INSUFFICIENT");
   assert.equal(last.analysis.priceCandles.length,1);
-  assert.ok(["WAITING_FOR_ENTRY_WINDOW","WATCH_WINDOW","NEXT_CANDLE_PREDICTED"].includes(last.analysis.status));
+  assert.ok(["ACTIVE_CALCULATING","CYCLE_CUTOFF"].includes(last.analysis.status));
   assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
   assert.equal(last.analysis.signal,"WAIT","no directional signal before four actual M1 price candles exist");
   assert.equal(last.analysis.signalConditions.passed,false);
