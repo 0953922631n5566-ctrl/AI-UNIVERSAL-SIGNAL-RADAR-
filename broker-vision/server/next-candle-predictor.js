@@ -61,7 +61,7 @@ export function predictNextCandle({candles,axisPrices,price,priceHistory=[]}) {
 
   const prices=(Array.isArray(priceHistory)?priceHistory:[]).filter(v=>finite(v)&&Number(v)>0).slice(-8).map(Number);
   const uniquePrices=prices.filter((v,i)=>i===0||v!==prices[i-1]);
-  const decimals=String(price).split(".")[1]?.length||4;
+  const decimals=Math.max(1,...[price,...prices].map(value=>String(value).split(".")[1]?.length||0));
   const tick=10**(-Math.min(decimals,10));
   const priceDelta=uniquePrices.length>=2?uniquePrices.at(-1)-uniquePrices[0]:0;
   const priceConfirmsUp=uniquePrices.length>=2&&priceDelta>=tick;
