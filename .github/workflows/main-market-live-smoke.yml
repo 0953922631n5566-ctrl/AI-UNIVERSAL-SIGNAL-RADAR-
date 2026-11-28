@@ -1,13 +1,11 @@
-name: Main Market Candle Lab Smoke Test
+name: Universal Broker Vision Mini App Smoke Test
 
 on:
   push:
     branches: [main-market]
     paths:
       - "main-market/server.js"
-      - "main-market/public/signal-next.html"
-      - "main-market/public/candle-lab.html"
-      - "main-market/src/**"
+      - "main-market/public/vision-signal.html"
       - ".github/workflows/main-market-live-smoke.yml"
   workflow_dispatch:
 
@@ -28,51 +26,34 @@ jobs:
           for attempt in $(seq 1 24); do
             if HEALTH="$(curl -fsS --max-time 12 "$BASE/health" 2>/dev/null)" && printf '%s' "$HEALTH" | node -e '
               let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-                try {
-                  const h=JSON.parse(s);
-                  const lab=h.architecture?.candlePatternLab;
-                  process.exit(h.ok && h.service==="main-market" && h.symbols?.includes("EUR/USD") &&
-                    h.interval==="1min" && lab?.route==="/candle-lab" &&
-                    lab?.defaultHistoryCandles===200000 ? 0 : 1);
-                } catch { process.exit(1); }
+                try { const h=JSON.parse(s); process.exit(h.ok && h.service==="main-market" ? 0 : 1); }
+                catch { process.exit(1); }
               });'; then
               READY=1
               break
             fi
             sleep 5
           done
-          test "$READY" = "1" || { echo "Current Main Market release did not expose the Candle Pattern Lab architecture"; exit 1; }
+          test "$READY" = "1" || { echo "Main Market service did not become healthy"; exit 1; }
 
-      - name: Verify Mini Apps, session, prediction API, and learning status
+      - name: Verify APK-derived candlestick Mini App and live API proxy
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://ai-signal-radar-main-market.onrender.com"
-          SIGNAL_HTML="$(curl -fsS --max-time 20 "$BASE/signal")"
-          printf '%s' "$SIGNAL_HTML" | grep -q 'SIGNAL RADAR'
-          printf '%s' "$SIGNAL_HTML" | grep -q 'id="orb"'
-          LAB_HTML="$(curl -fsS --max-time 20 "$BASE/candle-lab")"
-          printf '%s' "$LAB_HTML" | grep -q 'CANDLE PATTERN LAB'
-          printf '%s' "$LAB_HTML" | grep -q '200,000'
+          HTML="$(curl -fsS --max-time 20 "$BASE/signal")"
+          printf '%s' "$HTML" | grep -q 'UNIVERSAL BROKER VISION'
+          printf '%s' "$HTML" | grep -q 'id="priceChart"'
+          printf '%s' "$HTML" | grep -q 'LIVE M1 CANDLES'
+          printf '%s' "$HTML" | grep -q 'drawPriceChart'
 
-          SESSION="$(curl -fsS --max-time 20 -X POST -H 'Content-Type: application/json' -d '{}' "$BASE/api/telegram/session")"
-          TOKEN="$(printf '%s' "$SESSION" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).sessionToken||""));')"
-          test -n "$TOKEN"
-          cleanup() {
-            curl -fsS --max-time 15 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"stop"}' "$BASE/api/telegram/control" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          STATUS="$(curl -fsS --max-time 20 -H "Authorization: Bearer $TOKEN" "$BASE/api/telegram/candle-learning/status")"
-          printf '%s' "$STATUS" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.learning?.targetCandles!==200000)process.exit(1);});'
-
-          STARTED="$(curl -fsS --max-time 30 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"start"}' "$BASE/api/telegram/control")"
-          printf '%s' "$STARTED" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.market?.monitoring!==true)process.exit(1);});'
-
-          NEXT="$(curl -fsS --max-time 20 -H "Authorization: Bearer $TOKEN" "$BASE/api/telegram/signal-next")"
-          printf '%s' "$NEXT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.market?.symbol!=="EUR/USD")process.exit(1);});'
-
-          STOPPED="$(curl -fsS --max-time 20 -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"action":"stop"}' "$BASE/api/telegram/control")"
-          printf '%s' "$STOPPED" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=JSON.parse(s);if(!x.ok||x.market?.monitoring!==false)process.exit(1);});'
-          trap - EXIT
-          echo "PASS: current signal Mini App, Candle Pattern Lab page/API, session, Start, next-signal API, and Stop."
+          STATE="$(curl -fsS --max-time 20 "$BASE/api/vision/miniapp")"
+          printf '%s' "$STATE" | node -e '
+            let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+              try {
+                const x=JSON.parse(s);
+                if(!x.ok || x.connected!==true || x.chartSource!=="APK_CAPTURED_PRICE_OHLC" ||
+                   !Array.isArray(x.priceCandles) || !x.analysis || !x.analysis.nextCandlePrediction) process.exit(1);
+              } catch { process.exit(1); }
+            });'
+          echo "PASS: Vision Mini App serves a canvas chart and the proxy returns APK-derived M1 OHLC candles."
