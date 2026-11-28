@@ -37,9 +37,11 @@ function summarize(items) {
     confidence, reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
 }
 function makeAnalysis() {
-  const recent = frames.slice(-12);
-  const last = recent.at(-1);
+  const last = frames.at(-1);
   if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
+  if (last.symbol === "UNKNOWN" || last.timeframe === "UNKNOWN")
+    return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ" };
+  const recent = frames.filter(x=>x.symbol===last.symbol && x.timeframe===last.timeframe).slice(-12);
   const candles = Array.isArray(last.candles) ? last.candles : [];
   const price = Number(last.price);
   const readable = finite(price) && price > 0;
