@@ -15,7 +15,7 @@ function auth(req, res, next) {
   if (token !== API_TOKEN) return res.status(401).json({ ok:false, error:"Unauthorized" });
   next();
 }
-const finite = n => Number.isFinite(Number(n));
+const finite = n => n !== null && n !== undefined && n !== "" && Number.isFinite(Number(n));
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
 
 function summarize(items) {
