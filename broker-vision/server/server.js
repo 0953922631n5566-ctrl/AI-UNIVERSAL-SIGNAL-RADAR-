@@ -118,7 +118,8 @@ function makeAnalysis() {
   }
   const chartCandles=priceCandles.slice(-100);
   const captureMs=finite(last.deviceTime)?Number(last.deviceTime):Date.parse(last.receivedAt);
-  const cycle=getM1CycleWindow(captureMs);
+  // Countdown uses the live server clock so OCR/upload processing time is not added to the timer.
+  const cycle=getM1CycleWindow(Date.now());
   const prediction=predictNextCandle({
     candles:chartCandles,
     price:readable?price:null,
@@ -176,7 +177,12 @@ app.get("/api/vision/chart-image", (_req,res)=>{
 app.get("/api/vision/miniapp", (_req,res)=>{
   res.setHeader("Cache-Control","no-store, no-cache, max-age=0, must-revalidate");
   const last=frames.at(-1);
+  const receivedAtMs=last?Date.parse(last.receivedAt):NaN;
+  const rawCaptureLatencyMs=last&&finite(last.deviceTime)?receivedAtMs-Number(last.deviceTime):NaN;
+  const captureLatencyMs=Number.isFinite(rawCaptureLatencyMs)&&rawCaptureLatencyMs>=0&&rawCaptureLatencyMs<=10000?Math.round(rawCaptureLatencyMs):null;
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
+    captureTime:last&&finite(last.deviceTime)?new Date(Number(last.deviceTime)).toISOString():null,
+    captureLatencyMs,ocrLatencyMs:last?.ocrLatencyMs??null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
     price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:makeAnalysis().priceCandleCount||0,
     priceCandles:priceCandles.slice(-100),chartSource:"APK_CAPTURED_PRICE_OHLC",
@@ -236,6 +242,7 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     : "NO_APK_PRICE_OR_OCR_CANDIDATE";
   const axisPrices = Array.isArray(b.axisPrices) ? b.axisPrices.slice(0,30) : [];
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
+    ocrLatencyMs:finite(b.ocrLatencyMs)?clamp(Math.round(Number(b.ocrLatencyMs)),0,30000):null,
     width:Number(b.width),height:Number(b.height),symbol,
     timeframe,
     price,
