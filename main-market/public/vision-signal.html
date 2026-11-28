@@ -35,6 +35,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <section class="panel details">
 <div class="detail"><span>สถานะการวิเคราะห์</span><b id="analysisStatus">WAITING</b></div>
 <div class="detail"><span>ช่วงทำงาน</span><b id="phase">รอช่วงเฝ้าระวัง</b></div>
+<div class="detail"><span>ไฟสัญญาณค้าง</span><b id="signalHold">ปิดแล้ว</b></div>
 <div class="detail"><span>นับถอยหลังแท่งถัดไป</span><b id="countdown">—</b></div>
 <div class="detail"><span>เป้าหมาย</span><b id="target">แท่งถัดไป</b></div>
 <div class="detail"><span>จำนวนแท่งที่เทียบราคาได้</span><b id="sampleCount">—</b></div>
@@ -50,6 +51,7 @@ const $=id=>document.getElementById(id),tg=window.Telegram?.WebApp;
 try{tg?.ready?.();tg?.expand?.();}catch{}
 const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
 let alertsEnabled=false,audioContext=null,lastAlertKey="";
+let latchedSignal="",latchedUntil=0,lastSignalKey="";
 function beep(freq,duration,delay=0){
  if(!alertsEnabled)return;
  try{
