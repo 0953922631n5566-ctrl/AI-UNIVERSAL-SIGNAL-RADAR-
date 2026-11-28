@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { predictNextCandle } from "./next-candle-predictor.js";
+import { predictNextCandle, getM1CycleWindow, evaluateOpenBias } from "./next-candle-predictor.js";
 
 const up = i => ({epoch:i*60000,open:1.1000+i*.0001,high:1.10015+i*.0001,low:1.09998+i*.0001,close:1.10012+i*.0001,samples:20});
 const down = i => ({epoch:i*60000,open:1.1010-i*.0001,high:1.10102-i*.0001,low:1.10085-i*.0001,close:1.10088-i*.0001,samples:20});
@@ -31,4 +31,21 @@ test("fails closed when APK price is unreadable",()=>{
 test("rejects malformed OHLC data",()=>{
  const result=predictNextCandle({candles:[...Array.from({length:4},(_,i)=>up(i)),{open:2,high:1,low:0,close:2}],price:1.2});
  assert.equal(result.calibratedCandles,4);
+});
+
+
+test("M1 cycle is active from second 00 through second 55 and cuts off at 56",()=>{
+ const base=1_800_000_000_000;
+ assert.equal(getM1CycleWindow(base).elapsedSeconds,0);
+ assert.equal(getM1CycleWindow(base).phase,"ACTIVE");
+ assert.equal(getM1CycleWindow(base+55_999).phase,"ACTIVE");
+ assert.equal(getM1CycleWindow(base+56_000).phase,"CUTOFF");
+ assert.equal(getM1CycleWindow(base+59_999).phase,"CUTOFF");
+ assert.notEqual(getM1CycleWindow(base).cycleId,getM1CycleWindow(base+60_000).cycleId);
+});
+
+test("current M1 price is compared against the actual APK candle Open",()=>{
+ assert.deepEqual(evaluateOpenBias({open:1.10000,price:1.10002,precision:5}),{direction:"CALL",delta:0.000020000000000131024,tickSize:0.00001});
+ assert.equal(evaluateOpenBias({open:1.10000,price:1.09998,precision:5}).direction,"PUT");
+ assert.equal(evaluateOpenBias({open:1.10000,price:1.10000,precision:5}).direction,"WAIT");
 });
