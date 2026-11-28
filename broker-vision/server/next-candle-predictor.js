@@ -51,7 +51,7 @@ export function predictNextCandle({candles,price,priceHistory=[]}) {
     [c.open,c.high,c.low,c.close].every(finite)&&
     Number(c.high)>=Math.max(Number(c.open),Number(c.close))&&
     Number(c.low)<=Math.min(Number(c.open),Number(c.close))&&
-    Number(c.high)>Number(c.low)
+    Number(c.high)>=Number(c.low)
   ).slice(-100);
   if(series.length<2)
     return {signal:"WAIT",status:"EMA_HISTORY_INSUFFICIENT",reason:"ต้องมีแท่ง M1 จากราคา APK อย่างน้อย 2 แท่งเพื่อเริ่มคำนวณ EMA5/EMA20",calibratedCandles:series.length,source:"APK_CAPTURED_PRICE_OHLC",ema5:null,ema20:null};
