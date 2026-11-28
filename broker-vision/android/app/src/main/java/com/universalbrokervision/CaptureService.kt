@@ -86,8 +86,13 @@ class CaptureService:Service() {
       Triple(value,box.left,box.top) else null
     }
     val price=priceCandidates.maxByOrNull{it.second}?.first
-    val symbolPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
-    val symbol=symbolPattern.find(chartLines.joinToString(" "){it.text})?.value?.replace(" ","")?:"UNKNOWN"
+    val headerText=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.65f&&box.top<bitmap.height*.32f}
+     .joinToString(" "){it.text}
+    val pairPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
+    val pair=pairPattern.find(headerText)?.value?.replace(" ","")
+    val genericTicker=headerText.split(Regex("""\s+""")).map{it.trim().uppercase()}
+     .firstOrNull{it.matches(Regex("""[A-Z0-9._/-]{2,12}(?:\(OTC\))?"""))&&it !in setOf("OTC","BLITZ","CALL","PUT","M1","M5")}
+    val symbol=pair?:genericTicker?:"UNKNOWN"
     val timeframe=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""").find(chartLines.joinToString(" "){it.text})?.value?.uppercase()?:"UNKNOWN"
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
