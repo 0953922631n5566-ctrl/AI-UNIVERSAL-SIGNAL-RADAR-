@@ -1,6 +1,6 @@
 import express from "express";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const app = express();
@@ -11,20 +11,27 @@ const SIGNAL_THRESHOLD = 40;
 const frames = [];
 let latestFrameImage = null;
 const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
-const deviceTokens = new Map();
 const enrollAttempts = new Map();
 const DEVICE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 app.disable("x-powered-by");
 app.use(express.json({ limit: "6mb" }));
 
+function validDeviceToken(token) {
+  const parts = String(token).split(".");
+  if (parts.length !== 4 || parts[0] !== "v1") return false;
+  const expiresAt = Number(parts[1]);
+  if (!Number.isSafeInteger(expiresAt) || expiresAt <= Date.now()) return false;
+  const payload = parts.slice(0, 3).join(".");
+  const expected = createHmac("sha256", API_TOKEN).update(payload).digest();
+  let supplied;
+  try { supplied = Buffer.from(parts[3], "hex"); } catch { return false; }
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
 function auth(req, res, next) {
   if (!API_TOKEN) return res.status(503).json({ ok:false, error:"VISION_API_TOKEN is not configured" });
-  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  const deviceExpiry = deviceTokens.get(token) || 0;
-  if (token !== API_TOKEN && deviceExpiry <= Date.now()) {
-    deviceTokens.delete(token);
+  const token = String(req.headers.authorization || "").replace(/^Bearer\\s+/i, "");
+  if (token !== API_TOKEN && !validDeviceToken(token))
     return res.status(401).json({ ok:false, error:"Unauthorized or device token expired" });
-  }
   next();
 }
 const finite = n => n !== null && n !== undefined && n !== "" && Number.isFinite(Number(n));
@@ -123,14 +130,15 @@ app.post("/api/vision/enroll", (req,res)=>{
   if (process.env.VISION_DEMO_ENROLLMENT !== "true")
     return res.status(503).json({ok:false,error:"Device enrollment is disabled"});
   const now=Date.now();
-  for (const [key,expiry] of deviceTokens) if (expiry<=now) deviceTokens.delete(key);
   const ip=String(req.ip||req.socket.remoteAddress||"unknown");
   const attempts=(enrollAttempts.get(ip)||[]).filter(ts=>now-ts<60*60*1000);
   if (attempts.length>=10) return res.status(429).json({ok:false,error:"Too many enrollments; try again later"});
   attempts.push(now);enrollAttempts.set(ip,attempts);
-  const token=randomUUID()+randomUUID();
-  deviceTokens.set(token,now+DEVICE_TOKEN_TTL_MS);
-  res.status(201).json({ok:true,token,expiresAt:new Date(now+DEVICE_TOKEN_TTL_MS).toISOString(),expiresInSeconds:DEVICE_TOKEN_TTL_MS/1000});
+  const expiresAt=now+DEVICE_TOKEN_TTL_MS;
+  const payload=`v1.${expiresAt}.${randomUUID()}`;
+  const signature=createHmac("sha256",API_TOKEN).update(payload).digest("hex");
+  const token=`${payload}.${signature}`;
+  res.status(201).json({ok:true,token,expiresAt:new Date(expiresAt).toISOString(),expiresInSeconds:DEVICE_TOKEN_TTL_MS/1000});
 });
 app.get("/vision", (_req,res)=>res.sendFile(path.resolve("public/vision.html")));
 app.get("/api/vision/miniapp", (_req,res)=>{
