@@ -125,33 +125,29 @@ function makeAnalysis() {
     priceHistory:recent.map(frame=>Number(frame.price))
   });
   const currentCandle=chartCandles.at(-1);
-  const signal=cycle.watch?"WATCH":cycle.active&&readable?prediction.signal:"WAIT";
-  const reason=!readable?"ยังไม่ได้รับราคาตัวเลขจาก APK"
-    :cycle.watch?"เฝ้าระวัง · จะประเมิน EMA5/EMA20 ในช่วงวินาที 55–59"
-    :cycle.active?prediction.reason||"ประเมินทิศทางแท่ง M1 ถัดไปจาก EMA5/EMA20"
-    :"รอช่วงเวลาประเมินของแท่ง M1 · WATCH วินาที 50–54 / ORDER วินาที 55–59";
+  const signal=readable?prediction.signal:"WAIT";
+  const reason=!readable?"ยังไม่ได้รับราคาตัวเลขจาก APK":prediction.reason||"วิเคราะห์จาก EMA5 เท่านั้น";
 
   return {
-    signal,phase:cycle.phase,cycleId:cycle.cycleId,elapsedSeconds:cycle.elapsedSeconds,
+    signal,phase:"LIVE",cyclePhase:cycle.phase,cycleId:cycle.cycleId,elapsedSeconds:cycle.elapsedSeconds,
     secondsToNextCandle:cycle.secondsToNextCandle,
     currentCandleOpen:finite(currentCandle?.open)?Number(currentCandle.open):null,
-    status:!readable?"PRICE_UNREADABLE":cycle.watch?"WATCH_WINDOW"
-      :cycle.active?(signal==="CALL"||signal==="PUT"?"ORDER_SIGNAL":"ORDER_NO_ENTRY"):"WAITING_WINDOW",
+    status:!readable?"PRICE_UNREADABLE":signal==="CALL"||signal==="PUT"?"LIVE_SIGNAL":"LIVE_WAIT",
     price:readable?price:null,pricePrecision:last.pricePrecision??null,
     candleCount:chartCandles.length,priceCandleCount:chartCandles.length,
     priceSamples:recent.length,calibratedCandles:prediction.calibratedCandles||0,
-    signalEligible:cycle.active&&["CALL","PUT"].includes(signal),
-    nextCandlePrediction:prediction,ema5:prediction.ema5??null,ema20:prediction.ema20??null,
+    signalEligible:["CALL","PUT"].includes(signal),
+    nextCandlePrediction:prediction,ema5:prediction.ema5??null,
     priceCandles:chartCandles,chartSource:"APK_CAPTURED_PRICE_OHLC",
     signalConditions:{
       readablePrice:readable,calibratedCandles:prediction.calibratedCandles||0,
       target:"NEXT_M1_CANDLE",phase:cycle.phase,elapsedSeconds:cycle.elapsedSeconds,
-      ema5:prediction.ema5??null,ema20:prediction.ema20??null,
-      trend:prediction.ema5>prediction.ema20?"UP":prediction.ema5<prediction.ema20?"DOWN":"NEUTRAL",
-      passed:cycle.active&&["CALL","PUT"].includes(signal)
+      ema5:prediction.ema5??null,price:readable?price:null,
+      trend:signal==="CALL"?"ABOVE_EMA5":signal==="PUT"?"BELOW_EMA5":"ON_OR_WAITING_FOR_EMA5",
+      passed:["CALL","PUT"].includes(signal)
     },
     reason,analyzedAt:new Date().toISOString(),
-    note:"WATCH วินาที 50–54 · ประเมิน EMA5/EMA20 และแจ้ง CALL/PUT วินาที 55–59 · ใช้ราคา APK เท่านั้น"
+    note:"วิเคราะห์ทุกครั้งที่ได้รับราคาจาก APK · ราคาเหนือ EMA5 = CALL · ราคาต่ำกว่า EMA5 = PUT · ไม่มีคะแนน · ใช้ราคา APK เท่านั้น"
   };
 }
 
