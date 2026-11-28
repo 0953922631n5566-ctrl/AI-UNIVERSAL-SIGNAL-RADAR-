@@ -229,8 +229,22 @@ class CaptureService:Service() {
    finally{uploading.set(false);busy.set(false)}
   }.start()
  }
- override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
-  try{projection?.stop()}catch(_:Exception){};try{recognizer.close()}catch(_:Exception){}
-  worker?.quitSafely();super.onDestroy()
+ private fun stopCapture(){
+  try{handler?.removeCallbacksAndMessages(null)}catch(_:Exception){}
+  try{reader?.setOnImageAvailableListener(null,null)}catch(_:Exception){}
+  try{display?.release()}catch(_:Exception){}
+  display=null
+  try{reader?.close()}catch(_:Exception){}
+  reader=null
+  try{projection?.stop()}catch(_:Exception){}
+  projection=null
+  try{worker?.quitSafely()}catch(_:Exception){}
+  worker=null;handler=null
+  busy.set(false);uploading.set(false)
+ }
+ override fun onDestroy(){
+  stopCapture()
+  try{recognizer.close()}catch(_:Exception){}
+  super.onDestroy()
  }
 }
