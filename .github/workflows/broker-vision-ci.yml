@@ -1,4 +1,5 @@
 name: Broker Vision CI
+# Run API regression tests and verify the Android capture app on every feature-branch update.
 
 on:
   push:
