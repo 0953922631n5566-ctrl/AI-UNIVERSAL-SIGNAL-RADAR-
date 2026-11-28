@@ -7,16 +7,16 @@ const up = () => ({ color:"GREEN", openY:120, closeY:90, highY:85, lowY:125 });
 const down = () => ({ color:"RED", openY:90, closeY:120, highY:85, lowY:125 });
 
 test("predicts CALL from a consistent upward candle sequence", () => {
-  const result = predictNextCandle({ candles:Array.from({length:5},up), axisPrices, price:1.9 });
+  const result = predictNextCandle({ candles:Array(5).fill(null).map(() => up()), axisPrices, price:1.9 });
   assert.equal(result.signal,"CALL");
-  assert.equal(result.target,"NEXT_CANDLE");
+  assert.equal(result.target,"NEXT_M1_CANDLE");
   assert.equal(result.source,"APK_PRICE_AND_CANDLE_GEOMETRY");
 });
 
 test("predicts PUT from a consistent downward candle sequence", () => {
-  const result = predictNextCandle({ candles:Array.from({length:5},down), axisPrices, price:1.9 });
+  const result = predictNextCandle({ candles:Array(5).fill(null).map(() => down()), axisPrices, price:1.9 });
   assert.equal(result.signal,"PUT");
-  assert.equal(result.target,"NEXT_CANDLE");
+  assert.equal(result.target,"NEXT_M1_CANDLE");
 });
 
 test("fails closed when fewer than four candles can be calibrated", () => {
@@ -32,7 +32,7 @@ test("fails closed when the APK price is unreadable", () => {
 });
 
 test("uses APK candle geometry even when OCR price axis is unavailable", () => {
-  const result = predictNextCandle({ candles:Array.from({length:5},up), axisPrices:[{price:1.9,y:200}], price:1.9 });
+  const result = predictNextCandle({ candles:Array(5).fill(null).map(() => up()), axisPrices:[{price:1.9,y:200}], price:1.9 });
   assert.equal(result.signal,"CALL");
   assert.equal(result.calibration,"APK_CANDLE_PIXEL_GEOMETRY");
 });
