@@ -944,6 +944,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       price: data.price !== null && data.price !== undefined && Number.isFinite(Number(data.price)) ? Number(data.price) : null,
       pricePrecision: Number.isInteger(Number(data.pricePrecision)) ? Number(data.pricePrecision) : null,
       candleCount: Number(data.candleCount || 0),
+      priceDiagnostics: data.priceDiagnostics || null,
       analysis: {
         signal,
         status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : predictionSourceValid ? (prediction.status || "WAITING") : "WAITING_FOR_NEXT_CANDLE_ENGINE",
