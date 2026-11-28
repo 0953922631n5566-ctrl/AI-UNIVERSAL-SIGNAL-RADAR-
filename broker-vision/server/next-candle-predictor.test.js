@@ -2,51 +2,33 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { predictNextCandle } from "./next-candle-predictor.js";
 
-const axisPrices = [{ price: 2, y: 0 }, { price: 1, y: 1000 }];
-const up = i => {
-  const closeY=110-i*8;
-  return {color:"GREEN",openY:closeY+28,closeY,highY:closeY-5,lowY:closeY+33};
-};
-const down = i => {
-  const closeY=110+i*8;
-  return {color:"RED",openY:closeY-28,closeY,highY:closeY-33,lowY:closeY+5};
-};
+const up = i => ({epoch:i*60000,open:1.1000+i*.0001,high:1.10015+i*.0001,low:1.09998+i*.0001,close:1.10012+i*.0001,samples:20});
+const down = i => ({epoch:i*60000,open:1.1010-i*.0001,high:1.10102-i*.0001,low:1.10085-i*.0001,close:1.10088-i*.0001,samples:20});
 
-test("predicts CALL from rising closes and bullish candle structure", () => {
-  const result = predictNextCandle({ candles:Array.from({length:6},(_,i)=>up(i)), axisPrices, price:1.9, priceHistory:[1.8998,1.8999,1.9000] });
-  assert.equal(result.signal,"CALL");
-  assert.equal(result.target,"NEXT_M1_CANDLE");
-  assert.equal(result.setup,"TREND_CONTINUATION");
-  assert.equal(result.source,"APK_PRICE_AND_CANDLE_GEOMETRY");
+test("predicts CALL from rising APK-derived M1 OHLC candles",()=>{
+ const candles=Array.from({length:6},(_,i)=>up(i));
+ const result=predictNextCandle({candles,price:1.10062,priceHistory:[1.1005,1.10055,1.10062]});
+ assert.equal(result.signal,"CALL");assert.equal(result.target,"NEXT_M1_CANDLE");
+ assert.equal(result.source,"APK_CAPTURED_PRICE_OHLC");assert.equal(result.calibration,"APK_PRICE_DERIVED_M1_OHLC");
 });
-
-test("predicts PUT from falling closes and bearish candle structure", () => {
-  const result = predictNextCandle({ candles:Array.from({length:6},(_,i)=>down(i)), axisPrices, price:1.9, priceHistory:[1.9002,1.9001,1.9000] });
-  assert.equal(result.signal,"PUT");
-  assert.equal(result.target,"NEXT_M1_CANDLE");
-  assert.equal(result.setup,"TREND_CONTINUATION");
+test("predicts PUT from falling APK-derived M1 OHLC candles",()=>{
+ const candles=Array.from({length:6},(_,i)=>down(i));
+ const result=predictNextCandle({candles,price:1.10038,priceHistory:[1.1005,1.10045,1.10038]});
+ assert.equal(result.signal,"PUT");assert.equal(result.target,"NEXT_M1_CANDLE");
 });
-
-test("waits when candle shape and recent price direction conflict", () => {
-  const result = predictNextCandle({ candles:Array.from({length:6},(_,i)=>up(i)), axisPrices, price:1.9, priceHistory:[1.9002,1.9001,1.9000] });
-  assert.equal(result.signal,"WAIT");
-  assert.match(result.reason,/ขัด/);
+test("waits when latest APK price conflicts with bullish candle structure",()=>{
+ const result=predictNextCandle({candles:Array.from({length:6},(_,i)=>up(i)),price:1.10062,priceHistory:[1.1007,1.1006,1.1005]});
+ assert.equal(result.signal,"WAIT");assert.match(result.reason,/ขัด/);
 });
-
-test("fails closed when fewer than four candles can be calibrated", () => {
-  const result = predictNextCandle({ candles:[up(0),up(1),up(2)], axisPrices, price:1.9 });
-  assert.equal(result.signal,"WAIT");
-  assert.equal(result.status,"CANDLE_DATA_INSUFFICIENT");
+test("fails closed until four complete M1 OHLC candles are available",()=>{
+ const result=predictNextCandle({candles:[up(0),up(1),up(2)],price:1.1003});
+ assert.equal(result.signal,"WAIT");assert.equal(result.status,"CANDLE_DATA_INSUFFICIENT");
 });
-
-test("fails closed when the APK price is unreadable", () => {
-  const result = predictNextCandle({ candles:Array.from({length:6},(_,i)=>up(i)), axisPrices, price:null });
-  assert.equal(result.signal,"WAIT");
-  assert.equal(result.status,"PRICE_UNREADABLE");
+test("fails closed when APK price is unreadable",()=>{
+ const result=predictNextCandle({candles:Array.from({length:6},(_,i)=>up(i)),price:null});
+ assert.equal(result.signal,"WAIT");assert.equal(result.status,"PRICE_UNREADABLE");
 });
-
-test("uses APK candle geometry when OCR price axis is unavailable", () => {
-  const result = predictNextCandle({ candles:Array.from({length:6},(_,i)=>up(i)), axisPrices:[{price:1.9,y:200}], price:1.9 });
-  assert.equal(result.signal,"CALL");
-  assert.equal(result.calibration,"APK_CANDLE_PIXEL_GEOMETRY");
+test("rejects malformed OHLC data",()=>{
+ const result=predictNextCandle({candles:[...Array.from({length:4},(_,i)=>up(i)),{open:2,high:1,low:0,close:2}],price:1.2});
+ assert.equal(result.calibratedCandles,4);
 });
