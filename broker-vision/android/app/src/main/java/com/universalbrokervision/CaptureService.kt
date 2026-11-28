@@ -88,7 +88,7 @@ class CaptureService:Service() {
     val pair=pairPattern.find(headerText)?.value?.replace(" ","")
     // Do not mistake broker branding/page text for a tradable instrument.
     val symbol=pair?:"UNKNOWN"
-    val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
+    val pricePattern=Regex("""\b\d+\.\d{1,10}\b""")
     data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
     val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
