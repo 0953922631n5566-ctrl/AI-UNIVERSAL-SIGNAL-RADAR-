@@ -22,7 +22,7 @@ public final class RadarPollingService extends Service {
     private volatile String lastAlertKey="";
     private volatile HttpURLConnection activeConnection;
 
-    // Cached feed snapshot drives the persistent notification between 15-second API polls.
+    // Cached feed snapshot drives the persistent notification between 500ms API polls.
     private volatile String latestSymbol="EUR/USD";
     private volatile String latestPrice="--";
     private volatile String latestApiStatus="CONNECTING";
@@ -51,7 +51,8 @@ public final class RadarPollingService extends Service {
             executor=Executors.newSingleThreadScheduledExecutor();
             statusHandler.removeCallbacks(statusTicker);
             statusHandler.post(statusTicker);
-            executor.scheduleWithFixedDelay(this::pollSafely,0,5,TimeUnit.SECONDS);
+            // Half-second fixed delay keeps requests sequential and prevents overlapping API calls.
+            executor.scheduleWithFixedDelay(this::pollSafely,0,500,TimeUnit.MILLISECONDS);
         }
         return START_STICKY;
     }
@@ -100,7 +101,7 @@ public final class RadarPollingService extends Service {
     }
     private JSONObject fetchSignal()throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(SERVER+"/api/public/signal").openConnection();activeConnection=c;
-        c.setRequestMethod("GET");c.setConnectTimeout(10000);c.setReadTimeout(10000);c.setUseCaches(false);c.setRequestProperty("Accept","application/json");
+        c.setRequestMethod("GET");c.setConnectTimeout(4000);c.setReadTimeout(4000);c.setUseCaches(false);c.setRequestProperty("Accept","application/json");
         try{
             int code=c.getResponseCode();InputStream in=code>=200&&code<300?c.getInputStream():c.getErrorStream();
             if(in==null)throw new IllegalStateException("HTTP "+code);
