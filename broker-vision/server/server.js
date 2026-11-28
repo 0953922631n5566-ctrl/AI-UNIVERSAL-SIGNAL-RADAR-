@@ -73,10 +73,10 @@ async function restoreLatestFrame() {
 }
 function makeAnalysis() {
   const last = frames.at(-1);
-  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
+  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์", score:0, scoreThreshold:SIGNAL_THRESHOLD };
   const ageMs = Date.now() - Date.parse(last.receivedAt);
   if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
-    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
+    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, score:0, scoreThreshold:SIGNAL_THRESHOLD };
   if (last.symbol === "UNKNOWN" || last.timeframe === "UNKNOWN")
     return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ", score:0, scoreThreshold:SIGNAL_THRESHOLD };
   if (last.symbol !== "EUR/USD" || last.timeframe !== "1M")
@@ -111,7 +111,7 @@ function makeAnalysis() {
   })): [];
   return { signal, status:"ANALYZED", price, candleCount, completedCandleCount:completedCandles.length, quality,
     priceAxisCalibrated:axisCalibrated,candlePriceLevels,
-    score:signal==="WAIT"?candidateScore:candidateScore, scoreThreshold:SIGNAL_THRESHOLD, signalEligible:signal!=="WAIT",
+    score:candidateScore, scoreThreshold:SIGNAL_THRESHOLD, signalEligible:signal!=="WAIT",
     confidence:signal==="WAIT"?Math.min(trend.confidence,45):candidateScore,
     reason:signal==="WAIT"?"ราคาและรูปทรงแท่งเทียนยังไม่ยืนยันไปในทิศทางเดียวกัน":`ราคาและแท่งเทียนยืนยัน ${signal} ตรงกัน`,
     priceMomentum:trend, candleBias:candleDirection, analyzedAt:new Date().toISOString(),
