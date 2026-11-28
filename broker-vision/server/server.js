@@ -108,7 +108,14 @@ function makeAnalysis() {
 
   const price=Number(last.price);
   const readable=finite(price)&&price>0;
-  const recent=frames.slice(-24).filter(frame=>finite(frame.price)&&Number(frame.price)>0);
+  const rawPriceSamples=frames.slice(-24).filter(frame=>finite(frame.price)&&Number(frame.price)>0);
+  const recent=[];
+  for(let i=rawPriceSamples.length-1;i>=0;i--){
+    const current=Number(rawPriceSamples[i].price);
+    const nextPrice=recent[0]?Number(recent[0].price):null;
+    if(nextPrice!==null&&Math.abs(current-nextPrice)/Math.max(Math.abs(current),Math.abs(nextPrice))>0.05)break;
+    recent.unshift(rawPriceSamples[i]);
+  }
   const chartCandles=priceCandles.slice(-100);
   const captureMs=finite(last.deviceTime)?Number(last.deviceTime):Date.parse(last.receivedAt);
   const cycle=getM1CycleWindow(captureMs);
