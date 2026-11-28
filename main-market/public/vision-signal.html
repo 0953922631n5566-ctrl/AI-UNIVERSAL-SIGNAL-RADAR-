@@ -152,11 +152,15 @@ function beep(freq,duration,delay=0){
 }
 function alertPhase(phase,signal,cycle){
  const key=String(cycle)+":"+phase+":"+signal;
- if(key===lastAlertKey)return;
+ if(key===lastAlertKey||!alertsEnabled)return;
+ if(phase==="WATCH"&&signal==="WATCH"){
+  lastAlertKey=key;beep(760,.10);
+  try{navigator.vibrate?.([60]);tg?.HapticFeedback?.notificationOccurred?.("warning");}catch{}
+  return;
+ }
  if(phase!=="ORDER"||!["CALL","PUT"].includes(signal))return;
- if(!alertsEnabled||key===lastAlertKey)return;
  lastAlertKey=key;
- const call=signal==="CALL",put=signal==="PUT";
+ const call=signal==="CALL";
  beep(call?1080:520,.18);beep(call?1080:520,.18,.25);
  try{navigator.vibrate?.(call?[160,70,160]:[320,80,320]);tg?.HapticFeedback?.notificationOccurred?.(call?"success":"warning");}catch{}
 }
@@ -178,7 +182,7 @@ function paint(d){
  const cycleKey=String(a.cycleId??d.cycleId??"unknown");
  if(cycleKey!==latchedCycle){latchedCycle=cycleKey;latchedSignal="";lastSignalKey="";}
  const signal=trustedPrediction&&phase==="ORDER"&&["CALL","PUT"].includes(a.signal)?a.signal:"WAIT";
- alertPhase(phase,signal,cycleKey);
+ alertPhase(phase,phase==="WATCH"?"WATCH":signal,cycleKey);
  const secondsRemaining=Number(a.secondsToNextCandle??d.secondsToNextCandle);
  if(frameFresh&&Number.isFinite(secondsRemaining)){
   if(cycleKey!==countdownCycle){countdownCycle=cycleKey;countdownDeadline=Date.now()+Math.max(0,secondsRemaining)*1000;}
