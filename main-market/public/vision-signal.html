@@ -14,7 +14,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 .panel{border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#142638,#0d1925);padding:14px;box-shadow:0 10px 26px #0003}
 .market{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px}.tag{grid-column:1/-1;color:#8fa8b8;font-size:8px;letter-spacing:.17em}.pair{font-size:22px;font-weight:850;letter-spacing:.03em}.tf{font-size:10px;color:#c3d2dd;border:1px solid #40576b;border-radius:7px;padding:4px 7px}.price-label{text-align:right;color:var(--muted);font-size:8px;letter-spacing:.15em}.price{grid-column:2;grid-row:2;text-align:right;font-size:clamp(26px,8vw,36px);font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:.01em}.price-meta{grid-column:1/-1;color:var(--muted);font-size:9px}
 .signal-panel{text-align:center;padding:20px 14px 17px;min-height:205px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.chart-panel{padding:10px}.chart-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#9eb3c2;font-size:9px;letter-spacing:.12em;margin:0 2px 8px}.chart-heading b{color:var(--green);font-size:8px}.chart-viewport{height:clamp(190px,34vh,310px);background:#050a10;border:1px solid #243847;border-radius:11px;overflow:hidden;display:grid;place-items:center;position:relative}.chart-viewport img{width:100%;height:100%;object-fit:contain;display:block}.chart-placeholder{position:absolute;color:#7890a0;font-size:10px;text-align:center;padding:12px;pointer-events:none}.signal-label{font-size:9px;letter-spacing:.2em;color:var(--muted)}.signal{margin:13px 0 8px;font-size:clamp(42px,13vw,62px);line-height:1;font-weight:950;letter-spacing:.08em;color:var(--gold)}.signal.call{color:var(--green);text-shadow:0 0 25px #35dfa044}.signal.put{color:var(--red);text-shadow:0 0 25px #ff647844}.signal.wait,.signal.watch{color:var(--gold)}
+.chart-panel{padding:10px}.chart-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#9eb3c2;font-size:9px;letter-spacing:.12em;margin:0 2px 8px}.chart-heading b{color:var(--green);font-size:8px}.chart-viewport{height:clamp(190px,34vh,310px);background:#050a10;border:1px solid #243847;border-radius:11px;overflow:hidden;display:grid;place-items:center;position:relative}.chart-viewport canvas{width:100%;height:100%;display:block}.chart-placeholder{position:absolute;color:#7890a0;font-size:10px;text-align:center;padding:12px;pointer-events:none}.signal-label{font-size:9px;letter-spacing:.2em;color:var(--muted)}.signal{margin:13px 0 8px;font-size:clamp(42px,13vw,62px);line-height:1;font-weight:950;letter-spacing:.08em;color:var(--gold)}.signal.call{color:var(--green);text-shadow:0 0 25px #35dfa044}.signal.put{color:var(--red);text-shadow:0 0 25px #ff647844}.signal.wait,.signal.watch{color:var(--gold)}
 .alert-enable{width:100%;border:1px solid #34765f;border-radius:12px;padding:11px;background:#102a25;color:var(--green);font-weight:800;font-size:12px}.alert-enable.enabled{background:#12362b;border-color:#35dfa0}
 .reason{max-width:430px;color:#c0d0db;font-size:12px;line-height:1.55}
 .metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{border:1px solid var(--line);border-radius:14px;background:#101e2b;padding:11px}.metric span{display:block;color:var(--muted);font-size:8px;letter-spacing:.13em}.metric b{display:block;margin-top:6px;font-size:20px;font-variant-numeric:tabular-nums}.details{display:grid;gap:7px}.detail{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#c5d3dc}.detail span:first-child{color:var(--muted)}.detail b{text-align:right;font-weight:700}
@@ -24,7 +24,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <body><main>
 <header><div class="brand"><div class="mark">◈</div><div><b>UNIVERSAL BROKER VISION</b><small>APK PRICE ONLY · LIVE SCREEN READING</small></div></div><div id="api" class="api">CONNECTING</div></header>
 <section class="panel market"><div class="tag">LIVE PRICE · READ FROM BROKER SCREEN</div><div id="pair" class="pair">UNKNOWN</div><div id="tf" class="tf">UNKNOWN</div><div class="price-label">BROKER PRICE</div><div id="price" class="price">—</div><div id="age" class="price-meta">รอภาพจาก APK Broker Vision</div></section>
-<section class="panel chart-panel"><div class="chart-heading"><span>LIVE BROKER CHART · ภาพจริงจาก APK</span><b id="chartLive">WAITING</b></div><div class="chart-viewport"><img id="brokerChart" alt="กราฟโบรกเกอร์ล่าสุดจาก APK"><div id="chartPlaceholder" class="chart-placeholder">รอภาพกราฟจาก APK Broker Vision</div></div></section>
+<section class="panel chart-panel"><div class="chart-heading"><span>LIVE M1 CANDLES · OHLC จากราคา APK จริง</span><b id="chartLive">WAITING</b></div><div class="chart-viewport"><canvas id="priceChart" role="img" aria-label="กราฟแท่งเทียน M1 ที่สร้างจากราคาจริงซึ่ง APK จับได้"></canvas><div id="chartPlaceholder" class="chart-placeholder">รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1</div></div></section>
 <button id="alerts" class="alert-enable" type="button">เปิดเสียง + สั่นแจ้งเตือน</button>
 <section class="panel signal-panel"><div class="signal-label">NEXT M1 CANDLE · APK PRICE + CANDLE GEOMETRY</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
 <section class="metrics">
@@ -44,7 +44,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <div class="detail"><span>เงื่อนไขสัญญาณ</span><b id="conditions">—</b></div>
 <div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
 </section>
-<div class="note">ใช้ราคาและรูปทรงแท่งเทียนจาก APK โดยตรง · วิเคราะห์เพื่อทำนายแท่ง M1 ถัดไป · ไม่ใช้ Twelve Data หรือราคาจำลอง · ข้อมูลไม่ครบแสดง WAIT · MANUAL ONLY</div>
+<div class="note">กราฟสร้างจาก OHLC ของราคาจริงที่ APK จับได้ · กราฟและสูตรวิเคราะห์ใช้แท่ง M1 ชุดเดียวกัน · ไม่ใช้ Twelve Data หรือราคาจำลอง · ข้อมูลไม่ครบแสดง WAIT · MANUAL ONLY</div>
 <footer class="footer"><span>VISION PRIMARY · MINI APP</span><span id="updated">—</span></footer>
 </main>
 <script>
@@ -54,15 +54,45 @@ const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v)
 let alertsEnabled=false,audioContext=null,lastAlertKey="";
 let latchedSignal="",latchedUntil=0,lastSignalKey="";
 let countdownDeadline=0,countdownCycle="",lastChartFrame="",lastFrameFresh=false;
-const chartImage=$("brokerChart");
-chartImage.addEventListener("load",()=>{$("chartPlaceholder").hidden=true;$("chartLive").textContent=lastFrameFresh?"LIVE":"STALE";});
-chartImage.addEventListener("error",()=>{$("chartPlaceholder").hidden=false;$("chartPlaceholder").textContent="ยังไม่มีภาพกราฟจาก APK";$("chartLive").textContent="NO FRAME";});
-function updateBrokerChart(d){
- const frameKey=d.lastFrameAt||"";
- if(!frameKey||frameKey===lastChartFrame)return;
- lastChartFrame=frameKey;
- chartImage.src="/api/vision/chart-image?frame="+encodeURIComponent(frameKey);
+const priceChart=$("priceChart");
+function drawPriceChart(d){
+ const candles=(Array.isArray(d.priceCandles)?d.priceCandles:[]).filter(c=>
+  [c.open,c.high,c.low,c.close].every(v=>Number.isFinite(Number(v)))&&Number(c.high)>=Number(c.low)&&Number(c.high)>0
+ ).slice(-36);
+ const rect=priceChart.getBoundingClientRect(),w=Math.max(280,rect.width),h=Math.max(180,rect.height),ratio=Math.max(1,window.devicePixelRatio||1);
+ priceChart.width=Math.round(w*ratio);priceChart.height=Math.round(h*ratio);
+ const ctx=priceChart.getContext("2d");ctx.setTransform(ratio,0,0,ratio,0,0);
+ ctx.clearRect(0,0,w,h);ctx.fillStyle="#050a10";ctx.fillRect(0,0,w,h);
+ if(!candles.length){$("chartPlaceholder").hidden=false;$("chartPlaceholder").textContent="รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1";$("chartLive").textContent=d.lastFrameAt?"NO PRICE CANDLES":"WAITING";return;}
+ $("chartPlaceholder").hidden=true;$("chartLive").textContent=lastFrameFresh?"LIVE · APK OHLC":"STALE";
+ const left=58,right=10,top=12,bottom=24,pw=w-left-right,ph=h-top-bottom;
+ let lo=Math.min(...candles.map(c=>Number(c.low))),hi=Math.max(...candles.map(c=>Number(c.high)));
+ if(!(hi>lo)){const pad=Math.max(Math.abs(hi)*.00001,.000001);lo-=pad;hi+=pad;}
+ const pad=(hi-lo)*.08;lo-=pad;hi+=pad;
+ const y=v=>top+(hi-Number(v))/(hi-lo)*ph;
+ ctx.font="9px system-ui";ctx.textBaseline="middle";
+ for(let i=0;i<=4;i++){
+  const gy=top+ph*i/4,price=hi-(hi-lo)*i/4;
+  ctx.strokeStyle="#1b2d3a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(left,gy);ctx.lineTo(w-right,gy);ctx.stroke();
+  ctx.fillStyle="#8fa8b8";ctx.textAlign="right";ctx.fillText(price.toFixed(Math.min(8,Math.max(3,Number(d.pricePrecision)||5))),left-7,gy);
+ }
+ const slot=pw/candles.length,bodyW=Math.max(2,Math.min(12,slot*.58));
+ candles.forEach((c,i)=>{
+  const x=left+slot*(i+.5),o=y(c.open),cl=y(c.close),hiY=y(c.high),loY=y(c.low),up=Number(c.close)>=Number(c.open);
+  const color=up?"#35dfa0":"#ff6478";
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(x,hiY);ctx.lineTo(x,loY);ctx.stroke();
+  const bodyTop=Math.min(o,cl),bodyH=Math.max(2,Math.abs(cl-o));
+  ctx.fillRect(x-bodyW/2,bodyTop,bodyW,bodyH);
+ });
+ const last=candles.at(-1),lastY=y(last.close);
+ ctx.setLineDash([3,3]);ctx.strokeStyle="#d7e6ef88";ctx.beginPath();ctx.moveTo(left,lastY);ctx.lineTo(w-right,lastY);ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle="#d7e6ef";ctx.textAlign="left";ctx.textBaseline="bottom";
+ ctx.fillText(new Date(last.epoch).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}),left,h-5);
+ ctx.textAlign="right";ctx.fillText("แท่ง "+candles.length+" · "+(last.closed?"ปิดแล้ว":"กำลังวิ่ง"),w-right,h-5);
 }
+function updateBrokerChart(d){drawPriceChart(d);}
+window.addEventListener("resize",()=>{if(window.__lastVisionData)drawPriceChart(window.__lastVisionData);});
 function updateCountdownDisplay(){
  if(!countdownDeadline){$("countdown").textContent="—";return;}
  $("countdown").textContent=Math.max(0,Math.ceil((countdownDeadline-Date.now())/1000))+" วินาที";
@@ -103,6 +133,7 @@ $("alerts").addEventListener("click",async()=>{
  beep(880,.12);
 });
 function paint(d){
+ window.__lastVisionData=d;
  const a=d.analysis||{},p=a.nextCandlePrediction||{},online=d.connected===true;
  updateBrokerChart(d);
  const frameFresh=online&&d.frameFresh===true;
