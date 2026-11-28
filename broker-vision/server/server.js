@@ -73,6 +73,9 @@ async function restoreLatestFrame() {
 function makeAnalysis() {
   const last = frames.at(-1);
   if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
+  const ageMs = Date.now() - Date.parse(last.receivedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
+    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
   if (last.symbol === "UNKNOWN" || last.timeframe === "UNKNOWN")
     return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ" };
   const recent = frames.filter(x=>x.symbol===last.symbol && x.timeframe===last.timeframe).slice(-12);
@@ -129,12 +132,19 @@ app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
-    price:last?.price??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+    price:last?.price??null,candleCount:last?.candles?.length||0,
+    imageDataUri:latestFrameImage?`data:${latestFrameImage.mimeType};base64,${latestFrameImage.base64}`:null,
+    analysis:makeAnalysis()});
 });
 app.post("/api/vision/frame", auth, (req,res)=>{
   const b=req.body||{};
   if (!finite(b.width)||!finite(b.height)||!Array.isArray(b.ocr)||!Array.isArray(b.candles))
     return res.status(400).json({ok:false,error:"Expected width, height, ocr[], and candles[]"});
+  if (typeof b.imageBase64 !== "string" || b.imageBase64.length < 100 || b.imageBase64.length > 5_000_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.imageBase64))
+    return res.status(400).json({ok:false,error:"A real JPEG chart image is required (imageBase64, max 3.75 MB)"});
+  const imageBytes=Buffer.from(b.imageBase64,"base64");
+  if (imageBytes.length < 75 || imageBytes.length > 3_750_000 || imageBytes[0]!==0xff || imageBytes[1]!==0xd8 || imageBytes.at(-2)!==0xff || imageBytes.at(-1)!==0xd9)
+    return res.status(400).json({ok:false,error:"imageBase64 must contain a valid JPEG image"});
   const texts=b.ocr.map(x=>String(x.text||"").trim()).filter(Boolean);
   const priceCandidate=texts.map(t=>t.replace(/,/g,"").match(/\d+(?:\.\d{3,8})?/g)?.at(-1)).find(Boolean);
   const price=finite(b.price)?Number(b.price):(priceCandidate?Number(priceCandidate):null);
@@ -146,8 +156,10 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
+  latestFrameImage={mimeType:"image/jpeg",base64:b.imageBase64};
+  void persistLatestFrame(frame,latestFrameImage).catch(error=>console.error("Frame persistence failed:",error.message));
   const analysis=makeAnalysis();
-  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,analysis});
+  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,imageReceived:true,imageBytes:imageBytes.length,analysis});
 });
 app.get("/api/vision/snapshot", auth, (_req,res)=>res.json({ok:true,analysis:makeAnalysis(),frames:frames.slice(-20)}));
 app.get("/api/vision/status", auth, (_req,res)=>res.json({ok:true,frames:frames.length,lastFrame:frames.at(-1)?.receivedAt||null,analysis:makeAnalysis()}));
