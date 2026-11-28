@@ -1,0 +1,59 @@
+name: Broker Vision Live Smoke Test
+
+on:
+  push:
+    branches: [fix/broker-vision-e2e-20261128]
+    paths:
+      - '.github/workflows/broker-vision-live-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify deployed API, device enrollment, authenticated status, and dashboard
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const base = "https://universal-broker-vision-api.onrender.com";
+          const healthResponse = await fetch(base + "/health");
+          assert.equal(healthResponse.status, 200);
+          const health = await healthResponse.json();
+          assert.equal(health.ok, true);
+          assert.equal(health.tokenConfigured, true);
+          assert.equal(health.demoEnrollment, true);
+
+          const enrollResponse = await fetch(base + "/api/vision/enroll", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}"
+          });
+          assert.equal(enrollResponse.status, 201);
+          const enrollment = await enrollResponse.json();
+          assert.equal(typeof enrollment.token, "string");
+          assert.ok(enrollment.token.length >= 64);
+
+          const statusResponse = await fetch(base + "/api/vision/status", {
+            headers: { authorization: "Bearer " + enrollment.token }
+          });
+          assert.equal(statusResponse.status, 200);
+          const status = await statusResponse.json();
+          assert.equal(status.ok, true);
+
+          const dashboardResponse = await fetch(base + "/vision");
+          assert.equal(dashboardResponse.status, 200);
+          const dashboard = await dashboardResponse.text();
+          assert.ok(dashboard.includes('id="frameImage"'));
+          console.log(JSON.stringify({
+            health: "PASS",
+            enrollment: "PASS",
+            authenticatedStatus: "PASS",
+            dashboard: "PASS",
+            framesReceived: status.frames
+          }));
+          NODE
