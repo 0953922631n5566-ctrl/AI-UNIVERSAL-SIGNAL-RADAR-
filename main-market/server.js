@@ -930,12 +930,18 @@ app.get("/api/vision/miniapp", async (_req, res) => {
     const ageSeconds = receivedAt ? Math.max(0, (Date.now() - Date.parse(receivedAt)) / 1000) : null;
     const fresh = Number.isFinite(ageSeconds) && ageSeconds <= 10;
     // Fail closed: never expose the legacy price-momentum direction as a next-candle signal.
-    const signal = fresh && predictionSourceValid && ["CALL", "PUT"].includes(prediction.signal) ? prediction.signal : "WAIT";
+    const phase = analysis.phase || "WAITING";
+    const signal = !fresh || !predictionSourceValid ? "WAIT"
+      : phase === "WATCH" ? "WATCH"
+      : phase === "ORDER_WINDOW" && ["CALL", "PUT"].includes(prediction.signal) ? prediction.signal : "WAIT";
     res.json({
       ok: true,
       service: "universal-broker-vision",
       connected: true,
       frameFresh: fresh,
+      phase,
+      cycleId: analysis.cycleId ?? null,
+      secondsToNextCandle: Number.isFinite(Number(analysis.secondsToNextCandle)) ? Number(analysis.secondsToNextCandle) : null,
       receivedFrames: Number(data.receivedFrames || 0),
       lastFrameAt: receivedAt,
       frameAgeSeconds: Number.isFinite(ageSeconds) ? Math.round(ageSeconds * 10) / 10 : null,
@@ -947,8 +953,11 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       priceDiagnostics: data.priceDiagnostics || null,
       analysis: {
         signal,
-        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : predictionSourceValid ? (prediction.status || "WAITING") : "WAITING_FOR_NEXT_CANDLE_ENGINE",
-        reason: !receivedAt ? "ยังไม่ได้รับราคาจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : !fresh ? "ข้อมูลราคาจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ" : predictionSourceValid ? (prediction.reason || "รอการอ่านแท่งเทียน") : "รอเครื่องทำนายแท่งถัดไปที่ใช้ข้อมูล APK โดยตรง",
+        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : phase === "WATCH" ? "WATCH_WINDOW" : phase === "ORDER_WINDOW" ? (prediction.status || "ORDER_WINDOW") : "WAITING_FOR_ENTRY_WINDOW",
+        phase,
+        cycleId: analysis.cycleId ?? null,
+        secondsToNextCandle: analysis.secondsToNextCandle ?? null,
+        reason: !receivedAt ? "ยังไม่ได้รับราคาจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : !fresh ? "ข้อมูลราคาจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ" : analysis.reason || prediction.reason || "รอการอ่านแท่งเทียน",
         priceSamples: Number(analysis.priceSamples || 0),
         priceChange: Number.isFinite(Number(analysis.priceMomentum?.priceChange)) ? Number(analysis.priceMomentum.priceChange) : null,
         directionalConsistency: Number(analysis.priceMomentum?.directionalConsistency || 0),
