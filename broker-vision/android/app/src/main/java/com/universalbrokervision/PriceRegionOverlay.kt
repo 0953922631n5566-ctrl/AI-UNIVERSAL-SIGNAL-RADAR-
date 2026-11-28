@@ -11,8 +11,6 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import kotlin.math.max
-import kotlin.math.min
 
 /**
  * User-positioned transparent price-reading window.
@@ -93,11 +91,6 @@ class PriceRegionOverlay(private val context: Context) {
             color = Color.rgb(34, 230, 125)
             style = Paint.Style.FILL
         }
-        private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = 11f * resources.displayMetrics.scaledDensity
-            setShadowLayer(3f, 1f, 1f, Color.BLACK)
-        }
         private var downRawX = 0f
         private var downRawY = 0f
         private var startX = 0
@@ -112,8 +105,6 @@ class PriceRegionOverlay(private val context: Context) {
             val inset = border.strokeWidth
             canvas.drawRect(inset, inset, width - inset, height - inset, border)
             canvas.drawCircle(width - handleSize / 2, height - handleSize / 2, handleSize / 2, handle)
-            canvas.drawText("PRICE ROI · DRAG / RESIZE", 8f * resources.displayMetrics.density,
-                20f * resources.displayMetrics.density, label)
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
