@@ -1,52 +1,47 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { predictNextCandle, getM1CycleWindow, evaluateOpenBias } from "./next-candle-predictor.js";
+import { predictNextCandle, getM1CycleWindow, evaluateOpenBias, calculateEma } from "./next-candle-predictor.js";
 
-const up = i => ({epoch:i*60000,open:1.1000+i*.0001,high:1.10015+i*.0001,low:1.09998+i*.0001,close:1.10012+i*.0001,samples:20});
-const down = i => ({epoch:i*60000,open:1.1010-i*.0001,high:1.10102-i*.0001,low:1.10085-i*.0001,close:1.10088-i*.0001,samples:20});
+const risingCandles = Array.from({length:24},(_,i)=>({epoch:i*60000,open:1.10000+i*.00010,high:1.10016+i*.00010,low:1.09998+i*.00010,close:1.10012+i*.00010}));
+const fallingCandles = Array.from({length:24},(_,i)=>({epoch:i*60000,open:1.10200-i*.00010,high:1.10202-i*.00010,low:1.10184-i*.00010,close:1.10188-i*.00010}));
 
-test("predicts CALL from rising APK-derived M1 OHLC candles",()=>{
- const candles=Array.from({length:6},(_,i)=>up(i));
- const result=predictNextCandle({candles,price:1.10062,priceHistory:[1.1005,1.10055,1.10062]});
- assert.equal(result.signal,"CALL");assert.equal(result.target,"NEXT_M1_CANDLE");
- assert.equal(result.source,"APK_CAPTURED_PRICE_OHLC");assert.equal(result.calibration,"APK_PRICE_DERIVED_M1_OHLC");
+test("calculates an EMA using the standard smoothing factor",()=>{
+ assert.ok(Math.abs(calculateEma([1,2,3,4,5],3)-4.0)<1e-10);
 });
-test("predicts PUT from falling APK-derived M1 OHLC candles",()=>{
- const candles=Array.from({length:6},(_,i)=>down(i));
- const result=predictNextCandle({candles,price:1.10038,priceHistory:[1.1005,1.10045,1.10038]});
- assert.equal(result.signal,"PUT");assert.equal(result.target,"NEXT_M1_CANDLE");
+test("predicts CALL when APK prices show EMA5 above EMA20",()=>{
+ const result=predictNextCandle({candles:risingCandles,price:1.10252,priceHistory:[1.10240,1.10245,1.10252]});
+ assert.equal(result.signal,"CALL");assert.equal(result.source,"APK_CAPTURED_PRICE_OHLC");
+ assert.ok(result.ema5>result.ema20);
 });
-test("waits when latest APK price conflicts with bullish candle structure",()=>{
- const result=predictNextCandle({candles:Array.from({length:6},(_,i)=>up(i)),price:1.10062,priceHistory:[1.1007,1.1006,1.1005]});
- assert.equal(result.signal,"WAIT");assert.match(result.reason,/ขัด/);
+test("predicts PUT when APK prices show EMA5 below EMA20",()=>{
+ const result=predictNextCandle({candles:fallingCandles,price:1.09948,priceHistory:[1.09960,1.09955,1.09948]});
+ assert.equal(result.signal,"PUT");assert.ok(result.ema5<result.ema20);
 });
-test("fails closed until four complete M1 OHLC candles are available",()=>{
- const result=predictNextCandle({candles:[up(0),up(1),up(2)],price:1.1003});
- assert.equal(result.signal,"WAIT");assert.equal(result.status,"CANDLE_DATA_INSUFFICIENT");
+test("waits until at least 20 valid APK candles exist for EMA20",()=>{
+ const result=predictNextCandle({candles:risingCandles.slice(0,19),price:1.102});
+ assert.equal(result.signal,"WAIT");assert.equal(result.status,"EMA_HISTORY_INSUFFICIENT");
 });
 test("fails closed when APK price is unreadable",()=>{
- const result=predictNextCandle({candles:Array.from({length:6},(_,i)=>up(i)),price:null});
+ const result=predictNextCandle({candles:risingCandles,price:null});
  assert.equal(result.signal,"WAIT");assert.equal(result.status,"PRICE_UNREADABLE");
 });
-test("rejects malformed OHLC data",()=>{
- const result=predictNextCandle({candles:[...Array.from({length:4},(_,i)=>up(i)),{open:2,high:1,low:0,close:2}],price:1.2});
- assert.equal(result.calibratedCandles,4);
+test("rejects malformed OHLC data before EMA calculation",()=>{
+ const result=predictNextCandle({candles:[...risingCandles.slice(0,19),{open:2,high:1,low:0,close:2}],price:1.2});
+ assert.equal(result.calibratedCandles,19);
 });
-
-
-test("M1 cycle is active from second 00 through second 55 and cuts off at 56",()=>{
- const base=1_800_000_000_000;
- assert.equal(getM1CycleWindow(base).elapsedSeconds,0);
- assert.equal(getM1CycleWindow(base).phase,"ACTIVE");
- assert.equal(getM1CycleWindow(base+55_999).phase,"ACTIVE");
- assert.equal(getM1CycleWindow(base+56_000).phase,"CUTOFF");
- assert.equal(getM1CycleWindow(base+59_999).phase,"CUTOFF");
+test("M1 cycle reports WATCH only during seconds 50-54 and ORDER during 55-59",()=>{
+ const base=Math.floor(1_800_000_000_000/60000)*60000;
+ assert.equal(getM1CycleWindow(base+49_999).phase,"WAITING");
+ assert.equal(getM1CycleWindow(base+50_000).phase,"WATCH");
+ assert.equal(getM1CycleWindow(base+54_999).phase,"WATCH");
+ assert.equal(getM1CycleWindow(base+55_000).phase,"ORDER");
+ assert.equal(getM1CycleWindow(base+59_999).phase,"ORDER");
+ assert.equal(getM1CycleWindow(base+60_000).phase,"WAITING");
  assert.notEqual(getM1CycleWindow(base).cycleId,getM1CycleWindow(base+60_000).cycleId);
 });
-
-test("current M1 price is compared against the actual APK candle Open",()=>{
+test("current M1 price can still be compared with APK candle Open",()=>{
  const up=evaluateOpenBias({open:1.10000,price:1.10002,precision:5});
- assert.equal(up.direction,"CALL");assert.ok(Math.abs(up.delta-0.00002)<1e-10);assert.ok(Math.abs(up.tickSize-0.00001)<1e-10);
+ assert.equal(up.direction,"CALL");assert.ok(Math.abs(up.delta-0.00002)<1e-10);
  assert.equal(evaluateOpenBias({open:1.10000,price:1.09998,precision:5}).direction,"PUT");
  assert.equal(evaluateOpenBias({open:1.10000,price:1.10000,precision:5}).direction,"WAIT");
 });
