@@ -7,7 +7,6 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
-const SIGNAL_THRESHOLD = 40;
 const frames = [];
 let latestFrameImage = null;
 const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
@@ -80,10 +79,10 @@ async function restoreLatestFrame() {
 }
 function makeAnalysis() {
   const last = frames.at(-1);
-  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์", score:0, scoreThreshold:SIGNAL_THRESHOLD };
+  if (!last) return { signal:"WAIT", status:"NO_DATA", reason:"ยังไม่มีภาพจากอุปกรณ์" };
   const ageMs = Date.now() - Date.parse(last.receivedAt);
   if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
-    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, score:0, scoreThreshold:SIGNAL_THRESHOLD };
+    return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
 
   // Instrument name and chart timeframe are metadata only. Analyze the visible price stream
   // regardless of the broker's selected pair/market; do not gate on symbol or timeframe.
@@ -93,9 +92,9 @@ function makeAnalysis() {
   const priceSamples = recent.filter(x => finite(x.price));
   const trend = summarize(priceSamples);
   const candleCount = Array.isArray(last.candles) ? last.candles.length : 0;
-  const quality = clamp(Math.round((readable?40:0) + Math.min(priceSamples.length,12)*5 + (last.ocr?.length?10:0)),0,100);
-  const candidateScore = trend.direction === "WAIT" ? 0 : clamp(Math.round((trend.confidence + quality) / 2),0,100);
-  const signal = readable && candidateScore >= SIGNAL_THRESHOLD ? trend.direction : "WAIT";
+  // No score threshold: emit a direction as soon as price-only conditions pass.
+  // Conditions: readable latest price, >=2 samples, >=1 tick net movement, >=60% directional consistency.
+  const signal = readable && trend.direction !== "WAIT" ? trend.direction : "WAIT";
 
   const candles = Array.isArray(last.candles) ? last.candles : [];
   const axis=(last.axisPrices||[]).filter(p=>finite(p.price)&&finite(p.y)).sort((a,b)=>Number(a.y)-Number(b.y));
@@ -109,14 +108,17 @@ function makeAnalysis() {
   const candlePriceLevels=axisCalibrated?candles.slice(-5).map(c=>({
     open:yToPrice(c.openY),close:yToPrice(c.closeY),high:yToPrice(c.highY),low:yToPrice(c.lowY)
   })): [];
-  return { signal, status:readable?"ANALYZED_PRICE_ONLY":"PRICE_UNREADABLE", price:readable?price:null,
+  return { signal, status:readable?"ANALYZED":"PRICE_UNREADABLE", price:readable?price:null,
     candleCount, priceSamples:priceSamples.length, quality,
     priceAxisCalibrated:axisCalibrated,candlePriceLevels,
-    score:candidateScore, scoreThreshold:SIGNAL_THRESHOLD, signalEligible:signal!=="WAIT",
-    confidence:signal==="WAIT"?trend.confidence:candidateScore,
-    reason:signal==="WAIT"?"ราคายังไม่เคลื่อนไหวต่อเนื่องพอหรืออ่านราคาไม่ได้":`ราคาที่อ่านจากภาพเคลื่อนไหวต่อเนื่องไปทาง ${signal}`,
+    signalEligible:signal!=="WAIT",
+    signalConditions:{readablePrice:readable,minimumPriceSamples:2,actualPriceSamples:priceSamples.length,
+      minimumNetMoveTicks:1,actualNetMoveTicks:trend.tickSize?Math.abs(trend.priceChange||0)/trend.tickSize:0,
+      minimumDirectionalConsistencyPercent:60,actualDirectionalConsistencyPercent:trend.directionalConsistency||0,
+      passed:signal!=="WAIT"},
+    reason:signal==="WAIT"?"ราคายังไม่ผ่านเงื่อนไขการเคลื่อนไหวหรืออ่านราคาไม่ได้":"ราคาที่อ่านจากภาพเคลื่อนไหวต่อเนื่องไปทาง "+signal,
     priceMomentum:trend, analyzedAt:new Date().toISOString(),
-    note:"วิเคราะห์จากราคาที่อ่านได้บนกราฟ ไม่ใช้ชื่อคู่เงินหรือกรอบเวลาเป็นเงื่อนไข คะแนนไม่ใช่ความน่าจะเป็นหรืออัตราชนะที่พิสูจน์แล้ว" };
+    note:"วิเคราะห์จากราคาที่อ่านได้บนกราฟ ไม่ใช้ชื่อคู่เงินหรือกรอบเวลา และไม่ใช้คะแนนเป็นเงื่อนไข" };
 }
 
 app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.2.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN),demoEnrollment:process.env.VISION_DEMO_ENROLLMENT==="true"}));
