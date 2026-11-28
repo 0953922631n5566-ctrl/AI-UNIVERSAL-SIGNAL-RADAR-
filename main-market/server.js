@@ -945,6 +945,8 @@ app.get("/api/vision/miniapp", async (_req, res) => {
         status: !receivedAt ? "NO_DATA" : fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
         reason: !receivedAt ? "ยังไม่ได้รับภาพจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : fresh ? (analysis.reason || "รอการวิเคราะห์ภาพ") : "ภาพจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
         quality: Number(analysis.quality || 0),
+        score: Number(analysis.score ?? analysis.confidence ?? 0),
+        scoreThreshold: Number(analysis.scoreThreshold ?? 40),
         confidence: Number(analysis.confidence || 0),
         priceChange: Number.isFinite(Number(analysis.priceChange)) ? Number(analysis.priceChange) : null,
         directionalConsistency: Number(analysis.directionalConsistency || 0),
