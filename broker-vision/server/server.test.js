@@ -34,13 +34,15 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer test-token"},
       body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",
-        price:1.120235+i*0.000001,ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
+        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
     });
     assert.equal(response.status,202);
     last=await response.json();
   }
   assert.equal(last.analysis.signal,"CALL");
   assert.equal(last.analysis.status,"ANALYZED");
+  assert.equal(last.analysis.priceAxisCalibrated,true);
+  assert.equal(last.analysis.candlePriceLevels.length,4);
 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
