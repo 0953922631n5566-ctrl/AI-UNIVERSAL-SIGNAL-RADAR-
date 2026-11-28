@@ -86,19 +86,33 @@ class CaptureService:Service() {
      .firstOrNull{it.matches(Regex("""[A-Z0-9._/-]{2,12}(?:\(OTC\))?"""))&&it !in setOf("OTC","BLITZ","CALL","PUT","M1","M5")}
     val symbol=pair?:genericTicker?:"UNKNOWN"
     val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
+    data class PriceHit(val value:Double,val left:Int,val precision:Int,val y:Float)
     val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
      val raw=line.text.replace(",","").trim()
      val decimalValue=pricePattern.findAll(raw).lastOrNull()?.value?.toDoubleOrNull()
      val digits=raw.filter{it.isDigit()}
      val integerDigits=if(symbol.contains("JPY"))3 else 1
-     val inferredValue=if(decimalValue==null && symbol.contains("/") && digits.length in 6..7 && digits.length>integerDigits+2)
+     val inferredValue=if(decimalValue==null && symbol.contains("/") && digits.length in (integerDigits+2)..(integerDigits+6))
       (digits.take(integerDigits)+"."+digits.drop(integerDigits)).toDoubleOrNull() else null
      val value=decimalValue?:inferredValue
+     val precision=if(decimalValue!=null)raw.substringAfter(".").takeWhile{it.isDigit()}.length
+      else if(inferredValue!=null)digits.length-integerDigits else 0
      if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
-      Triple(value,box.left,box.top) else null
+      PriceHit(value,box.left,precision,(box.top+box.bottom)/2f) else null
     }
-    val price=priceCandidates.maxByOrNull{it.second}?.first
+    val selectedPrice=priceCandidates.maxByOrNull{it.left}
+    val price=selectedPrice?.value
+    val pricePrecision=selectedPrice?.precision?:0
+    val axisPrices=JSONArray()
+    if(selectedPrice!=null)axisPrices.put(JSONObject().put("price",selectedPrice.value).put("y",selectedPrice.y))
+    chartLines.forEach{line->
+     val box=line.boundingBox
+     if(box!=null&&box.left>bitmap.width*.80f&&(box.top<bitmap.height*.34f||box.top>bitmap.height*.50f)){
+      val value=pricePattern.findAll(line.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()
+      if(value!=null)axisPrices.put(JSONObject().put("price",value).put("y",(box.top+box.bottom)/2f))
+     }
+    }
     val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.30f&&box.top>bitmap.height*.35f&&box.top<bitmap.height*.78f}
     val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""")
     val timeframeText=timeframeRegion.joinToString(" "){it.text}
@@ -106,7 +120,8 @@ class CaptureService:Service() {
      .replace(Regex("""(?i)\bsm\b"""),"5m")
     val timeframe=timeframePattern.find(timeframeText)?.value?.uppercase()?:"UNKNOWN"
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
-     .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
+     .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
+     .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
     upload(payload);bitmap.recycle()
    }.addOnFailureListener{bitmap.recycle()}.addOnCompleteListener{busy.set(false)}
@@ -140,10 +155,18 @@ class CaptureService:Service() {
   val groups=mutableListOf<MutableList<C>>()
   columns.forEach{c->val last=groups.lastOrNull();if(last!=null&&last.last().color==c.color&&c.x-last.last().x<=6)last.add(c)else groups.add(mutableListOf(c))}
   groups.filter{it.size>=2}.takeLast(100).forEach{g->
-   val high=g.minOf{it.top};val low=g.maxOf{it.bottom};val color=g.first().color
-   out.put(JSONObject().put("x",g.map{it.x}.average()).put("color",color)
-    .put("openY",if(color=="GREEN")low else high).put("closeY",if(color=="GREEN")high else low)
-    .put("highY",high).put("lowY",low).put("bodyHeight",low-high))
+   val bodyTop=g.minOf{it.top};val bodyBottom=g.maxOf{it.bottom};val color=g.first().color
+   val centerX=g.map{it.x}.average().toInt()
+   var wickTop=bodyTop;var wickBottom=bodyBottom
+   for(x in (centerX-2)..(centerX+2))for(y in top until bottom){
+    val px=bitmap.getPixel(x,y);val r=android.graphics.Color.red(px);val gr=android.graphics.Color.green(px);val b=android.graphics.Color.blue(px)
+    val same=if(color=="GREEN")gr>r*1.28&&gr>b*1.05&&gr>75 else r>gr*1.22&&r>b*1.05&&r>85
+    if(same){wickTop=minOf(wickTop,y);wickBottom=maxOf(wickBottom,y)}
+   }
+   out.put(JSONObject().put("x",centerX).put("color",color)
+    .put("openY",if(color=="GREEN")bodyBottom else bodyTop).put("closeY",if(color=="GREEN")bodyTop else bodyBottom)
+    .put("bodyTopY",bodyTop).put("bodyBottomY",bodyBottom)
+    .put("highY",wickTop).put("lowY",wickBottom).put("bodyHeight",bodyBottom-bodyTop))
   };return out
  }
  private fun upload(payload:JSONObject){Thread{
