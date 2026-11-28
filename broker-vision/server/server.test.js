@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import net from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
-test("vision API guards uploads, analyzes repeated frames, and isolates instruments", async (t) => {
+test("vision API guards uploads and emits price-only signals without instrument gating", async (t) => {
   const probe = net.createServer();
   await new Promise((resolve,reject)=>{probe.once("error",reject);probe.listen(0,"127.0.0.1",resolve);});
   const port = probe.address().port;
@@ -47,6 +47,8 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   }
   assert.equal(last.analysis.signal,"CALL");
   assert.equal(last.analysis.status,"ANALYZED");
+  assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
+  assert.equal(last.analysis.signalConditions.passed,true);
   assert.equal(last.analysis.priceAxisCalibrated,true);
   assert.equal(last.analysis.candlePriceLevels.length,4);
   const publicState=await (await fetch(base+"/api/vision/public")).json();
@@ -67,7 +69,7 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   });
   const badOcrBody=await badOcr.json();
   assert.equal(badOcrBody.analysis.signal,"WAIT","arbitrary page text and integer labels must never create a directional signal");
-  assert.equal(badOcrBody.analysis.status,"INSTRUMENT_UNIDENTIFIED");
+  assert.equal(badOcrBody.analysis.status,"PRICE_UNREADABLE");
 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
@@ -76,5 +78,5 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
       price:150.100,imageBase64,ocr:[{text:"EUR/JPY",left:200,top:100,right:300,bottom:120}],candles})
   });
   const switchedBody=await switched.json();
-  assert.equal(switchedBody.analysis.signal,"WAIT","a newly selected instrument must not reuse the previous pair's momentum");
+  assert.equal(switchedBody.analysis.signal,"WAIT","a frame without a readable current price must not emit a signal");
 });
