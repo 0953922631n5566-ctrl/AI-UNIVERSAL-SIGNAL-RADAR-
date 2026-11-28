@@ -160,11 +160,20 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   const b=req.body||{};
   if (!finite(b.width)||!finite(b.height)||!Array.isArray(b.ocr)||!Array.isArray(b.candles))
     return res.status(400).json({ok:false,error:"Expected width, height, ocr[], and candles[]"});
-  if (typeof b.imageBase64 !== "string" || b.imageBase64.length < 100 || b.imageBase64.length > 5_000_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(b.imageBase64))
-    return res.status(400).json({ok:false,error:"A real JPEG chart image is required (imageBase64, max 3.75 MB)"});
-  const imageBytes=Buffer.from(b.imageBase64,"base64");
-  if (imageBytes.length < 75 || imageBytes.length > 3_750_000 || imageBytes[0]!==0xff || imageBytes[1]!==0xd8 || imageBytes.at(-2)!==0xff || imageBytes.at(-1)!==0xd9)
-    return res.status(400).json({ok:false,error:"imageBase64 must contain a valid JPEG image"});
+  // APK sends the OCR-derived price metadata directly; image upload is optional.
+  // Reject delayed or future captures so stale screen prices cannot enter the live window.
+  const deviceTime=finite(b.deviceTime)?Number(b.deviceTime):NaN;
+  const deviceAge=Date.now()-deviceTime;
+  if(!Number.isFinite(deviceAge)||deviceAge < -3000||deviceAge > 10000)
+    return res.status(409).json({ok:false,error:"Stale or future APK capture rejected"});
+  let imageBytes=null;
+  if(b.imageBase64!==undefined){
+    if(typeof b.imageBase64!=="string"||b.imageBase64.length<100||b.imageBase64.length>5_000_000||!/^[A-Za-z0-9+/]+={0,2}$/.test(b.imageBase64))
+      return res.status(400).json({ok:false,error:"Invalid optional imageBase64"});
+    imageBytes=Buffer.from(b.imageBase64,"base64");
+    if(imageBytes.length<75||imageBytes.length>3_750_000||imageBytes[0]!==0xff||imageBytes[1]!==0xd8||imageBytes.at(-2)!==0xff||imageBytes.at(-1)!==0xd9)
+      return res.status(400).json({ok:false,error:"imageBase64 must contain a valid JPEG image"});
+  }
   // Never treat arbitrary page text or integer labels as a broker instrument/price.
   const rawSymbol=String(b.symbol||"").toUpperCase().replace(/\s/g,"");
   const pairMatch=rawSymbol.match(/^([A-Z]{3})\/([A-Z]{3})(?:\(OTC\))?$/);
@@ -181,7 +190,12 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{1,10})\b/g)].at(-1);
     return match?Number(match[0]):null;
   }).filter(value=>Number.isFinite(value)&&value>0);
-  const price=suppliedPrice??priceCandidates.at(-1)??null;
+  let price=suppliedPrice??priceCandidates.at(-1)??null;
+  // When the APK supplies a parsed price, require the same decimal value to be visible in OCR.
+  if(suppliedPrice!==null&&priceCandidates.length){
+    const tolerance=1.5*Math.pow(10,-suppliedPrecision);
+    if(!priceCandidates.some(candidate=>Math.abs(candidate-suppliedPrice)<=tolerance))price=null;
+  }
   const pricePrecision=price===null?null:(suppliedPrice!==null?suppliedPrecision:(String(price).split(".")[1]||"").length);
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
     width:Number(b.width),height:Number(b.height),symbol,
@@ -192,10 +206,12 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
-  latestFrameImage={mimeType:"image/jpeg",base64:b.imageBase64};
-  void persistLatestFrame(frame,latestFrameImage).catch(error=>console.error("Frame persistence failed:",error.message));
+  if(imageBytes){
+    latestFrameImage={mimeType:"image/jpeg",base64:b.imageBase64};
+    void persistLatestFrame(frame,latestFrameImage).catch(error=>console.error("Frame persistence failed:",error.message));
+  }
   const analysis=makeAnalysis();
-  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,imageReceived:true,imageBytes:imageBytes.length,analysis});
+  res.status(202).json({ok:true,frameId:frame.id,receivedAt:frame.receivedAt,imageReceived:Boolean(imageBytes),imageBytes:imageBytes?.length||0,analysis});
 });
 app.get("/api/vision/snapshot", auth, (_req,res)=>res.json({ok:true,analysis:makeAnalysis(),frames:frames.slice(-20)}));
 app.get("/api/vision/status", auth, (_req,res)=>res.json({ok:true,frames:frames.length,lastFrame:frames.at(-1)?.receivedAt||null,analysis:makeAnalysis()}));
