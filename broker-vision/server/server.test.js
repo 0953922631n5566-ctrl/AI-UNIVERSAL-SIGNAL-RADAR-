@@ -71,7 +71,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
   const chartImage=await fetch(base+"/api/vision/chart-image");
   assert.equal(chartImage.status,200);
-  assert.match(chartImage.headers.get("content-type")||"",/image\\/jpeg/);
+  assert.ok((chartImage.headers.get("content-type")||"").includes("image/jpeg"));
   assert.ok((await chartImage.arrayBuffer()).byteLength>75);
 
   const badOcr=await fetch(base+"/api/vision/frame",{
