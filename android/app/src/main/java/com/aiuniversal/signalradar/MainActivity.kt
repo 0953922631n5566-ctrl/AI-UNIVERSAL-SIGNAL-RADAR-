@@ -37,7 +37,7 @@ class MainActivity : Activity() {
         root.addView(TextView(this).apply { text = "UNIVERSAL BROKER VISION"; textSize = 22f; setPadding(0, 0, 0, pad / 2) })
         root.addView(TextView(this).apply { text = "จับภาพหน้าจอโบรกเกอร์ อ่านราคาและแท่งเทียน แล้วส่งเข้า Telegram Mini App"; textSize = 14f })
         endpointInput = EditText(this).apply {
-            hint = "Vision API URL"; inputType = InputType.TYPE_TEXT_VARIATION_URI; setSingleLine(true)
+            hint = "Vision API URL"; inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI; setSingleLine(true)
             setText(prefs.getString("endpoint", DEFAULT_ENDPOINT))
         }
         root.addView(endpointInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
