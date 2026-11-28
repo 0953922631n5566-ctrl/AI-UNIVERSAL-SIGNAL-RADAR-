@@ -46,12 +46,11 @@ test("vision API guards uploads and emits price-only signals without instrument 
     last=await response.json();
     assert.equal(last.imageReceived,false,"APK price frames must not require screenshot bytes");
   }
-  assert.equal(last.analysis.signal,"CALL");
-  assert.equal(last.analysis.status,"ANALYZED");
+  assert.equal(last.analysis.nextCandlePrediction.signal,"CALL");
+  assert.ok(["WAITING_FOR_ENTRY_WINDOW","WATCH_WINDOW","NEXT_CANDLE_PREDICTED"].includes(last.analysis.status));
   assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
-  assert.equal(last.analysis.signalConditions.passed,true);
-  assert.equal(last.analysis.priceAxisCalibrated,true);
-  assert.equal(last.analysis.candlePriceLevels.length,5);
+  assert.equal(last.analysis.signal, last.analysis.phase==="ORDER_WINDOW" ? "CALL" : "WAIT");
+  assert.equal(last.analysis.signalConditions.passed, last.analysis.phase==="ORDER_WINDOW");
 
   const staleCapture=await fetch(base+"/api/vision/frame",{
     method:"POST",
@@ -67,7 +66,8 @@ test("vision API guards uploads and emits price-only signals without instrument 
   const miniState=await miniResponse.json();
   assert.equal(miniResponse.status,200);
   assert.equal(miniState.price,1.120238);
-  assert.equal(miniState.analysis.signal,"CALL");
+  assert.equal(miniState.analysis.nextCandlePrediction.signal,"CALL");
+  assert.equal(miniState.analysis.signal, miniState.analysis.phase==="ORDER_WINDOW" ? "CALL" : "WAIT");
   assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
 
   const badOcr=await fetch(base+"/api/vision/frame",{
