@@ -29,7 +29,7 @@ function validDeviceToken(token) {
 }
 function auth(req, res, next) {
   if (!API_TOKEN) return res.status(503).json({ ok:false, error:"VISION_API_TOKEN is not configured" });
-  const token = String(req.headers.authorization || "").replace(/^Bearer\\s+/i, "");
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (token !== API_TOKEN && !validDeviceToken(token))
     return res.status(401).json({ ok:false, error:"Unauthorized or device token expired" });
   next();
