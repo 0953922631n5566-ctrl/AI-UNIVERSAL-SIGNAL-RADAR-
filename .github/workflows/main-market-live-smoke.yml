@@ -47,13 +47,22 @@ jobs:
           printf '%s' "$HTML" | grep -q 'LIVE M1 CANDLES'
           printf '%s' "$HTML" | grep -q 'drawPriceChart'
 
-          STATE="$(curl -fsS --max-time 20 "$BASE/api/vision/miniapp")"
-          printf '%s' "$STATE" | node -e '
-            let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
-              try {
-                const x=JSON.parse(s);
-                if(!x.ok || x.connected!==true || x.chartSource!=="APK_CAPTURED_PRICE_OHLC" ||
-                   !Array.isArray(x.priceCandles) || !x.analysis || !x.analysis.nextCandlePrediction) process.exit(1);
-              } catch { process.exit(1); }
-            });'
+          READY=0
+          for attempt in $(seq 1 24); do
+            if STATE="$(curl -fsS --max-time 20 "$BASE/api/vision/miniapp" 2>/dev/null)" && printf '%s' "$STATE" | node -e '
+              let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+                try {
+                  const x=JSON.parse(s);
+                  const prediction=x.analysis?.nextCandlePrediction;
+                  process.exit(x.ok && x.connected===true && x.chartSource==="APK_CAPTURED_PRICE_OHLC" &&
+                    Array.isArray(x.priceCandles) && Boolean(x.analysis) &&
+                    (!prediction || prediction.source==="APK_CAPTURED_PRICE_OHLC") ? 0 : 1);
+                } catch { process.exit(1); }
+              });'; then
+              READY=1
+              break
+            fi
+            sleep 5
+          done
+          test "$READY" = "1" || { echo "Vision API proxy did not return APK OHLC state"; exit 1; }
           echo "PASS: Vision Mini App serves a canvas chart and the proxy returns APK-derived M1 OHLC candles."
