@@ -1027,13 +1027,14 @@ app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/health",(_req,res)=>{
  noCache(res);
  res.json({ok:true,service:"main-market",systemName:SYSTEM_NAME,version:VERSION,symbols:SYMBOLS,interval:INTERVAL,
- architecture:{name:SYSTEM_NAME,id:ARCHITECTURE_ID,deploymentModel:"SINGLE_RENDER_SERVICE",decisionEngine:"EURUSD_CUSTOM_CANDLE_LINES_M1",
- primaryDecisionEngine:"CUSTOM_PER_CANDLE_GEOMETRY_LINES_THRESHOLD_50_HIGH_FREQUENCY",indicators:[],lineModel:"CUSTOM_CANDLE_GEOMETRY",externalAiCalls:false,dataProvider:"TWELVE_DATA_REAL_M1_OHLC_AND_STREAMING",
- sampling:{watchSeconds:[50,54],orderSeconds:[55,59],orderLightSeconds:30,source:"LIVE_STREAM_LOCAL_OHLC"},
- primaryMiniApp:{route:"/signal",api:"/api/telegram/candle-lines/status",timeframe:"M1",pairs:["EUR/USD"],manualOnly:true},
- signalPolicy:"HIGH_FREQUENCY_CUSTOM_CANDLE_SCORE_50_OF_100_ONE_ORDER_PER_M1_CANDLE_WITH_FALSE_SIGNAL_GUARD"},
- configuration:{twelveDataApiKeyPool:twelveDataKeyPool.publicStatus(),configuredApiKeys:twelveDataKeyPool.keyCount,
- restKeyRotation:"ROUND_ROBIN_WITH_FAILOVER",historyCandles:HISTORY_CANDLES,manualOnly:true,brokerExecution:false}});
+ architecture:{name:"UNIVERSAL BROKER VISION · APK PRICE ONLY",id:"APK_BROKER_VISION_M1",deploymentModel:"SINGLE_RENDER_SERVICE",
+ decisionEngine:"APK_CAPTURED_PRICE_EMA5_ONLY",primaryDecisionEngine:"EMA5_ONLY_FROM_ANDROID_SCREEN_CAPTURE",
+ indicators:["EMA5"],lineModel:"APK_PRICE_DERIVED_M1_OHLC",externalAiCalls:false,dataProvider:"ANDROID_APK_SCREEN_CAPTURE_ONLY",
+ primaryMiniApp:{route:"/signal",api:"/api/vision/miniapp",timeframe:"M1",pairs:["BROKER_SCREEN_SELECTED"],source:"ANDROID_APK_ONLY",manualOnly:true},
+ signalPolicy:"APK_PRICE_ABOVE_EMA5_CALL_BELOW_EMA5_PUT_EQUAL_WAIT"},
+ configuration:{activePriceSource:"ANDROID_APK_ONLY",externalMarketApisUsedBySignal:false,
+ legacyTwelveDataSubsystemConfigured:twelveDataKeyPool.keyCount>0,
+ manualOnly:true,brokerExecution:false}});
 });
 
 server.listen(PORT, () => {
