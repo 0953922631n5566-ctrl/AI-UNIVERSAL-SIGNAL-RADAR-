@@ -194,8 +194,10 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   const suppliedPrice=finite(b.price)&&Number(b.price)>0&&suppliedPrecision>=1?Number(b.price):null;
   const priceCandidates=b.ocr.map(x=>{
     const left=Number(x.left),right=Number(x.right),top=Number(x.top);
-    if(!Number.isFinite(left)||!Number.isFinite(right)||left<Number(b.width)*0.08||right<=left||
-       (Number.isFinite(top)&&(top<Number(b.height)*0.15||top>Number(b.height)*0.75))) return null;
+    // Match the APK's OCR acceptance window (4%-92% of screen height/width).
+    // The previous narrower API window rejected valid price tags near the top/bottom of the chart.
+    if(!Number.isFinite(left)||!Number.isFinite(right)||left<Number(b.width)*0.04||right<=left||
+       (Number.isFinite(top)&&(top<Number(b.height)*0.08||top>Number(b.height)*0.92))) return null;
     const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{1,10})\b/g)].at(-1);
     return match?Number(match[0]):null;
   }).filter(value=>Number.isFinite(value)&&value>0);
