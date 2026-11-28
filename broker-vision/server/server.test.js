@@ -52,6 +52,17 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   const publicState=await (await fetch(base+"/api/vision/public")).json();
   assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
 
+  const badOcr=await fetch(base+"/api/vision/frame",{
+    method:"POST",
+    headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
+    body:JSON.stringify({width:1536,height:691,symbol:"RENDER",timeframe:"UNKNOWN",
+      price:14,pricePrecision:0,ocr:[{text:"RENDER",left:100,top:80,right:260,bottom:110},
+        {text:"14",left:1400,top:300,right:1460,bottom:320}],candles:[],imageBase64})
+  });
+  const badOcrBody=await badOcr.json();
+  assert.equal(badOcrBody.analysis.signal,"WAIT","arbitrary page text and integer labels must never create a directional signal");
+  assert.equal(badOcrBody.analysis.status,"INSTRUMENT_UNIDENTIFIED");
+
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
     headers:{"content-type":"application/json","authorization":"Bearer test-token"},
