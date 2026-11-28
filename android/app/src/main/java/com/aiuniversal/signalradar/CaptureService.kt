@@ -1,11 +1,7 @@
 package com.aiuniversal.signalradar
-
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.Service
+import android.app.*
+import android.content.Context
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -14,289 +10,226 @@ import android.media.Image
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.os.Build
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.IBinder
+import android.os.*
+import android.util.Base64
+import android.util.DisplayMetrics
+import android.view.WindowManager
+import androidx.core.app.NotificationCompat
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.Executors
+import java.nio.ByteBuffer
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
-class CaptureService : Service() {
-    companion object {
-        const val ACTION_START = "radar.START"
-        const val ACTION_STOP = "radar.STOP"
-        const val ACTION_READY = "radar.READY"
-        const val ACTION_FAILED = "radar.FAILED"
-        const val ACTION_STOPPED = "radar.STOPPED"
-        const val ACTION_PRICE = "radar.PRICE"
-        const val EXTRA_RESULT_CODE = "result_code"
-        const val EXTRA_RESULT_DATA = "result_data"
-        const val EXTRA_ERROR = "error"
-        const val EXTRA_PRICE = "price"
-        const val EXTRA_SIGNAL = "signal"
-        const val EXTRA_REASON = "reason"
-        private const val CHANNEL_ID = "radar_capture"
-        private const val NOTIFICATION_ID = 73
-        private const val OCR_INTERVAL_MS = 1000L
-        private const val UPLOAD_URL = BuildConfig.BACKEND_URL + "/api/upload-screen"
+class CaptureService:Service() {
+ companion object {
+  const val ACTION_START="com.aiuniversal.signalradar.START"
+  const val ACTION_STOP="com.aiuniversal.signalradar.STOP"
+  const val EXTRA_RESULT_CODE="resultCode";const val EXTRA_RESULT_DATA="resultData"
+  const val EXTRA_ENDPOINT="endpoint";const val EXTRA_TOKEN="token";const val EXTRA_INTERVAL_MS="intervalMs"
+  private const val CHANNEL="broker_vision_capture";private const val NOTIFICATION_ID=901
+  // Target a sub-second capture cadence; actual throughput is bounded by OCR and device load.
+  private var captureIntervalMs=300L
+ }
+ private var projection:MediaProjection?=null;private var display:VirtualDisplay?=null;private var reader:ImageReader?=null
+ private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
+ private var lastAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
+ private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+ override fun onBind(intent:Intent?):IBinder?=null
+ override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
+  if(intent?.action==ACTION_STOP){stopCapture();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY}
+  if(intent?.action!=ACTION_START){stopSelf();return START_NOT_STICKY}
+  endpoint=intent.getStringExtra(EXTRA_ENDPOINT).orEmpty();token=intent.getStringExtra(EXTRA_TOKEN).orEmpty()
+  captureIntervalMs=intent.getLongExtra(EXTRA_INTERVAL_MS,300L).coerceIn(100L,2000L)
+  createChannel()
+  val note=NotificationCompat.Builder(this,CHANNEL).setSmallIcon(android.R.drawable.ic_menu_camera)
+   .setContentTitle("Broker Vision AI").setContentText("กำลังจับภาพหน้าจอและอ่านกราฟ").setOngoing(true).build()
+  if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION_ID,note,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+  else startForeground(NOTIFICATION_ID,note)
+  val code=intent.getIntExtra(EXTRA_RESULT_CODE,0)
+  val data=if(Build.VERSION.SDK_INT>=33)intent.getParcelableExtra(EXTRA_RESULT_DATA,Intent::class.java) else @Suppress("DEPRECATION") (intent.getParcelableExtra(EXTRA_RESULT_DATA) as? Intent)
+  if(data==null){stopSelf();return START_NOT_STICKY}
+  val manager=getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+  projection=manager.getMediaProjection(code,data);startCapture();return START_NOT_STICKY
+ }
+ private fun createChannel(){if(Build.VERSION.SDK_INT>=26)getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL,"Broker Vision Capture",NotificationManager.IMPORTANCE_LOW))}
+ private fun startCapture(){
+  val metrics=DisplayMetrics();@Suppress("DEPRECATION")
+  (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
+  worker=HandlerThread("vision-frame-reader").also{it.start()};handler=Handler(worker!!.looper)
+  reader=ImageReader.newInstance(metrics.widthPixels,metrics.heightPixels,PixelFormat.RGBA_8888,3)
+  reader?.setOnImageAvailableListener({src->
+   val image=src.acquireLatestImage()?:return@setOnImageAvailableListener
+   if(System.currentTimeMillis()-lastAt<captureIntervalMs||!busy.compareAndSet(false,true)){image.close();return@setOnImageAvailableListener}
+   lastAt=System.currentTimeMillis();process(image)
+  },handler)
+  projection?.registerCallback(object:MediaProjection.Callback(){override fun onStop(){stopSelf()}},handler)
+  display=projection?.createVirtualDisplay("BrokerVisionDisplay",metrics.widthPixels,metrics.heightPixels,metrics.densityDpi,
+   DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader?.surface,null,handler)
+ }
+ private fun process(image:Image){
+  try {
+   val bitmap=toBitmap(image);image.close()
+   recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
+    // Keep the full right edge: broker live-price badges are often flush with the screen edge.
+    val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
+     val box=line.boundingBox
+     box!=null && box.right>bitmap.width*.04f && box.left<bitmap.width.toFloat() &&
+      box.top>bitmap.height*.06f && box.bottom<bitmap.height*.96f
     }
-
-    private var projection: MediaProjection? = null
-    private var virtualDisplay: VirtualDisplay? = null
-    private var reader: ImageReader? = null
-    private var thread: HandlerThread? = null
-    private var recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    private val network = Executors.newSingleThreadExecutor()
-    private val uploadInProgress = AtomicBoolean(false)
-    private var lastOcrAt = 0L
-    private var isCleaningUp = false
-
-    private val projectionCallback = object : MediaProjection.Callback() {
-        override fun onStop() {
-            stopCapture(stopProjection = false)
-            sendStatus(ACTION_STOPPED)
-            stopSelf()
-        }
+    val ocr=JSONArray()
+    chartLines.forEach{line->val box=line.boundingBox
+     ocr.put(JSONObject().put("text",line.text).put("left",box?.left?:0).put("top",box?.top?:0).put("right",box?.right?:0).put("bottom",box?.bottom?:0))
     }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_STOP -> {
-                stopCapture()
-                sendStatus(ACTION_STOPPED)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-                return START_NOT_STICKY
-            }
-            ACTION_START -> {
-                try {
-                    val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
-                    if (token.isBlank()) throw IllegalStateException("กรุณาบันทึก OCR Token ในแอปก่อนเริ่ม")
-                    if (BuildConfig.BACKEND_URL.contains("REPLACE_WITH_BACKEND_HOST")) {
-                        throw IllegalStateException("ยังไม่ได้กำหนด Server URL ในตัวแอป")
-                    }
-                    createNotificationChannel()
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        startForeground(
-                            NOTIFICATION_ID,
-                            notification("กำลังเริ่มระบบ OCR และเชื่อมต่อ Server"),
-                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-                        )
-                    } else {
-                        startForeground(NOTIFICATION_ID, notification("กำลังเริ่มระบบ OCR และเชื่อมต่อ Server"))
-                    }
-
-                    val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
-                    val resultData = if (Build.VERSION.SDK_INT >= 33) {
-                        intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(EXTRA_RESULT_DATA)
-                    } ?: throw IllegalArgumentException("ไม่พบข้อมูลอนุญาตจับภาพจาก Android")
-
-                    startCapture(resultCode, resultData)
-                    sendStatus(ACTION_READY)
-                    getSystemService(NotificationManager::class.java)
-                        .notify(NOTIFICATION_ID, notification("กำลังอ่านป้ายราคา EUR/USD และส่งข้อมูลจริง"))
-                } catch (e: Exception) {
-                    val reason = "${e.javaClass.simpleName}: ${e.message ?: "ไม่มีรายละเอียด"}"
-                    getSharedPreferences("radar_state", MODE_PRIVATE).edit()
-                        .putString("last_capture_error", reason).apply()
-                    sendStatus(ACTION_FAILED, reason)
-                    stopCapture()
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }
-            }
-        }
-        return START_NOT_STICKY
+    val headerText=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.65f&&box.top<bitmap.height*.32f}
+     .joinToString(" "){it.text}
+    val pairPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
+    val pair=pairPattern.find(headerText)?.value?.replace(" ","")
+    // Do not mistake broker branding/page text for a tradable instrument.
+    val symbol=pair?:"UNKNOWN"
+    val pricePattern=Regex("""(?<!\d)(\d{1,4})[.,](\d{2,10})(?!\d)""")
+    data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
+    val priceCandidates=chartLines.mapNotNull{line->
+     val box=line.boundingBox
+     val raw=line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")
+     // Accept decimal comma as well as decimal point, while keeping thousands-grouped values safe.
+     val match=pricePattern.findAll(raw).lastOrNull()
+     val normalized=match?.let{it.groupValues[1]+"."+it.groupValues[2]}
+     val value=normalized?.toDoubleOrNull()
+     val precision=match?.groupValues?.getOrNull(2)?.length?:0
+     if(box!=null && box.width()>bitmap.width*.006f &&
+       box.top>bitmap.height*.04f && box.top<bitmap.height*.96f && value!=null && value>0)
+      PriceHit(value,box.left,box.width(),precision,(box.top+box.bottom)/2f) else null
     }
-
-    private fun startCapture(resultCode: Int, data: Intent) {
-        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val activeProjection = manager.getMediaProjection(resultCode, data)
-            ?: throw IllegalStateException("Android ไม่ส่ง MediaProjection กลับมา")
-        projection = activeProjection
-
-        val metrics = resources.displayMetrics
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        if (width <= 0 || height <= 0) throw IllegalStateException("ขนาดหน้าจอไม่ถูกต้อง: ${width}x${height}")
-
-        reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 3)
-        thread = HandlerThread("radar-capture").also { it.start() }
-        val handler = Handler(thread!!.looper)
-
-        activeProjection.registerCallback(projectionCallback, handler)
-        reader!!.setOnImageAvailableListener({ source ->
-            val now = System.currentTimeMillis()
-            if (now - lastOcrAt < OCR_INTERVAL_MS) {
-                source.acquireLatestImage()?.close()
-                return@setOnImageAvailableListener
-            }
-            val image = source.acquireLatestImage() ?: return@setOnImageAvailableListener
-            lastOcrAt = now
-            try {
-                processFrame(image)
-            } catch (_: Exception) {
-                image.close()
-            }
-        }, handler)
-
-        virtualDisplay = activeProjection.createVirtualDisplay(
-            "RadarScreenCapture",
-            width,
-            height,
-            metrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            reader!!.surface,
-            null,
-            handler
-        ) ?: throw IllegalStateException("สร้าง VirtualDisplay ไม่สำเร็จ")
+    val detectedCandles=detectCandles(bitmap)
+    val latestCloseY=if(detectedCandles.length()>0) detectedCandles.optJSONObject(detectedCandles.length()-1)?.optDouble("closeY")?.toFloat() else null
+    val rightCandidates=priceCandidates.filter{it.left>bitmap.width*.70f}
+    val selectedPrice=if(latestCloseY!=null&&rightCandidates.isNotEmpty())
+      rightCandidates.minByOrNull{ kotlin.math.abs(it.y-latestCloseY) }
+     else rightCandidates.maxByOrNull{it.left+it.width}
+    val price=selectedPrice?.value
+    val pricePrecision=selectedPrice?.precision?:0
+    val axisPrices=JSONArray()
+    chartLines.forEach{line->
+     val box=line.boundingBox
+     if(box!=null&&box.left>bitmap.width*.78f){
+      val match=pricePattern.findAll(line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")).lastOrNull()
+      val value=match?.let{(it.groupValues[1]+"."+it.groupValues[2]).toDoubleOrNull()}
+      if(value!=null)axisPrices.put(JSONObject().put("price",value).put("y",(box.top+box.bottom)/2f))
+     }
     }
-
-    private fun processFrame(image: Image) {
-        val width = image.width
-        val height = image.height
-        val plane = image.planes.firstOrNull() ?: run { image.close(); return }
-        val pixelStride = plane.pixelStride
-        val rowPadding = plane.rowStride - pixelStride * width
-        val paddedWidth = width + rowPadding / pixelStride
-        val full = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
-        full.copyPixelsFromBuffer(plane.buffer)
-        image.close()
-
-        val cropLeft = (width * 0.80f).toInt().coerceAtMost(width - 1)
-        val cropTop = (height * 0.12f).toInt()
-        val cropWidth = (width - cropLeft).coerceAtLeast(1)
-        val cropHeight = (height * 0.78f).toInt().coerceAtMost(height - cropTop).coerceAtLeast(1)
-        val badgeCrop = Bitmap.createBitmap(full, cropLeft, cropTop, cropWidth, cropHeight)
-        full.recycle()
-        val enlarged = Bitmap.createScaledBitmap(badgeCrop, badgeCrop.width * 2, badgeCrop.height * 2, true)
-        badgeCrop.recycle()
-
-        recognizer.process(InputImage.fromBitmap(enlarged, 0))
-            .addOnSuccessListener { result ->
-                val matches = Regex("""(?<!\d)([01]\.\d{4,6})(?!\d)""")
-                    .findAll(result.text)
-                    .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
-                    .filter { it in 0.5..2.0 }
-                    .toList()
-                val detected = matches.firstOrNull()
-                if (detected != null) uploadPrice(detected)
-            }
-            .addOnFailureListener { /* Keep scanning; next fresh frame will retry. */ }
-            .addOnCompleteListener { enlarged.recycle() }
+    if(selectedPrice!=null && axisPrices.length()==0)
+      axisPrices.put(JSONObject().put("price",selectedPrice.value).put("y",selectedPrice.y))
+    val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.top>bitmap.height*.12f&&box.top<bitmap.height*.88f}
+    val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?[smhd]|[smhd][1-9]\d?)\b""")
+    val timeframeText=timeframeRegion.joinToString(" "){it.text}
+     .replace(Regex("""(?i)\b[il]m\b"""),"1m")
+     .replace(Regex("""(?i)\bsm\b"""),"5m")
+    val timeframeHit=timeframePattern.find(timeframeText)?.value?.uppercase()?:""
+    val timeframe=when {
+     timeframeHit.matches(Regex("""(?i)^[SMHD][1-9]\d?$"""))->timeframeHit.drop(1)+timeframeHit.take(1)
+     timeframeHit.matches(Regex("""(?i)^[1-9]\d?[SMHD]$"""))->timeframeHit
+     else->"UNKNOWN"
     }
-
-    private fun uploadPrice(price: Double) {
-        if (!uploadInProgress.compareAndSet(false, true)) return
-        val token = getSharedPreferences("radar_config", MODE_PRIVATE).getString("ocr_token", "").orEmpty()
-        network.execute {
-            var connection: HttpURLConnection? = null
-            try {
-                connection = (URL(UPLOAD_URL).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 7000
-                    readTimeout = 7000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    setRequestProperty("x-ocr-token", token)
-                }
-                val body = JSONObject()
-                    .put("detectedPrice", price)
-                    .put("timestamp", System.currentTimeMillis())
-                    .put("symbol", "EUR/USD")
-                    .put("source", "ANDROID_OCR_ML_KIT")
-                    .toString()
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                val code = connection.responseCode
-                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-                val response = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                if (code in 200..299) {
-                    val json = JSONObject(response)
-                    val rawSignal = json.optString("signal", "STANDBY").uppercase()
-                    val backendReason = json.optString("reason", "Server ไม่ได้ส่งเหตุผล")
-                    // Fail closed: directional outputs stay disabled until a perception
-                    // and decision model has been configured and formally evaluated.
-                    val safeSignal = "STANDBY"
-                    val reason = if (rawSignal == "CALL" || rawSignal == "PUT") {
-                        "ปิด CALL/PUT ไว้จนกว่าโมเดลจะผ่านการประเมิน · $backendReason"
-                    } else {
-                        backendReason
-                    }
-                    sendPriceStatus(price, safeSignal, reason)
-                } else {
-                    sendStatus(ACTION_FAILED, "Server ตอบ HTTP $code — ตรวจ Token หรือการเชื่อมต่อ")
-                }
-            } catch (e: Exception) {
-                sendStatus(ACTION_FAILED, "ส่งราคาไม่สำเร็จ: ${e.javaClass.simpleName}")
-            } finally {
-                connection?.disconnect()
-                uploadInProgress.set(false)
-            }
-        }
+    val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
+     .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
+     .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectedCandles)
+     .put("candleMetrics",if(price!=null)CandleAnalyzer.updatePriceTick(price) else JSONObject())
+     .put("chartColorBias",CandleAnalyzer.analyzeChartZoneFromBitmap(bitmap))
+     .put("chart",JSONObject().put("capture","full-screen"))
+    upload(payload,bitmap);bitmap.recycle()
+   }.addOnFailureListener{bitmap.recycle();busy.set(false)}
+  }catch(e:Exception){try{image.close()}catch(_:Exception){};busy.set(false)}
+ }
+ private fun toBitmap(image:Image):Bitmap {
+  val plane=image.planes[0];val buffer:ByteBuffer=plane.buffer;val stride=plane.pixelStride
+  val padded=Bitmap.createBitmap(image.width+((plane.rowStride-stride*image.width)/stride),image.height,Bitmap.Config.ARGB_8888)
+  padded.copyPixelsFromBuffer(buffer);val cropped=Bitmap.createBitmap(padded,0,0,image.width,image.height);padded.recycle();return cropped
+ }
+ private fun detectCandles(bitmap:Bitmap):JSONArray {
+  val out=JSONArray();val top=(bitmap.height*.16f).toInt();val bottom=(bitmap.height*.88f).toInt()
+  val start=(bitmap.width*.13f).toInt();val end=(bitmap.width*.82f).toInt()
+  data class C(val x:Int,val color:String,val top:Int,val bottom:Int)
+  val columns=mutableListOf<C>()
+  for(x in start until end step 2){
+   var active:String?=null;var runStart=0;var runEnd=0;var runLength=0
+   var bestColor="";var bestTop=0;var bestBottom=0;var bestLength=0
+   for(y in top until bottom step 2){
+    val c=bitmap.getPixel(x,y);val r=android.graphics.Color.red(c);val g=android.graphics.Color.green(c);val b=android.graphics.Color.blue(c)
+    val kind=when{g>r*1.28&&g>b*1.05&&g>75->"GREEN";r>g*1.22&&r>b*1.05&&r>85->"RED";else->null}
+    if(kind!=null&&kind==active&&y-runEnd<=2){runLength++;runEnd=y}
+    else{
+     if(runLength>bestLength){bestLength=runLength;bestColor=active.orEmpty();bestTop=runStart;bestBottom=runEnd}
+     active=kind;runStart=y;runEnd=y;runLength=if(kind!=null)1 else 0
     }
-
-    private fun sendPriceStatus(price: Double, signal: String, reason: String) {
-        val intent = Intent(ACTION_PRICE).setPackage(packageName)
-            .putExtra(EXTRA_PRICE, price.toString())
-            .putExtra(EXTRA_SIGNAL, signal)
-            .putExtra(EXTRA_REASON, reason)
-        sendBroadcast(intent)
+   }
+   if(runLength>bestLength){bestLength=runLength;bestColor=active.orEmpty();bestTop=runStart;bestBottom=runEnd}
+   if(bestLength>=3)columns.add(C(x,bestColor,bestTop,bestBottom))
+  }
+  val groups=mutableListOf<MutableList<C>>()
+  columns.forEach{c->val last=groups.lastOrNull();if(last!=null&&last.last().color==c.color&&c.x-last.last().x<=6)last.add(c)else groups.add(mutableListOf(c))}
+  groups.filter{it.size>=2}.takeLast(100).forEach{g->
+   val bodyTop=g.minOf{it.top};val bodyBottom=g.maxOf{it.bottom};val color=g.first().color
+   val centerX=g.map{it.x}.average().toInt()
+   var wickTop=bodyTop;var wickBottom=bodyBottom
+   for(x in (centerX-2)..(centerX+2))for(y in top until bottom){
+    val px=bitmap.getPixel(x,y);val r=android.graphics.Color.red(px);val gr=android.graphics.Color.green(px);val b=android.graphics.Color.blue(px)
+    val same=if(color=="GREEN")gr>r*1.28&&gr>b*1.05&&gr>75 else r>gr*1.22&&r>b*1.05&&r>85
+    if(same){wickTop=minOf(wickTop,y);wickBottom=maxOf(wickBottom,y)}
+   }
+   out.put(JSONObject().put("x",centerX).put("color",color)
+    .put("openY",if(color=="GREEN")bodyBottom else bodyTop).put("closeY",if(color=="GREEN")bodyTop else bodyBottom)
+    .put("bodyTopY",bodyTop).put("bodyBottomY",bodyBottom)
+    .put("highY",wickTop).put("lowY",wickBottom).put("bodyHeight",bodyBottom-bodyTop))
+  };return out
+ }
+ private fun upload(payload:JSONObject,source:Bitmap){
+  if(!uploading.compareAndSet(false,true)){busy.set(false);return}
+  try {
+   // Upload only the chart area, not the full broker screen or account side panels.
+   val left=(source.width*.08f).toInt().coerceAtLeast(0)
+   val top=(source.height*.10f).toInt().coerceAtLeast(0)
+   val right=(source.width*.93f).toInt().coerceAtMost(source.width)
+   val bottom=(source.height*.90f).toInt().coerceAtMost(source.height)
+   val crop=Bitmap.createBitmap(source,left,top,(right-left).coerceAtLeast(1),(bottom-top).coerceAtLeast(1))
+   val scale=minOf(1f,1280f/crop.width,1600f/crop.height)
+   val resized=if(scale<1f)Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true) else crop
+   if(resized!==crop)crop.recycle()
+   val output=ByteArrayOutputStream()
+   resized.compress(Bitmap.CompressFormat.JPEG,68,output)
+   resized.recycle()
+   val jpeg=output.toByteArray()
+   if(jpeg.isEmpty()||jpeg.size>3_750_000)throw IllegalStateException("ภาพกราฟมีขนาดเกินกำหนด")
+   payload.put("imageMimeType","image/jpeg").put("imageBase64",Base64.encodeToString(jpeg,Base64.NO_WRAP))
+  } catch(e:Exception) {
+   uploading.set(false);busy.set(false)
+   android.util.Log.w("BrokerVision","Chart image encoding failed: ${e.message}")
+   return
+  }
+  Thread{
+   var c:HttpURLConnection?=null
+   try{
+    c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
+     requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
+     setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
     }
-
-    private fun stopCapture(stopProjection: Boolean = true) {
-        if (isCleaningUp) return
-        isCleaningUp = true
-        try { virtualDisplay?.release() } catch (_: Exception) { }
-        virtualDisplay = null
-        try { reader?.setOnImageAvailableListener(null, null) } catch (_: Exception) { }
-        try { reader?.close() } catch (_: Exception) { }
-        reader = null
-        try { projection?.unregisterCallback(projectionCallback) } catch (_: Exception) { }
-        if (stopProjection) {
-            try { projection?.stop() } catch (_: Exception) { }
-        }
-        projection = null
-        try { thread?.quitSafely() } catch (_: Exception) { }
-        thread = null
-        isCleaningUp = false
-    }
-
-    private fun sendStatus(action: String, error: String? = null) {
-        val result = Intent(action).setPackage(packageName)
-        if (error != null) result.putExtra(EXTRA_ERROR, error)
-        sendBroadcast(result)
-    }
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(CHANNEL_ID, "Screen capture", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-        }
-    }
-
-    private fun notification(message: String): Notification {
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_ID) else Notification.Builder(this)
-        return builder.setContentTitle("AI Signal Radar OCR")
-            .setContentText(message)
-            .setSmallIcon(android.R.drawable.ic_menu_view)
-            .build()
-    }
-
-    override fun onDestroy() {
-        stopCapture()
-        try { recognizer.close() } catch (_: Exception) { }
-        network.shutdown()
-        super.onDestroy()
-    }
-
-    override fun onBind(intent: Intent?): IBinder? = null
+    c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))}
+    val code=c.responseCode
+    val stream=if(code in 200..299)c.inputStream else c.errorStream
+    val response=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+    if(code in 200..299)android.util.Log.i("BrokerVision","Frame accepted HTTP $code: $response")
+    else android.util.Log.w("BrokerVision","Frame rejected HTTP $code: $response")
+   }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}
+   finally{c?.disconnect();uploading.set(false);busy.set(false)}
+  }.start()
+ }
+ override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
+  try{projection?.stop()}catch(_:Exception){};try{recognizer.close()}catch(_:Exception){}
+  worker?.quitSafely();super.onDestroy()
+ }
 }
