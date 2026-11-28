@@ -155,5 +155,5 @@ async function refresh(){if(busy||document.visibilityState==="hidden")return;bus
  paint(d);
  }catch(e){paint({connected:false,analysis:{signal:"WAIT",status:"VISION_OFFLINE",reason:"เชื่อมต่อ Vision API ไม่ได้ · "+(e.message||"กรุณาตรวจ APK และอินเทอร์เน็ต")}});}
  finally{busy=false;}}
-refresh();setInterval(refresh,1500);setInterval(updateCountdownDisplay,250);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});
+refresh();setInterval(refresh,500);setInterval(updateCountdownDisplay,250);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});
 </script></body></html>
