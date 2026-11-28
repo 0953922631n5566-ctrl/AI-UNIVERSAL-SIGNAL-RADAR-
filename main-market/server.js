@@ -916,7 +916,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
   let base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com");
   while (base.endsWith("/")) base = base.slice(0, -1);
   try {
-    const upstream = await fetch(base + "/api/vision/public", {
+    const upstream = await fetch(base + "/api/vision/miniapp", {
       headers: { Accept: "application/json" },
       cache: "no-store",
       signal: AbortSignal.timeout(5000)
