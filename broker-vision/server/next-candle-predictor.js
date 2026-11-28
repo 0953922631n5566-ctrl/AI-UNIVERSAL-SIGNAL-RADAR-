@@ -33,6 +33,9 @@ function calibrateCandles(candles, axisPrices) {
 export function predictNextCandle({candles,axisPrices,price}) {
   if(!finite(price)||Number(price)<=0)
     return {signal:"WAIT",status:"PRICE_UNREADABLE",reason:"ยังไม่ได้รับราคาตัวเลขจาก APK",source:"APK_PRICE_AND_CANDLE_GEOMETRY"};
+  const axis = (Array.isArray(axisPrices)?axisPrices:[]).filter(p=>finite(p?.price)&&finite(p?.y)).sort((a,b)=>Number(a.y)-Number(b.y));
+  const axisValid = axis.length>=2 && Math.abs(Number(axis.at(-1).y)-Number(axis[0].y))>=10 &&
+    Math.abs(Number(axis.at(-1).price)-Number(axis[0].price))>0;
   const calibrated=calibrateCandles(candles,axisPrices);
   if(calibrated.length<4)
     return {signal:"WAIT",status:"CANDLE_DATA_INSUFFICIENT",reason:"ต้องมีแท่งเทียนจาก APK อย่างน้อย 4 แท่ง",calibratedCandles:calibrated.length,source:"APK_PRICE_AND_CANDLE_GEOMETRY"};
