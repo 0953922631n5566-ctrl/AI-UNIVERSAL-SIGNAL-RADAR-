@@ -7,13 +7,20 @@ const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
 const frames = [];
+const deviceTokens = new Map();
+const enrollAttempts = new Map();
+const DEVICE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 app.disable("x-powered-by");
 app.use(express.json({ limit: "2mb" }));
 
 function auth(req, res, next) {
   if (!API_TOKEN) return res.status(503).json({ ok:false, error:"VISION_API_TOKEN is not configured" });
   const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (token !== API_TOKEN) return res.status(401).json({ ok:false, error:"Unauthorized" });
+  const deviceExpiry = deviceTokens.get(token) || 0;
+  if (token !== API_TOKEN && deviceExpiry <= Date.now()) {
+    deviceTokens.delete(token);
+    return res.status(401).json({ ok:false, error:"Unauthorized or device token expired" });
+  }
   next();
 }
 const finite = n => n !== null && n !== undefined && n !== "" && Number.isFinite(Number(n));
@@ -78,7 +85,20 @@ function makeAnalysis() {
     note:"ระดับ OHLC ที่คำนวณจากพิกเซลเป็นค่าประมาณและใช้ได้เมื่ออ่านแกนราคาได้อย่างน้อย 2 จุด คะแนนความมั่นใจไม่ใช่ความน่าจะเป็นหรืออัตราชนะที่พิสูจน์แล้ว" };
 }
 
-app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.1.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN)}));
+app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.2.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN),demoEnrollment:process.env.VISION_DEMO_ENROLLMENT==="true"}));
+app.post("/api/vision/enroll", (req,res)=>{
+  if (process.env.VISION_DEMO_ENROLLMENT !== "true")
+    return res.status(503).json({ok:false,error:"Device enrollment is disabled"});
+  const now=Date.now();
+  for (const [key,expiry] of deviceTokens) if (expiry<=now) deviceTokens.delete(key);
+  const ip=String(req.ip||req.socket.remoteAddress||"unknown");
+  const attempts=(enrollAttempts.get(ip)||[]).filter(ts=>now-ts<60*60*1000);
+  if (attempts.length>=10) return res.status(429).json({ok:false,error:"Too many enrollments; try again later"});
+  attempts.push(now);enrollAttempts.set(ip,attempts);
+  const token=randomUUID()+randomUUID();
+  deviceTokens.set(token,now+DEVICE_TOKEN_TTL_MS);
+  res.status(201).json({ok:true,token,expiresAt:new Date(now+DEVICE_TOKEN_TTL_MS).toISOString(),expiresInSeconds:DEVICE_TOKEN_TTL_MS/1000});
+});
 app.get("/vision", (_req,res)=>res.sendFile(path.resolve("public/vision.html")));
 app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
