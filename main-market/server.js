@@ -924,10 +924,13 @@ app.get("/api/vision/miniapp", async (_req, res) => {
     if (!upstream.ok) throw new Error("Vision API HTTP " + upstream.status);
     const data = await upstream.json();
     const analysis = data.analysis || {};
+    const prediction = analysis.nextCandlePrediction || null;
+    const predictionSourceValid = prediction?.source === "APK_PRICE_AND_CANDLE_GEOMETRY";
     const receivedAt = data.lastFrameAt || null;
     const ageSeconds = receivedAt ? Math.max(0, (Date.now() - Date.parse(receivedAt)) / 1000) : null;
     const fresh = Number.isFinite(ageSeconds) && ageSeconds <= 10;
-    const signal = fresh && ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
+    // Fail closed: never expose the legacy price-momentum direction as a next-candle signal.
+    const signal = fresh && predictionSourceValid && ["CALL", "PUT"].includes(prediction.signal) ? prediction.signal : "WAIT";
     res.json({
       ok: true,
       service: "universal-broker-vision",
@@ -943,15 +946,18 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       candleCount: Number(data.candleCount || 0),
       analysis: {
         signal,
-        status: !receivedAt ? "NO_DATA" : fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
-        reason: !receivedAt ? "ยังไม่ได้รับราคาจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : fresh ? (analysis.reason || "รอการอ่านราคา") : "ข้อมูลราคาจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
+        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : predictionSourceValid ? (prediction.status || "WAITING") : "WAITING_FOR_NEXT_CANDLE_ENGINE",
+        reason: !receivedAt ? "ยังไม่ได้รับราคาจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : !fresh ? "ข้อมูลราคาจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ" : predictionSourceValid ? (prediction.reason || "รอการอ่านแท่งเทียน") : "รอเครื่องทำนายแท่งถัดไปที่ใช้ข้อมูล APK โดยตรง",
         priceSamples: Number(analysis.priceSamples || 0),
         priceChange: Number.isFinite(Number(analysis.priceMomentum?.priceChange)) ? Number(analysis.priceMomentum.priceChange) : null,
         directionalConsistency: Number(analysis.priceMomentum?.directionalConsistency || 0),
         tickSize: Number.isFinite(Number(analysis.priceMomentum?.tickSize)) ? Number(analysis.priceMomentum.tickSize) : null,
+        calibratedCandles: Number(prediction?.calibratedCandles || 0),
+        confidence: prediction?.confidence || "LOW",
+        nextCandlePrediction: predictionSourceValid ? prediction : null,
         signalConditions: analysis.signalConditions || null,
         analyzedAt: analysis.analyzedAt || null,
-        note: analysis.note || "วิเคราะห์จากราคาที่อ่านได้จาก APK เท่านั้น · ไม่มี Twelve Data"
+        note: "ทำนายแท่งถัดไปจากราคาและรูปทรงแท่งเทียนที่ APK อ่านได้โดยตรง · ไม่มี Twelve Data"
       },
       updatedAt: new Date().toISOString()
     });
