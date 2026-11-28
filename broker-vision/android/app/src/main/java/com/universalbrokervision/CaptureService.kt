@@ -84,9 +84,8 @@ class CaptureService:Service() {
      .joinToString(" "){it.text}
     val pairPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
     val pair=pairPattern.find(headerText)?.value?.replace(" ","")
-    val genericTicker=headerText.split(Regex("""\s+""")).map{it.trim().uppercase()}
-     .firstOrNull{it.matches(Regex("""[A-Z0-9._/-]{2,12}(?:\(OTC\))?"""))&&it !in setOf("OTC","BLITZ","CALL","PUT","M1","M5")}
-    val symbol=pair?:genericTicker?:"UNKNOWN"
+    // Do not mistake broker branding/page text for a tradable instrument.
+    val symbol=pair?:"UNKNOWN"
     val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
     data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
     val priceCandidates=chartLines.mapNotNull{line->
@@ -116,12 +115,17 @@ class CaptureService:Service() {
       if(value!=null)axisPrices.put(JSONObject().put("price",value).put("y",(box.top+box.bottom)/2f))
      }
     }
-    val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.30f&&box.top>bitmap.height*.35f&&box.top<bitmap.height*.78f}
-    val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""")
+    val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.top>bitmap.height*.12f&&box.top<bitmap.height*.88f}
+    val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?[smhd]|[smhd][1-9]\d?)\b""")
     val timeframeText=timeframeRegion.joinToString(" "){it.text}
      .replace(Regex("""(?i)\b[il]m\b"""),"1m")
      .replace(Regex("""(?i)\bsm\b"""),"5m")
-    val timeframe=timeframePattern.find(timeframeText)?.value?.uppercase()?:"UNKNOWN"
+    val timeframeHit=timeframePattern.find(timeframeText)?.value?.uppercase()?:""
+    val timeframe=when {
+     timeframeHit.matches(Regex("""(?i)^[SMHD][1-9]\d?$"""))->timeframeHit.drop(1)+timeframeHit.take(1)
+     timeframeHit.matches(Regex("""(?i)^[1-9]\d?[SMHD]$"""))->timeframeHit
+     else->"UNKNOWN"
+    }
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
      .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectCandles(bitmap))
