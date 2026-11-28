@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111a"><title>UNIVERSAL BROKER VISION</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#07111a;--panel:#101f2d;--line:#294052;--muted:#8fa8b8;--text:#edf6fb;--green:#35dfa0;--red:#ff6478;--gold:#f2c96d}
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;padding:calc(12px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));background:radial-gradient(ellipse at 50% -15%,#17483c 0,transparent 48%),linear-gradient(160deg,#0b1723,#060b12 75%);color:var(--text);font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
+main{width:min(100%,560px);margin:auto;min-height:calc(100dvh - 26px);display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 10px;border-bottom:1px solid #203545}
+.brand{display:flex;align-items:center;gap:10px}.mark{width:38px;height:38px;border:1px solid #34765f;border-radius:13px;display:grid;place-items:center;background:#102a25;color:var(--green);font-size:20px}.brand b{display:block;font-size:12px;letter-spacing:.13em}.brand small{display:block;margin-top:3px;color:var(--muted);font-size:8px;letter-spacing:.12em}
+.api{border:1px solid #66572f;border-radius:30px;padding:7px 10px;font-size:9px;font-weight:800;color:var(--gold);white-space:nowrap}.api:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px}.api.live{color:var(--green);border-color:#286c52}.api.live:before{box-shadow:0 0 10px var(--green);animation:pulse 1.3s infinite}.api.off{color:var(--red);border-color:#733746}
+.panel{border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#142638,#0d1925);padding:14px;box-shadow:0 10px 26px #0003}
+.market{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px}.tag{grid-column:1/-1;color:#8fa8b8;font-size:8px;letter-spacing:.17em}.pair{font-size:22px;font-weight:850;letter-spacing:.03em}.tf{font-size:10px;color:#c3d2dd;border:1px solid #40576b;border-radius:7px;padding:4px 7px}.price-label{text-align:right;color:var(--muted);font-size:8px;letter-spacing:.15em}.price{grid-column:2;grid-row:2;text-align:right;font-size:clamp(26px,8vw,36px);font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:.01em}.price-meta{grid-column:1/-1;color:var(--muted);font-size:9px}
+.signal-panel{text-align:center;padding:20px 14px 17px;min-height:205px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.signal-label{font-size:9px;letter-spacing:.2em;color:var(--muted)}.signal{margin:13px 0 8px;font-size:clamp(42px,13vw,62px);line-height:1;font-weight:950;letter-spacing:.08em;color:var(--gold)}.signal.call{color:var(--green);text-shadow:0 0 25px #35dfa044}.signal.put{color:var(--red);text-shadow:0 0 25px #ff647844}.signal.wait{color:var(--gold)}
+.reason{max-width:430px;color:#c0d0db;font-size:12px;line-height:1.55}
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{border:1px solid var(--line);border-radius:14px;background:#101e2b;padding:11px}.metric span{display:block;color:var(--muted);font-size:8px;letter-spacing:.13em}.metric b{display:block;margin-top:6px;font-size:20px;font-variant-numeric:tabular-nums}.details{display:grid;gap:7px}.detail{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#c5d3dc}.detail span:first-child{color:var(--muted)}.detail b{text-align:right;font-weight:700}
+.note{color:#718a9a;font-size:9px;line-height:1.5;text-align:center;padding:0 8px}.footer{margin-top:auto;display:flex;justify-content:space-between;gap:10px;color:#6f8798;font-size:8px;letter-spacing:.1em}
+@keyframes pulse{50%{opacity:.4}}@media(max-height:690px){main{gap:8px}.panel{padding:11px}.signal-panel{min-height:160px}.signal{margin:8px 0}.metric{padding:8px}.metric b{font-size:18px}}
+</style></head>
+<body><main>
+<header><div class="brand"><div class="mark">◈</div><div><b>UNIVERSAL BROKER VISION</b><small>REAL SCREEN · IMAGE ANALYSIS · M1</small></div></div><div id="api" class="api">CONNECTING</div></header>
+<section class="panel market"><div class="tag">LIVE PRICE · READ FROM BROKER SCREEN</div><div id="pair" class="pair">UNKNOWN</div><div id="tf" class="tf">UNKNOWN</div><div class="price-label">BROKER PRICE</div><div id="price" class="price">—</div><div id="age" class="price-meta">รอภาพจาก APK Broker Vision</div></section>
+<section class="panel signal-panel"><div class="signal-label">NEXT CANDLE SIGNAL</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
+<section class="metrics">
+<div class="metric"><span>VISUAL QUALITY</span><b id="quality">—</b></div>
+<div class="metric"><span>CONFIDENCE SCORE</span><b id="confidence">—</b></div>
+<div class="metric"><span>FRAMES RECEIVED</span><b id="frames">0</b></div>
+<div class="metric"><span>CANDLES DETECTED</span><b id="candles">0</b></div>
+</section>
+<section class="panel details">
+<div class="detail"><span>สถานะการวิเคราะห์</span><b id="analysisStatus">WAITING</b></div>
+<div class="detail"><span>แท่งเทียนที่ปิดแล้ว</span><b id="closedCandles">—</b></div>
+<div class="detail"><span>ทิศทางราคาในภาพ</span><b id="momentum">—</b></div>
+<div class="detail"><span>อ่านแกนราคาได้</span><b id="axis">—</b></div>
+<div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
+</section>
+<div class="note">สัญญาณมาจากภาพหน้าจอโบรกเกอร์ผ่าน APK · หากภาพเก่า ข้อมูลไม่ครบ หรือระบุคู่เงิน/เวลาไม่ได้ ระบบจะแสดง WAIT · คะแนนไม่ใช่เปอร์เซ็นต์โอกาสชนะ · MANUAL ONLY</div>
+<footer class="footer"><span>VISION PRIMARY · MINI APP</span><span id="updated">—</span></footer>
+</main>
+<script>
+const $=id=>document.getElementById(id),tg=window.Telegram?.WebApp;
+try{tg?.ready?.();tg?.expand?.();}catch{}
+const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
+function paint(d){
+ const a=d.analysis||{},online=d.connected===true,signal=online?String(a.signal||"WAIT"):"WAIT";
+ const frameFresh=online&&d.frameFresh===true;$("api").className="api "+(frameFresh?"live":online?"":"off");$("api").textContent=frameFresh?"VISION LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
+ $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
+ $("price").textContent=fmt(d.price,6);$("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
+ $("signal").className="signal "+(signal==="CALL"?"call":signal==="PUT"?"put":"wait");$("signal").textContent=signal;
+ $("reason").textContent=a.reason||d.error||"รอภาพจากโบรกเกอร์";
+ $("quality").textContent=Number.isFinite(a.quality)?a.quality+"/100":"—";
+ $("confidence").textContent=Number.isFinite(a.confidence)?a.confidence+"/100":"—";
+ $("frames").textContent=Number(d.receivedFrames||0);$("candles").textContent=Number(d.candleCount||0);
+ $("analysisStatus").textContent=a.status||"WAITING";$("closedCandles").textContent=Number.isFinite(a.completedCandleCount)?a.completedCandleCount:"—";
+ $("momentum").textContent=a.priceChange==null?"—":(a.priceChange>0?"+":"")+fmt(a.priceChange,6)+" · "+(a.directionalConsistency||0)+"%";
+ $("axis").textContent=a.priceAxisCalibrated?"อ่านได้":"ยังไม่พร้อม";
+ $("receivedAt").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleTimeString("th-TH"):"—";
+ $("updated").textContent=new Date().toLocaleTimeString("th-TH");
+}
+let busy=false;
+async function refresh(){if(busy||document.visibilityState==="hidden")return;busy=true;try{
+ const r=await fetch("/api/vision/miniapp",{cache:"no-store"});const d=await r.json().catch(()=>({}));
+ if(!r.ok&&!d.analysis)throw Error(d.error||"Vision API ไม่ตอบสนอง");
+ paint(d);
+ }catch(e){paint({connected:false,analysis:{signal:"WAIT",status:"VISION_OFFLINE",reason:"เชื่อมต่อ Vision API ไม่ได้ · "+(e.message||"กรุณาตรวจ APK และอินเทอร์เน็ต")}});}
+ finally{busy=false;}}
+refresh();setInterval(refresh,1500);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});
+</script></body></html>
