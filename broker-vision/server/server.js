@@ -208,13 +208,12 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{1,10})\b/g)].at(-1);
     return match?Number(match[0]):null;
   }).filter(value=>Number.isFinite(value)&&value>0);
-  let price=suppliedPrice??priceCandidates.at(-1)??null;
-  // Trust the numeric price parsed and supplied by the APK itself.
-  // OCR is retained for diagnostics only; it must never veto a valid APK price.
-  const pricePrecision=price===null?null:(suppliedPrice!==null?suppliedPrecision:(String(price).split(".")[1]||"").length);
+  // Use only the numeric value explicitly supplied by the APK. Never substitute
+  // unrelated OCR text (for example a timer or menu number) as the market price.
+  const price=suppliedPrice??null;
+  const pricePrecision=price===null?null:suppliedPrecision;
   const priceReadStatus = suppliedPrice !== null ? "PRICE_OK_APK_DIRECT"
-    : price !== null ? "PRICE_OK_OCR_FALLBACK"
-    : priceCandidates.length ? "OCR_PRICE_CANDIDATE_REJECTED"
+    : priceCandidates.length ? "OCR_TEXT_FOUND_BUT_APK_PRICE_MISSING"
     : "NO_APK_PRICE_OR_OCR_CANDIDATE";
   const axisPrices = Array.isArray(b.axisPrices) ? b.axisPrices.slice(0,30) : [];
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
