@@ -100,83 +100,51 @@ function updatePriceCandle(frame) {
 }
 
 function makeAnalysis() {
-  const last = frames.at(-1);
-  if (!last) return { signal:"WAIT", phase:"WAITING", status:"NO_DATA", reason:"ยังไม่มีภาพจาก APK", source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
-  const ageMs = Date.now() - Date.parse(last.receivedAt);
-  if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
-    return { signal:"WAIT", phase:"WAITING", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null, source:"APK_PRICE_AND_CANDLE_GEOMETRY" };
+  const last=frames.at(-1);
+  if(!last)return {signal:"WAIT",phase:"WAITING",status:"NO_DATA",reason:"ยังไม่มีภาพจาก APK",source:"APK_CAPTURED_PRICE_OHLC"};
+  const ageMs=Date.now()-Date.parse(last.receivedAt);
+  if(!Number.isFinite(ageMs)||ageMs<0||ageMs>10000)
+    return {signal:"WAIT",phase:"WAITING",status:"STALE_FRAME",reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ",ageMs:Number.isFinite(ageMs)?ageMs:null,source:"APK_CAPTURED_PRICE_OHLC"};
 
-  // APK is the single source of truth for the live numeric price and candle geometry.
-  const recent = frames.slice(-24);
-  const price = Number(last.price);
-  const readable = finite(price) && price > 0;
-  const rawPriceSamples = recent.filter(x => finite(x.price) && Number(x.price) > 0);
-  const priceSamples = [];
-  for (let i = rawPriceSamples.length - 1; i >= 0; i--) {
-    const current = Number(rawPriceSamples[i].price);
-    const next = priceSamples[0] ? Number(priceSamples[0].price) : null;
-    if (next !== null && Math.abs(current-next)/Math.max(Math.abs(current),Math.abs(next)) > 0.05) break;
-    priceSamples.unshift(rawPriceSamples[i]);
-  }
-  const trend = summarize(priceSamples);
-  // The displayed chart and predictor share this exact OHLC series, built only from APK prices.
-  const chartCandles = priceCandles.slice(-100);
-  const prediction = predictNextCandle({
-    candles:chartCandles, price:readable?price:null,
-    priceHistory:priceSamples.map(sample=>Number(sample.price))
-  });
-
-  // Evaluate continuously from M1 second 00 through second 55, using this candle's APK Open as the live reference.
-  const captureMs = finite(last.deviceTime) ? Number(last.deviceTime) : Date.parse(last.receivedAt);
-  const cycle = getM1CycleWindow(captureMs);
-  const currentCandle = chartCandles.at(-1);
-  const openBias = evaluateOpenBias({
-    open:currentCandle?.open,
+  const price=Number(last.price);
+  const readable=finite(price)&&price>0;
+  const recent=frames.slice(-24).filter(frame=>finite(frame.price)&&Number(frame.price)>0);
+  const chartCandles=priceCandles.slice(-100);
+  const captureMs=finite(last.deviceTime)?Number(last.deviceTime):Date.parse(last.receivedAt);
+  const cycle=getM1CycleWindow(captureMs);
+  const prediction=predictNextCandle({
+    candles:chartCandles,
     price:readable?price:null,
-    precision:last.pricePrecision
+    priceHistory:recent.map(frame=>Number(frame.price))
   });
-  const phase = cycle.phase;
-  const alignedSignal = prediction.signal===openBias.direction ? prediction.signal : "WAIT";
-  const signal = cycle.active && readable && alignedSignal!=="WAIT" ? alignedSignal : "WAIT";
-  const reason = !readable ? "ยังไม่ได้รับราคาตัวเลขจาก APK"
-    : !cycle.active ? "รอบแท่งนี้หมดเวลาที่วินาที 55 แล้ว · ยกเลิกสัญญาณและรอแท่งใหม่"
-    : openBias.direction==="WAIT" ? "ราคาเคลื่อนจาก Open ยังไม่ถึง 1 tick · คำนวณต่อเนื่องในรอบนี้"
-    : prediction.signal!==openBias.direction ? "ทิศทางจากโครงสร้างแท่งเทียนยังไม่ตรงกับราคาปัจจุบันเทียบ Open"
-    : prediction.reason || "ราคาและโครงสร้างแท่งเทียนยืนยันตรงกับ Open";
+  const currentCandle=chartCandles.at(-1);
+  const signal=cycle.watch?"WATCH":cycle.active&&readable?prediction.signal:"WAIT";
+  const reason=!readable?"ยังไม่ได้รับราคาตัวเลขจาก APK"
+    :cycle.watch?"เฝ้าระวัง · จะประเมิน EMA5/EMA20 ในช่วงวินาที 55–59"
+    :cycle.active?prediction.reason||"ประเมินทิศทางแท่ง M1 ถัดไปจาก EMA5/EMA20"
+    :"รอช่วงเวลาประเมินของแท่ง M1 · WATCH วินาที 50–54 / ORDER วินาที 55–59";
 
   return {
-    signal, phase, cycleId:cycle.cycleId, elapsedSeconds:cycle.elapsedSeconds,
+    signal,phase:cycle.phase,cycleId:cycle.cycleId,elapsedSeconds:cycle.elapsedSeconds,
     secondsToNextCandle:cycle.secondsToNextCandle,
     currentCandleOpen:finite(currentCandle?.open)?Number(currentCandle.open):null,
-    openDelta:openBias.delta, openDirection:openBias.direction,
-    status: !readable ? "PRICE_UNREADABLE"
-      : !cycle.active ? "CYCLE_CUTOFF"
-      : signal==="CALL"||signal==="PUT" ? "ACTIVE_SIGNAL"
-      : "ACTIVE_CALCULATING",
-    price: readable ? price : null,
-    pricePrecision: last.pricePrecision ?? null,
-    candleCount: chartCandles.length,
-    priceCandleCount: chartCandles.length,
-    priceSamples: priceSamples.length,
-    calibratedCandles: prediction.calibratedCandles || 0,
-    signalEligible: cycle.active && ["CALL","PUT"].includes(signal),
-    nextCandlePrediction: prediction,
-    priceCandles:chartCandles,
-    chartSource: "APK_CAPTURED_PRICE_OHLC",
-    signalConditions: {
-      readablePrice: readable,
-      calibratedCandles: prediction.calibratedCandles || 0,
-      target: "CURRENT_M1_CYCLE",
-      phase,
-      elapsedSeconds:cycle.elapsedSeconds,
-      openDirection:openBias.direction,
-      matchesOpen:openBias.direction!=="WAIT"&&prediction.signal===openBias.direction,
-      passed: cycle.active && ["CALL","PUT"].includes(signal)
+    status:!readable?"PRICE_UNREADABLE":cycle.watch?"WATCH_WINDOW"
+      :cycle.active?(signal==="CALL"||signal==="PUT"?"ORDER_SIGNAL":"ORDER_NO_ENTRY"):"WAITING_WINDOW",
+    price:readable?price:null,pricePrecision:last.pricePrecision??null,
+    candleCount:chartCandles.length,priceCandleCount:chartCandles.length,
+    priceSamples:recent.length,calibratedCandles:prediction.calibratedCandles||0,
+    signalEligible:cycle.active&&["CALL","PUT"].includes(signal),
+    nextCandlePrediction:prediction,ema5:prediction.ema5??null,ema20:prediction.ema20??null,
+    priceCandles:chartCandles,chartSource:"APK_CAPTURED_PRICE_OHLC",
+    signalConditions:{
+      readablePrice:readable,calibratedCandles:prediction.calibratedCandles||0,
+      target:"NEXT_M1_CANDLE",phase:cycle.phase,elapsedSeconds:cycle.elapsedSeconds,
+      ema5:prediction.ema5??null,ema20:prediction.ema20??null,
+      trend:prediction.ema5>prediction.ema20?"UP":prediction.ema5<prediction.ema20?"DOWN":"NEUTRAL",
+      passed:cycle.active&&["CALL","PUT"].includes(signal)
     },
-    reason,
-    priceMomentum: trend,
-    analyzedAt: new Date().toISOString(),
-    note: "คำนวณเทียบราคา Open ของแท่ง M1 ต่อเนื่องตั้งแต่วินาที 00 ถึง 55 · วินาที 56–59 ยกเลิกสัญญาณของรอบ · เปลี่ยนแท่งแล้วเริ่มรอบใหม่ · ใช้ราคา APK เท่านั้น"
+    reason,analyzedAt:new Date().toISOString(),
+    note:"WATCH วินาที 50–54 · ประเมิน EMA5/EMA20 และแจ้ง CALL/PUT วินาที 55–59 · ใช้ราคา APK เท่านั้น"
   };
 }
 
