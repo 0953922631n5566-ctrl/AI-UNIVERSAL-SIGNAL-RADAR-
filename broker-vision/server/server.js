@@ -7,6 +7,7 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
+const SIGNAL_THRESHOLD = 40;
 const frames = [];
 let latestFrameImage = null;
 const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
@@ -77,7 +78,9 @@ function makeAnalysis() {
   if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 10000)
     return { signal:"WAIT", status:"STALE_FRAME", reason:"ภาพล่าสุดเก่าเกิน 10 วินาที จึงหยุดสัญญาณ", ageMs:Number.isFinite(ageMs)?ageMs:null };
   if (last.symbol === "UNKNOWN" || last.timeframe === "UNKNOWN")
-    return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ" };
+    return { signal:"WAIT", status:"INSTRUMENT_UNIDENTIFIED", reason:"ยังระบุสินทรัพย์หรือกรอบเวลาไม่ชัดเจน จึงงดออกสัญญาณ", score:0, scoreThreshold:SIGNAL_THRESHOLD };
+  if (last.symbol !== "EUR/USD" || last.timeframe !== "1M")
+    return { signal:"WAIT", status:"UNSUPPORTED_MARKET", reason:"ระบบนี้รับเฉพาะ EUR/USD ตลาดปกติ กรอบเวลา M1 (ไม่รองรับ OTC)", score:0, scoreThreshold:SIGNAL_THRESHOLD };
   const recent = frames.filter(x=>x.symbol===last.symbol && x.timeframe===last.timeframe).slice(-12);
   const candles = Array.isArray(last.candles) ? last.candles : [];
   const price = Number(last.price);
@@ -86,14 +89,15 @@ function makeAnalysis() {
   const candleCount = candles.length;
   const quality = clamp(Math.round((readable?40:0) + Math.min(candleCount,8)*5 + (last.ocr?.length?10:0)),0,100);
   const completedCandles = candles.length>1 ? candles.slice(0,-1) : [];
-  if (!readable || completedCandles.length < 3 || quality < 60) {
-    return { signal:"WAIT", status:"INSUFFICIENT_VISUAL_DATA", reason:"ข้อมูลภาพยังไม่ครบ: ต้องอ่านราคาและแท่งเทียนที่ปิดแล้วได้ชัดเจน", quality, price:readable?price:null, candleCount, completedCandleCount:completedCandles.length, analyzedAt:new Date().toISOString() };
+  if (!readable || completedCandles.length < 2 || quality < SIGNAL_THRESHOLD) {
+    return { signal:"WAIT", status:"INSUFFICIENT_VISUAL_DATA", reason:"ข้อมูลภาพยังไม่ครบ: ต้องอ่านราคาสดและแท่งเทียนที่ปิดแล้วอย่างน้อย 2 แท่ง", quality, price:readable?price:null, candleCount, completedCandleCount:completedCandles.length, score:0, scoreThreshold:SIGNAL_THRESHOLD, analyzedAt:new Date().toISOString() };
   }
   const bodies = completedCandles.slice(-5).map(c => Number(c.closeY)-Number(c.openY)).filter(finite);
   const bodyBias = bodies.reduce((a,b)=>a+b,0);
   const candleDirection = bodyBias < -1 ? "CALL" : bodyBias > 1 ? "PUT" : "WAIT";
   const agree = trend.direction === candleDirection && trend.direction !== "WAIT";
-  const signal = agree ? trend.direction : "WAIT";
+  const candidateScore = agree ? clamp(Math.round((trend.confidence + quality) / 2), 0, 100) : Math.min(trend.confidence, 45);
+  const signal = agree && candidateScore >= SIGNAL_THRESHOLD ? trend.direction : "WAIT";
   const axis=(last.axisPrices||[]).filter(p=>finite(p.price)&&finite(p.y)).sort((a,b)=>Number(a.y)-Number(b.y));
   const axisCalibrated=axis.length>=2 && Math.abs(Number(axis.at(-1).y)-Number(axis[0].y))>10 &&
     Math.abs(Number(axis.at(-1).price)-Number(axis[0].price))>0;
@@ -107,7 +111,8 @@ function makeAnalysis() {
   })): [];
   return { signal, status:"ANALYZED", price, candleCount, completedCandleCount:completedCandles.length, quality,
     priceAxisCalibrated:axisCalibrated,candlePriceLevels,
-    confidence:signal==="WAIT"?Math.min(trend.confidence,45):Math.min(85,Math.round((trend.confidence+quality)/2)),
+    score:signal==="WAIT"?candidateScore:candidateScore, scoreThreshold:SIGNAL_THRESHOLD, signalEligible:signal!=="WAIT",
+    confidence:signal==="WAIT"?Math.min(trend.confidence,45):candidateScore,
     reason:signal==="WAIT"?"ราคาและรูปทรงแท่งเทียนยังไม่ยืนยันไปในทิศทางเดียวกัน":`ราคาและแท่งเทียนยืนยัน ${signal} ตรงกัน`,
     priceMomentum:trend, candleBias:candleDirection, analyzedAt:new Date().toISOString(),
     note:"ระดับ OHLC ที่คำนวณจากพิกเซลเป็นค่าประมาณและใช้ได้เมื่ออ่านแกนราคาได้อย่างน้อย 2 จุด คะแนนความมั่นใจไม่ใช่ความน่าจะเป็นหรืออัตราชนะที่พิสูจน์แล้ว" };
