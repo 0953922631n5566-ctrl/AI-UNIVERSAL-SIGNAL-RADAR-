@@ -148,7 +148,7 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   // Never treat arbitrary page text or integer labels as a broker instrument/price.
   const rawSymbol=String(b.symbol||"").toUpperCase().replace(/\s/g,"");
   const pairMatch=rawSymbol.match(/^([A-Z]{3})\/([A-Z]{3})(?:\(OTC\))?$/);
-  const symbol=pairMatch?pairMatch[1]+"/"+pairMatch[2]+(rawSymbol.endsWith("(OTC)")?"(OTC)"):"UNKNOWN";
+  const symbol=pairMatch?pairMatch[1]+"/"+pairMatch[2]+(rawSymbol.endsWith("(OTC)")?"(OTC)":""):"UNKNOWN";
   const rawTimeframe=String(b.timeframe||"").toUpperCase().trim();
   const timeframeMatch=rawTimeframe.match(/^([1-9]\d?)(S|M|H|D)$/);
   const timeframe=timeframeMatch?timeframeMatch[1]+timeframeMatch[2]:"UNKNOWN";
