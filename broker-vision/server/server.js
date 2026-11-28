@@ -147,7 +147,7 @@ app.get("/api/vision/miniapp", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
-    price:last?.price??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+    price:last?.price??null,pricePrecision:last?.pricePrecision??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
 });
 app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
