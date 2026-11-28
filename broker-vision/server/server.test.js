@@ -32,7 +32,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(typeof enrolled.token,"string");
   assert.ok(enrolled.token.length>=64);
 
-  const candles=Array.from({length:5},()=>({color:"GREEN",openY:120,closeY:90,highY:88,lowY:122}));
+  const candles=Array.from({length:6},(_,i)=>{const closeY=110-i*8;return {color:"GREEN",openY:closeY+28,closeY,highY:closeY-5,lowY:closeY+33};});
   const imageBase64="/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/AIQ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9k=";
   let last;
   for(let i=0;i<4;i++){
@@ -40,7 +40,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
       body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",deviceTime:Date.now(),
-        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120},{text:(1.120235+i*0.000001).toFixed(6),left:1400,top:300,right:1470,bottom:320}],candles})
+        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],imageBase64:i===3?imageBase64:undefined,ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120},{text:(1.120235+i*0.000001).toFixed(6),left:1400,top:300,right:1470,bottom:320}],candles})
     });
     assert.equal(response.status,202);
     last=await response.json();
@@ -69,6 +69,10 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(miniState.analysis.nextCandlePrediction.signal,"CALL");
   assert.equal(miniState.analysis.signal, miniState.analysis.phase==="ORDER_WINDOW" ? "CALL" : "WAIT");
   assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
+  const chartImage=await fetch(base+"/api/vision/chart-image");
+  assert.equal(chartImage.status,200);
+  assert.match(chartImage.headers.get("content-type")||"",/image\\/jpeg/);
+  assert.ok((await chartImage.arrayBuffer()).byteLength>75);
 
   const badOcr=await fetch(base+"/api/vision/frame",{
     method:"POST",
