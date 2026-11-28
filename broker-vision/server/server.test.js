@@ -59,7 +59,8 @@ test("vision API guards uploads and emits price-only signals without instrument 
       price:1.12345,pricePrecision:5,ocr:[{text:"1.12345",left:1400,top:300,right:1470,bottom:320}],candles:[]})
   });
   assert.equal(staleCapture.status,409,"stale APK captures must be rejected");
-\n  const publicState=await (await fetch(base+"/api/vision/public")).json();
+
+  const publicState=await (await fetch(base+"/api/vision/public")).json();
   assert.equal("imageDataUri" in publicState,false,"public status must not expose broker screenshots");
   const miniResponse=await fetch(base+"/api/vision/miniapp");
   const miniState=await miniResponse.json();
