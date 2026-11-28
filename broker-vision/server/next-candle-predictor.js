@@ -1,3 +1,29 @@
+export function getM1CycleWindow(deviceTimeMs) {
+  if (!finite(deviceTimeMs)) return { cycleId:null, elapsedMs:null, elapsedSeconds:null, secondsToNextCandle:null, phase:"WAITING", active:false };
+  const timestamp=Number(deviceTimeMs);
+  const elapsedMs=((timestamp%60000)+60000)%60000;
+  const elapsedSeconds=Math.floor(elapsedMs/1000);
+  const active=elapsedSeconds<=55;
+  return {
+    cycleId:Math.floor(timestamp/60000),
+    elapsedMs,
+    elapsedSeconds,
+    secondsToNextCandle:Math.max(0,Math.ceil((60000-elapsedMs)/1000)),
+    phase:active?"ACTIVE":"CUTOFF",
+    active
+  };
+}
+
+export function evaluateOpenBias({open,price,precision=5}) {
+  if (!finite(open)||!finite(price)||Number(open)<=0||Number(price)<=0)
+    return {direction:"WAIT",delta:null,tickSize:null};
+  const digits=clamp(Math.round(Number(precision)||5),1,10);
+  const tickSize=10**(-digits);
+  const delta=Number(price)-Number(open);
+  const direction=Math.abs(delta)<tickSize?"WAIT":delta>0?"CALL":"PUT";
+  return {direction,delta,tickSize};
+}
+
 const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
