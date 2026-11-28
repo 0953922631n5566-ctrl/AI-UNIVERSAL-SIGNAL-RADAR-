@@ -21,23 +21,23 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 @keyframes pulse{50%{opacity:.4}}@media(max-height:690px){main{gap:8px}.panel{padding:11px}.signal-panel{min-height:160px}.signal{margin:8px 0}.metric{padding:8px}.metric b{font-size:18px}}
 </style></head>
 <body><main>
-<header><div class="brand"><div class="mark">◈</div><div><b>UNIVERSAL BROKER VISION</b><small>REAL SCREEN · IMAGE ANALYSIS · M1</small></div></div><div id="api" class="api">CONNECTING</div></header>
+<header><div class="brand"><div class="mark">◈</div><div><b>UNIVERSAL BROKER VISION</b><small>APK PRICE ONLY · LIVE SCREEN READING</small></div></div><div id="api" class="api">CONNECTING</div></header>
 <section class="panel market"><div class="tag">LIVE PRICE · READ FROM BROKER SCREEN</div><div id="pair" class="pair">UNKNOWN</div><div id="tf" class="tf">UNKNOWN</div><div class="price-label">BROKER PRICE</div><div id="price" class="price">—</div><div id="age" class="price-meta">รอภาพจาก APK Broker Vision</div></section>
-<section class="panel signal-panel"><div class="signal-label">NEXT CANDLE SIGNAL</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
+<section class="panel signal-panel"><div class="signal-label">NEXT CANDLE DIRECTION · PRICE MOMENTUM</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
 <section class="metrics">
-<div class="metric"><span>VISUAL QUALITY</span><b id="quality">—</b></div>
-<div class="metric"><span>ENTRY SCORE · MIN 40</span><b id="confidence">—</b></div>
+<div class="metric"><span>PRICE SAMPLES</span><b id="samples">—</b></div>
+<div class="metric"><span>DIRECTIONAL CONSISTENCY</span><b id="consistency">—</b></div>
 <div class="metric"><span>FRAMES RECEIVED</span><b id="frames">0</b></div>
-<div class="metric"><span>CANDLES DETECTED</span><b id="candles">0</b></div>
+<div class="metric"><span>PRICE CHANGE</span><b id="tickChange">—</b></div>
 </section>
 <section class="panel details">
 <div class="detail"><span>สถานะการวิเคราะห์</span><b id="analysisStatus">WAITING</b></div>
-<div class="detail"><span>แท่งเทียนที่ปิดแล้ว</span><b id="closedCandles">—</b></div>
-<div class="detail"><span>ทิศทางราคาในภาพ</span><b id="momentum">—</b></div>
-<div class="detail"><span>อ่านแกนราคาได้</span><b id="axis">—</b></div>
+<div class="detail"><span>จำนวนตัวอย่างราคาที่ใช้</span><b id="sampleCount">—</b></div>
+<div class="detail"><span>การเปลี่ยนแปลงราคา</span><b id="momentum">—</b></div>
+<div class="detail"><span>เงื่อนไขสัญญาณ</span><b id="conditions">—</b></div>
 <div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
 </section>
-<div class="note">สัญญาณมาจากภาพหน้าจอโบรกเกอร์ผ่าน APK · หากภาพเก่า ข้อมูลไม่ครบ หรือระบุคู่เงิน/เวลาไม่ได้ ระบบจะแสดง WAIT · คะแนนไม่ใช่เปอร์เซ็นต์โอกาสชนะ · MANUAL ONLY</div>
+<div class="note">ใช้ราคาที่ APK อ่านได้จากหน้าจอโบรกเกอร์เท่านั้น · ไม่ใช้ Twelve Data และไม่ล็อกคู่เงิน/กรอบเวลา · ราคาไม่ชัดหรือข้อมูลเก่าแสดง WAIT · MANUAL ONLY</div>
 <footer class="footer"><span>VISION PRIMARY · MINI APP</span><span id="updated">—</span></footer>
 </main>
 <script>
@@ -48,15 +48,19 @@ function paint(d){
  const a=d.analysis||{},online=d.connected===true,signal=online?String(a.signal||"WAIT"):"WAIT";
  const frameFresh=online&&d.frameFresh===true;$("api").className="api "+(frameFresh?"live":online?"":"off");$("api").textContent=frameFresh?"VISION LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
- $("price").textContent=fmt(d.price,6);$("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
+ $("price").textContent=fmt(d.price,Number.isInteger(d.pricePrecision)?Math.max(1,Math.min(10,d.pricePrecision)):6);$("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
  $("signal").className="signal "+(signal==="CALL"?"call":signal==="PUT"?"put":"wait");$("signal").textContent=signal;
  $("reason").textContent=a.reason||d.error||"รอภาพจากโบรกเกอร์";
- $("quality").textContent=Number.isFinite(a.quality)?a.quality+"/100":"—";
- $("confidence").textContent=Number.isFinite(a.score)?a.score+"/100 · ≥"+(a.scoreThreshold??40):Number.isFinite(a.confidence)?a.confidence+"/100 · ≥40":"—";
- $("frames").textContent=Number(d.receivedFrames||0);$("candles").textContent=Number(d.candleCount||0);
- $("analysisStatus").textContent=a.status||"WAITING";$("closedCandles").textContent=Number.isFinite(a.completedCandleCount)?a.completedCandleCount:"—";
- $("momentum").textContent=a.priceChange==null?"—":(a.priceChange>0?"+":"")+fmt(a.priceChange,6)+" · "+(a.directionalConsistency||0)+"%";
- $("axis").textContent=a.priceAxisCalibrated?"อ่านได้":"ยังไม่พร้อม";
+ const precision=Number.isInteger(d.pricePrecision)?Math.max(1,Math.min(10,d.pricePrecision)):6;
+ $("price").textContent=fmt(d.price,precision);
+ $("samples").textContent=Number.isFinite(a.priceSamples)?a.priceSamples:"—";
+ $("consistency").textContent=Number.isFinite(a.directionalConsistency)?a.directionalConsistency+"%":"—";
+ $("frames").textContent=Number(d.receivedFrames||0);
+ $("tickChange").textContent=a.priceChange==null?"—":(a.priceChange>0?"+":"")+fmt(a.priceChange,precision);
+ $("analysisStatus").textContent=a.status||"WAITING";
+ $("sampleCount").textContent=Number.isFinite(a.priceSamples)?a.priceSamples:"—";
+ $("momentum").textContent=a.priceChange==null?"—":(a.priceChange>0?"+":"")+fmt(a.priceChange,precision);
+ $("conditions").textContent=a.signalConditions?.passed===true?"ผ่าน · ≥1 tick / ≥60%":"ยังไม่ผ่าน";
  $("receivedAt").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleTimeString("th-TH"):"—";
  $("updated").textContent=new Date().toLocaleTimeString("th-TH");
 }
