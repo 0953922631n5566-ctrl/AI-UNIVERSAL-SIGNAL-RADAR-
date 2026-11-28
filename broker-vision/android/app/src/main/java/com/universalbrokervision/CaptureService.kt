@@ -91,11 +91,11 @@ class CaptureService:Service() {
      }
 
      // OCR is deliberately restricted to the user-positioned ROI. No other screen number is eligible.
-     val pricePattern=Regex("""(?<!\\d)(\\d{1,12})[.,](\\d{1,10})(?!\\d)""")
+     val pricePattern=Regex("""(?<!\d)(\d{1,12})[.,](\d{1,10})(?!\d)""")
      data class PriceHit(val value:Double,val precision:Int,val right:Int,val y:Float)
      val priceCandidates=lines.flatMap{line->
       val box=line.boundingBox?:return@flatMap emptyList()
-      val raw=line.text.trim().replace(Regex("""(?<=\\d)\\s+(?=\\d)"""),"")
+      val raw=line.text.trim().replace(Regex("""(?<=\d)\s+(?=\d)"""),"")
       pricePattern.findAll(raw).mapNotNull{match->
        val value=(match.groupValues[1]+"."+match.groupValues[2]).toDoubleOrNull()
        val precision=match.groupValues[2].length
