@@ -145,13 +145,29 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   const imageBytes=Buffer.from(b.imageBase64,"base64");
   if (imageBytes.length < 75 || imageBytes.length > 3_750_000 || imageBytes[0]!==0xff || imageBytes[1]!==0xd8 || imageBytes.at(-2)!==0xff || imageBytes.at(-1)!==0xd9)
     return res.status(400).json({ok:false,error:"imageBase64 must contain a valid JPEG image"});
-  const texts=b.ocr.map(x=>String(x.text||"").trim()).filter(Boolean);
-  const priceCandidate=texts.map(t=>t.replace(/,/g,"").match(/\d+(?:\.\d{3,8})?/g)?.at(-1)).find(Boolean);
-  const price=finite(b.price)?Number(b.price):(priceCandidate?Number(priceCandidate):null);
+  // Never treat arbitrary page text or integer labels as a broker instrument/price.
+  const rawSymbol=String(b.symbol||"").toUpperCase().replace(/\s/g,"");
+  const pairMatch=rawSymbol.match(/^([A-Z]{3})\/([A-Z]{3})(?:\(OTC\))?$/);
+  const symbol=pairMatch?pairMatch[1]+"/"+pairMatch[2]+(rawSymbol.endsWith("(OTC)")?"(OTC)"):"UNKNOWN";
+  const rawTimeframe=String(b.timeframe||"").toUpperCase().trim();
+  const timeframeMatch=rawTimeframe.match(/^([1-9]\d?)(S|M|H|D)$/);
+  const timeframe=timeframeMatch?timeframeMatch[1]+timeframeMatch[2]:"UNKNOWN";
+  const suppliedPrecision=finite(b.pricePrecision)?clamp(Math.round(Number(b.pricePrecision)),0,10):(String(b.price||"").split(".")[1]||"").length;
+  const suppliedPrice=finite(b.price)&&Number(b.price)>0&&suppliedPrecision>=3?Number(b.price):null;
+  const priceCandidates=b.ocr.map(x=>{
+    const left=Number(x.left),right=Number(x.right),top=Number(x.top);
+    if(!Number.isFinite(left)||!Number.isFinite(right)||left<Number(b.width)*0.60||right<=left||
+       (Number.isFinite(top)&&(top<Number(b.height)*0.15||top>Number(b.height)*0.75))) return null;
+    const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{3,8})\b/g)].at(-1);
+    return match?Number(match[0]):null;
+  }).filter(value=>Number.isFinite(value)&&value>0);
+  const price=suppliedPrice??priceCandidates.at(-1)??null;
+  const pricePrecision=price===null?null:(suppliedPrice!==null?suppliedPrecision:(String(price).split(".")[1]||"").length);
   const frame={id:randomUUID(),receivedAt:new Date().toISOString(),deviceTime:b.deviceTime||null,
-    width:Number(b.width),height:Number(b.height),symbol:String(b.symbol||"UNKNOWN").slice(0,40),
-    timeframe:String(b.timeframe||"UNKNOWN").slice(0,20),price,
-    pricePrecision:finite(b.pricePrecision)?clamp(Math.round(Number(b.pricePrecision)),0,10):null,
+    width:Number(b.width),height:Number(b.height),symbol,
+    timeframe,
+    price,
+    pricePrecision,
     axisPrices:Array.isArray(b.axisPrices)?b.axisPrices.slice(0,30):[],
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
