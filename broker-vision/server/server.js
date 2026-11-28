@@ -87,7 +87,14 @@ function makeAnalysis() {
   const recent = frames.slice(-12);
   const price = Number(last.price);
   const readable = finite(price) && price > 0;
-  const priceSamples = recent.filter(x => finite(x.price));
+  const rawPriceSamples = recent.filter(x => finite(x.price) && Number(x.price) > 0);
+  const priceSamples = [];
+  for (let i = rawPriceSamples.length - 1; i >= 0; i--) {
+    const current = Number(rawPriceSamples[i].price);
+    const next = priceSamples[0] ? Number(priceSamples[0].price) : null;
+    if (next !== null && Math.abs(current - next) / Math.max(Math.abs(current), Math.abs(next)) > 0.05) break;
+    priceSamples.unshift(rawPriceSamples[i]);
+  }
   const trend = summarize(priceSamples);
   const candleCount = Array.isArray(last.candles) ? last.candles.length : 0;
   // No score threshold: emit a direction as soon as price-only conditions pass.
@@ -166,12 +173,12 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   const timeframeMatch=rawTimeframe.match(/^([1-9]\d?)(S|M|H|D)$/);
   const timeframe=timeframeMatch?timeframeMatch[1]+timeframeMatch[2]:"UNKNOWN";
   const suppliedPrecision=finite(b.pricePrecision)?clamp(Math.round(Number(b.pricePrecision)),0,10):(String(b.price||"").split(".")[1]||"").length;
-  const suppliedPrice=finite(b.price)&&Number(b.price)>0&&suppliedPrecision>=3?Number(b.price):null;
+  const suppliedPrice=finite(b.price)&&Number(b.price)>0&&suppliedPrecision>=1?Number(b.price):null;
   const priceCandidates=b.ocr.map(x=>{
     const left=Number(x.left),right=Number(x.right),top=Number(x.top);
     if(!Number.isFinite(left)||!Number.isFinite(right)||left<Number(b.width)*0.60||right<=left||
        (Number.isFinite(top)&&(top<Number(b.height)*0.15||top>Number(b.height)*0.75))) return null;
-    const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{3,8})\b/g)].at(-1);
+    const match=[...String(x.text||"").replace(/,/g,"").matchAll(/\b\d+(?:\.\d{1,10})\b/g)].at(-1);
     return match?Number(match[0]):null;
   }).filter(value=>Number.isFinite(value)&&value>0);
   const price=suppliedPrice??priceCandidates.at(-1)??null;
