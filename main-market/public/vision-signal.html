@@ -14,7 +14,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 .panel{border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#142638,#0d1925);padding:14px;box-shadow:0 10px 26px #0003}
 .market{display:grid;grid-template-columns:1fr auto;align-items:center;gap:5px 8px}.tag{grid-column:1/-1;color:#8fa8b8;font-size:8px;letter-spacing:.17em}.pair{font-size:22px;font-weight:850;letter-spacing:.03em}.tf{font-size:10px;color:#c3d2dd;border:1px solid #40576b;border-radius:7px;padding:4px 7px}.price-label{text-align:right;color:var(--muted);font-size:8px;letter-spacing:.15em}.price{grid-column:2;grid-row:2;text-align:right;font-size:clamp(26px,8vw,36px);font-weight:850;font-variant-numeric:tabular-nums;letter-spacing:.01em}.price-meta{grid-column:1/-1;color:var(--muted);font-size:9px}
 .signal-panel{text-align:center;padding:20px 14px 17px;min-height:205px;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.chart-panel{padding:10px}.chart-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#9eb3c2;font-size:9px;letter-spacing:.12em;margin:0 2px 8px}.chart-heading b{color:var(--green);font-size:8px}.chart-viewport{height:clamp(190px,34vh,310px);background:#050a10;border:1px solid #243847;border-radius:11px;overflow:hidden;display:grid;place-items:center;position:relative}.chart-viewport canvas{width:100%;height:100%;display:block}.chart-placeholder{position:absolute;color:#7890a0;font-size:10px;text-align:center;padding:12px;pointer-events:none}.signal-label{font-size:9px;letter-spacing:.2em;color:var(--muted)}.signal{margin:13px 0 8px;font-size:clamp(42px,13vw,62px);line-height:1;font-weight:950;letter-spacing:.08em;color:var(--gold)}.signal.call{color:var(--green);text-shadow:0 0 25px #35dfa044}.signal.put{color:var(--red);text-shadow:0 0 25px #ff647844}.signal.wait,.signal.watch{color:var(--gold)}
+.chart-panel{padding:10px}.chart-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;color:#9eb3c2;font-size:9px;letter-spacing:.12em;margin:0 2px 8px}.chart-heading b{color:var(--green);font-size:8px}.chart-viewport{height:clamp(190px,34vh,310px);background:#050a10;border:1px solid #243847;border-radius:11px;overflow:hidden;display:grid;place-items:center;position:relative}.chart-viewport canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}.chart-viewport canvas:active{cursor:grabbing}.chart-controls{display:flex;align-items:center;gap:5px}.chart-controls button{min-width:30px;border:1px solid #3a566b;border-radius:7px;padding:5px 8px;background:#102333;color:#d9e8f1;font-size:12px;font-weight:800}.chart-controls button:active{background:#1a3a4c}.chart-placeholder{position:absolute;color:#7890a0;font-size:10px;text-align:center;padding:12px;pointer-events:none}.signal-label{font-size:9px;letter-spacing:.2em;color:var(--muted)}.signal{margin:13px 0 8px;font-size:clamp(42px,13vw,62px);line-height:1;font-weight:950;letter-spacing:.08em;color:var(--gold)}.signal.call{color:var(--green);text-shadow:0 0 25px #35dfa044}.signal.put{color:var(--red);text-shadow:0 0 25px #ff647844}.signal.wait,.signal.watch{color:var(--gold)}
 .alert-enable{width:100%;border:1px solid #34765f;border-radius:12px;padding:11px;background:#102a25;color:var(--green);font-weight:800;font-size:12px}.alert-enable.enabled{background:#12362b;border-color:#35dfa0}
 .reason{max-width:430px;color:#c0d0db;font-size:12px;line-height:1.55}
 .metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.metric{border:1px solid var(--line);border-radius:14px;background:#101e2b;padding:11px}.metric span{display:block;color:var(--muted);font-size:8px;letter-spacing:.13em}.metric b{display:block;margin-top:6px;font-size:20px;font-variant-numeric:tabular-nums}.details{display:grid;gap:7px}.detail{display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#c5d3dc}.detail span:first-child{color:var(--muted)}.detail b{text-align:right;font-weight:700}
@@ -24,7 +24,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <body><main>
 <header><div class="brand"><div class="mark">◈</div><div><b>UNIVERSAL BROKER VISION</b><small>APK PRICE ONLY · LIVE SCREEN READING</small></div></div><div id="api" class="api">CONNECTING</div></header>
 <section class="panel market"><div class="tag">LIVE PRICE · READ FROM BROKER SCREEN</div><div id="pair" class="pair">UNKNOWN</div><div id="tf" class="tf">UNKNOWN</div><div class="price-label">BROKER PRICE</div><div id="price" class="price">—</div><div id="age" class="price-meta">รอภาพจาก APK Broker Vision</div></section>
-<section class="panel chart-panel"><div class="chart-heading"><span>LIVE M1 CANDLES · OHLC จากราคา APK จริง</span><b id="chartLive">WAITING</b></div><div class="chart-viewport"><canvas id="priceChart" role="img" aria-label="กราฟแท่งเทียน M1 ที่สร้างจากราคาจริงซึ่ง APK จับได้"></canvas><div id="chartPlaceholder" class="chart-placeholder">รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1</div></div></section>
+<section class="panel chart-panel"><div class="chart-heading"><span>LIVE M1 CANDLES · OHLC จากราคา APK จริง</span><div class="chart-controls"><b id="chartLive">WAITING</b><button id="zoomOut" type="button" aria-label="ซูมออก">−</button><button id="zoomIn" type="button" aria-label="ซูมเข้า">+</button><button id="chartReset" type="button" aria-label="รีเซ็ตกราฟ">↺</button></div></div><div class="chart-viewport"><canvas id="priceChart" role="img" aria-label="กราฟแท่งเทียน M1 ที่สร้างจากราคาจริงซึ่ง APK จับได้"></canvas><div id="chartPlaceholder" class="chart-placeholder">รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1</div></div></section>
 <button id="alerts" class="alert-enable" type="button">เปิดเสียง + สั่นแจ้งเตือน</button>
 <section class="panel signal-panel"><div class="signal-label">CURRENT M1 CYCLE · APK OPEN + CANDLE STRUCTURE</div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">เปิด APK และเริ่มจับภาพหน้าจอโบรกเกอร์เพื่อรับสัญญาณ</div></section>
 <section class="metrics">
@@ -42,6 +42,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <div class="detail"><span>เป้าหมาย</span><b id="target">แท่งถัดไป</b></div>
 <div class="detail"><span>จำนวนแท่งที่เทียบราคาได้</span><b id="sampleCount">—</b></div>
 <div class="detail"><span>สถานะอ่านราคาจาก APK</span><b id="ocrStatus">—</b></div>
+<div class="detail"><span>EMA 5</span><b id="ema5">—</b></div>
+<div class="detail"><span>EMA 20</span><b id="ema20">—</b></div>
 <div class="detail"><span>เงื่อนไขสัญญาณ</span><b id="conditions">—</b></div>
 <div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
 </section>
@@ -53,23 +55,31 @@ const $=id=>document.getElementById(id),tg=window.Telegram?.WebApp;
 try{tg?.ready?.();tg?.expand?.();}catch{}
 const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
 let alertsEnabled=false,audioContext=null,lastAlertKey="";
-let latchedSignal="",latchedCycle="",lastSignalKey="";
+let latchedSignal="",latchedCycle="",lastSignalKey="",signalHoldUntil=0;
 let countdownDeadline=0,countdownCycle="",lastChartFrame="",lastFrameFresh=false;
 const priceChart=$("priceChart");
+const chartView={zoom:1,panX:0,panY:0};
+const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 function drawPriceChart(d){
- const candles=(Array.isArray(d.priceCandles)?d.priceCandles:[]).filter(c=>
+ const all=(Array.isArray(d.priceCandles)?d.priceCandles:[]).filter(c=>
   [c.open,c.high,c.low,c.close].every(v=>Number.isFinite(Number(v)))&&Number(c.high)>=Number(c.low)&&Number(c.high)>0
- ).slice(-18);
+ ).slice(-100);
  const rect=priceChart.getBoundingClientRect(),w=Math.max(280,rect.width),h=Math.max(180,rect.height),ratio=Math.max(1,window.devicePixelRatio||1);
  priceChart.width=Math.round(w*ratio);priceChart.height=Math.round(h*ratio);
  const ctx=priceChart.getContext("2d");ctx.setTransform(ratio,0,0,ratio,0,0);
  ctx.clearRect(0,0,w,h);ctx.fillStyle="#050a10";ctx.fillRect(0,0,w,h);
- if(!candles.length){$("chartPlaceholder").hidden=false;$("chartPlaceholder").textContent="รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1";$("chartLive").textContent=d.lastFrameAt?"NO PRICE CANDLES":"WAITING";return;}
+ if(!all.length){$("chartPlaceholder").hidden=false;$("chartPlaceholder").textContent="รอราคาจริงจาก APK เพื่อสร้างแท่งเทียน M1";$("chartLive").textContent=d.lastFrameAt?"NO PRICE CANDLES":"WAITING";return;}
  $("chartPlaceholder").hidden=true;$("chartLive").textContent=lastFrameFresh?"LIVE · APK OHLC":"STALE";
  const left=58,right=58,top=12,bottom=24,pw=w-left-right,ph=h-top-bottom;
+ const visibleCount=clamp(Math.round(20/chartView.zoom),5,Math.max(5,all.length));
+ const endIndex=clamp(all.length-Math.round(chartView.panX),Math.min(visibleCount,all.length),all.length);
+ const startIndex=Math.max(0,endIndex-visibleCount);
+ const candles=all.slice(startIndex,endIndex);
  let lo=Math.min(...candles.map(c=>Number(c.low))),hi=Math.max(...candles.map(c=>Number(c.high)));
  if(!(hi>lo)){const pad=Math.max(Math.abs(hi)*.00001,.000001);lo-=pad;hi+=pad;}
- const pad=(hi-lo)*.045;lo-=pad;hi+=pad;
+ const baseRange=(hi-lo)*1.09,mid=(hi+lo)/2,range=baseRange/chartView.zoom;
+ const shift=chartView.panY*range/Math.max(1,ph);
+ lo=mid-range/2-shift;hi=mid+range/2-shift;
  const y=v=>top+(hi-Number(v))/(hi-lo)*ph;
  ctx.font="9px system-ui";ctx.textBaseline="middle";
  for(let i=0;i<=4;i++){
@@ -77,7 +87,7 @@ function drawPriceChart(d){
   ctx.strokeStyle="#1b2d3a";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(left,gy);ctx.lineTo(w-right,gy);ctx.stroke();
   ctx.fillStyle="#8fa8b8";ctx.textAlign="right";ctx.fillText(price.toFixed(Math.min(8,Math.max(3,Number(d.pricePrecision)||5))),left-7,gy);
  }
- const slot=pw/candles.length,bodyW=Math.max(3,Math.min(16,slot*.78));
+ const slot=pw/candles.length,bodyW=Math.max(3,Math.min(18,slot*.78));
  candles.forEach((c,i)=>{
   const x=left+slot*(i+.5),o=y(c.open),cl=y(c.close),hiY=y(c.high),loY=y(c.low),up=Number(c.close)>=Number(c.open);
   const color=up?"#35dfa0":"#ff6478";
@@ -97,6 +107,30 @@ function drawPriceChart(d){
  ctx.font="bold 9px system-ui";ctx.fillText(markerText,w-right/2+2,Math.max(top+9,Math.min(top+ph-9,lastY)));
 }
 function updateBrokerChart(d){drawPriceChart(d);}
+$("zoomIn").addEventListener("click",()=>{chartView.zoom=clamp(chartView.zoom*1.25,.5,4);drawPriceChart(window.__lastVisionData||{});});
+$("zoomOut").addEventListener("click",()=>{chartView.zoom=clamp(chartView.zoom/1.25,.5,4);drawPriceChart(window.__lastVisionData||{});});
+$("chartReset").addEventListener("click",()=>{chartView.zoom=1;chartView.panX=0;chartView.panY=0;drawPriceChart(window.__lastVisionData||{});});
+const activePointers=new Map();let pinchStart=null,dragStart=null;
+priceChart.addEventListener("pointerdown",event=>{
+ event.preventDefault();priceChart.setPointerCapture(event.pointerId);activePointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+ if(activePointers.size===2){const pts=[...activePointers.values()];pinchStart={distance:Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y),zoom:chartView.zoom};dragStart=null;}
+ else dragStart={id:event.pointerId,x:event.clientX,y:event.clientY,panX:chartView.panX,panY:chartView.panY};
+});
+priceChart.addEventListener("pointermove",event=>{
+ if(!activePointers.has(event.pointerId))return;
+ activePointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+ if(activePointers.size>=2&&pinchStart){
+  const pts=[...activePointers.values()],distance=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y);
+  chartView.zoom=clamp(pinchStart.zoom*distance/Math.max(1,pinchStart.distance),.5,4);
+ }else if(dragStart&&dragStart.id===event.pointerId){
+  const slot=Math.max(8,(priceChart.clientWidth-116)/Math.max(5,Math.round(20/chartView.zoom)));
+  chartView.panX=clamp(dragStart.panX+(event.clientX-dragStart.x)/slot,0,95);
+  chartView.panY=clamp(dragStart.panY+(event.clientY-dragStart.y)*1.1,-180,180);
+ }
+ drawPriceChart(window.__lastVisionData||{});
+});
+function finishPointer(event){activePointers.delete(event.pointerId);if(activePointers.size<2)pinchStart=null;if(!activePointers.size)dragStart=null;}
+priceChart.addEventListener("pointerup",finishPointer);priceChart.addEventListener("pointercancel",finishPointer);priceChart.addEventListener("lostpointercapture",finishPointer);
 window.addEventListener("resize",()=>{if(window.__lastVisionData)drawPriceChart(window.__lastVisionData);});
 function updateCountdownDisplay(){
  if(!countdownDeadline){$("countdown").textContent="—";return;}
@@ -119,7 +153,7 @@ function beep(freq,duration,delay=0){
 function alertPhase(phase,signal,cycle){
  const key=String(cycle)+":"+phase+":"+signal;
  if(key===lastAlertKey)return;
- if(phase!=="ACTIVE"||!["CALL","PUT"].includes(signal))return;
+ if(phase!=="ORDER"||!["CALL","PUT"].includes(signal))return;
  if(!alertsEnabled||key===lastAlertKey)return;
  lastAlertKey=key;
  const call=signal==="CALL",put=signal==="PUT";
@@ -143,20 +177,20 @@ function paint(d){
  const phase=trustedPrediction?(a.phase||d.phase||"WAITING"):"WAITING";
  const cycleKey=String(a.cycleId??d.cycleId??"unknown");
  if(cycleKey!==latchedCycle){latchedCycle=cycleKey;latchedSignal="";lastSignalKey="";}
- const signal=trustedPrediction&&phase==="ACTIVE"&&["CALL","PUT"].includes(a.signal)?a.signal:"WAIT";
+ const signal=trustedPrediction&&phase==="ORDER"&&["CALL","PUT"].includes(a.signal)?a.signal:"WAIT";
  alertPhase(phase,signal,cycleKey);
  const secondsRemaining=Number(a.secondsToNextCandle??d.secondsToNextCandle);
  if(frameFresh&&Number.isFinite(secondsRemaining)){
   if(cycleKey!==countdownCycle){countdownCycle=cycleKey;countdownDeadline=Date.now()+Math.max(0,secondsRemaining)*1000;}
  }else if(!frameFresh){countdownDeadline=0;countdownCycle="";}
  updateCountdownDisplay();
- if(frameFresh&&phase==="ACTIVE"&&(signal==="CALL"||signal==="PUT")){
+ if(frameFresh&&phase==="ORDER"&&(signal==="CALL"||signal==="PUT")){
   const signalKey=cycleKey+":"+signal;
-  if(signalKey!==lastSignalKey){lastSignalKey=signalKey;latchedSignal=signal;}
+  if(signalKey!==lastSignalKey){lastSignalKey=signalKey;latchedSignal=signal;signalHoldUntil=Date.now()+20000;}
  }
- if(!frameFresh||phase!=="ACTIVE")latchedSignal="";
- const holdActive=!!latchedSignal&&latchedCycle===cycleKey&&frameFresh&&phase==="ACTIVE";
- const displaySignal=holdActive?latchedSignal:signal;
+ const holdActive=!!latchedSignal&&Date.now()<signalHoldUntil;
+ if(!holdActive){latchedSignal="";signalHoldUntil=0;}
+ const displaySignal=holdActive?latchedSignal:phase==="WATCH"?"WATCH":"WAIT";
  $("api").className="api "+(frameFresh?"live":online?"":"off");
  $("api").textContent=frameFresh?"APK LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
@@ -165,9 +199,9 @@ function paint(d){
  $("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
  $("signal").className="signal "+(displaySignal==="CALL"?"call":displaySignal==="PUT"?"put":displaySignal==="WATCH"?"watch":"wait");
  $("signal").textContent=displaySignal;
- $("signalHold").textContent=holdActive?"ค้างจนจบรอบวินาที 55":"ปิดแล้ว";
+ $("signalHold").textContent=holdActive?"ค้างอีก "+Math.ceil((signalHoldUntil-Date.now())/1000)+" วินาที":"ปิดแล้ว";
  $("reason").textContent=holdActive?"คงไฟ "+(displaySignal==="CALL"?"เขียว CALL":"แดง PUT")+" ไว้ภายในรอบแท่งนี้":trustedPrediction?(a.reason||p.reason||"รอข้อมูลแท่งเทียน"):a.reason||d.error||"รอภาพจากโบรกเกอร์";
- $("phase").textContent=phase==="ACTIVE"?"คำนวณเทียบ Open · วินาที 00–55":phase==="CUTOFF"?"ปิดรอบแล้ว · รอแท่งใหม่":"รอข้อมูลราคา";
+ $("phase").textContent=phase==="WATCH"?"เฝ้าระวัง · วินาที 50–54":phase==="ORDER"?"ประเมิน EMA5/EMA20 · วินาที 55–59":"รอช่วงประเมิน · วินาที 00–49";
  updateCountdownDisplay();
  $("calibrated").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
  $("confidence").textContent=trustedPrediction?(p.confidence||a.confidence||"LOW"):"—";
@@ -177,8 +211,10 @@ function paint(d){
  $("sampleCount").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
  const diag=d.priceDiagnostics||{};
  $("ocrStatus").textContent=diag.priceReadStatus||"รอข้อมูล";
- $("target").textContent=trustedPrediction?(phase==="ACTIVE"?"สัญญาณของแท่ง M1 รอบปัจจุบัน":phase==="CUTOFF"?"รอแท่ง M1 รอบใหม่":"รอข้อมูล"):"รอข้อมูล";
- $("conditions").textContent=signal==="CALL"||signal==="PUT"?"ราคาเทียบ Open ยืนยัน "+signal+" · "+(p.confidence||"MEDIUM"):phase==="CUTOFF"?"หมดเวลาสัญญาณของแท่งนี้":"กำลังเทียบราคาปัจจุบันกับ Open";
+ $("target").textContent=trustedPrediction?(phase==="ORDER"?"คาดการณ์แท่ง M1 ถัดไป":phase==="WATCH"?"เตรียมประเมินแท่งถัดไป":"รอรอบเวลา 50–59"):"รอข้อมูล";
+ $("ema5").textContent=trustedPrediction?fmt(p.ema5,precision):"—";
+ $("ema20").textContent=trustedPrediction?fmt(p.ema20,precision):"—";
+ $("conditions").textContent=signal==="CALL"||signal==="PUT"?"EMA5/EMA20 ยืนยัน "+signal+" · "+(p.setup||"EMA TREND"):phase==="WATCH"?"รอประเมิน ยังไม่สรุป CALL/PUT":"ใช้ EMA5 และ EMA20 จาก OHLC ราคา APK";
  $("receivedAt").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleTimeString("th-TH"):"—";
  $("updated").textContent=new Date().toLocaleTimeString("th-TH");
 }
