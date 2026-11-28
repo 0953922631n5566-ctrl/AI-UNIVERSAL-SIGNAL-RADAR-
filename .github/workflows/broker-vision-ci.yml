@@ -2,7 +2,7 @@ name: Broker Vision CI
 
 on:
   push:
-    branches: [fix/broker-vision-e2e-20261128]
+    branches: [feature/universal-broker-vision-android-20261128]
     paths:
       - 'broker-vision/**'
       - '.github/workflows/broker-vision-ci.yml'
