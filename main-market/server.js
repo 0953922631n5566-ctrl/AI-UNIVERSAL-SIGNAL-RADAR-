@@ -910,10 +910,69 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 });
 
 
+
+app.get("/api/vision/miniapp", async (_req, res) => {
+  noCache(res);
+  const base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com").replace(/\\/$/, "");
+  try {
+    const upstream = await fetch(base + "/api/vision/public", {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000)
+    });
+    if (!upstream.ok) throw new Error("Vision API HTTP " + upstream.status);
+    const data = await upstream.json();
+    const analysis = data.analysis || {};
+    const receivedAt = data.lastFrameAt || null;
+    const ageSeconds = receivedAt ? Math.max(0, (Date.now() - Date.parse(receivedAt)) / 1000) : null;
+    const fresh = Number.isFinite(ageSeconds) && ageSeconds <= 10;
+    const signal = fresh && ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
+    res.json({
+      ok: true,
+      service: "universal-broker-vision",
+      connected: true,
+      receivedFrames: Number(data.receivedFrames || 0),
+      lastFrameAt: receivedAt,
+      frameAgeSeconds: Number.isFinite(ageSeconds) ? Math.round(ageSeconds * 10) / 10 : null,
+      symbol: data.symbol || "UNKNOWN",
+      timeframe: data.timeframe || "UNKNOWN",
+      price: Number.isFinite(Number(data.price)) ? Number(data.price) : null,
+      candleCount: Number(data.candleCount || 0),
+      analysis: {
+        signal,
+        status: fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
+        reason: fresh ? (analysis.reason || "รอการวิเคราะห์ภาพ") : "ภาพจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
+        quality: Number(analysis.quality || 0),
+        confidence: Number(analysis.confidence || 0),
+        priceChange: Number.isFinite(Number(analysis.priceChange)) ? Number(analysis.priceChange) : null,
+        directionalConsistency: Number(analysis.directionalConsistency || 0),
+        completedCandleCount: Number(analysis.completedCandleCount || 0),
+        priceAxisCalibrated: analysis.priceAxisCalibrated === true,
+        candlePriceLevels: Array.isArray(analysis.candlePriceLevels) ? analysis.candlePriceLevels.slice(-5) : [],
+        analyzedAt: analysis.analyzedAt || null,
+        note: analysis.note || "คะแนนเป็นผลจากกฎวิเคราะห์ภาพ ไม่ใช่ความน่าจะเป็นหรืออัตราชนะ"
+      },
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      service: "universal-broker-vision",
+      connected: false,
+      symbol: "UNKNOWN",
+      timeframe: "UNKNOWN",
+      price: null,
+      analysis: { signal: "WAIT", status: "VISION_OFFLINE", reason: "เชื่อมต่อ Vision API ไม่สำเร็จ · หยุดสัญญาณเพื่อความปลอดภัย" },
+      error: error.message || "Vision API unavailable",
+      updatedAt: new Date().toISOString()
+    });
+  }
+});
+
 app.get("/candle-lab", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 
 // The Telegram Mini App serves the indicator-free custom candle-lines M1 system.
-app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "signal.html")); });
+app.get("/signal", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "vision-signal.html")); });
 app.get("/signal-next", (_req, res) => { noCache(res); res.sendFile(path.join(APP_DIR, "public", "candle-lab.html")); });
 app.get("/signal-legacy", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
 app.get("/", (_req, res) => { noCache(res); res.redirect(302, "/signal"); });
