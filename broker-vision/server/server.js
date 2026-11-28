@@ -50,15 +50,16 @@ function makeAnalysis() {
   const trend = summarize(recent.filter(x => finite(x.price)));
   const candleCount = candles.length;
   const quality = clamp(Math.round((readable?40:0) + Math.min(candleCount,8)*5 + (last.ocr?.length?10:0)),0,100);
-  if (!readable || candleCount < 3 || quality < 60) {
-    return { signal:"WAIT", status:"INSUFFICIENT_VISUAL_DATA", reason:"ข้อมูลภาพยังไม่ครบ: ต้องอ่านราคาและแท่งเทียนได้ชัดเจน", quality, price:readable?price:null, candleCount, analyzedAt:new Date().toISOString() };
+  const completedCandles = candles.length>1 ? candles.slice(0,-1) : [];
+  if (!readable || completedCandles.length < 3 || quality < 60) {
+    return { signal:"WAIT", status:"INSUFFICIENT_VISUAL_DATA", reason:"ข้อมูลภาพยังไม่ครบ: ต้องอ่านราคาและแท่งเทียนที่ปิดแล้วได้ชัดเจน", quality, price:readable?price:null, candleCount, completedCandleCount:completedCandles.length, analyzedAt:new Date().toISOString() };
   }
-  const bodies = candles.slice(-5).map(c => Number(c.closeY)-Number(c.openY)).filter(finite);
+  const bodies = completedCandles.slice(-5).map(c => Number(c.closeY)-Number(c.openY)).filter(finite);
   const bodyBias = bodies.reduce((a,b)=>a+b,0);
   const candleDirection = bodyBias < -1 ? "CALL" : bodyBias > 1 ? "PUT" : "WAIT";
   const agree = trend.direction === candleDirection && trend.direction !== "WAIT";
   const signal = agree ? trend.direction : "WAIT";
-  return { signal, status:"ANALYZED", price, candleCount, quality,
+  return { signal, status:"ANALYZED", price, candleCount, completedCandleCount:completedCandles.length, quality,
     confidence:signal==="WAIT"?Math.min(trend.confidence,45):Math.min(85,Math.round((trend.confidence+quality)/2)),
     reason:signal==="WAIT"?"ราคาและรูปทรงแท่งเทียนยังไม่ยืนยันไปในทิศทางเดียวกัน":`ราคาและแท่งเทียนยืนยัน ${signal} ตรงกัน`,
     priceMomentum:trend, candleBias:candleDirection, analyzedAt:new Date().toISOString(),
