@@ -939,22 +939,19 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       symbol: data.symbol || "UNKNOWN",
       timeframe: data.timeframe || "UNKNOWN",
       price: data.price !== null && data.price !== undefined && Number.isFinite(Number(data.price)) ? Number(data.price) : null,
+      pricePrecision: Number.isInteger(Number(data.pricePrecision)) ? Number(data.pricePrecision) : null,
       candleCount: Number(data.candleCount || 0),
       analysis: {
         signal,
         status: !receivedAt ? "NO_DATA" : fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
-        reason: !receivedAt ? "ยังไม่ได้รับภาพจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : fresh ? (analysis.reason || "รอการวิเคราะห์ภาพ") : "ภาพจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
-        quality: Number(analysis.quality || 0),
-        score: Number(analysis.score ?? analysis.confidence ?? 0),
-        scoreThreshold: Number(analysis.scoreThreshold ?? 40),
-        confidence: Number(analysis.confidence || 0),
-        priceChange: Number.isFinite(Number(analysis.priceChange)) ? Number(analysis.priceChange) : null,
-        directionalConsistency: Number(analysis.directionalConsistency || 0),
-        completedCandleCount: Number(analysis.completedCandleCount || 0),
-        priceAxisCalibrated: analysis.priceAxisCalibrated === true,
-        candlePriceLevels: Array.isArray(analysis.candlePriceLevels) ? analysis.candlePriceLevels.slice(-5) : [],
+        reason: !receivedAt ? "ยังไม่ได้รับราคาจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : fresh ? (analysis.reason || "รอการอ่านราคา") : "ข้อมูลราคาจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
+        priceSamples: Number(analysis.priceSamples || 0),
+        priceChange: Number.isFinite(Number(analysis.priceMomentum?.priceChange)) ? Number(analysis.priceMomentum.priceChange) : null,
+        directionalConsistency: Number(analysis.priceMomentum?.directionalConsistency || 0),
+        tickSize: Number.isFinite(Number(analysis.priceMomentum?.tickSize)) ? Number(analysis.priceMomentum.tickSize) : null,
+        signalConditions: analysis.signalConditions || null,
         analyzedAt: analysis.analyzedAt || null,
-        note: analysis.note || "คะแนนเป็นผลจากกฎวิเคราะห์ภาพ ไม่ใช่ความน่าจะเป็นหรืออัตราชนะ"
+        note: analysis.note || "วิเคราะห์จากราคาที่อ่านได้จาก APK เท่านั้น · ไม่มี Twelve Data"
       },
       updatedAt: new Date().toISOString()
     });
