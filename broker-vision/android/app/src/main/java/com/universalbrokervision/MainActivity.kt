@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.net.Uri
+import android.provider.Settings
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -12,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
  private val captureRequest=4107
+ private val overlayPermissionRequest=4108
  private lateinit var endpoint:EditText
  private lateinit var status:TextView
  private val prefs by lazy { getSharedPreferences("vision",Context.MODE_PRIVATE) }
@@ -19,7 +22,8 @@ class MainActivity : AppCompatActivity() {
   val pad=(18*resources.displayMetrics.density).toInt()
   val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(pad,pad,pad,pad) }
   root.addView(TextView(this).apply { text="BROKER VISION AI";textSize=24f })
-  root.addView(TextView(this).apply { text="จับภาพหน้าจอเพื่ออ่านป้ายราคาและแท่งเทียน" })
+  root.addView(TextView(this).apply { text="จับภาพหน้าจอเพื่ออ่านราคาสดจากกรอบลอยที่คุณกำหนดเอง" })
+  root.addView(TextView(this).apply { text="หลังเริ่มระบบ ให้ลากกรอบสีเขียวครอบป้ายราคาสด และลากมุมขวาล่างเพื่อปรับขนาด" })
   endpoint=EditText(this).apply { hint="https://your-vision-api.onrender.com";setText(prefs.getString("endpoint","https://universal-broker-vision-api.onrender.com")) }
   root.addView(endpoint)
   status=TextView(this).apply { text="พร้อมเริ่ม · ต้องอนุญาตการจับภาพหน้าจอ" };root.addView(status)
@@ -29,6 +33,12 @@ class MainActivity : AppCompatActivity() {
   setContentView(root)
  }
  private fun beginCapture() {
+  if(!Settings.canDrawOverlays(this)) {
+   status.text="กรุณาอนุญาตให้ APK แสดงกรอบลอย แล้วกลับมากดเริ่มอีกครั้ง"
+   val permissionIntent=Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName"))
+   startActivityForResult(permissionIntent,overlayPermissionRequest)
+   return
+  }
   val url=endpoint.text.toString().trim().trimEnd('/')
   if(!url.startsWith("https://")){status.text="กรุณาตรวจสอบ HTTPS API URL";return}
   prefs.edit().putString("endpoint",url).apply()
@@ -59,6 +69,10 @@ class MainActivity : AppCompatActivity() {
  }
  @Deprecated("MediaProjection consent result")
  override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) { super.onActivityResult(requestCode,resultCode,data)
+  if(requestCode==overlayPermissionRequest) {
+   if(Settings.canDrawOverlays(this)) beginCapture() else status.text="ยังไม่ได้อนุญาตให้แสดงกรอบลอย"
+   return
+  }
   if(requestCode!=captureRequest)return
   if(resultCode!=Activity.RESULT_OK||data==null){status.text="ไม่ได้อนุญาตการจับภาพ";return}
   val service=Intent(this,CaptureService::class.java).apply {
