@@ -45,7 +45,8 @@ test("M1 cycle is active from second 00 through second 55 and cuts off at 56",()
 });
 
 test("current M1 price is compared against the actual APK candle Open",()=>{
- assert.deepEqual(evaluateOpenBias({open:1.10000,price:1.10002,precision:5}),{direction:"CALL",delta:0.000020000000000131024,tickSize:0.00001});
+ const up=evaluateOpenBias({open:1.10000,price:1.10002,precision:5});
+ assert.equal(up.direction,"CALL");assert.ok(Math.abs(up.delta-0.00002)<1e-10);assert.ok(Math.abs(up.tickSize-0.00001)<1e-10);
  assert.equal(evaluateOpenBias({open:1.10000,price:1.09998,precision:5}).direction,"PUT");
  assert.equal(evaluateOpenBias({open:1.10000,price:1.10000,precision:5}).direction,"WAIT");
 });
