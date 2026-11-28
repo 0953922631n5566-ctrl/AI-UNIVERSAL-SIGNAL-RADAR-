@@ -36,7 +36,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 <div class="detail"><span>สถานะการวิเคราะห์</span><b id="analysisStatus">WAITING</b></div>
 <div class="detail"><span>ช่วงทำงาน</span><b id="phase">รอช่วงเฝ้าระวัง</b></div>
 <div class="detail"><span>ไฟสัญญาณค้าง</span><b id="signalHold">ปิดแล้ว</b></div>
-<div class="detail"><span>นับถอยหลังแท่งถัดไป</span><b id="countdown">—</b></div>
+<div class="detail"><span>เวลาที่เหลือของแท่ง M1 ปัจจุบัน</span><b id="countdown">—</b></div>
 <div class="detail"><span>เป้าหมาย</span><b id="target">แท่งถัดไป</b></div>
 <div class="detail"><span>จำนวนแท่งที่เทียบราคาได้</span><b id="sampleCount">—</b></div>
 <div class="detail"><span>สถานะอ่านราคาจาก APK</span><b id="ocrStatus">—</b></div>
@@ -52,6 +52,11 @@ try{tg?.ready?.();tg?.expand?.();}catch{}
 const fmt=(v,n=6)=>v!==null&&v!==undefined&&Number.isFinite(Number(v))?Number(v).toFixed(n):"—";
 let alertsEnabled=false,audioContext=null,lastAlertKey="";
 let latchedSignal="",latchedUntil=0,lastSignalKey="";
+let countdownDeadline=0,countdownCycle="";
+function updateCountdownDisplay(){
+ if(!countdownDeadline){$("countdown").textContent="—";return;}
+ $("countdown").textContent=Math.max(0,Math.ceil((countdownDeadline-Date.now())/1000))+" วินาที";
+}
 function beep(freq,duration,delay=0){
  if(!alertsEnabled)return;
  try{
@@ -95,6 +100,11 @@ function paint(d){
  const signal=trustedPrediction&&["CALL","PUT","WATCH"].includes(a.signal)?a.signal:"WAIT";
  alertPhase(phase,signal,a.cycleId??d.cycleId??"unknown");
  const cycleKey=String(a.cycleId??d.cycleId??"unknown");
+ const secondsRemaining=Number(a.secondsToNextCandle??d.secondsToNextCandle);
+ if(frameFresh&&Number.isFinite(secondsRemaining)){
+  if(cycleKey!==countdownCycle){countdownCycle=cycleKey;countdownDeadline=Date.now()+Math.max(0,secondsRemaining)*1000;}
+ }else if(!frameFresh){countdownDeadline=0;countdownCycle="";}
+ updateCountdownDisplay();
  if(frameFresh&&(signal==="CALL"||signal==="PUT")){
   const signalKey=cycleKey+":"+signal;
   if(signalKey!==lastSignalKey){lastSignalKey=signalKey;latchedSignal=signal;latchedUntil=Date.now()+30000;}
@@ -113,7 +123,7 @@ function paint(d){
  $("signalHold").textContent=holdActive?"ค้าง "+Math.ceil((latchedUntil-Date.now())/1000)+" วินาที":"ปิดแล้ว";
  $("reason").textContent=holdActive?"คงไฟ "+(displaySignal==="CALL"?"เขียว CALL":"แดง PUT")+" ไว้จนครบ 30 วินาที":trustedPrediction?(a.reason||p.reason||"รอข้อมูลแท่งเทียน"):a.reason||d.error||"รอภาพจากโบรกเกอร์";
  $("phase").textContent=phase==="WATCH"?"เฝ้าระวัง · 10 วินาทีสุดท้าย":phase==="ORDER_WINDOW"?"วิเคราะห์/เข้าแท่งถัดไป · 5 วินาทีสุดท้าย":"รอรอบถัดไป";
- $("countdown").textContent=Number.isFinite(Number(a.secondsToNextCandle??d.secondsToNextCandle))?Math.max(0,Number(a.secondsToNextCandle??d.secondsToNextCandle))+" วินาที":"—";
+ updateCountdownDisplay();
  $("calibrated").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
  $("confidence").textContent=trustedPrediction?(p.confidence||a.confidence||"LOW"):"—";
  $("frames").textContent=Number(d.receivedFrames||0);
@@ -134,5 +144,5 @@ async function refresh(){if(busy||document.visibilityState==="hidden")return;bus
  paint(d);
  }catch(e){paint({connected:false,analysis:{signal:"WAIT",status:"VISION_OFFLINE",reason:"เชื่อมต่อ Vision API ไม่ได้ · "+(e.message||"กรุณาตรวจ APK และอินเทอร์เน็ต")}});}
  finally{busy=false;}}
-refresh();setInterval(refresh,1500);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});
+refresh();setInterval(refresh,1500);setInterval(updateCountdownDisplay,250);document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")refresh();});
 </script></body></html>
