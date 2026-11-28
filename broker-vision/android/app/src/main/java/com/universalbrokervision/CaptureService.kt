@@ -135,11 +135,55 @@ class CaptureService:Service() {
      else->"UNKNOWN"
     }
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",capturedAt)
-      .put("ocrLatencyMs",(System.currentTimeMillis()-capturedAt).coerceAtLeast(0L))
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
      .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectedCandles)
      .put("chart",JSONObject().put("capture","full-screen"))
-    upload(payload,bitmap);bitmap.recycle()
+    fun submitPrice(hit:PriceHit?){
+     payload.put("price",hit?.value).put("pricePrecision",hit?.precision?:0)
+      .put("ocrLatencyMs",(System.currentTimeMillis()-capturedAt).coerceAtLeast(0L))
+     if(hit!=null&&axisPrices.length()==0)
+      axisPrices.put(JSONObject().put("price",hit.value).put("y",hit.y))
+     upload(payload,bitmap);bitmap.recycle()
+    }
+    if(selectedPrice!=null){
+     submitPrice(selectedPrice)
+    }else{
+     // Retry only the chart's right edge at higher resolution when full-screen OCR misses the live-price badge.
+     try{
+      val cropLeft=(bitmap.width*.60f).toInt().coerceAtLeast(0)
+      val cropTop=(bitmap.height*.08f).toInt().coerceAtLeast(0)
+      val cropWidth=(bitmap.width-cropLeft).coerceAtLeast(1)
+      val cropHeight=(bitmap.height*.84f).toInt().coerceAtMost(bitmap.height-cropTop).coerceAtLeast(1)
+      val crop=Bitmap.createBitmap(bitmap,cropLeft,cropTop,cropWidth,cropHeight)
+      val scale=1.6f
+      val scaled=Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true)
+      if(scaled!==crop)crop.recycle()
+      recognizer.process(InputImage.fromBitmap(scaled,0)).addOnSuccessListener{retryResult->
+       val retryHits=retryResult.textBlocks.flatMap{it.lines}.mapNotNull{line->
+        val box=line.boundingBox?:return@mapNotNull null
+        val raw=line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")
+        val match=pricePattern.findAll(raw).lastOrNull()?:return@mapNotNull null
+        val value=(match.groupValues[1]+"."+match.groupValues[2]).toDoubleOrNull()?:return@mapNotNull null
+        val absLeft=cropLeft+(box.left/scale).toInt()
+        val absTop=cropTop+(box.top/scale).toInt()
+        val absRight=cropLeft+(box.right/scale).toInt()
+        val absBottom=cropTop+(box.bottom/scale).toInt()
+        if(absLeft<bitmap.width*.70f||value<=0)return@mapNotNull null
+        if(ocr.length()<100)ocr.put(JSONObject().put("text",line.text).put("left",absLeft).put("top",absTop).put("right",absRight).put("bottom",absBottom))
+        PriceHit(value,absLeft,absRight-absLeft,match.groupValues[2].length,(absTop+absBottom)/2f)
+       }
+       val retryPrice=if(latestCloseY!=null&&retryHits.isNotEmpty())retryHits.minByOrNull{kotlin.math.abs(it.y-latestCloseY)}
+        else retryHits.maxByOrNull{it.left+it.width}
+       scaled.recycle()
+       submitPrice(retryPrice)
+      }.addOnFailureListener{
+       scaled.recycle();submitPrice(null)
+      }
+     }catch(e:Exception){
+      android.util.Log.w("BrokerVision","Focused price OCR retry failed: ${e.message}")
+      submitPrice(null)
+     }
+    }
    }.addOnFailureListener{bitmap.recycle();busy.set(false)}
   }catch(e:Exception){try{image.close()}catch(_:Exception){};busy.set(false)}
  }
