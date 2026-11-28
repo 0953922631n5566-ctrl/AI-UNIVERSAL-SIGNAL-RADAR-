@@ -968,6 +968,9 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       price: data.price !== null && data.price !== undefined && Number.isFinite(Number(data.price)) ? Number(data.price) : null,
       pricePrecision: Number.isInteger(Number(data.pricePrecision)) ? Number(data.pricePrecision) : null,
       candleCount: Number(data.candleCount || 0),
+      priceCandleCount: Number(data.priceCandleCount || data.candleCount || 0),
+      priceCandles: Array.isArray(data.priceCandles) ? data.priceCandles : (Array.isArray(analysis.priceCandles) ? analysis.priceCandles : []),
+      chartSource: data.chartSource || analysis.chartSource || "APK_CAPTURED_PRICE_OHLC",
       priceDiagnostics: data.priceDiagnostics || null,
       analysis: {
         signal,
