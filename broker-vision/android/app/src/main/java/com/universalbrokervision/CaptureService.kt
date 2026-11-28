@@ -71,7 +71,7 @@ class CaptureService:Service() {
    recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
     val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
      val box=line.boundingBox
-     box!=null && box.left>bitmap.width*.08f && box.right<bitmap.width*.90f &&
+     box!=null && box.left>bitmap.width*.08f && box.right<bitmap.width*.93f &&
       box.top>bitmap.height*.10f && box.bottom<bitmap.height*.92f
     }
     val ocr=JSONArray()
