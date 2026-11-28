@@ -30,3 +30,9 @@ test("fails closed when the APK price is unreadable", () => {
   assert.equal(result.signal,"WAIT");
   assert.equal(result.status,"PRICE_UNREADABLE");
 });
+
+test("uses APK candle geometry even when OCR price axis is unavailable", () => {
+  const result = predictNextCandle({ candles:Array.from({length:5},up), axisPrices:[{price:1.9,y:200}], price:1.9 });
+  assert.equal(result.signal,"CALL");
+  assert.equal(result.calibration,"APK_CANDLE_PIXEL_GEOMETRY");
+});
