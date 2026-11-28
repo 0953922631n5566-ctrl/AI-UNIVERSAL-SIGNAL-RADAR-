@@ -33,11 +33,11 @@ class CaptureService:Service() {
   const val EXTRA_ENDPOINT="endpoint";const val EXTRA_TOKEN="token"
   private const val CHANNEL="broker_vision_capture";private const val NOTIFICATION_ID=901
   // Target a sub-second capture cadence; actual throughput is bounded by OCR and device load.
-  private const val CAPTURE_INTERVAL_MS=350L
+  private const val CAPTURE_INTERVAL_MS=150L
  }
  private var projection:MediaProjection?=null;private var display:VirtualDisplay?=null;private var reader:ImageReader?=null
  private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
- private var lastAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
+ private var lastAt=0L;private var lastImageUploadAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
  private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
  override fun onBind(intent:Intent?):IBinder?=null
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
@@ -62,14 +62,15 @@ class CaptureService:Service() {
   reader=ImageReader.newInstance(metrics.widthPixels,metrics.heightPixels,PixelFormat.RGBA_8888,3)
   reader?.setOnImageAvailableListener({src->
    val image=src.acquireLatestImage()?:return@setOnImageAvailableListener
-   if(System.currentTimeMillis()-lastAt<CAPTURE_INTERVAL_MS||!busy.compareAndSet(false,true)){image.close();return@setOnImageAvailableListener}
-   lastAt=System.currentTimeMillis();process(image)
+   val capturedAt=System.currentTimeMillis()
+   if(capturedAt-lastAt<CAPTURE_INTERVAL_MS||!busy.compareAndSet(false,true)){image.close();return@setOnImageAvailableListener}
+   lastAt=capturedAt;process(image,capturedAt)
   },handler)
   projection?.registerCallback(object:MediaProjection.Callback(){override fun onStop(){stopSelf()}},handler)
   display=projection?.createVirtualDisplay("BrokerVisionDisplay",metrics.widthPixels,metrics.heightPixels,metrics.densityDpi,
    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader?.surface,null,handler)
  }
- private fun process(image:Image){
+ private fun process(image:Image,capturedAt:Long){
   try {
    val bitmap=toBitmap(image);image.close()
    recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
@@ -133,7 +134,8 @@ class CaptureService:Service() {
      timeframeHit.matches(Regex("""(?i)^[1-9]\d?[SMHD]$"""))->timeframeHit
      else->"UNKNOWN"
     }
-    val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
+    val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",capturedAt)
+      .put("ocrLatencyMs",(System.currentTimeMillis()-capturedAt).coerceAtLeast(0L))
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
      .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectedCandles)
      .put("chart",JSONObject().put("capture","full-screen"))
@@ -185,35 +187,38 @@ class CaptureService:Service() {
  }
  private fun upload(payload:JSONObject,source:Bitmap){
   if(!uploading.compareAndSet(false,true)){busy.set(false);return}
-  try {
-   // Upload only the chart area, not the full broker screen or account side panels.
-   val left=(source.width*.08f).toInt().coerceAtLeast(0)
-   val top=(source.height*.10f).toInt().coerceAtLeast(0)
-   val right=(source.width*.93f).toInt().coerceAtMost(source.width)
-   val bottom=(source.height*.90f).toInt().coerceAtMost(source.height)
-   val crop=Bitmap.createBitmap(source,left,top,(right-left).coerceAtLeast(1),(bottom-top).coerceAtLeast(1))
-   val scale=minOf(1f,1280f/crop.width,1600f/crop.height)
-   val resized=if(scale<1f)Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true) else crop
-   if(resized!==crop)crop.recycle()
-   val output=ByteArrayOutputStream()
-   resized.compress(Bitmap.CompressFormat.JPEG,68,output)
-   resized.recycle()
-   val jpeg=output.toByteArray()
-   if(jpeg.isEmpty()||jpeg.size>3_750_000)throw IllegalStateException("ภาพกราฟมีขนาดเกินกำหนด")
-   payload.put("imageMimeType","image/jpeg").put("imageBase64",Base64.encodeToString(jpeg,Base64.NO_WRAP))
-  } catch(e:Exception) {
-   uploading.set(false);busy.set(false)
-   android.util.Log.w("BrokerVision","Chart image encoding failed: ${e.message}")
-   return
+  // Keep a diagnostic screenshot occasionally, but avoid JPEG/base64 work on every live price frame.
+  val now=System.currentTimeMillis()
+  if(now-lastImageUploadAt>=5000L){
+   try{
+    val left=(source.width*.08f).toInt().coerceAtLeast(0)
+    val top=(source.height*.10f).toInt().coerceAtLeast(0)
+    val right=(source.width*.93f).toInt().coerceAtMost(source.width)
+    val bottom=(source.height*.90f).toInt().coerceAtMost(source.height)
+    val crop=Bitmap.createBitmap(source,left,top,(right-left).coerceAtLeast(1),(bottom-top).coerceAtLeast(1))
+    val scale=minOf(1f,960f/crop.width,1200f/crop.height)
+    val resized=if(scale<1f)Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true) else crop
+    if(resized!==crop)crop.recycle()
+    val output=ByteArrayOutputStream()
+    resized.compress(Bitmap.CompressFormat.JPEG,55,output)
+    resized.recycle()
+    val jpeg=output.toByteArray()
+    if(jpeg.isNotEmpty()&&jpeg.size<=3_750_000){
+     payload.put("imageMimeType","image/jpeg").put("imageBase64",Base64.encodeToString(jpeg,Base64.NO_WRAP))
+     lastImageUploadAt=now
+    }
+   }catch(e:Exception){android.util.Log.w("BrokerVision","Optional chart image encoding failed: ${e.message}")}
   }
   Thread{
    var c:HttpURLConnection?=null
    try{
+    val body=payload.toString().toByteArray(Charsets.UTF_8)
     c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
-     requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
+     requestMethod="POST";connectTimeout=2500;readTimeout=2500;doOutput=true;useCaches=false
      setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
+     setFixedLengthStreamingMode(body.size)
     }
-    c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))}
+    c.outputStream.use{it.write(body)}
     val code=c.responseCode
     val stream=if(code in 200..299)c.inputStream else c.errorStream
     val response=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
