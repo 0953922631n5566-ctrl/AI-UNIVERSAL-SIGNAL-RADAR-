@@ -74,8 +74,15 @@ class CaptureService:Service() {
      val box=line.boundingBox
      ocr.put(JSONObject().put("text",line.text).put("left",box?.left?:0).put("top",box?.top?:0).put("right",box?.right?:0).put("bottom",box?.bottom?:0))
     }}
-    val text=result.text.replace(",","")
-    val price=Regex("""\b\d+\.\d{3,8}\b""").findAll(text).lastOrNull()?.value?.toDoubleOrNull()
+    val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
+    val priceCandidates=result.textBlocks.flatMap{it.lines}.mapNotNull{line->
+     val box=line.boundingBox
+     val value=pricePattern.findAll(line.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()
+     if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
+      Triple(value,box.left,box.top) else null
+    }
+    val price=priceCandidates.maxByOrNull{it.second}?.first
+      ?: result.textBlocks.flatMap{it.lines}.mapNotNull{pricePattern.findAll(it.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()}.lastOrNull()
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol","AUTO").put("timeframe","AUTO").put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
@@ -90,7 +97,7 @@ class CaptureService:Service() {
  }
  private fun detectCandles(bitmap:Bitmap):JSONArray {
   val out=JSONArray();val top=(bitmap.height*.16f).toInt();val bottom=(bitmap.height*.88f).toInt()
-  val start=(bitmap.width*.08f).toInt();val end=(bitmap.width*.91f).toInt()
+  val start=(bitmap.width*.08f).toInt();val end=(bitmap.width*.82f).toInt()
   data class C(val x:Int,val color:String,val top:Int,val bottom:Int)
   val columns=mutableListOf<C>()
   for(x in start until end step 2){var green=0;var red=0;var minY=bottom;var maxY=top
@@ -101,7 +108,7 @@ class CaptureService:Service() {
    if(maxOf(green,red)>=3)columns.add(C(x,if(green>=red)"GREEN" else "RED",minY,maxY))
   }
   val groups=mutableListOf<MutableList<C>>()
-  columns.forEach{c->val last=groups.lastOrNull();if(last!=null&&last.last().color==c.color&&c.x-last.last().x<=8)last.add(c)else groups.add(mutableListOf(c))}
+  columns.forEach{c->val last=groups.lastOrNull();if(last!=null&&last.last().color==c.color&&c.x-last.last().x<=6)last.add(c)else groups.add(mutableListOf(c))}
   groups.filter{it.size>=2}.takeLast(100).forEach{g->
    val high=g.minOf{it.top};val low=g.maxOf{it.bottom};val color=g.first().color
    out.put(JSONObject().put("x",g.map{it.x}.average()).put("color",color)
