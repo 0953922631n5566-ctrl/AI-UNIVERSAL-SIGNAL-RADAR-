@@ -39,6 +39,7 @@ class CaptureService:Service() {
  private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
  private var lastAt=0L;private var lastImageUploadAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
  private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+ private var priceOverlay:PriceRegionOverlay?=null
  override fun onBind(intent:Intent?):IBinder?=null
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
   if(intent?.action!=ACTION_START){stopSelf();return START_NOT_STICKY}
@@ -58,6 +59,7 @@ class CaptureService:Service() {
  private fun startCapture(){
   val metrics=DisplayMetrics();@Suppress("DEPRECATION")
   (getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
+  priceOverlay=PriceRegionOverlay(this).also{it.show(metrics.widthPixels,metrics.heightPixels)}
   worker=HandlerThread("vision-frame-reader").also{it.start()};handler=Handler(worker!!.looper)
   reader=ImageReader.newInstance(metrics.widthPixels,metrics.heightPixels,PixelFormat.RGBA_8888,3)
   reader?.setOnImageAvailableListener({src->
@@ -71,121 +73,72 @@ class CaptureService:Service() {
    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader?.surface,null,handler)
  }
  private fun process(image:Image,capturedAt:Long){
-  try {
-   val bitmap=toBitmap(image);image.close()
-   recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
-    // Keep the full right edge: broker live-price badges are often flush with the screen edge.
-    val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
-     val box=line.boundingBox
-     box!=null && box.right>bitmap.width*.04f && box.left<bitmap.width.toFloat() &&
-      box.top>bitmap.height*.06f && box.bottom<bitmap.height*.96f
-    }
-    val ocr=JSONArray()
-    chartLines.forEach{line->val box=line.boundingBox
-     ocr.put(JSONObject().put("text",line.text).put("left",box?.left?:0).put("top",box?.top?:0).put("right",box?.right?:0).put("bottom",box?.bottom?:0))
-    }
-    val headerText=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.65f&&box.top<bitmap.height*.32f}
-     .joinToString(" "){it.text}
-    val pairPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
-    val pair=pairPattern.find(headerText)?.value?.replace(" ","")
-    // Do not mistake broker branding/page text for a tradable instrument.
-    val symbol=pair?:"UNKNOWN"
-    val pricePattern=Regex("""(?<!\d)(\d{1,4})[.,](\d{2,10})(?!\d)""")
-    data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
-    val priceCandidates=chartLines.mapNotNull{line->
-     val box=line.boundingBox
-     val raw=line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")
-     // Accept decimal comma as well as decimal point, while keeping thousands-grouped values safe.
-     val match=pricePattern.findAll(raw).lastOrNull()
-     val normalized=match?.let{it.groupValues[1]+"."+it.groupValues[2]}
-     val value=normalized?.toDoubleOrNull()
-     val precision=match?.groupValues?.getOrNull(2)?.length?:0
-     if(box!=null && box.width()>bitmap.width*.006f &&
-       box.top>bitmap.height*.04f && box.top<bitmap.height*.96f && value!=null && value>0)
-      PriceHit(value,box.left,box.width(),precision,(box.top+box.bottom)/2f) else null
-    }
-    val detectedCandles=detectCandles(bitmap)
-    val latestCloseY=if(detectedCandles.length()>0) detectedCandles.optJSONObject(detectedCandles.length()-1)?.optDouble("closeY")?.toFloat() else null
-    val rightCandidates=priceCandidates.filter{it.left>bitmap.width*.70f}
-    val selectedPrice=if(latestCloseY!=null&&rightCandidates.isNotEmpty())
-      rightCandidates.minByOrNull{ kotlin.math.abs(it.y-latestCloseY) }
-     else rightCandidates.maxByOrNull{it.left+it.width}
-    val price=selectedPrice?.value
-    val pricePrecision=selectedPrice?.precision?:0
-    val axisPrices=JSONArray()
-    chartLines.forEach{line->
-     val box=line.boundingBox
-     if(box!=null&&box.left>bitmap.width*.78f){
-      val match=pricePattern.findAll(line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")).lastOrNull()
-      val value=match?.let{(it.groupValues[1]+"."+it.groupValues[2]).toDoubleOrNull()}
-      if(value!=null)axisPrices.put(JSONObject().put("price",value).put("y",(box.top+box.bottom)/2f))
+  var bitmap:Bitmap?=null
+  var roiBitmap:Bitmap?=null
+  try{
+   val full=toBitmap(image);bitmap=full;image.close()
+   val region=PriceRegionOverlay.cropRect(this,full.width,full.height)
+   val roi=Bitmap.createBitmap(full,region.left,region.top,region.width(),region.height());roiBitmap=roi
+   recognizer.process(InputImage.fromBitmap(roi,0)).addOnSuccessListener{result->
+    try{
+     val lines=result.textBlocks.flatMap{it.lines}.filter{it.boundingBox!=null}
+     val ocr=JSONArray()
+     lines.forEach{line->
+      val box=line.boundingBox!!
+      ocr.put(JSONObject().put("text",line.text)
+       .put("left",box.left+region.left).put("top",box.top+region.top)
+       .put("right",box.right+region.left).put("bottom",box.bottom+region.top))
      }
-    }
-    if(selectedPrice!=null && axisPrices.length()==0)
-      axisPrices.put(JSONObject().put("price",selectedPrice.value).put("y",selectedPrice.y))
-    val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.top>bitmap.height*.12f&&box.top<bitmap.height*.88f}
-    val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?[smhd]|[smhd][1-9]\d?)\b""")
-    val timeframeText=timeframeRegion.joinToString(" "){it.text}
-     .replace(Regex("""(?i)\b[il]m\b"""),"1m")
-     .replace(Regex("""(?i)\bsm\b"""),"5m")
-    val timeframeHit=timeframePattern.find(timeframeText)?.value?.uppercase()?:""
-    val timeframe=when {
-     timeframeHit.matches(Regex("""(?i)^[SMHD][1-9]\d?$"""))->timeframeHit.drop(1)+timeframeHit.take(1)
-     timeframeHit.matches(Regex("""(?i)^[1-9]\d?[SMHD]$"""))->timeframeHit
-     else->"UNKNOWN"
-    }
-    val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",capturedAt)
-     .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
-     .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectedCandles)
-     .put("chart",JSONObject().put("capture","full-screen"))
-    fun submitPrice(hit:PriceHit?){
-     payload.put("price",hit?.value).put("pricePrecision",hit?.precision?:0)
+
+     // OCR is deliberately restricted to the user-positioned ROI. No other screen number is eligible.
+     val pricePattern=Regex("""(?<!\d)(\d{1,12})[.,](\d{1,10})(?!\d)""")
+     data class PriceHit(val value:Double,val precision:Int,val right:Int,val y:Float)
+     val priceCandidates=lines.flatMap{line->
+      val box=line.boundingBox?:return@flatMap emptyList()
+      val raw=line.text.trim().replace(Regex("""(?<=\d)\s+(?=\d)"""),"")
+      pricePattern.findAll(raw).mapNotNull{match->
+       val value=(match.groupValues[1]+"."+match.groupValues[2]).toDoubleOrNull()
+       val precision=match.groupValues[2].length
+       if(value!=null&&value>0) PriceHit(value,precision,box.right,(box.top+box.bottom)/2f+region.top)
+       else null
+      }.toList()
+     }
+     val selectedPrice=priceCandidates.maxWithOrNull(compareBy<PriceHit>{it.precision}.thenBy{it.right})
+     val axisPrices=JSONArray()
+     if(selectedPrice!=null) axisPrices.put(JSONObject()
+      .put("price",selectedPrice.value).put("y",selectedPrice.y))
+
+     val payload=JSONObject().put("width",full.width).put("height",full.height)
+      .put("deviceTime",capturedAt).put("symbol","UNKNOWN").put("timeframe","UNKNOWN")
+      .put("price",selectedPrice?.value).put("pricePrecision",selectedPrice?.precision?:0)
+      .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectCandles(full))
       .put("ocrLatencyMs",(System.currentTimeMillis()-capturedAt).coerceAtLeast(0L))
-     if(hit!=null&&axisPrices.length()==0)
-      axisPrices.put(JSONObject().put("price",hit.value).put("y",hit.y))
-     upload(payload,bitmap);bitmap.recycle()
+      .put("priceReadSource","APK_FLOATING_ROI")
+      .put("chart",JSONObject().put("capture","floating-price-roi")
+       .put("priceRegion",JSONObject().put("left",region.left).put("top",region.top)
+        .put("right",region.right).put("bottom",region.bottom)))
+     roi.recycle();roiBitmap=null
+     upload(payload,full)
+     full.recycle();bitmap=null
+    }catch(e:Exception){
+     android.util.Log.w("BrokerVision","Price ROI processing failed: ${e.message}")
+     try{roi.recycle()}catch(_:Exception){}
+     try{full.recycle()}catch(_:Exception){}
+     roiBitmap=null;bitmap=null;busy.set(false)
     }
-    if(selectedPrice!=null){
-     submitPrice(selectedPrice)
-    }else{
-     // Retry only the chart's right edge at higher resolution when full-screen OCR misses the live-price badge.
-     try{
-      val cropLeft=(bitmap.width*.60f).toInt().coerceAtLeast(0)
-      val cropTop=(bitmap.height*.08f).toInt().coerceAtLeast(0)
-      val cropWidth=(bitmap.width-cropLeft).coerceAtLeast(1)
-      val cropHeight=(bitmap.height*.84f).toInt().coerceAtMost(bitmap.height-cropTop).coerceAtLeast(1)
-      val crop=Bitmap.createBitmap(bitmap,cropLeft,cropTop,cropWidth,cropHeight)
-      val scale=1.6f
-      val scaled=Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true)
-      if(scaled!==crop)crop.recycle()
-      recognizer.process(InputImage.fromBitmap(scaled,0)).addOnSuccessListener{retryResult->
-       val retryHits=retryResult.textBlocks.flatMap{it.lines}.mapNotNull{line->
-        val box=line.boundingBox?:return@mapNotNull null
-        val raw=line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")
-        val match=pricePattern.findAll(raw).lastOrNull()?:return@mapNotNull null
-        val value=(match.groupValues[1]+"."+match.groupValues[2]).toDoubleOrNull()?:return@mapNotNull null
-        val absLeft=cropLeft+(box.left/scale).toInt()
-        val absTop=cropTop+(box.top/scale).toInt()
-        val absRight=cropLeft+(box.right/scale).toInt()
-        val absBottom=cropTop+(box.bottom/scale).toInt()
-        if(absLeft<bitmap.width*.70f||value<=0)return@mapNotNull null
-        if(ocr.length()<100)ocr.put(JSONObject().put("text",line.text).put("left",absLeft).put("top",absTop).put("right",absRight).put("bottom",absBottom))
-        PriceHit(value,absLeft,absRight-absLeft,match.groupValues[2].length,(absTop+absBottom)/2f)
-       }
-       val retryPrice=if(latestCloseY!=null&&retryHits.isNotEmpty())retryHits.minByOrNull{kotlin.math.abs(it.y-latestCloseY)}
-        else retryHits.maxByOrNull{it.left+it.width}
-       scaled.recycle()
-       submitPrice(retryPrice)
-      }.addOnFailureListener{
-       scaled.recycle();submitPrice(null)
-      }
-     }catch(e:Exception){
-      android.util.Log.w("BrokerVision","Focused price OCR retry failed: ${e.message}")
-      submitPrice(null)
-     }
-    }
-   }.addOnFailureListener{bitmap.recycle();busy.set(false)}
-  }catch(e:Exception){try{image.close()}catch(_:Exception){};busy.set(false)}
+   }.addOnFailureListener{e->
+    android.util.Log.w("BrokerVision","Price ROI OCR failed: ${e.message}")
+    try{roi.recycle()}catch(_:Exception){}
+    try{full.recycle()}catch(_:Exception){}
+    roiBitmap=null;bitmap=null;busy.set(false)
+   }
+  }catch(e:Exception){
+   try{image.close()}catch(_:Exception){}
+   try{roiBitmap?.recycle()}catch(_:Exception){}
+   try{bitmap?.recycle()}catch(_:Exception){}
+   busy.set(false)
+   android.util.Log.w("BrokerVision","Capture frame processing failed: ${e.message}")
+  }
  }
  private fun toBitmap(image:Image):Bitmap {
   val plane=image.planes[0];val buffer:ByteBuffer=plane.buffer;val stride=plane.pixelStride
@@ -272,7 +225,8 @@ class CaptureService:Service() {
    finally{c?.disconnect();uploading.set(false);busy.set(false)}
   }.start()
  }
- override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
+ override fun onDestroy(){try{priceOverlay?.remove()}catch(_:Exception){};priceOverlay=null
+  try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
   try{projection?.stop()}catch(_:Exception){};try{recognizer.close()}catch(_:Exception){}
   worker?.quitSafely();super.onDestroy()
  }
