@@ -21,7 +21,8 @@ test("emits PUT directly when current APK price is below EMA5",()=>{
  assert.equal(result.setup,"PRICE_BELOW_EMA5");
 });
 test("returns WAIT only when price is exactly on EMA5",()=>{
- const result=predictNextCandle({candles:risingCandles,price:calculateEma(risingCandles.map(c=>c.close),5)});
+ const previousEma5=calculateEma(risingCandles.slice(0,-1).map(c=>c.close),5);
+ const result=predictNextCandle({candles:risingCandles,price:previousEma5});
  assert.equal(result.signal,"WAIT");assert.equal(result.setup,"PRICE_ON_EMA5");
 });
 test("requires five valid APK M1 candles for EMA5",()=>{
