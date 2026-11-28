@@ -51,7 +51,7 @@ export function predictNextCandle({candles,axisPrices,price}) {
   const opposing=recent.at(-2).direction!==0&&latest.direction!==0&&recent.at(-2).direction!==latest.direction;
   const strongRejection=Math.max(latest.upperWickRatio,latest.lowerWickRatio)>=.58&&latest.bodyRatio<=.30;
   const context=Math.abs(bodyPressure)>=.10||Math.abs(trendPressure)>=.10||strongRejection;
-  const threshold=doji?.16:.12;
+  const threshold=doji ? 0.16 : 0.12;
   const signal=context&&evidence>=threshold?"CALL":context&&evidence<=-threshold?"PUT":"WAIT";
   const reason=signal==="WAIT"?(doji?"แท่งล่าสุดลังเล ยังไม่มีทิศทางชัดเจน":"รูปทรงและแรงส่งยังไม่สอดคล้องกันพอ")
     :signal==="CALL"?"โครงสร้างแท่งเทียนและแรงซื้อสนับสนุนการขึ้นของแท่งถัดไป"
