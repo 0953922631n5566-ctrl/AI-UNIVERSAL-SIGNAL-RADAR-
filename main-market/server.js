@@ -911,6 +911,24 @@ app.post("/api/telegram/control", requireTelegramSession, rateLimitControl, asyn
 
 
 
+app.get("/api/vision/chart-image", async (_req, res) => {
+  noCache(res);
+  let base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com");
+  while (base.endsWith("/")) base = base.slice(0, -1);
+  try {
+    const upstream = await fetch(base + "/api/vision/chart-image", {
+      headers: { Accept: "image/jpeg" }, cache: "no-store", signal: AbortSignal.timeout(5000)
+    });
+    if (upstream.status === 204) return res.status(204).end();
+    if (!upstream.ok) throw new Error("Vision chart image HTTP " + upstream.status);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "image/jpeg");
+    res.setHeader("Cache-Control", "no-store, no-cache, max-age=0, must-revalidate");
+    res.status(200).send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (error) {
+    res.status(503).end();
+  }
+});
+
 app.get("/api/vision/miniapp", async (_req, res) => {
   noCache(res);
   let base = String(process.env.BROKER_VISION_API_URL || "https://universal-broker-vision-api.onrender.com");
