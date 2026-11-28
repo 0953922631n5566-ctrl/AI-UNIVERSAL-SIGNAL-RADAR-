@@ -75,7 +75,7 @@ class CaptureService:Service() {
    recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
     val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
      val box=line.boundingBox
-     box!=null && box.left>bitmap.width*.08f && box.right<bitmap.width*.93f &&
+     box!=null && box.left>bitmap.width*.04f && box.right<bitmap.width*.99f &&
       box.top>bitmap.height*.10f && box.bottom<bitmap.height*.92f
     }
     val ocr=JSONArray()
@@ -93,7 +93,8 @@ class CaptureService:Service() {
     val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
      val raw=line.text.replace(",","").trim()
-     val decimalValue=pricePattern.findAll(raw).lastOrNull()?.value?.toDoubleOrNull()
+     val decimalText=pricePattern.findAll(raw).lastOrNull()?.value
+     val decimalValue=decimalText?.toDoubleOrNull()
      val digits=raw.filter{it.isDigit()}
      val integerDigits=if(symbol.contains("JPY"))3 else 1
      val inferredValue=if(decimalValue==null && symbol.contains("/") && digits.length in (integerDigits+2)..(integerDigits+6))
@@ -101,11 +102,11 @@ class CaptureService:Service() {
      val value=decimalValue?:inferredValue
      val precision=if(decimalValue!=null)raw.substringAfter(".").takeWhile{it.isDigit()}.length
       else if(inferredValue!=null)digits.length-integerDigits else 0
-     if(box!=null && box.left>bitmap.width*.08f && box.width()>bitmap.width*.025f &&
-       box.top>bitmap.height*.20f && box.top<bitmap.height*.60f && value!=null)
-      PriceHit(value,box.left,box.width(),precision,(box.top+box.bottom)/2f) else null
+     if(box!=null && box.left>bitmap.width*.04f && box.width()>bitmap.width*.008f &&
+       box.top>bitmap.height*.08f && box.top<bitmap.height*.92f && value!=null)
+      PriceHit(value,box.left,box.width(),if(decimalText!=null)decimalText.substringAfter(".").length else precision,(box.top+box.bottom)/2f) else null
     }
-    val selectedPrice=priceCandidates.maxByOrNull{(if(it.left>bitmap.width*.65f)100000 else 0)+it.width}
+    val selectedPrice=priceCandidates.maxByOrNull{(if(it.left>bitmap.width*.65f)100000 else 0)+it.left*10+it.width}
     val price=selectedPrice?.value
     val pricePrecision=selectedPrice?.precision?:0
     val axisPrices=JSONArray()
