@@ -6,7 +6,7 @@ Isolated Android screen-capture and visual market-observation project. It does n
 - Android MediaProjection foreground service captures a user-approved screen session.
 - Google ML Kit Text Recognition extracts visible text and price-like values.
 - A pixel pass detects candidate green/red candle bodies from the chart area.
-- The client posts observations to a separate Node API.
+- The client posts only chart-region OCR text, detected price, pair/timeframe labels, and candle geometry to a separate Node API. Raw screenshots are processed locally and are not uploaded; account balance and side-panel text are excluded from OCR uploads.
 - The API returns CALL / PUT / WAIT diagnostics and fails closed when visual data is incomplete.
 
 ## Limitations
