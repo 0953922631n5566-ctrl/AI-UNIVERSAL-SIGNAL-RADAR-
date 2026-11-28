@@ -20,8 +20,11 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.json.JSONArray
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import java.nio.ByteBuffer
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
@@ -40,6 +43,7 @@ class CaptureService:Service() {
  private var worker:HandlerThread?=null;private var handler:Handler?=null;private var endpoint="";private var token=""
  private var lastAt=0L;private val busy=AtomicBoolean(false);private val uploading=AtomicBoolean(false)
  private val recognizer by lazy { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+ private val httpClient=OkHttpClient.Builder().connectTimeout(4,TimeUnit.SECONDS).writeTimeout(8,TimeUnit.SECONDS).readTimeout(8,TimeUnit.SECONDS).retryOnConnectionFailure(false).build()
  override fun onBind(intent:Intent?):IBinder?=null
  override fun onStartCommand(intent:Intent?,flags:Int,startId:Int):Int {
   if(intent?.action==ACTION_STOP){stopCapture();stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();return START_NOT_STICKY}
@@ -212,20 +216,17 @@ class CaptureService:Service() {
    return
   }
   Thread{
-   var c:HttpURLConnection?=null
    try{
-    c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
-     requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
-     setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
+    val body=payload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+    val request=Request.Builder().url("$endpoint/api/vision/frame")
+     .header("Authorization","Bearer $token").post(body).build()
+    httpClient.newCall(request).execute().use{response->
+     val responseText=response.body?.string().orEmpty()
+     if(response.isSuccessful)android.util.Log.i("BrokerVision","Frame accepted HTTP ${response.code}: $responseText")
+     else android.util.Log.w("BrokerVision","Frame rejected HTTP ${response.code}: $responseText")
     }
-    c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))}
-    val code=c.responseCode
-    val stream=if(code in 200..299)c.inputStream else c.errorStream
-    val response=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
-    if(code in 200..299)android.util.Log.i("BrokerVision","Frame accepted HTTP $code: $response")
-    else android.util.Log.w("BrokerVision","Frame rejected HTTP $code: $response")
    }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}
-   finally{c?.disconnect();uploading.set(false);busy.set(false)}
+   finally{uploading.set(false);busy.set(false)}
   }.start()
  }
  override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
