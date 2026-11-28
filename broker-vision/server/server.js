@@ -59,11 +59,23 @@ function makeAnalysis() {
   const candleDirection = bodyBias < -1 ? "CALL" : bodyBias > 1 ? "PUT" : "WAIT";
   const agree = trend.direction === candleDirection && trend.direction !== "WAIT";
   const signal = agree ? trend.direction : "WAIT";
+  const axis=(last.axisPrices||[]).filter(p=>finite(p.price)&&finite(p.y)).sort((a,b)=>Number(a.y)-Number(b.y));
+  const axisCalibrated=axis.length>=2 && Math.abs(Number(axis.at(-1).y)-Number(axis[0].y))>10 &&
+    Math.abs(Number(axis.at(-1).price)-Number(axis[0].price))>0;
+  const yToPrice=y=>{
+    if(!axisCalibrated||!finite(y))return null;
+    const a=axis[0],z=axis.at(-1);
+    return Number(a.price)+(Number(y)-Number(a.y))*(Number(z.price)-Number(a.price))/(Number(z.y)-Number(a.y));
+  };
+  const candlePriceLevels=axisCalibrated?completedCandles.slice(-5).map(c=>({
+    open:yToPrice(c.openY),close:yToPrice(c.closeY),high:yToPrice(c.highY),low:yToPrice(c.lowY)
+  })): [];
   return { signal, status:"ANALYZED", price, candleCount, completedCandleCount:completedCandles.length, quality,
+    priceAxisCalibrated:axisCalibrated,candlePriceLevels,
     confidence:signal==="WAIT"?Math.min(trend.confidence,45):Math.min(85,Math.round((trend.confidence+quality)/2)),
     reason:signal==="WAIT"?"ราคาและรูปทรงแท่งเทียนยังไม่ยืนยันไปในทิศทางเดียวกัน":`ราคาและแท่งเทียนยืนยัน ${signal} ตรงกัน`,
     priceMomentum:trend, candleBias:candleDirection, analyzedAt:new Date().toISOString(),
-    note:"คะแนนความมั่นใจเป็นคะแนนจากกฎภาพ ไม่ใช่ความน่าจะเป็นหรืออัตราชนะที่พิสูจน์แล้ว" };
+    note:"ระดับ OHLC ที่คำนวณจากพิกเซลเป็นค่าประมาณและใช้ได้เมื่ออ่านแกนราคาได้อย่างน้อย 2 จุด คะแนนความมั่นใจไม่ใช่ความน่าจะเป็นหรืออัตราชนะที่พิสูจน์แล้ว" };
 }
 
 app.get("/health", (_req,res)=>res.json({ok:true,service:"universal-broker-vision",version:"0.1.0",receivedFrames:frames.length,tokenConfigured:Boolean(API_TOKEN)}));
@@ -85,6 +97,7 @@ app.post("/api/vision/frame", auth, (req,res)=>{
     width:Number(b.width),height:Number(b.height),symbol:String(b.symbol||"UNKNOWN").slice(0,40),
     timeframe:String(b.timeframe||"UNKNOWN").slice(0,20),price,
     pricePrecision:finite(b.pricePrecision)?clamp(Math.round(Number(b.pricePrecision)),0,10):null,
+    axisPrices:Array.isArray(b.axisPrices)?b.axisPrices.slice(0,30):[],
     ocr:b.ocr.slice(0,100),
     candles:b.candles.slice(-100),chart:b.chart||null};
   frames.push(frame); if(frames.length>MAX_FRAMES) frames.splice(0,frames.length-MAX_FRAMES);
