@@ -44,6 +44,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
     });
     assert.equal(response.status,202);
     last=await response.json();
+    assert.equal(last.imageReceived,false,"APK price frames must not require screenshot bytes");
   }
   assert.equal(last.analysis.signal,"CALL");
   assert.equal(last.analysis.status,"ANALYZED");
