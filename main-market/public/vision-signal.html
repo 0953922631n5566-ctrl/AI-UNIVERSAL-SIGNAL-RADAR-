@@ -65,7 +65,7 @@ header{padding:4px 2px 12px}
 <section class="panel signal-panel"><div class="signal-label">สัญญาณแท่งถัดไป · NEXT M1</div><div id="signalLamp" class="signal-lamp wait"><span></span></div><div id="signal" class="signal wait">WAIT</div><div id="reason" class="reason">รอข้อมูลราคาจริงจาก APK</div><div class="countdown-card"><span>แท่ง M1 ปิดใน</span><b id="countdown">—</b></div></section>
 <section class="metrics">
 <div class="metric"><span>CALIBRATED CANDLES</span><b id="calibrated">—</b></div>
-<div class="metric"><span>PREDICTION CONFIDENCE</span><b id="confidence">—</b></div>
+<div class="metric"><span>ANALYZER MODE</span><b id="confidence">—</b></div>
 <div class="metric"><span>FRAMES RECEIVED</span><b id="frames">0</b></div>
 <div class="metric"><span>LIVE PRICE</span><b id="livePriceMetric">—</b></div>
 </section>
@@ -79,11 +79,11 @@ header{padding:4px 2px 12px}
 <div class="detail"><span>จำนวนแท่งที่เทียบราคาได้</span><b id="sampleCount">—</b></div>
 <div class="detail"><span>สถานะอ่านราคาจาก APK</span><b id="ocrStatus">—</b></div>
 <div class="detail"><span>EMA 5</span><b id="ema5">—</b></div>
-<div class="detail"><span>EMA 20</span><b id="ema20">—</b></div>
+
 <div class="detail"><span>เงื่อนไขสัญญาณ</span><b id="conditions">—</b></div>
 <div class="detail"><span>เวลารับภาพล่าสุด</span><b id="receivedAt">—</b></div>
 </section>
-<div class="note">กราฟสร้างจาก OHLC ของราคาจริงที่ APK จับได้ · กราฟและสูตรวิเคราะห์ใช้แท่ง M1 ชุดเดียวกัน · ไม่ใช้ Twelve Data หรือราคาจำลอง · ข้อมูลไม่ครบแสดง WAIT · MANUAL ONLY</div>
+<div class="note">กราฟและการวิเคราะห์ใช้ราคาจริงจาก APK · วิเคราะห์ด้วย EMA5 เพียงตัวเดียว · ราคาเหนือ EMA5 = CALL / ต่ำกว่า EMA5 = PUT · ไม่มีคะแนน · MANUAL ONLY</div>
 <footer class="footer"><span>VISION PRIMARY · MINI APP</span><span id="updated">—</span></footer>
 </main>
 <script>
@@ -187,14 +187,8 @@ function beep(freq,duration,delay=0){
  }catch{}
 }
 function alertPhase(phase,signal,cycle){
- const key=String(cycle)+":"+phase+":"+signal;
- if(key===lastAlertKey||!alertsEnabled)return;
- if(phase==="WATCH"&&signal==="WATCH"){
-  lastAlertKey=key;beep(760,.10);
-  try{navigator.vibrate?.([60]);tg?.HapticFeedback?.notificationOccurred?.("warning");}catch{}
-  return;
- }
- if(phase!=="ORDER"||!["CALL","PUT"].includes(signal))return;
+ const key=String(cycle)+":"+signal;
+ if(key===lastAlertKey||!alertsEnabled||!["CALL","PUT"].includes(signal))return;
  lastAlertKey=key;
  const call=signal==="CALL";
  beep(call?1080:520,.18);beep(call?1080:520,.18,.25);
@@ -214,23 +208,18 @@ function paint(d){
  lastFrameFresh=frameFresh;
  $("chartLive").textContent=frameFresh?"LIVE":d.lastFrameAt?"STALE":"WAITING";
  const trustedPrediction=frameFresh&&p.source==="APK_CAPTURED_PRICE_OHLC";
- const phase=trustedPrediction?(a.phase||d.phase||"WAITING"):"WAITING";
+ const phase=trustedPrediction?(a.phase||d.phase||"LIVE"):"WAITING";
  const cycleKey=String(a.cycleId??d.cycleId??"unknown");
  if(cycleKey!==latchedCycle){latchedCycle=cycleKey;latchedSignal="";lastSignalKey="";}
- const signal=trustedPrediction&&phase==="ORDER"&&["CALL","PUT"].includes(a.signal)?a.signal:"WAIT";
- alertPhase(phase,phase==="WATCH"?"WATCH":signal,cycleKey);
+ const signal=trustedPrediction&&["CALL","PUT"].includes(a.signal)?a.signal:"WAIT";
+ alertPhase(phase,signal,cycleKey);
  const secondsRemaining=Number(a.secondsToNextCandle??d.secondsToNextCandle);
  if(frameFresh&&Number.isFinite(secondsRemaining)){
   if(cycleKey!==countdownCycle){countdownCycle=cycleKey;countdownDeadline=Date.now()+Math.max(0,secondsRemaining)*1000;}
  }else if(!frameFresh){countdownDeadline=0;countdownCycle="";}
  updateCountdownDisplay();
- if(frameFresh&&phase==="ORDER"&&(signal==="CALL"||signal==="PUT")){
-  const signalKey=cycleKey+":"+signal;
-  if(signalKey!==lastSignalKey){lastSignalKey=signalKey;latchedSignal=signal;signalHoldUntil=Date.now()+20000;}
- }
- const holdActive=!!latchedSignal&&Date.now()<signalHoldUntil;
- if(!holdActive){latchedSignal="";signalHoldUntil=0;}
- const displaySignal=holdActive?latchedSignal:phase==="WATCH"?"WATCH":"WAIT";
+ const holdActive=false;
+ const displaySignal=frameFresh&&["CALL","PUT"].includes(signal)?signal:"WAIT";
  $("api").className="api "+(frameFresh?"live":online?"":"off");
  $("api").textContent=frameFresh?"APK LIVE":online?"API ONLINE · WAIT FRAME":"VISION OFFLINE";
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
@@ -240,22 +229,21 @@ function paint(d){
  const signalTone=displaySignal==="CALL"?"call":displaySignal==="PUT"?"put":displaySignal==="WATCH"?"watch":"wait";
  $("signal").className="signal "+signalTone;$("signalLamp").className="signal-lamp "+signalTone;
  $("signal").textContent=displaySignal;
- $("signalHold").textContent=holdActive?"ค้างอีก "+Math.ceil((signalHoldUntil-Date.now())/1000)+" วินาที":"ปิดแล้ว";
+ $("signalHold").textContent=displaySignal==="CALL"||displaySignal==="PUT"?"แสดงตาม EMA5 สด":"รอสัญญาณ";
  $("reason").textContent=holdActive?"คงไฟ "+(displaySignal==="CALL"?"เขียว CALL":"แดง PUT")+" ไว้ภายในรอบแท่งนี้":trustedPrediction?(a.reason||p.reason||"รอข้อมูลแท่งเทียน"):a.reason||d.error||"รอภาพจากโบรกเกอร์";
- $("phase").textContent=phase==="WATCH"?"เฝ้าระวัง · วินาที 50–54":phase==="ORDER"?"ประเมิน EMA5/EMA20 · วินาที 55–59":"รอช่วงประเมิน · วินาที 00–49";
+ $("phase").textContent=phase==="LIVE"?"วิเคราะห์สดทุกเฟรมราคา · EMA5 ONLY":"รอข้อมูลราคาจาก APK";
  updateCountdownDisplay();
  $("calibrated").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
- $("confidence").textContent=trustedPrediction?(p.confidence||a.confidence||"LOW"):"—";
+ $("confidence").textContent=trustedPrediction?"EMA5 ONLY":"—";
  $("frames").textContent=Number(d.receivedFrames||0);
  $("livePriceMetric").textContent=fmt(d.price,precision);
  $("analysisStatus").textContent=a.status||"WAITING";
  $("sampleCount").textContent=Number.isFinite(a.calibratedCandles)?a.calibratedCandles:Number(p.calibratedCandles||0);
  const diag=d.priceDiagnostics||{};
  $("ocrStatus").textContent=diag.priceReadStatus||"รอข้อมูล";
- $("target").textContent=trustedPrediction?(phase==="ORDER"?"คาดการณ์แท่ง M1 ถัดไป":phase==="WATCH"?"เตรียมประเมินแท่งถัดไป":"รอรอบเวลา 50–59"):"รอข้อมูล";
+ $("target").textContent=trustedPrediction?"สัญญาณสำหรับแท่ง M1 ถัดไป":"รอข้อมูล";
  $("ema5").textContent=trustedPrediction?fmt(p.ema5,precision):"—";
- $("ema20").textContent=trustedPrediction?fmt(p.ema20,precision):"—";
- $("conditions").textContent=signal==="CALL"||signal==="PUT"?"EMA5/EMA20 ยืนยัน "+signal+" · "+(p.setup||"EMA TREND"):phase==="WATCH"?"รอประเมิน ยังไม่สรุป CALL/PUT":"ใช้ EMA5 และ EMA20 จาก OHLC ราคา APK";
+ $("conditions").textContent=signal==="CALL"?"ราคาปัจจุบันอยู่เหนือ EMA5 = CALL":signal==="PUT"?"ราคาปัจจุบันอยู่ต่ำกว่า EMA5 = PUT":"เทียบราคาปัจจุบันกับ EMA5 เท่านั้น";
  $("receivedAt").textContent=d.lastFrameAt?new Date(d.lastFrameAt).toLocaleTimeString("th-TH"):"—";
  $("updated").textContent=new Date().toLocaleTimeString("th-TH");
 }
