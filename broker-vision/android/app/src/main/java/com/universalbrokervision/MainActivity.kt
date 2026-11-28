@@ -18,7 +18,7 @@ class MainActivity : AppCompatActivity() {
   val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(pad,pad,pad,pad) }
   root.addView(TextView(this).apply { text="BROKER VISION AI";textSize=24f })
   root.addView(TextView(this).apply { text="จับภาพหน้าจอเพื่ออ่านป้ายราคาและแท่งเทียน" })
-  endpoint=EditText(this).apply { hint="https://your-vision-api.onrender.com";setText(prefs.getString("endpoint","")) }
+  endpoint=EditText(this).apply { hint="https://your-vision-api.onrender.com";setText(prefs.getString("endpoint","https://universal-broker-vision-api.onrender.com")) }
   token=EditText(this).apply { hint="Vision API token";setText(prefs.getString("token",""));inputType=129 }
   root.addView(endpoint);root.addView(token)
   status=TextView(this).apply { text="พร้อมเริ่ม · ต้องอนุญาตการจับภาพหน้าจอ" };root.addView(status)
