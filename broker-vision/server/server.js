@@ -159,7 +159,7 @@ function makeAnalysis() {
     priceCandleCount: chartCandles.length,
     priceSamples: priceSamples.length,
     calibratedCandles: prediction.calibratedCandles || 0,
-    signalEligible: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal),
+    signalEligible: cycle.active && ["CALL","PUT"].includes(signal),
     nextCandlePrediction: prediction,
     priceCandles:chartCandles,
     chartSource: "APK_CAPTURED_PRICE_OHLC",
