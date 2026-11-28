@@ -68,8 +68,8 @@ function alertPhase(phase,signal,cycle){
  const key=String(cycle)+":"+phase+":"+signal;
  if(key===lastAlertKey)return;
  if(phase!=="WATCH"&&phase!=="ORDER_WINDOW")return;
- lastAlertKey=key;
  if(!alertsEnabled)return;
+ lastAlertKey=key;
  if(phase==="WATCH"){
   beep(760,.12);try{navigator.vibrate?.([80]);tg?.HapticFeedback?.impactOccurred?.("light");}catch{}
  }else{
