@@ -11,6 +11,7 @@ import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.*
+import android.util.Base64
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
@@ -22,6 +23,7 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 class CaptureService:Service() {
@@ -124,7 +126,7 @@ class CaptureService:Service() {
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
      .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
-    upload(payload);bitmap.recycle()
+    upload(payload,bitmap);bitmap.recycle()
    }.addOnFailureListener{bitmap.recycle()}.addOnCompleteListener{busy.set(false)}
   }catch(e:Exception){try{image.close()}catch(_:Exception){};busy.set(false)}
  }
@@ -170,15 +172,44 @@ class CaptureService:Service() {
     .put("highY",wickTop).put("lowY",wickBottom).put("bodyHeight",bodyBottom-bodyTop))
   };return out
  }
- private fun upload(payload:JSONObject){
+ private fun upload(payload:JSONObject,source:Bitmap){
   if(!uploading.compareAndSet(false,true))return
+  try {
+   // Upload only the chart area, not the full broker screen or account side panels.
+   val left=(source.width*.08f).toInt().coerceAtLeast(0)
+   val top=(source.height*.10f).toInt().coerceAtLeast(0)
+   val right=(source.width*.93f).toInt().coerceAtMost(source.width)
+   val bottom=(source.height*.90f).toInt().coerceAtMost(source.height)
+   val crop=Bitmap.createBitmap(source,left,top,(right-left).coerceAtLeast(1),(bottom-top).coerceAtLeast(1))
+   val scale=minOf(1f,1280f/crop.width,1600f/crop.height)
+   val resized=if(scale<1f)Bitmap.createScaledBitmap(crop,(crop.width*scale).toInt().coerceAtLeast(1),(crop.height*scale).toInt().coerceAtLeast(1),true) else crop
+   if(resized!==crop)crop.recycle()
+   val output=ByteArrayOutputStream()
+   resized.compress(Bitmap.CompressFormat.JPEG,68,output)
+   resized.recycle()
+   val jpeg=output.toByteArray()
+   if(jpeg.isEmpty()||jpeg.size>3_750_000)throw IllegalStateException("ภาพกราฟมีขนาดเกินกำหนด")
+   payload.put("imageMimeType","image/jpeg").put("imageBase64",Base64.encodeToString(jpeg,Base64.NO_WRAP))
+  } catch(e:Exception) {
+   uploading.set(false)
+   android.util.Log.w("BrokerVision","Chart image encoding failed: ${e.message}")
+   return
+  }
   Thread{
    var c:HttpURLConnection?=null
-   try{c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
-    requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
-    setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
-   };c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))};c.inputStream.close()
-   }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}finally{c?.disconnect();uploading.set(false)}
+   try{
+    c=(URL("$endpoint/api/vision/frame").openConnection() as HttpURLConnection).apply{
+     requestMethod="POST";connectTimeout=30000;readTimeout=30000;doOutput=true
+     setRequestProperty("Content-Type","application/json");setRequestProperty("Authorization","Bearer $token")
+    }
+    c.outputStream.use{it.write(payload.toString().toByteArray(Charsets.UTF_8))}
+    val code=c.responseCode
+    val stream=if(code in 200..299)c.inputStream else c.errorStream
+    val response=stream?.bufferedReader()?.use{it.readText()}.orEmpty()
+    if(code in 200..299)android.util.Log.i("BrokerVision","Frame accepted HTTP $code: $response")
+    else android.util.Log.w("BrokerVision","Frame rejected HTTP $code: $response")
+   }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}
+   finally{c?.disconnect();uploading.set(false)}
   }.start()
  }
  override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
