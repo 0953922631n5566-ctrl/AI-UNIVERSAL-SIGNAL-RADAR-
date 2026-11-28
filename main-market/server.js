@@ -942,8 +942,8 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       candleCount: Number(data.candleCount || 0),
       analysis: {
         signal,
-        status: fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
-        reason: fresh ? (analysis.reason || "รอการวิเคราะห์ภาพ") : "ภาพจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
+        status: !receivedAt ? "NO_DATA" : fresh ? (analysis.status || "WAITING") : "STALE_FRAME",
+        reason: !receivedAt ? "ยังไม่ได้รับภาพจาก APK · เปิดแอปจับภาพหน้าจอโบรกเกอร์ก่อน" : fresh ? (analysis.reason || "รอการวิเคราะห์ภาพ") : "ภาพจาก APK เก่าเกิน 10 วินาที · งดออกสัญญาณ",
         quality: Number(analysis.quality || 0),
         confidence: Number(analysis.confidence || 0),
         priceChange: Number.isFinite(Number(analysis.priceChange)) ? Number(analysis.priceChange) : null,
