@@ -78,14 +78,6 @@ class CaptureService:Service() {
     chartLines.forEach{line->val box=line.boundingBox
      ocr.put(JSONObject().put("text",line.text).put("left",box?.left?:0).put("top",box?.top?:0).put("right",box?.right?:0).put("bottom",box?.bottom?:0))
     }
-    val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
-    val priceCandidates=chartLines.mapNotNull{line->
-     val box=line.boundingBox
-     val value=pricePattern.findAll(line.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()
-     if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
-      Triple(value,box.left,box.top) else null
-    }
-    val price=priceCandidates.maxByOrNull{it.second}?.first
     val headerText=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.65f&&box.top<bitmap.height*.32f}
      .joinToString(" "){it.text}
     val pairPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
@@ -93,7 +85,23 @@ class CaptureService:Service() {
     val genericTicker=headerText.split(Regex("""\s+""")).map{it.trim().uppercase()}
      .firstOrNull{it.matches(Regex("""[A-Z0-9._/-]{2,12}(?:\(OTC\))?"""))&&it !in setOf("OTC","BLITZ","CALL","PUT","M1","M5")}
     val symbol=pair?:genericTicker?:"UNKNOWN"
-    val timeframe=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""").find(chartLines.joinToString(" "){it.text})?.value?.uppercase()?:"UNKNOWN"
+    val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
+    val priceCandidates=chartLines.mapNotNull{line->
+     val box=line.boundingBox
+     val raw=line.text.replace(",","").trim()
+     val decimalValue=pricePattern.findAll(raw).lastOrNull()?.value?.toDoubleOrNull()
+     val digits=raw.filter{it.isDigit()}
+     val integerDigits=if(symbol.contains("JPY"))3 else 1
+     val inferredValue=if(decimalValue==null && symbol.contains("/") && digits.length in 6..7 && digits.length>integerDigits+2)
+      (digits.take(integerDigits)+"."+digits.drop(integerDigits)).toDoubleOrNull() else null
+     val value=decimalValue?:inferredValue
+     if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
+      Triple(value,box.left,box.top) else null
+    }
+    val price=priceCandidates.maxByOrNull{it.second}?.first
+    val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.30f&&box.top>bitmap.height*.35f&&box.top<bitmap.height*.78f}
+    val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""")
+    val timeframe=timeframePattern.find(timeframeRegion.joinToString(" "){it.text})?.value?.uppercase()?:"UNKNOWN"
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
