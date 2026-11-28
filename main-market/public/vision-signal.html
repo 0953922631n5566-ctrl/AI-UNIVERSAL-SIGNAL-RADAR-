@@ -203,7 +203,8 @@ $("alerts").addEventListener("click",async()=>{
 function paint(d){
  window.__lastVisionData=d;
  const a=d.analysis||{},p=a.nextCandlePrediction||{},online=d.connected===true;
- updateBrokerChart(d);
+ const chartFrameKey=String(d.receivedFrames??d.lastFrameAt??"");
+ if(chartFrameKey!==lastChartFrame){lastChartFrame=chartFrameKey;updateBrokerChart(d);}
  const frameFresh=online&&d.frameFresh===true;
  lastFrameFresh=frameFresh;
  $("chartLive").textContent=frameFresh?"LIVE":d.lastFrameAt?"STALE":"WAITING";
@@ -225,7 +226,10 @@ function paint(d){
  $("pair").textContent=d.symbol||"UNKNOWN";$("tf").textContent=d.timeframe||"UNKNOWN";
  const precision=Number.isInteger(d.pricePrecision)?Math.max(1,Math.min(10,d.pricePrecision)):6;
  $("price").textContent=fmt(d.price,precision);$("candleOpen").textContent=fmt(a.currentCandleOpen,precision);
- $("age").textContent=Number.isFinite(d.frameAgeSeconds)?"รับภาพล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาทีที่แล้ว":"ยังไม่มีภาพจาก APK";
+ const latencyParts=[];
+ if(Number.isFinite(d.ocrLatencyMs))latencyParts.push("OCR "+Math.round(d.ocrLatencyMs)+"ms");
+ if(Number.isFinite(d.captureLatencyMs))latencyParts.push("ส่งถึง API "+Math.round(d.captureLatencyMs)+"ms");
+ $("age").textContent=(Number.isFinite(d.frameAgeSeconds)?"ข้อมูลล่าสุด "+d.frameAgeSeconds.toFixed(1)+" วินาที":"ยังไม่มีภาพจาก APK")+(latencyParts.length?" · "+latencyParts.join(" · "):"");
  const signalTone=displaySignal==="CALL"?"call":displaySignal==="PUT"?"put":displaySignal==="WATCH"?"watch":"wait";
  $("signal").className="signal "+signalTone;$("signalLamp").className="signal-lamp "+signalTone;
  $("signal").textContent=displaySignal;
