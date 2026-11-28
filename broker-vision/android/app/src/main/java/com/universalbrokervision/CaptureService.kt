@@ -101,7 +101,10 @@ class CaptureService:Service() {
     val price=priceCandidates.maxByOrNull{it.second}?.first
     val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.left<bitmap.width*.30f&&box.top>bitmap.height*.35f&&box.top<bitmap.height*.78f}
     val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""")
-    val timeframe=timeframePattern.find(timeframeRegion.joinToString(" "){it.text})?.value?.uppercase()?:"UNKNOWN"
+    val timeframeText=timeframeRegion.joinToString(" "){it.text}
+     .replace(Regex("""(?i)\b[il]m\b"""),"1m")
+     .replace(Regex("""(?i)\bsm\b"""),"5m")
+    val timeframe=timeframePattern.find(timeframeText)?.value?.uppercase()?:"UNKNOWN"
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
