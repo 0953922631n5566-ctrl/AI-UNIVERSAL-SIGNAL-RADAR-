@@ -23,11 +23,18 @@ function summarize(items) {
   const xs = items.filter(x => finite(x.price)).map(x => Number(x.price));
   if (xs.length < 2) return { direction:"WAIT", reason:"ต้องอ่านป้ายราคาได้ต่อเนื่องอย่างน้อย 2 ภาพ", confidence:0 };
   const first = xs[0], last = xs.at(-1), delta = last-first;
-  const scale = Math.max(Math.abs(first)*1e-6, 1e-8);
-  const normalized = delta/scale;
-  const direction = normalized > 0.2 ? "CALL" : normalized < -0.2 ? "PUT" : "WAIT";
-  return { direction, priceChange:delta, confidence:clamp(Math.round(Math.abs(normalized)*18),0,85),
-    reason:direction==="WAIT"?"ราคาเปลี่ยนแปลงยังไม่ชัดเจน":`ราคาเปลี่ยนต่อเนื่องในทิศทาง ${direction}` };
+  const decimals = String(last).split(".")[1]?.length || 4;
+  const tick = 10 ** (-Math.min(decimals,10));
+  const steps = xs.slice(1).map((value,i)=>value-xs[i]);
+  const up = steps.filter(value=>value>0).length;
+  const down = steps.filter(value=>value<0).length;
+  const dominance = steps.length ? Math.max(up,down)/steps.length : 0;
+  const direction = Math.abs(delta)>=tick && dominance>=0.60
+    ? (delta>0 ? "CALL" : "PUT") : "WAIT";
+  const confidence = direction==="WAIT" ? 0
+    : clamp(Math.round(45+(dominance-0.5)*70+Math.min(Math.abs(delta)/tick,4)*5),0,85);
+  return { direction, priceChange:delta, tickSize:tick, directionalConsistency:Math.round(dominance*100),
+    confidence, reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
 }
 function makeAnalysis() {
   const recent = frames.slice(-12);
