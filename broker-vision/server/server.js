@@ -192,7 +192,7 @@ app.post("/api/vision/frame", auth, (req,res)=>{
   }).filter(value=>Number.isFinite(value)&&value>0);
   let price=suppliedPrice??priceCandidates.at(-1)??null;
   // When the APK supplies a parsed price, require the same decimal value to be visible in OCR.
-  if(suppliedPrice!==null&&priceCandidates.length){
+  if(suppliedPrice!==null){
     const tolerance=1.5*Math.pow(10,-suppliedPrecision);
     if(!priceCandidates.some(candidate=>Math.abs(candidate-suppliedPrice)<=tolerance))price=null;
   }
