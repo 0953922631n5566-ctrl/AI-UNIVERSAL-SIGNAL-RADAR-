@@ -1,5 +1,5 @@
 import express from "express";
-import { predictNextCandle } from "./next-candle-predictor.js";
+import { predictNextCandle, getM1CycleWindow, evaluateOpenBias } from "./next-candle-predictor.js";
 import path from "node:path";
 import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -126,25 +126,33 @@ function makeAnalysis() {
     priceHistory:priceSamples.map(sample=>Number(sample.price))
   });
 
-  // Synchronize the warning/order windows to the APK capture timestamp and M1 clock.
+  // Evaluate continuously from M1 second 00 through second 55, using this candle's APK Open as the live reference.
   const captureMs = finite(last.deviceTime) ? Number(last.deviceTime) : Date.parse(last.receivedAt);
-  const cycleId = Math.floor(captureMs / 60000);
-  const elapsedMs = ((captureMs % 60000) + 60000) % 60000;
-  const secondsToNextCandle = Math.max(0, Math.ceil((60000-elapsedMs)/1000));
-  const phase = secondsToNextCandle <= 5 ? "ORDER_WINDOW"
-    : secondsToNextCandle <= 10 ? "WATCH" : "WAITING";
-  const signal = phase === "ORDER_WINDOW" ? prediction.signal : "WAIT";
+  const cycle = getM1CycleWindow(captureMs);
+  const currentCandle = chartCandles.at(-1);
+  const openBias = evaluateOpenBias({
+    open:currentCandle?.open,
+    price:readable?price:null,
+    precision:last.pricePrecision
+  });
+  const phase = cycle.phase;
+  const alignedSignal = prediction.signal===openBias.direction ? prediction.signal : "WAIT";
+  const signal = cycle.active && readable && alignedSignal!=="WAIT" ? alignedSignal : "WAIT";
   const reason = !readable ? "ยังไม่ได้รับราคาตัวเลขจาก APK"
-    : phase === "WATCH" ? "เหลือ 10–6 วินาที · เฝ้าระวังและรอวิเคราะห์รอบสุดท้าย"
-    : phase === "ORDER_WINDOW" ? (prediction.reason || "วิเคราะห์ราคาใน 5 วินาทีสุดท้าย")
-    : "รอเข้าสู่ช่วง 10 วินาทีสุดท้ายของแท่ง M1";
+    : !cycle.active ? "รอบแท่งนี้หมดเวลาที่วินาที 55 แล้ว · ยกเลิกสัญญาณและรอแท่งใหม่"
+    : openBias.direction==="WAIT" ? "ราคาเคลื่อนจาก Open ยังไม่ถึง 1 tick · คำนวณต่อเนื่องในรอบนี้"
+    : prediction.signal!==openBias.direction ? "ทิศทางจากโครงสร้างแท่งเทียนยังไม่ตรงกับราคาปัจจุบันเทียบ Open"
+    : prediction.reason || "ราคาและโครงสร้างแท่งเทียนยืนยันตรงกับ Open";
 
   return {
-    signal, phase, cycleId, secondsToNextCandle,
+    signal, phase, cycleId:cycle.cycleId, elapsedSeconds:cycle.elapsedSeconds,
+    secondsToNextCandle:cycle.secondsToNextCandle,
+    currentCandleOpen:finite(currentCandle?.open)?Number(currentCandle.open):null,
+    openDelta:openBias.delta, openDirection:openBias.direction,
     status: !readable ? "PRICE_UNREADABLE"
-      : phase === "WATCH" ? "WATCH_WINDOW"
-      : phase === "ORDER_WINDOW" ? (prediction.status || "ORDER_WINDOW")
-      : "WAITING_FOR_ENTRY_WINDOW",
+      : !cycle.active ? "CYCLE_CUTOFF"
+      : signal==="CALL"||signal==="PUT" ? "ACTIVE_SIGNAL"
+      : "ACTIVE_CALCULATING",
     price: readable ? price : null,
     pricePrecision: last.pricePrecision ?? null,
     candleCount: chartCandles.length,
@@ -158,14 +166,17 @@ function makeAnalysis() {
     signalConditions: {
       readablePrice: readable,
       calibratedCandles: prediction.calibratedCandles || 0,
-      target: "NEXT_M1_CANDLE",
+      target: "CURRENT_M1_CYCLE",
       phase,
-      passed: phase === "ORDER_WINDOW" && ["CALL","PUT"].includes(signal)
+      elapsedSeconds:cycle.elapsedSeconds,
+      openDirection:openBias.direction,
+      matchesOpen:openBias.direction!=="WAIT"&&prediction.signal===openBias.direction,
+      passed: cycle.active && ["CALL","PUT"].includes(signal)
     },
     reason,
     priceMomentum: trend,
     analyzedAt: new Date().toISOString(),
-    note: "ใช้ราคาตัวเลขและรูปทรงแท่งเทียนจาก APK โดยตรง · เฝ้าระวัง 10 วินาทีสุดท้าย · วิเคราะห์/แจ้งสัญญาณใน 5 วินาทีสุดท้าย · ไม่ใช้ Twelve Data"
+    note: "คำนวณเทียบราคา Open ของแท่ง M1 ต่อเนื่องตั้งแต่วินาที 00 ถึง 55 · วินาที 56–59 ยกเลิกสัญญาณของรอบ · เปลี่ยนแท่งแล้วเริ่มรอบใหม่ · ใช้ราคา APK เท่านั้น"
   };
 }
 
