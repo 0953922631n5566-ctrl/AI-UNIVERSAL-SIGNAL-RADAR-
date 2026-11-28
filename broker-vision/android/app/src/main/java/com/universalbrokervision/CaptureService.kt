@@ -73,10 +73,11 @@ class CaptureService:Service() {
   try {
    val bitmap=toBitmap(image);image.close()
    recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
+    // Keep the full right edge: broker live-price badges are often flush with the screen edge.
     val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
      val box=line.boundingBox
-     box!=null && box.left>bitmap.width*.04f && box.right<bitmap.width*.99f &&
-      box.top>bitmap.height*.10f && box.bottom<bitmap.height*.92f
+     box!=null && box.right>bitmap.width*.04f && box.left<bitmap.width.toFloat() &&
+      box.top>bitmap.height*.06f && box.bottom<bitmap.height*.96f
     }
     val ocr=JSONArray()
     chartLines.forEach{line->val box=line.boundingBox
@@ -88,36 +89,39 @@ class CaptureService:Service() {
     val pair=pairPattern.find(headerText)?.value?.replace(" ","")
     // Do not mistake broker branding/page text for a tradable instrument.
     val symbol=pair?:"UNKNOWN"
-    val pricePattern=Regex("""\b\d+\.\d{1,10}\b""")
+    val pricePattern=Regex("""(?<!\d)(\d{1,4})[.,](\d{2,10})(?!\d)""")
     data class PriceHit(val value:Double,val left:Int,val width:Int,val precision:Int,val y:Float)
     val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
-     val raw=line.text.replace(",","").trim()
-     val decimalText=pricePattern.findAll(raw).lastOrNull()?.value
-     val decimalValue=decimalText?.toDoubleOrNull()
-     val digits=raw.filter{it.isDigit()}
-     val integerDigits=if(symbol.contains("JPY"))3 else 1
-     val inferredValue=if(decimalValue==null && symbol.contains("/") && digits.length in (integerDigits+2)..(integerDigits+6))
-      (digits.take(integerDigits)+"."+digits.drop(integerDigits)).toDoubleOrNull() else null
-     val value=decimalValue?:inferredValue
-     val precision=if(decimalValue!=null)raw.substringAfter(".").takeWhile{it.isDigit()}.length
-      else if(inferredValue!=null)digits.length-integerDigits else 0
-     if(box!=null && box.left>bitmap.width*.04f && box.width()>bitmap.width*.008f &&
-       box.top>bitmap.height*.08f && box.top<bitmap.height*.92f && value!=null)
-      PriceHit(value,box.left,box.width(),if(decimalText!=null)decimalText.substringAfter(".").length else precision,(box.top+box.bottom)/2f) else null
+     val raw=line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")
+     // Accept decimal comma as well as decimal point, while keeping thousands-grouped values safe.
+     val match=pricePattern.findAll(raw).lastOrNull()
+     val normalized=match?.let{it.groupValues[1]+"."+it.groupValues[2]}
+     val value=normalized?.toDoubleOrNull()
+     val precision=match?.groupValues?.getOrNull(2)?.length?:0
+     if(box!=null && box.width()>bitmap.width*.006f &&
+       box.top>bitmap.height*.04f && box.top<bitmap.height*.96f && value!=null && value>0)
+      PriceHit(value,box.left,box.width(),precision,(box.top+box.bottom)/2f) else null
     }
-    val selectedPrice=priceCandidates.maxByOrNull{(if(it.left>bitmap.width*.65f)100000 else 0)+it.left*10+it.width}
+    val detectedCandles=detectCandles(bitmap)
+    val latestCloseY=if(detectedCandles.length()>0) detectedCandles.optJSONObject(detectedCandles.length()-1)?.optDouble("closeY")?.toFloat() else null
+    val rightCandidates=priceCandidates.filter{it.left>bitmap.width*.70f}
+    val selectedPrice=if(latestCloseY!=null&&rightCandidates.isNotEmpty())
+      rightCandidates.minByOrNull{ kotlin.math.abs(it.y-latestCloseY) }
+     else rightCandidates.maxByOrNull{it.left+it.width}
     val price=selectedPrice?.value
     val pricePrecision=selectedPrice?.precision?:0
     val axisPrices=JSONArray()
-    if(selectedPrice!=null)axisPrices.put(JSONObject().put("price",selectedPrice.value).put("y",selectedPrice.y))
     chartLines.forEach{line->
      val box=line.boundingBox
-     if(box!=null&&box.left>bitmap.width*.80f&&(box.top<bitmap.height*.34f||box.top>bitmap.height*.50f)){
-      val value=pricePattern.findAll(line.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()
+     if(box!=null&&box.left>bitmap.width*.78f){
+      val match=pricePattern.findAll(line.text.trim().replace(Regex("""(?<=\d)[ ]+(?=\d)"""),"")).lastOrNull()
+      val value=match?.let{(it.groupValues[1]+"."+it.groupValues[2]).toDoubleOrNull()}
       if(value!=null)axisPrices.put(JSONObject().put("price",value).put("y",(box.top+box.bottom)/2f))
      }
     }
+    if(selectedPrice!=null && axisPrices.length()==0)
+      axisPrices.put(JSONObject().put("price",selectedPrice.value).put("y",selectedPrice.y))
     val timeframeRegion=chartLines.filter{line->val box=line.boundingBox;box!=null&&box.top>bitmap.height*.12f&&box.top<bitmap.height*.88f}
     val timeframePattern=Regex("""(?i)\b(?:[1-9]\d?[smhd]|[smhd][1-9]\d?)\b""")
     val timeframeText=timeframeRegion.joinToString(" "){it.text}
@@ -131,10 +135,10 @@ class CaptureService:Service() {
     }
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
      .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("pricePrecision",pricePrecision)
-     .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectCandles(bitmap))
+     .put("axisPrices",axisPrices).put("ocr",ocr).put("candles",detectedCandles)
      .put("chart",JSONObject().put("capture","full-screen"))
     upload(payload,bitmap);bitmap.recycle()
-   }.addOnFailureListener{bitmap.recycle()}.addOnCompleteListener{busy.set(false)}
+   }.addOnFailureListener{bitmap.recycle();busy.set(false)}
   }catch(e:Exception){try{image.close()}catch(_:Exception){};busy.set(false)}
  }
  private fun toBitmap(image:Image):Bitmap {
@@ -180,7 +184,7 @@ class CaptureService:Service() {
   };return out
  }
  private fun upload(payload:JSONObject,source:Bitmap){
-  if(!uploading.compareAndSet(false,true))return
+  if(!uploading.compareAndSet(false,true)){busy.set(false);return}
   try {
    // Upload only the chart area, not the full broker screen or account side panels.
    val left=(source.width*.08f).toInt().coerceAtLeast(0)
@@ -198,7 +202,7 @@ class CaptureService:Service() {
    if(jpeg.isEmpty()||jpeg.size>3_750_000)throw IllegalStateException("ภาพกราฟมีขนาดเกินกำหนด")
    payload.put("imageMimeType","image/jpeg").put("imageBase64",Base64.encodeToString(jpeg,Base64.NO_WRAP))
   } catch(e:Exception) {
-   uploading.set(false)
+   uploading.set(false);busy.set(false)
    android.util.Log.w("BrokerVision","Chart image encoding failed: ${e.message}")
    return
   }
@@ -216,7 +220,7 @@ class CaptureService:Service() {
     if(code in 200..299)android.util.Log.i("BrokerVision","Frame accepted HTTP $code: $response")
     else android.util.Log.w("BrokerVision","Frame rejected HTTP $code: $response")
    }catch(e:Exception){android.util.Log.w("BrokerVision","Upload failed: ${e.message}")}
-   finally{c?.disconnect();uploading.set(false)}
+   finally{c?.disconnect();uploading.set(false);busy.set(false)}
   }.start()
  }
  override fun onDestroy(){try{display?.release()}catch(_:Exception){};try{reader?.close()}catch(_:Exception){}
