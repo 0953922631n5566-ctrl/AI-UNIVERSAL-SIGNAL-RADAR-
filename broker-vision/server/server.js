@@ -128,6 +128,13 @@ app.post("/api/vision/enroll", (req,res)=>{
   res.status(201).json({ok:true,token,expiresAt:new Date(now+DEVICE_TOKEN_TTL_MS).toISOString(),expiresInSeconds:DEVICE_TOKEN_TTL_MS/1000});
 });
 app.get("/vision", (_req,res)=>res.sendFile(path.resolve("public/vision.html")));
+app.get("/api/vision/miniapp", (_req,res)=>{
+  res.setHeader("Cache-Control","no-store, no-cache, max-age=0, must-revalidate");
+  const last=frames.at(-1);
+  res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
+    symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
+    price:last?.price??null,candleCount:last?.candles?.length||0,analysis:makeAnalysis()});
+});
 app.get("/api/vision/public", (_req,res)=>{
   const last=frames.at(-1);
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
