@@ -47,11 +47,11 @@ test("vision API guards uploads and emits price-only signals without instrument 
     assert.equal(last.imageReceived,i===3,"screenshot bytes are optional and the latest test frame includes one");
   }
   assert.equal(last.analysis.nextCandlePrediction.signal,"WAIT","only one minute candle is available in this fast API test");
-  assert.equal(last.analysis.nextCandlePrediction.status,"EMA_HISTORY_INSUFFICIENT");
+  assert.equal(last.analysis.nextCandlePrediction.status,"EMA5_HISTORY_INSUFFICIENT");
   assert.equal(last.analysis.priceCandles.length,1);
-  assert.ok(["WAITING_WINDOW","WATCH_WINDOW","ORDER_NO_ENTRY"].includes(last.analysis.status));
+  assert.equal(last.analysis.status,"LIVE_WAIT");
   assert.equal("score" in last.analysis,false,"signal decisions must not expose or depend on a score");
-  assert.ok(["WAIT","WATCH"].includes(last.analysis.signal),"one candle cannot create CALL/PUT; WATCH is a time-only phase");
+  assert.equal(last.analysis.signal,"WAIT","one candle is insufficient to calculate EMA5");
   assert.equal(last.analysis.signalConditions.passed,false);
 
   const staleCapture=await fetch(base+"/api/vision/frame",{
@@ -71,7 +71,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
   assert.equal(miniState.analysis.nextCandlePrediction.signal,"WAIT");
   assert.equal(miniState.priceCandles.length,1);
   assert.equal(miniState.chartSource,"APK_CAPTURED_PRICE_OHLC");
-  assert.ok(["WAIT","WATCH"].includes(miniState.analysis.signal),"Mini App must not emit CALL/PUT before two actual M1 candles exist");
+  assert.equal(miniState.analysis.signal,"WAIT","Mini App must wait until five actual M1 candles exist for EMA5");
   assert.equal("imageDataUri" in miniState,false,"Mini App polling must not transfer the screenshot image");
   const chartImage=await fetch(base+"/api/vision/chart-image");
   assert.equal(chartImage.status,200);
@@ -86,7 +86,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
         {text:"14",left:1400,top:300,right:1460,bottom:320}],candles:[]})
   });
   const badOcrBody=await badOcr.json();
-  assert.ok(["WAIT","WATCH"].includes(badOcrBody.analysis.signal),"arbitrary page text and integer labels must never create CALL/PUT");
+  assert.equal(badOcrBody.analysis.signal,"WAIT","arbitrary page text and integer labels must never create CALL/PUT");
   assert.equal(badOcrBody.analysis.status,"PRICE_UNREADABLE");
 
   const switched=await fetch(base+"/api/vision/frame",{
@@ -96,7 +96,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
       price:150.10,pricePrecision:2,ocr:[{text:"150.10",left:1400,top:300,right:1470,bottom:320}],candles:[]})
   });
   const switchedBody=await switched.json();
-  assert.ok(["WAIT","WATCH"].includes(switchedBody.analysis.signal),"a newly selected chart starts a fresh price window and cannot create CALL/PUT");
+  assert.equal(switchedBody.analysis.signal,"WAIT","a newly selected chart needs five M1 candles before EMA5 signals");
   assert.equal(switchedBody.analysis.price,150.10,"decimal prices are accepted without a recognized pair name");
   assert.equal(switchedBody.analysis.priceSamples,1,"price history from a different chart scale must not be mixed");
 });
