@@ -12,7 +12,7 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   const serverPath = new URL("./server.js",import.meta.url).pathname;
   const child = spawn(process.execPath,[serverPath],{
     cwd:new URL(".",import.meta.url).pathname,
-    env:{...process.env,PORT:String(port),VISION_API_TOKEN:"test-token"},
+    env:{...process.env,PORT:String(port),VISION_API_TOKEN:"test-token",VISION_DEMO_ENROLLMENT:"true"},
     stdio:"ignore"
   });
   t.after(()=>{child.kill("SIGTERM");});
@@ -26,13 +26,18 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
 
   const unauth=await fetch(base+"/api/vision/status");
   assert.equal(unauth.status,401);
+  const enrollment=await fetch(base+"/api/vision/enroll",{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
+  assert.equal(enrollment.status,201);
+  const enrolled=await enrollment.json();
+  assert.equal(typeof enrolled.token,"string");
+  assert.ok(enrolled.token.length>=64);
 
   const candles=Array.from({length:5},()=>({color:"GREEN",openY:120,closeY:90,highY:88,lowY:122}));
   let last;
   for(let i=0;i<4;i++){
     const response=await fetch(base+"/api/vision/frame",{
       method:"POST",
-      headers:{"content-type":"application/json","authorization":"Bearer test-token"},
+      headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
       body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",
         price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
     });
