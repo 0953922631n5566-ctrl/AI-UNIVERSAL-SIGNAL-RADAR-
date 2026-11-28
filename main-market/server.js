@@ -948,10 +948,9 @@ app.get("/api/vision/miniapp", async (_req, res) => {
     const ageSeconds = receivedAt ? Math.max(0, (Date.now() - Date.parse(receivedAt)) / 1000) : null;
     const fresh = Number.isFinite(ageSeconds) && ageSeconds <= 10;
     // Fail closed: never expose the legacy price-momentum direction as a next-candle signal.
-    const phase = analysis.phase || "WAITING";
+    const phase = analysis.phase || "LIVE";
     const signal = !fresh || !predictionSourceValid ? "WAIT"
-      : phase === "WATCH" ? "WATCH"
-      : phase === "ORDER" && ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
+      : ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
     res.json({
       ok: true,
       service: "universal-broker-vision",
@@ -978,7 +977,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       priceDiagnostics: data.priceDiagnostics || null,
       analysis: {
         signal,
-        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : phase === "WATCH" ? "WATCH_WINDOW" : phase === "ORDER" ? analysis.status || "ORDER_WINDOW" : "WAITING_WINDOW",
+        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : signal === "CALL" || signal === "PUT" ? "LIVE_SIGNAL" : "LIVE_ANALYSIS",
         phase,
         cycleId: analysis.cycleId ?? null,
         secondsToNextCandle: analysis.secondsToNextCandle ?? null,
@@ -993,12 +992,10 @@ app.get("/api/vision/miniapp", async (_req, res) => {
         tickSize: Number.isFinite(Number(analysis.priceMomentum?.tickSize)) ? Number(analysis.priceMomentum.tickSize) : null,
         calibratedCandles: Number(prediction?.calibratedCandles || 0),
         ema5: prediction?.ema5 !== null && prediction?.ema5 !== undefined && Number.isFinite(Number(prediction.ema5)) ? Number(prediction.ema5) : null,
-        ema20: prediction?.ema20 !== null && prediction?.ema20 !== undefined && Number.isFinite(Number(prediction.ema20)) ? Number(prediction.ema20) : null,
-        confidence: prediction?.confidence || "LOW",
         nextCandlePrediction: predictionSourceValid ? prediction : null,
         signalConditions: analysis.signalConditions || null,
         analyzedAt: analysis.analyzedAt || null,
-        note: "WATCH วินาที 50–54 · EMA5/EMA20 และ CALL/PUT วินาที 55–59 · ค้างไฟ 20 วินาทีบน Mini App · ราคา APK เท่านั้น"
+        note: "วิเคราะห์ทุกเฟรมราคาจาก APK ด้วย EMA5 เท่านั้น · ราคาเหนือ EMA5 = CALL · ราคาต่ำกว่า EMA5 = PUT · ไม่มีคะแนน"
       },
       updatedAt: new Date().toISOString()
     });
