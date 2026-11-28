@@ -69,22 +69,28 @@ class CaptureService:Service() {
   try {
    val bitmap=toBitmap(image);image.close()
    recognizer.process(InputImage.fromBitmap(bitmap,0)).addOnSuccessListener{result->
-    val ocr=JSONArray()
-    result.textBlocks.forEach{block->block.lines.forEach{line->
+    val chartLines=result.textBlocks.flatMap{it.lines}.filter{line->
      val box=line.boundingBox
+     box!=null && box.left>bitmap.width*.08f && box.right<bitmap.width*.90f &&
+      box.top>bitmap.height*.10f && box.bottom<bitmap.height*.92f
+    }
+    val ocr=JSONArray()
+    chartLines.forEach{line->val box=line.boundingBox
      ocr.put(JSONObject().put("text",line.text).put("left",box?.left?:0).put("top",box?.top?:0).put("right",box?.right?:0).put("bottom",box?.bottom?:0))
-    }}
+    }
     val pricePattern=Regex("""\b\d+\.\d{3,8}\b""")
-    val priceCandidates=result.textBlocks.flatMap{it.lines}.mapNotNull{line->
+    val priceCandidates=chartLines.mapNotNull{line->
      val box=line.boundingBox
      val value=pricePattern.findAll(line.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()
      if(box!=null && box.left>bitmap.width*.65f && box.top>bitmap.height*.12f && box.top<bitmap.height*.78f && value!=null)
       Triple(value,box.left,box.top) else null
     }
     val price=priceCandidates.maxByOrNull{it.second}?.first
-      ?: result.textBlocks.flatMap{it.lines}.mapNotNull{pricePattern.findAll(it.text.replace(",","")).lastOrNull()?.value?.toDoubleOrNull()}.lastOrNull()
+    val symbolPattern=Regex("""[A-Z]{3}\s*/\s*[A-Z]{3}(?:\s*\(OTC\))?""")
+    val symbol=symbolPattern.find(chartLines.joinToString(" "){it.text})?.value?.replace(" ","")?:"UNKNOWN"
+    val timeframe=Regex("""(?i)\b(?:[1-9]\d?)(?:s|m|h|d)\b""").find(chartLines.joinToString(" "){it.text})?.value?.uppercase()?:"UNKNOWN"
     val payload=JSONObject().put("width",bitmap.width).put("height",bitmap.height).put("deviceTime",System.currentTimeMillis())
-     .put("symbol","AUTO").put("timeframe","AUTO").put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
+     .put("symbol",symbol).put("timeframe",timeframe).put("price",price).put("ocr",ocr).put("candles",detectCandles(bitmap))
      .put("chart",JSONObject().put("capture","full-screen"))
     upload(payload);bitmap.recycle()
    }.addOnFailureListener{bitmap.recycle()}.addOnCompleteListener{busy.set(false)}
