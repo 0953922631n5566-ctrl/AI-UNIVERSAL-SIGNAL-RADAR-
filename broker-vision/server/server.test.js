@@ -39,7 +39,7 @@ test("vision API guards uploads and emits price-only signals without instrument 
     const response=await fetch(base+"/api/vision/frame",{
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
-      body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",deviceTime:Date.now(),
+      body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",deviceTime:Date.now(),ocrLatencyMs:42,
         price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],imageBase64:i===3?imageBase64:undefined,ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120},{text:(1.120235+i*0.000001).toFixed(6),left:1400,top:300,right:1470,bottom:320}],candles})
     });
     assert.equal(response.status,202);
@@ -68,6 +68,9 @@ test("vision API guards uploads and emits price-only signals without instrument 
   const miniState=await miniResponse.json();
   assert.equal(miniResponse.status,200);
   assert.equal(miniState.price,1.120238);
+  assert.equal(typeof miniState.captureTime,"string","Mini App exposes the original APK capture timestamp");
+  assert.equal(typeof miniState.captureLatencyMs,"number","Mini App exposes measured capture-to-server latency when clocks are aligned");
+  assert.equal(miniState.ocrLatencyMs,42,"Mini App exposes APK OCR processing latency");
   assert.equal(miniState.analysis.nextCandlePrediction.signal,"WAIT");
   assert.equal(miniState.priceCandles.length,1);
   assert.equal(miniState.chartSource,"APK_CAPTURED_PRICE_OHLC");
