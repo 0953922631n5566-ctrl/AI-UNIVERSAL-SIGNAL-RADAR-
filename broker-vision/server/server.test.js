@@ -39,8 +39,8 @@ test("vision API guards uploads and emits price-only signals without instrument 
     const response=await fetch(base+"/api/vision/frame",{
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
-      body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",
-        price:1.120235+i*0.000001,pricePrecision:6,imageBase64,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
+      body:JSON.stringify({width:1536,height:691,symbol:"EUR/USD",timeframe:"1M",deviceTime:Date.now(),
+        price:1.120235+i*0.000001,pricePrecision:6,axisPrices:[{price:1.122,y:100},{price:1.118,y:500}],ocr:[{text:"EUR/USD",left:200,top:100,right:300,bottom:120}],candles})
     });
     assert.equal(response.status,202);
     last=await response.json();
@@ -63,9 +63,9 @@ test("vision API guards uploads and emits price-only signals without instrument 
   const badOcr=await fetch(base+"/api/vision/frame",{
     method:"POST",
     headers:{"content-type":"application/json","authorization":"Bearer "+enrolled.token},
-    body:JSON.stringify({width:1536,height:691,symbol:"RENDER",timeframe:"UNKNOWN",
+    body:JSON.stringify({width:1536,height:691,symbol:"RENDER",timeframe:"UNKNOWN",deviceTime:Date.now(),
       price:14,pricePrecision:0,ocr:[{text:"RENDER",left:100,top:80,right:260,bottom:110},
-        {text:"14",left:1400,top:300,right:1460,bottom:320}],candles:[],imageBase64})
+        {text:"14",left:1400,top:300,right:1460,bottom:320}],candles:[]})
   });
   const badOcrBody=await badOcr.json();
   assert.equal(badOcrBody.analysis.signal,"WAIT","arbitrary page text and integer labels must never create a directional signal");
@@ -74,8 +74,8 @@ test("vision API guards uploads and emits price-only signals without instrument 
   const switched=await fetch(base+"/api/vision/frame",{
     method:"POST",
     headers:{"content-type":"application/json","authorization":"Bearer test-token"},
-    body:JSON.stringify({width:1536,height:691,symbol:"UNKNOWN",timeframe:"UNKNOWN",
-      price:150.10,pricePrecision:2,imageBase64,ocr:[{text:"150.10",left:1400,top:300,right:1470,bottom:320}],candles:[]})
+    body:JSON.stringify({width:1536,height:691,symbol:"UNKNOWN",timeframe:"UNKNOWN",deviceTime:Date.now(),
+      price:150.10,pricePrecision:2,ocr:[{text:"150.10",left:1400,top:300,right:1470,bottom:320}],candles:[]})
   });
   const switchedBody=await switched.json();
   assert.equal(switchedBody.analysis.signal,"WAIT","a newly selected chart starts a fresh price window");
