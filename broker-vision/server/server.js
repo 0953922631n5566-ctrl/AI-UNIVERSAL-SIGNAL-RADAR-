@@ -140,7 +140,6 @@ app.get("/api/vision/public", (_req,res)=>{
   res.json({ok:true,receivedFrames:frames.length,lastFrameAt:last?.receivedAt||null,
     symbol:last?.symbol||"UNKNOWN",timeframe:last?.timeframe||"UNKNOWN",
     price:last?.price??null,candleCount:last?.candles?.length||0,
-    imageDataUri:latestFrameImage?`data:${latestFrameImage.mimeType};base64,${latestFrameImage.base64}`:null,
     analysis:makeAnalysis()});
 });
 app.post("/api/vision/frame", auth, (req,res)=>{
