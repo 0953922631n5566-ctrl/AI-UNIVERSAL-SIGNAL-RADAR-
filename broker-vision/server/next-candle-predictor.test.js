@@ -17,8 +17,12 @@ test("predicts PUT when APK prices show EMA5 below EMA20",()=>{
  const result=predictNextCandle({candles:fallingCandles,price:1.09948,priceHistory:[1.09960,1.09955,1.09948]});
  assert.equal(result.signal,"PUT");assert.ok(result.ema5<result.ema20);
 });
-test("waits until at least 20 valid APK candles exist for EMA20",()=>{
- const result=predictNextCandle({candles:risingCandles.slice(0,19),price:1.102});
+test("starts EMA20 with short APK history and reports its warmup",()=>{
+ const result=predictNextCandle({candles:risingCandles.slice(0,2),price:1.10032,priceHistory:[1.10022,1.10032]});
+ assert.equal(result.signal,"CALL");assert.equal(result.emaWarmupCandles,18);assert.equal(result.confidence,"LOW");
+});
+test("waits when fewer than two valid APK candles exist",()=>{
+ const result=predictNextCandle({candles:risingCandles.slice(0,1),price:1.10012});
  assert.equal(result.signal,"WAIT");assert.equal(result.status,"EMA_HISTORY_INSUFFICIENT");
 });
 test("fails closed when APK price is unreadable",()=>{
