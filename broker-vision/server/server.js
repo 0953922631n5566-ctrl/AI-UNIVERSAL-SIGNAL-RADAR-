@@ -1,17 +1,20 @@
 import express from "express";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const API_TOKEN = process.env.VISION_API_TOKEN || "";
 const MAX_FRAMES = 240;
 const frames = [];
+let latestFrameImage = null;
+const STORAGE_DIR = process.env.VISION_STORAGE_DIR || "";
 const deviceTokens = new Map();
 const enrollAttempts = new Map();
 const DEVICE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 app.disable("x-powered-by");
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "6mb" }));
 
 function auth(req, res, next) {
   if (!API_TOKEN) return res.status(503).json({ ok:false, error:"VISION_API_TOKEN is not configured" });
@@ -44,6 +47,28 @@ function summarize(items) {
     : clamp(Math.round(45+(dominance-0.5)*70+Math.min(Math.abs(delta)/tick,4)*5),0,85);
   return { direction, priceChange:delta, tickSize:tick, directionalConsistency:Math.round(dominance*100),
     confidence, reason:direction==="WAIT"?"ราคาเคลื่อนไหวยังไม่ถึงอย่างน้อย 1 tick หรือทิศทางยังไม่สม่ำเสมอ":`ราคาเคลื่อนไหวต่อเนื่องในทิศทาง ${direction}` };
+}
+async function persistLatestFrame(frame, image) {
+  if (!STORAGE_DIR) return;
+  await mkdir(STORAGE_DIR, { recursive: true });
+  await writeFile(path.join(STORAGE_DIR, "latest-frame.jpg"), Buffer.from(image.base64, "base64"));
+  await writeFile(path.join(STORAGE_DIR, "latest-frame.json"), JSON.stringify({ ...frame, image: undefined }));
+}
+async function restoreLatestFrame() {
+  if (!STORAGE_DIR) return;
+  try {
+    const [bytes, metadata] = await Promise.all([
+      readFile(path.join(STORAGE_DIR, "latest-frame.jpg")),
+      readFile(path.join(STORAGE_DIR, "latest-frame.json"), "utf8")
+    ]);
+    const frame = JSON.parse(metadata);
+    frame.receivedAt = frame.receivedAt || new Date().toISOString();
+    frames.push(frame);
+    latestFrameImage = { mimeType: "image/jpeg", base64: bytes.toString("base64") };
+    console.log("Restored latest Broker Vision frame from persistent storage");
+  } catch (error) {
+    if (error.code !== "ENOENT") console.error("Could not restore latest frame:", error.message);
+  }
 }
 function makeAnalysis() {
   const last = frames.at(-1);
@@ -126,4 +151,4 @@ app.post("/api/vision/frame", auth, (req,res)=>{
 });
 app.get("/api/vision/snapshot", auth, (_req,res)=>res.json({ok:true,analysis:makeAnalysis(),frames:frames.slice(-20)}));
 app.get("/api/vision/status", auth, (_req,res)=>res.json({ok:true,frames:frames.length,lastFrame:frames.at(-1)?.receivedAt||null,analysis:makeAnalysis()}));
-app.listen(PORT,"0.0.0.0",()=>console.log(`Universal Broker Vision API listening on ${PORT}`));
+await restoreLatestFrame();\napp.listen(PORT,"0.0.0.0",()=>console.log(`Universal Broker Vision API listening on ${PORT}; persistent storage ${STORAGE_DIR ? "enabled" : "not configured"}`));
