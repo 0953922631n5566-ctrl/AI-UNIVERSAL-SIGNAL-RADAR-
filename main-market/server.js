@@ -950,7 +950,8 @@ app.get("/api/vision/miniapp", async (_req, res) => {
     // Fail closed: never expose the legacy price-momentum direction as a next-candle signal.
     const phase = analysis.phase || "WAITING";
     const signal = !fresh || !predictionSourceValid ? "WAIT"
-      : phase === "ACTIVE" && ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
+      : phase === "WATCH" ? "WATCH"
+      : phase === "ORDER" && ["CALL", "PUT"].includes(analysis.signal) ? analysis.signal : "WAIT";
     res.json({
       ok: true,
       service: "universal-broker-vision",
@@ -977,7 +978,7 @@ app.get("/api/vision/miniapp", async (_req, res) => {
       priceDiagnostics: data.priceDiagnostics || null,
       analysis: {
         signal,
-        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : phase === "CUTOFF" ? "CYCLE_CUTOFF" : analysis.status || "ACTIVE_CALCULATING",
+        status: !receivedAt ? "NO_DATA" : !fresh ? "STALE_FRAME" : phase === "WATCH" ? "WATCH_WINDOW" : phase === "ORDER" ? analysis.status || "ORDER_WINDOW" : "WAITING_WINDOW",
         phase,
         cycleId: analysis.cycleId ?? null,
         secondsToNextCandle: analysis.secondsToNextCandle ?? null,
@@ -991,11 +992,13 @@ app.get("/api/vision/miniapp", async (_req, res) => {
         directionalConsistency: Number(analysis.priceMomentum?.directionalConsistency || 0),
         tickSize: Number.isFinite(Number(analysis.priceMomentum?.tickSize)) ? Number(analysis.priceMomentum.tickSize) : null,
         calibratedCandles: Number(prediction?.calibratedCandles || 0),
+        ema5: Number.isFinite(Number(prediction?.ema5)) ? Number(prediction.ema5) : null,
+        ema20: Number.isFinite(Number(prediction?.ema20)) ? Number(prediction.ema20) : null,
         confidence: prediction?.confidence || "LOW",
         nextCandlePrediction: predictionSourceValid ? prediction : null,
         signalConditions: analysis.signalConditions || null,
         analyzedAt: analysis.analyzedAt || null,
-        note: "ทำนายแท่งถัดไปจากแท่ง M1 OHLC ที่สร้างจากราคาจริงของ APK · ไม่มี Twelve Data"
+        note: "WATCH วินาที 50–54 · EMA5/EMA20 และ CALL/PUT วินาที 55–59 · ค้างไฟ 20 วินาทีบน Mini App · ราคา APK เท่านั้น"
       },
       updatedAt: new Date().toISOString()
     });
