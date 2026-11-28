@@ -50,7 +50,7 @@ test("vision API guards uploads, analyzes repeated frames, and isolates instrume
   assert.equal(last.analysis.priceAxisCalibrated,true);
   assert.equal(last.analysis.candlePriceLevels.length,4);
   const publicState=await (await fetch(base+"/api/vision/public")).json();
-  assert.ok(publicState.imageDataUri.startsWith("data:image/jpeg;base64,"),"dashboard should receive the actual uploaded chart image");
+  assert.equal("imageDataUri" in publicState,false,"public status must not expose broker screenshots");
   const miniResponse=await fetch(base+"/api/vision/miniapp");
   const miniState=await miniResponse.json();
   assert.equal(miniResponse.status,200);
